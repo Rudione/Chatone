@@ -1,0 +1,59 @@
+CREATE TABLE MessageEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    channelId TEXT NOT NULL,
+    channelName TEXT NOT NULL,
+    userId TEXT NOT NULL,
+    username TEXT NOT NULL,
+    displayName TEXT NOT NULL,
+    message TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    color TEXT,
+    badges TEXT NOT NULL DEFAULT '[]',
+    emotes TEXT NOT NULL DEFAULT '[]',
+    isModerator INTEGER NOT NULL DEFAULT 0,
+    isSubscriber INTEGER NOT NULL DEFAULT 0,
+    isVip INTEGER NOT NULL DEFAULT 0,
+    isBroadcaster INTEGER NOT NULL DEFAULT 0,
+    isMention INTEGER NOT NULL DEFAULT 0,
+    isAction INTEGER NOT NULL DEFAULT 0
+);
+
+-- Insert message
+insertMessage:
+INSERT OR REPLACE INTO MessageEntity(id, channelId, channelName, userId, username, displayName, message, timestamp, color, badges, emotes, isModerator, isSubscriber, isVip, isBroadcaster, isMention, isAction)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Get messages for channel (with limit)
+getMessagesByChannel:
+SELECT * FROM MessageEntity 
+WHERE channelId = ?
+ORDER BY timestamp DESC
+LIMIT ?;
+
+-- Get recent messages for channel
+getRecentMessages:
+SELECT * FROM MessageEntity 
+WHERE channelId = ? AND timestamp > ?
+ORDER BY timestamp ASC;
+
+-- Delete old messages (keep last N messages per channel)
+deleteOldMessages:
+DELETE FROM MessageEntity
+WHERE id NOT IN (
+    SELECT id FROM MessageEntity
+    WHERE channelId = ?
+    ORDER BY timestamp DESC
+    LIMIT ?
+);
+
+-- Delete messages for channel
+deleteChannelMessages:
+DELETE FROM MessageEntity WHERE channelId = ?;
+
+-- Clear all messages
+clearAllMessages:
+DELETE FROM MessageEntity;
+
+-- Count messages for channel
+countMessagesByChannel:
+SELECT COUNT(*) FROM MessageEntity WHERE channelId = ?;
