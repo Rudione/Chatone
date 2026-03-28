@@ -172,7 +172,7 @@ fun AuthScreen(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Register a Twitch app at dev.twitch.tv/console/apps and set the Client ID in AppConfig.kt. Use implicit grant (response_type=token) - no client secret needed.",
+                            text = "t.me/rudionee",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Start

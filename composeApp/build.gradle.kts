@@ -162,8 +162,14 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "io.rudione.chatone"
-            packageVersion = "1.0.0"
+            packageName = "Chatone"
+            packageVersion = "1.0.1"
+
+            modules(
+                "java.sql",
+                "java.naming",
+                "java.management"
+            )
 
             macOS {
                 iconFile.set(project.file("src/desktopMain/resources/icon.icns"))
