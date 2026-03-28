@@ -11,6 +11,7 @@ import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient
 import io.rudione.chatone.data.remote.emote.SevenTvEventApi
 import io.rudione.chatone.data.repository.BadgeRepository
+import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.domain.model.ChatMessage
@@ -47,7 +48,14 @@ data class ChatState(
     // Emote autocomplete
     val emoteCompletions: List<GenericEmote> = emptyList(),
     val showEmoteCompletions: Boolean = false,
-    val mentionCount: Int = 0
+    // Username @mention autocomplete
+    val mentionCompletions: List<String> = emptyList(),
+    val showMentionCompletions: Boolean = false,
+    val mentionCount: Int = 0,
+    // Reply
+    val replyingTo: DisplayMessage.PrivMsg? = null,
+    // Pinned message
+    val pinnedMessage: DisplayMessage.PrivMsg? = null
 ) : UiState
 
 data class RoomState(
@@ -82,9 +90,22 @@ sealed class ChatEvent : UiEvent {
     // Emote completion
     data class OnSelectEmoteCompletion(val emote: GenericEmote) : ChatEvent()
     object OnDismissCompletions : ChatEvent()
+    data class OnSelectMentionCompletion(val username: String) : ChatEvent()
+    object OnDismissMentionCompletions : ChatEvent()
     // Chat settings (mod panel)
     data class OnUpdateChatSettings(val settings: Map<String, Any>) : ChatEvent()
     object OnClearChat : ChatEvent()
+    // Reply
+    data class OnReplyToMessage(val message: DisplayMessage.PrivMsg) : ChatEvent()
+    object OnCancelReply : ChatEvent()
+    // Pin message
+    data class OnPinMessage(val messageId: String) : ChatEvent()
+    object OnUnpinMessage : ChatEvent()
+    // Mod panel actions
+    data class OnSendAnnouncement(val message: String, val color: String = "primary") : ChatEvent()
+    data class OnStartRaid(val targetLogin: String) : ChatEvent()
+    object OnCancelRaid : ChatEvent()
+    data class OnSendShoutout(val targetUserId: String) : ChatEvent()
 }
 
 sealed class ChatEffect : UIEffect {
@@ -108,7 +129,17 @@ class ChatViewModel(
     companion object {
         private const val TAG = "ChatViewModel"
         private const val MAX_MESSAGES = 500
+        private const val MAX_CACHED_CHANNELS = 10
     }
+
+    // Per-channel message cache for preserving history when switching channels
+    private val channelMessageCache = mutableMapOf<String, List<DisplayMessage>>()
+    private val channelRoomStateCache = mutableMapOf<String, RoomState>()
+    private val channelIdCache = mutableMapOf<String, String>()
+    private val channelModCache = mutableMapOf<String, Boolean>()
+
+    // Current user's badges (from USERSTATE IRC event)
+    private var currentUserBadgeRaw: String = ""
 
     private data class HighlightMatch(val color: Long, val playSound: Boolean)
 
@@ -166,17 +197,64 @@ class ChatViewModel(
             is ChatEvent.OnUnvipUser -> unvipUser(event.userId)
             is ChatEvent.OnSelectEmoteCompletion -> selectEmoteCompletion(event.emote)
             ChatEvent.OnDismissCompletions -> update { it.copy(showEmoteCompletions = false, emoteCompletions = emptyList()) }
+            is ChatEvent.OnSelectMentionCompletion -> selectMentionCompletion(event.username)
+            ChatEvent.OnDismissMentionCompletions -> update { it.copy(showMentionCompletions = false, mentionCompletions = emptyList()) }
             is ChatEvent.OnUpdateChatSettings -> updateChatSettings(event.settings)
             ChatEvent.OnClearChat -> clearChat()
+            is ChatEvent.OnReplyToMessage -> update { it.copy(replyingTo = event.message, messageInput = "@${event.message.displayName} ") }
+            ChatEvent.OnCancelReply -> update { it.copy(replyingTo = null) }
+            is ChatEvent.OnPinMessage -> pinMessage(event.messageId)
+            ChatEvent.OnUnpinMessage -> update { it.copy(pinnedMessage = null) }
+            is ChatEvent.OnSendAnnouncement -> sendAnnouncement(event.message, event.color)
+            is ChatEvent.OnStartRaid -> startRaid(event.targetLogin)
+            ChatEvent.OnCancelRaid -> cancelRaid()
+            is ChatEvent.OnSendShoutout -> sendShoutout(event.targetUserId)
         }
     }
 
     private fun initChannel(channelLogin: String, accessToken: String, userId: String, userLogin: String, userDisplayName: String) {
-        // Set token and userId immediately if provided (from saved account)
+        val oldState = state.value
+        val oldChannel = oldState.channelLogin
+
+        // Save current channel's state to cache before switching
+        if (oldChannel.isNotEmpty() && oldChannel != channelLogin) {
+            channelMessageCache[oldChannel] = oldState.messages
+            channelRoomStateCache[oldChannel] = oldState.roomState
+            if (oldState.channelId.isNotEmpty()) channelIdCache[oldChannel] = oldState.channelId
+            channelModCache[oldChannel] = oldState.isMod
+
+            // Evict oldest cached channels if over limit
+            if (channelMessageCache.size > MAX_CACHED_CHANNELS) {
+                val oldest = channelMessageCache.keys.first()
+                channelMessageCache.remove(oldest)
+                channelRoomStateCache.remove(oldest)
+                channelIdCache.remove(oldest)
+                channelModCache.remove(oldest)
+            }
+        }
+
+        // Restore cached state or start fresh for the new channel
+        val cachedMessages = channelMessageCache[channelLogin] ?: emptyList()
+        val cachedRoomState = channelRoomStateCache[channelLogin] ?: RoomState()
+        val cachedChannelId = channelIdCache[channelLogin] ?: ""
+        val cachedIsMod = channelModCache[channelLogin] ?: false
+
         update {
             it.copy(
                 channelLogin = channelLogin,
-                isLoading = true,
+                channelId = cachedChannelId,
+                messages = cachedMessages,
+                roomState = cachedRoomState,
+                isMod = cachedIsMod,
+                isLoading = cachedMessages.isEmpty(),
+                modModeEnabled = false,
+                emoteCompletions = emptyList(),
+                showEmoteCompletions = false,
+                mentionCompletions = emptyList(),
+                showMentionCompletions = false,
+                mentionCount = 0,
+                replyingTo = null,
+                pinnedMessage = null,
                 currentAccessToken = if (accessToken.isNotEmpty()) accessToken else it.currentAccessToken,
                 currentUserId = if (userId.isNotEmpty()) userId else it.currentUserId,
                 currentUserLogin = if (userLogin.isNotEmpty()) userLogin else it.currentUserLogin,
@@ -188,7 +266,28 @@ class ChatViewModel(
             try {
                 joinChannelUseCase(channelLogin)
 
-                // Load emotes, badges, and recent messages in parallel
+                // Resolve channelId eagerly from Twitch API if not cached
+                var resolvedChannelId = cachedChannelId
+                if (resolvedChannelId.isEmpty()) {
+                    val token = state.value.currentAccessToken
+                    if (token.isNotEmpty()) {
+                        try {
+                            val result = apiClient.getUsers(token, logins = listOf(channelLogin))
+                            if (result is io.rudione.chatone.util.Result.Success) {
+                                result.data.data.firstOrNull()?.let { user ->
+                                    resolvedChannelId = user.id
+                                    update { it.copy(channelId = user.id) }
+                                    channelIdCache[channelLogin.lowercase()] = user.id
+                                    Napier.d("Resolved channelId for $channelLogin: ${user.id}", tag = TAG)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Napier.w("Failed to resolve channelId for $channelLogin: ${e.message}", tag = TAG)
+                        }
+                    }
+                }
+
+                // Load emotes, badges in parallel — channel emotes always load eagerly now
                 launch {
                     emoteRepository.loadGlobalEmotes()
                     retokenizeMessages()
@@ -197,6 +296,10 @@ class ChatViewModel(
                     loadBadgesWithToken()
                     retokenizeMessages()
                 }
+                if (resolvedChannelId.isNotEmpty()) {
+                    launch { loadChannelEmotesAndBadges(resolvedChannelId) }
+                }
+                // Load recent messages after a small delay to let emotes start loading
                 launch { loadRecentMessages(channelLogin) }
 
                 update { it.copy(isLoading = false) }
@@ -214,8 +317,33 @@ class ChatViewModel(
             val recent = recentMessagesClient.getRecentMessages(channelLogin)
             if (recent.isNotEmpty()) {
                 val displayMessages = recent.map { msg -> chatMessageToDisplay(msg) }
-                update { it.copy(messages = displayMessages.takeLast(MAX_MESSAGES)) }
+                update { state ->
+                    if (state.channelLogin == channelLogin) {
+                        state.copy(messages = displayMessages.takeLast(MAX_MESSAGES))
+                    } else state
+                }
                 sendEffect(ChatEffect.ScrollToBottom)
+
+                // Async fetch 7TV cosmetics for recent message authors
+                val uniqueUserIds = recent.map { it.userId }.distinct().take(50)
+                uniqueUserIds.forEach { userId ->
+                    viewModelScope.launch {
+                        try {
+                            val cosmetics = sevenTvCosmeticsClient.getUserCosmetics(userId)
+                            if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
+                                if (state.value.channelLogin == channelLogin) {
+                                    update { state ->
+                                        state.copy(messages = state.messages.map { dm ->
+                                            if (dm is DisplayMessage.PrivMsg && dm.userId == userId && dm.sevenTvPaint == null && dm.sevenTvBadge == null) {
+                                                dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
+                                            } else dm
+                                        })
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
             }
         } catch (e: Exception) {
             Napier.e("Failed to load recent messages: ${e.message}", tag = TAG)
@@ -246,7 +374,10 @@ class ChatViewModel(
                     emoteRepository.loadChannelEmotes(channelLogin, channelId)
                     Napier.d("Channel emotes loaded for $channelLogin", tag = TAG)
                     // Re-tokenize existing messages now that emotes are available
-                    retokenizeMessages()
+                    // Only retokenize if we're still on the same channel
+                    if (state.value.channelLogin == channelLogin) {
+                        retokenizeMessages()
+                    }
                 } catch (e: Exception) {
                     Napier.e("Failed to load channel emotes: ${e.message}", tag = TAG)
                 }
@@ -285,6 +416,7 @@ class ChatViewModel(
     private fun retokenizeMessages() {
         update { state ->
             val channelLogin = state.channelLogin
+            if (channelLogin.isEmpty()) return@update state
             val channelEmotes = emoteRepository.getResolvedEmotes(channelLogin)
             state.copy(
                 messages = state.messages.map { msg ->
@@ -335,6 +467,7 @@ class ChatViewModel(
                     // Capture channelId from first message and trigger emote/badge loading
                     if (state.value.channelId.isEmpty() && message.channelId.isNotEmpty()) {
                         update { it.copy(channelId = message.channelId) }
+                        channelIdCache[message.channelName.lowercase()] = message.channelId
                         loadChannelEmotesAndBadges(message.channelId)
                     }
 
@@ -370,6 +503,8 @@ class ChatViewModel(
                     } else displayMsg
 
                     update { state ->
+                        // Guard: only add if still on same channel
+                        if (!state.channelLogin.equals(message.channelName, ignoreCase = true)) return@update state
                         val newMessages = (state.messages + finalMsg).takeLast(MAX_MESSAGES)
                         state.copy(
                             messages = newMessages,
@@ -383,6 +518,16 @@ class ChatViewModel(
                     }
 
                     chatRepository.saveMessage(message)
+                } else {
+                    // Background channel: still check for mentions to trigger sound/badge
+                    val s = state.value
+                    val isOwnMessage = message.userId == s.currentUserId
+                    if (!isOwnMessage) {
+                        val matchResult = checkHighlightRules(message.message, s.currentUserLogin)
+                        if (matchResult != null && matchResult.playSound) {
+                            sendEffect(ChatEffect.MentionDetected(message.channelName))
+                        }
+                    }
                 }
             }
         }
@@ -480,21 +625,28 @@ class ChatViewModel(
                             val roomId = event.roomId
                             if (!roomId.isNullOrEmpty() && state.value.channelId.isEmpty()) {
                                 update { it.copy(channelId = roomId) }
+                                channelIdCache[channelLogin.lowercase()] = roomId
                                 loadChannelEmotesAndBadges(roomId)
                             }
                             update { state ->
-                                state.copy(roomState = RoomState(
+                                val newRoomState = RoomState(
                                     emoteOnly = event.emoteOnly ?: state.roomState.emoteOnly,
                                     followersOnly = event.followersOnly ?: state.roomState.followersOnly,
                                     slowMode = event.slowMode ?: state.roomState.slowMode,
                                     subsOnly = event.subsOnly ?: state.roomState.subsOnly,
                                     r9k = event.r9k ?: state.roomState.r9k
-                                ))
+                                )
+                                channelRoomStateCache[channelLogin.lowercase()] = newRoomState
+                                state.copy(roomState = newRoomState)
                             }
                         }
                     }
                     is IrcEvent.UserState -> {
                         if (event.channel.equals(channelLogin, ignoreCase = true)) {
+                            channelModCache[channelLogin.lowercase()] = event.isMod
+                            if (event.badges.isNotEmpty()) {
+                                currentUserBadgeRaw = event.badges
+                            }
                             update {
                                 it.copy(
                                     isMod = event.isMod,
@@ -580,8 +732,37 @@ class ChatViewModel(
     private fun updateMessageInput(input: String) {
         update { it.copy(messageInput = input) }
 
-        // Check for emote completion trigger
         val lastWord = input.trimEnd().split(" ").lastOrNull() ?: ""
+
+        // Check for @mention completion trigger
+        if (lastWord.startsWith("@") && lastWord.length >= 2) {
+            val query = lastWord.removePrefix("@")
+            val recentUsers = state.value.messages
+                .filterIsInstance<DisplayMessage.PrivMsg>()
+                .takeLast(1000)
+                .map { it.displayName }
+                .distinct()
+                .filter { it.contains(query, ignoreCase = true) }
+                .sortedBy { it.length }
+                .take(8)
+
+            if (recentUsers.isNotEmpty()) {
+                update { it.copy(
+                    mentionCompletions = recentUsers,
+                    showMentionCompletions = true,
+                    showEmoteCompletions = false,
+                    emoteCompletions = emptyList()
+                ) }
+            } else {
+                update { it.copy(showMentionCompletions = false, mentionCompletions = emptyList()) }
+            }
+            return
+        }
+
+        // Clear mention completions if not @
+        update { it.copy(showMentionCompletions = false, mentionCompletions = emptyList()) }
+
+        // Check for emote completion trigger
         if (lastWord.length >= 2 && !lastWord.startsWith("/")) {
             val channelEmotes = emoteRepository.getResolvedEmotes(state.value.channelLogin)
             val matches = channelEmotes.allByCode.entries
@@ -598,6 +779,16 @@ class ChatViewModel(
         } else {
             update { it.copy(showEmoteCompletions = false, emoteCompletions = emptyList()) }
         }
+    }
+
+    private fun selectMentionCompletion(username: String) {
+        val current = state.value.messageInput
+        val words = current.split(" ").toMutableList()
+        if (words.isNotEmpty()) {
+            words[words.size - 1] = "@$username"
+        }
+        val newInput = words.joinToString(" ") + " "
+        update { it.copy(messageInput = newInput, showMentionCompletions = false, mentionCompletions = emptyList()) }
     }
 
     private fun selectEmoteCompletion(emote: GenericEmote) {
@@ -657,6 +848,15 @@ class ChatViewModel(
 
                 // Local echo — show own message immediately (Twitch IRC doesn't echo back)
                 val now = Clock.System.now().toEpochMilliseconds()
+                // Parse own badges from cached USERSTATE
+                val ownBadges = if (currentUserBadgeRaw.isNotEmpty()) {
+                    currentUserBadgeRaw.split(",").mapNotNull { pair ->
+                        val parts = pair.split("/", limit = 2)
+                        if (parts.size == 2) Badge(id = parts[0], version = parts[1], imageUrl = "")
+                        else null
+                    }
+                } else emptyList()
+
                 val rawMsg = ChatMessage(
                     id = "local_$now",
                     channelId = s.channelId,
@@ -667,7 +867,7 @@ class ChatViewModel(
                     message = message,
                     timestamp = now,
                     color = s.currentUserColor.ifEmpty { "#9146FF" },
-                    badges = emptyList(),
+                    badges = ownBadges,
                     isModerator = s.isMod
                 )
                 val displayMsg = chatMessageToDisplay(rawMsg)
@@ -678,7 +878,8 @@ class ChatViewModel(
                         messageInput = "",
                         showEmoteCompletions = false,
                         emoteCompletions = emptyList(),
-                        messages = newMessages
+                        messages = newMessages,
+                        replyingTo = null
                     )
                 }
                 sendEffect(ChatEffect.ScrollToBottom)
@@ -834,6 +1035,13 @@ class ChatViewModel(
         }
     }
 
+    private fun pinMessage(messageId: String) {
+        val msg = state.value.messages.filterIsInstance<DisplayMessage.PrivMsg>().firstOrNull { it.id == messageId }
+        if (msg != null) {
+            update { it.copy(pinnedMessage = msg) }
+        }
+    }
+
     private fun clearChat() {
         val s = state.value
         if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
@@ -847,6 +1055,64 @@ class ChatViewModel(
             if (result.isError) {
                 sendEffect(ChatEffect.ShowError("Failed to clear chat"))
             }
+        }
+    }
+
+    private fun sendAnnouncement(message: String, color: String) {
+        val s = state.value
+        if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
+        viewModelScope.launch {
+            val result = apiClient.sendAnnouncement(
+                accessToken = s.currentAccessToken,
+                broadcasterId = s.channelId,
+                moderatorId = s.currentUserId,
+                message = message,
+                color = color
+            )
+            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to send announcement"))
+        }
+    }
+
+    private fun startRaid(targetLogin: String) {
+        val s = state.value
+        if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
+        viewModelScope.launch {
+            // Resolve target login to user ID
+            val usersResult = apiClient.getUsers(s.currentAccessToken, logins = listOf(targetLogin))
+            if (usersResult is io.rudione.chatone.util.Result.Success) {
+                val targetId = usersResult.data.data.firstOrNull()?.id
+                if (targetId != null) {
+                    val result = apiClient.startRaid(s.currentAccessToken, s.channelId, targetId)
+                    if (result.isError) sendEffect(ChatEffect.ShowError("Failed to start raid"))
+                } else {
+                    sendEffect(ChatEffect.ShowError("User not found: $targetLogin"))
+                }
+            } else {
+                sendEffect(ChatEffect.ShowError("Failed to resolve user for raid"))
+            }
+        }
+    }
+
+    private fun cancelRaid() {
+        val s = state.value
+        if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
+        viewModelScope.launch {
+            val result = apiClient.cancelRaid(s.currentAccessToken, s.channelId)
+            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to cancel raid"))
+        }
+    }
+
+    private fun sendShoutout(targetUserId: String) {
+        val s = state.value
+        if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
+        viewModelScope.launch {
+            val result = apiClient.sendShoutout(
+                accessToken = s.currentAccessToken,
+                fromBroadcasterId = s.channelId,
+                toBroadcasterId = targetUserId,
+                moderatorId = s.currentUserId
+            )
+            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to send shoutout"))
         }
     }
 }

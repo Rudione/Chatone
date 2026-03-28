@@ -25,6 +25,12 @@ object MessageTokenizer {
         RegexOption.IGNORE_CASE
     )
 
+    // Common TLDs for detecting bare domain links like t.me/user or discord.gg/invite
+    private val BARE_LINK_REGEX = Regex(
+        """(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:me|gg|tv|com|org|net|io|co|ru|de|fr|uk|us|info|dev|app|xyz|pro|live|stream|chat|link|ly|be)/[^\s<>"{}|\\^`\[\]]+""",
+        RegexOption.IGNORE_CASE
+    )
+
     private val OVERLAY_EMOTES = setOf(
         "SoSnowy", "IceCold", "SantaHat", "TopHat",
         "ReinDeer", "CandyCane", "cvMask", "cvHazmat"
@@ -101,6 +107,9 @@ object MessageTokenizer {
                 }
                 URL_REGEX.matches(word) -> {
                     tokens.add(MessageToken.Link(word, word))
+                }
+                BARE_LINK_REGEX.matches(word) -> {
+                    tokens.add(MessageToken.Link("https://$word", word))
                 }
                 currentUsername != null && word.equals("@$currentUsername", ignoreCase = true) -> {
                     tokens.add(MessageToken.Mention(word))

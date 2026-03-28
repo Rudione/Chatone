@@ -106,6 +106,21 @@ fun SettingsScreen(
                 )
             }
 
+            // Window section (desktop only)
+            item {
+                SectionHeader("Window")
+            }
+            item {
+                SwitchPreference(
+                    title = "Always on Top",
+                    subtitle = "Keep window above other windows",
+                    checked = state.alwaysOnTop,
+                    onCheckedChange = {
+                        viewModel.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
+                    }
+                )
+            }
+
             // Chat section
             item {
                 SectionHeader("Chat")
@@ -192,6 +207,50 @@ fun SettingsScreen(
                         viewModel.sendEvent(SettingsEvent.OnMentionSoundChanged(it))
                     }
                 )
+            }
+            if (state.mentionSoundEnabled) {
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Volume: ${(state.mentionSoundVolume * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Slider(
+                            value = state.mentionSoundVolume,
+                            onValueChange = {
+                                viewModel.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it))
+                            },
+                            valueRange = 0f..1f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        Text(
+                            text = "Custom Sound (MP3/WAV path)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedTextField(
+                            value = state.customMentionSoundPath,
+                            onValueChange = {
+                                viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(it))
+                            },
+                            placeholder = {
+                                Text(
+                                    "Leave empty for default tone",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
             }
             items(state.highlightRules) { rule ->
                 HighlightRuleItem(

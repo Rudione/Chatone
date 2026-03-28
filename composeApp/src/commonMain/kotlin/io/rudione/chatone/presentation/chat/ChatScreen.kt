@@ -2,20 +2,19 @@ package io.rudione.chatone.presentation.chat
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
@@ -27,6 +26,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
@@ -94,7 +97,10 @@ fun ChatScreen(
                 }
                 is ChatEffect.MentionDetected -> {
                     if (settingsState.mentionSoundEnabled) {
-                        NotificationSoundPlayer.playMentionSound()
+                        NotificationSoundPlayer.playMentionSound(
+                            volume = settingsState.mentionSoundVolume,
+                            customSoundPath = settingsState.customMentionSoundPath
+                        )
                     }
                     onMentionDetected(effect.channelLogin)
                 }
@@ -119,6 +125,15 @@ fun ChatScreen(
             onToggleModMode = { viewModel.sendEvent(ChatEvent.OnToggleModMode) },
             onOpenModPanel = { showModPanel = !showModPanel }
         )
+
+        // ── Pinned Message ─────────────────────────────────────────
+        state.pinnedMessage?.let { pinned ->
+            PinnedMessageBar(
+                message = pinned,
+                canUnpin = state.isMod,
+                onUnpin = { viewModel.sendEvent(ChatEvent.OnUnpinMessage) }
+            )
+        }
 
         // ── Message List ────────────────────────────────────────────
         Box(
@@ -166,9 +181,17 @@ fun ChatScreen(
                                 showModActions = state.modModeEnabled,
                                 timestampFormat = settingsState.timestampFormat,
                                 showBadges = settingsState.showBadges,
+                                isMod = state.isMod || message.isBroadcaster,
+                                emoteSize = settingsState.emoteSize,
                                 onUsernameClick = {
                                     profilePopupMessage = message
                                     profilePopupUserId = message.userId
+                                },
+                                onReply = {
+                                    viewModel.sendEvent(ChatEvent.OnReplyToMessage(message))
+                                },
+                                onPin = {
+                                    viewModel.sendEvent(ChatEvent.OnPinMessage(message.id))
                                 },
                                 onTimeout = {
                                     if (settingsState.confirmModActions) {
@@ -239,7 +262,25 @@ fun ChatScreen(
                 onClearChat = {
                     viewModel.sendEvent(ChatEvent.OnClearChat)
                 },
+                onSendAnnouncement = { message, color ->
+                    viewModel.sendEvent(ChatEvent.OnSendAnnouncement(message, color))
+                },
+                onStartRaid = { targetLogin ->
+                    viewModel.sendEvent(ChatEvent.OnStartRaid(targetLogin))
+                },
+                onCancelRaid = {
+                    viewModel.sendEvent(ChatEvent.OnCancelRaid)
+                },
                 onClose = { showModPanel = false }
+            )
+        }
+
+        // ── @Mention Autocomplete ────────────────────────────────────
+        if (state.showMentionCompletions && state.mentionCompletions.isNotEmpty()) {
+            MentionAutocompleteRow(
+                usernames = state.mentionCompletions,
+                onSelect = { viewModel.sendEvent(ChatEvent.OnSelectMentionCompletion(it)) },
+                onDismiss = { viewModel.sendEvent(ChatEvent.OnDismissMentionCompletions) }
             )
         }
 
@@ -249,6 +290,23 @@ fun ChatScreen(
                 emotes = state.emoteCompletions,
                 onSelect = { viewModel.sendEvent(ChatEvent.OnSelectEmoteCompletion(it)) },
                 onDismiss = { viewModel.sendEvent(ChatEvent.OnDismissCompletions) }
+            )
+        }
+
+        // ── Reply Bar ─────────────────────────────────────────────
+        state.replyingTo?.let { replyMsg ->
+            ReplyBar(
+                displayName = replyMsg.displayName,
+                messagePreview = replyMsg.tokens.joinToString("") { token ->
+                    when (token) {
+                        is MessageToken.Text -> token.text
+                        is MessageToken.TwitchEmoteToken -> token.name
+                        is MessageToken.ThirdPartyEmoteToken -> token.emote.code
+                        is MessageToken.Link -> token.displayText
+                        is MessageToken.Mention -> token.username
+                    }
+                },
+                onCancel = { viewModel.sendEvent(ChatEvent.OnCancelReply) }
             )
         }
 
@@ -288,6 +346,8 @@ fun ChatScreen(
             username = msg.username,
             displayName = msg.displayName,
             color = msg.color,
+            accessToken = state.currentAccessToken,
+            channelId = state.channelId,
             isModerator = msg.isModerator,
             isSubscriber = msg.isSubscriber,
             isVip = msg.isVip,
@@ -512,13 +572,19 @@ private fun ChatTopBar(
 
 // ─── Message Items ──────────────────────────────────────────────────────
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PrivMsgItem(
     message: DisplayMessage.PrivMsg,
     showModActions: Boolean = false,
     timestampFormat: SettingsState.TimestampFormat = SettingsState.TimestampFormat.H24,
     showBadges: Boolean = true,
+    isMod: Boolean = false,
+    emoteSize: SettingsState.EmoteSize = SettingsState.EmoteSize.SMALL,
     onUsernameClick: () -> Unit = {},
+    onReply: () -> Unit = {},
+    onCopyText: () -> Unit = {},
+    onPin: () -> Unit = {},
     onTimeout: () -> Unit = {},
     onBan: () -> Unit = {},
     onDelete: () -> Unit = {},
@@ -539,43 +605,56 @@ private fun PrivMsgItem(
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.Top
     ) {
-        // Mod actions (compact icons)
+        // Mod actions (compact icons inline with badges/username)
         if (showModActions) {
-            Column(
-                modifier = Modifier.padding(end = 4.dp, top = 2.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
+            Row(
+                modifier = Modifier.padding(end = 6.dp, top = 1.dp),
+                horizontalArrangement = Arrangement.spacedBy(1.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(18.dp)
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onDelete)
+                        .padding(3.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Outlined.Delete,
                         contentDescription = "Delete",
-                        modifier = Modifier.size(13.dp),
-                        tint = extraColors.modDelete.copy(alpha = 0.7f)
+                        modifier = Modifier.size(14.dp),
+                        tint = extraColors.modDelete
                     )
                 }
-                IconButton(
-                    onClick = onTimeout,
-                    modifier = Modifier.size(18.dp)
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onTimeout)
+                        .padding(3.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Outlined.Refresh,
                         contentDescription = "Timeout",
-                        modifier = Modifier.size(13.dp),
-                        tint = extraColors.modTimeout.copy(alpha = 0.7f)
+                        modifier = Modifier.size(14.dp),
+                        tint = extraColors.modTimeout
                     )
                 }
-                IconButton(
-                    onClick = onBan,
-                    modifier = Modifier.size(18.dp)
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onBan)
+                        .padding(3.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Filled.Close,
                         contentDescription = "Ban",
-                        modifier = Modifier.size(13.dp),
-                        tint = extraColors.modBan.copy(alpha = 0.7f)
+                        modifier = Modifier.size(14.dp),
+                        tint = extraColors.modBan
                     )
                 }
             }
@@ -626,6 +705,11 @@ private fun PrivMsgItem(
         }
 
         // Message content with inline emotes
+        val emoteSizeSp = when (emoteSize) {
+            SettingsState.EmoteSize.SMALL -> 20.sp
+            SettingsState.EmoteSize.MEDIUM -> 28.sp
+            SettingsState.EmoteSize.LARGE -> 36.sp
+        }
         val userColor = parseColor(message.color) ?: MaterialTheme.colorScheme.primary
         val paintBrush = message.sevenTvPaint?.let { createPaintBrush(it) }
         val inlineContent = mutableMapOf<String, InlineTextContent>()
@@ -698,7 +782,7 @@ private fun PrivMsgItem(
                             val key = "emote_${emoteCounter++}"
                             appendInlineContent(key, token.name)
                             inlineContent[key] = InlineTextContent(
-                                Placeholder(24.sp, 24.sp, PlaceholderVerticalAlign.TextCenter)
+                                Placeholder(emoteSizeSp, emoteSizeSp, PlaceholderVerticalAlign.TextCenter)
                             ) {
                                 AnimatedEmoteImage(
                                     url = token.url,
@@ -711,7 +795,7 @@ private fun PrivMsgItem(
                             val key = "emote_${emoteCounter++}"
                             appendInlineContent(key, token.emote.code)
                             inlineContent[key] = InlineTextContent(
-                                Placeholder(24.sp, 24.sp, PlaceholderVerticalAlign.TextCenter)
+                                Placeholder(emoteSizeSp, emoteSizeSp, PlaceholderVerticalAlign.TextCenter)
                             ) {
                                 Box {
                                     AnimatedEmoteImage(
@@ -730,12 +814,14 @@ private fun PrivMsgItem(
                             }
                         }
                         is MessageToken.Link -> {
+                            pushStringAnnotation("url", token.url)
                             withStyle(SpanStyle(
                                 color = MaterialTheme.colorScheme.primary,
                                 textDecoration = TextDecoration.Underline
                             )) {
                                 append(token.displayText)
                             }
+                            pop()
                         }
                         is MessageToken.Mention -> {
                             withStyle(SpanStyle(
@@ -750,15 +836,141 @@ private fun PrivMsgItem(
             }
         }
 
-        Text(
-            text = annotatedString,
-            inlineContent = inlineContent,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier
-                .weight(1f)
-                .clickable { onUsernameClick() }
-        )
+        var showContextMenu by remember { mutableStateOf(false) }
+        val clipboardManager = LocalClipboardManager.current
+        val uriHandler = LocalUriHandler.current
+        // Track text layout for click offset detection
+        var textLayoutResult by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+
+        Box(modifier = Modifier.weight(1f)) {
+            SelectionContainer {
+                Text(
+                    text = annotatedString,
+                    inlineContent = inlineContent,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(annotatedString) {
+                            detectTapGestures(
+                                onTap = { offset ->
+                                    textLayoutResult?.let { layoutResult ->
+                                        val charOffset = layoutResult.getOffsetForPosition(offset)
+                                        // Check for URL annotation first
+                                        annotatedString.getStringAnnotations("url", charOffset, charOffset)
+                                            .firstOrNull()?.let { annotation ->
+                                                try {
+                                                    uriHandler.openUri(annotation.item)
+                                                } catch (_: Exception) {}
+                                                return@detectTapGestures
+                                            }
+                                        // Check for username annotation
+                                        annotatedString.getStringAnnotations("username", charOffset, charOffset)
+                                            .firstOrNull()?.let {
+                                                onUsernameClick()
+                                                return@detectTapGestures
+                                            }
+                                    }
+                                },
+                                onLongPress = {
+                                    showContextMenu = true
+                                }
+                            )
+                        },
+                    onTextLayout = { textLayoutResult = it }
+                )
+            }
+
+            // Context menu (liquid glass + M3 expressive design)
+            DropdownMenu(
+                expanded = showContextMenu,
+                onDismissRequest = { showContextMenu = false },
+                modifier = Modifier
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.88f)
+                            )
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+            ) {
+                // Pin option (only for mods/broadcasters)
+                if (isMod) {
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.Place,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Pin", fontWeight = FontWeight.SemiBold)
+                            }
+                        },
+                        onClick = {
+                            showContextMenu = false
+                            onPin()
+                        }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                    )
+                }
+
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Send,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Reply")
+                        }
+                    },
+                    onClick = {
+                        showContextMenu = false
+                        onReply()
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Outlined.Info,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Copy Text")
+                        }
+                    },
+                    onClick = {
+                        showContextMenu = false
+                        // Build raw text from tokens
+                        val rawText = message.tokens.joinToString("") { token ->
+                            when (token) {
+                                is MessageToken.Text -> token.text
+                                is MessageToken.TwitchEmoteToken -> token.name
+                                is MessageToken.ThirdPartyEmoteToken -> token.emote.code
+                                is MessageToken.Link -> token.displayText
+                                is MessageToken.Mention -> token.username
+                            }
+                        }
+                        clipboardManager.setText(AnnotatedString(rawText))
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -972,6 +1184,208 @@ private fun EmoteAutocompleteRow(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+// ─── @Mention Autocomplete ───────────────────────────────────────────────
+
+@Composable
+private fun MentionAutocompleteRow(
+    usernames: List<String>,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        tonalElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            usernames.forEach { username ->
+                Surface(
+                    onClick = { onSelect(username) },
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    tonalElevation = 1.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "@$username",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Pinned Message Bar ──────────────────────────────────────────────────
+
+@Composable
+private fun PinnedMessageBar(
+    message: DisplayMessage.PrivMsg,
+    canUnpin: Boolean,
+    onUnpin: () -> Unit
+) {
+    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.Transparent,
+        tonalElevation = 2.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            primaryColor.copy(alpha = 0.08f),
+                            surfaceColor.copy(alpha = 0.92f),
+                            primaryColor.copy(alpha = 0.05f)
+                        )
+                    )
+                )
+                .border(
+                    width = 0.5.dp,
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            primaryColor.copy(alpha = 0.3f),
+                            primaryColor.copy(alpha = 0.1f),
+                            primaryColor.copy(alpha = 0.2f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(0.dp)
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.Place,
+                    contentDescription = "Pinned",
+                    modifier = Modifier.size(16.dp),
+                    tint = primaryColor.copy(alpha = 0.8f)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = message.displayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = parseColor(message.color) ?: primaryColor
+                    )
+                    Text(
+                        text = message.tokens.joinToString("") { token ->
+                            when (token) {
+                                is MessageToken.Text -> token.text
+                                is MessageToken.TwitchEmoteToken -> token.name
+                                is MessageToken.ThirdPartyEmoteToken -> token.emote.code
+                                is MessageToken.Link -> token.displayText
+                                is MessageToken.Mention -> token.username
+                            }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (canUnpin) {
+                    IconButton(
+                        onClick = onUnpin,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Unpin",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Reply Bar ───────────────────────────────────────────────────────────
+
+@Composable
+private fun ReplyBar(
+    displayName: String,
+    messagePreview: String,
+    onCancel: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
+        tonalElevation = 1.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Replying to $displayName",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = messagePreview,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(
+                onClick = onCancel,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "Cancel reply",
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

@@ -130,6 +130,21 @@ data class BadgeVersionDto(
     val description: String = ""
 )
 
+// Followers Response
+@Serializable
+data class FollowersResponse(
+    val data: List<FollowerData>,
+    val total: Int = 0
+)
+
+@Serializable
+data class FollowerData(
+    @SerialName("user_id") val userId: String,
+    @SerialName("user_login") val userLogin: String,
+    @SerialName("user_name") val userName: String,
+    @SerialName("followed_at") val followedAt: String
+)
+
 // Error Response
 @Serializable
 data class TwitchErrorResponse(

@@ -26,6 +26,7 @@ import io.rudione.chatone.data.repository.ChannelFolderRepository
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.ChatRepositoryImpl
 import io.rudione.chatone.data.repository.EmoteRepository
+import io.rudione.chatone.data.repository.UserNoteRepository
 import io.rudione.chatone.domain.usecase.*
 import io.rudione.chatone.presentation.auth.AuthViewModel
 import io.rudione.chatone.presentation.chat.ChatViewModel
@@ -130,6 +131,12 @@ val repositoryModule = module {
 
     single {
         ChannelFolderRepository(
+            database = get()
+        )
+    }
+
+    single {
+        UserNoteRepository(
             database = get()
         )
     }

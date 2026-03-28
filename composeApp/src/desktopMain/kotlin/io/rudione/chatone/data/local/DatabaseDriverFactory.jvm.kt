@@ -58,5 +58,13 @@ actual class DatabaseDriverFactory {
                 FOREIGN KEY (folderId) REFERENCES ChannelFolderEntity(id) ON DELETE CASCADE
             )
         """.trimIndent(), 0)
+
+        driver.execute(null, """
+            CREATE TABLE IF NOT EXISTS UserNoteEntity (
+                twitchUserId TEXT NOT NULL PRIMARY KEY,
+                note TEXT NOT NULL DEFAULT '',
+                updatedAt INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent(), 0)
     }
 }

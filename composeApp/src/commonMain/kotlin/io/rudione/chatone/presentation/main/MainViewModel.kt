@@ -11,10 +11,12 @@ import io.rudione.chatone.data.remote.emote.SevenTvEventApi
 import io.rudione.chatone.domain.model.Channel
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.domain.usecase.*
+import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.ChannelFolderRepository
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.util.Result
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -117,7 +119,8 @@ class MainViewModel(
     private val chatRepository: ChatRepository,
     private val emoteRepository: EmoteRepository,
     private val sevenTvEventApi: SevenTvEventApi,
-    private val channelFolderRepository: ChannelFolderRepository
+    private val channelFolderRepository: ChannelFolderRepository,
+    private val apiClient: TwitchApiClient
 ) : BaseViewModel<MainState, MainEvent, MainEffect>(MainState()) {
 
     companion object {
@@ -125,6 +128,7 @@ class MainViewModel(
         private const val KEY_OPEN_CHANNELS = "open_channels"
         private const val KEY_ACTIVE_CHANNEL = "active_channel"
         private const val KEY_FOLDERS = "folders"
+        private const val LIVE_POLL_INTERVAL_MS = 60_000L // 1 minute
     }
 
     private val settings = Settings()
@@ -135,6 +139,7 @@ class MainViewModel(
         restoreSavedChannels()
         restoreFolders()
         observeEmoteUpdates()
+        startLiveStatusPolling()
     }
 
     override suspend fun onEvent(event: MainEvent) {
@@ -598,6 +603,67 @@ class MainViewModel(
                 }
                 sendEffect(MainEffect.ShowEmoteUpdate(text))
             }
+        }
+    }
+
+    private fun startLiveStatusPolling() {
+        viewModelScope.launch {
+            while (true) {
+                delay(LIVE_POLL_INTERVAL_MS)
+                pollLiveStatus()
+            }
+        }
+        // Initial poll after a short delay
+        viewModelScope.launch {
+            delay(3000)
+            pollLiveStatus()
+        }
+    }
+
+    private suspend fun pollLiveStatus() {
+        val account = state.value.selectedAccount ?: return
+        val allLogins = getAllChannelLogins()
+        if (allLogins.isEmpty()) return
+
+        try {
+            // Twitch API allows up to 100 user_login params
+            val result = apiClient.getStreams(
+                accessToken = account.accessToken,
+                userLogins = allLogins.take(100)
+            )
+            if (result is Result.Success) {
+                val liveLogins = result.data.data.map { it.userLogin.lowercase() }.toSet()
+                updateLiveStatus(liveLogins)
+            }
+        } catch (e: Exception) {
+            Napier.w("Failed to poll live status: ${e.message}", tag = TAG)
+        }
+    }
+
+    private fun getAllChannelLogins(): List<String> {
+        val s = state.value
+        val logins = mutableSetOf<String>()
+        s.openChannels.forEach { logins.add(it.login.lowercase()) }
+        s.unfolderedChannels.forEach { logins.add(it.login.lowercase()) }
+        s.folders.forEach { folder -> folder.channels.forEach { logins.add(it.login.lowercase()) } }
+        return logins.toList()
+    }
+
+    private fun updateLiveStatus(liveLogins: Set<String>) {
+        update { state ->
+            state.copy(
+                openChannels = state.openChannels.map { ch ->
+                    ch.copy(isLive = ch.login.lowercase() in liveLogins)
+                },
+                unfolderedChannels = state.unfolderedChannels.map { ch ->
+                    ch.copy(isLive = ch.login.lowercase() in liveLogins)
+                },
+                folders = state.folders.map { folder ->
+                    folder.copy(channels = folder.channels.map { ch ->
+                        ch.copy(isLive = ch.login.lowercase() in liveLogins)
+                    })
+                }
+            )
         }
     }
 

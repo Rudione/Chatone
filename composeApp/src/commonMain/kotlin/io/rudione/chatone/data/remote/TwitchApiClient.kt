@@ -479,4 +479,119 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
+
+    /**
+     * Send announcement to chat
+     */
+    suspend fun sendAnnouncement(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        message: String,
+        color: String = "primary" // primary, blue, green, orange, purple
+    ): Result<Unit> {
+        return try {
+            httpClient.post("$baseUrl/chat/announcements") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("moderator_id", moderatorId)
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("message" to message, "color" to color))
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to send announcement: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /**
+     * Start a raid to another channel
+     */
+    suspend fun startRaid(
+        accessToken: String,
+        fromBroadcasterId: String,
+        toBroadcasterId: String
+    ): Result<Unit> {
+        return try {
+            httpClient.post("$baseUrl/raids") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("from_broadcaster_id", fromBroadcasterId)
+                parameter("to_broadcaster_id", toBroadcasterId)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to start raid: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /**
+     * Cancel a raid
+     */
+    suspend fun cancelRaid(
+        accessToken: String,
+        broadcasterId: String
+    ): Result<Unit> {
+        return try {
+            httpClient.delete("$baseUrl/raids") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to cancel raid: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /**
+     * Send a shoutout to another user
+     */
+    suspend fun sendShoutout(
+        accessToken: String,
+        fromBroadcasterId: String,
+        toBroadcasterId: String,
+        moderatorId: String
+    ): Result<Unit> {
+        return try {
+            httpClient.post("$baseUrl/chat/shoutouts") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("from_broadcaster_id", fromBroadcasterId)
+                parameter("to_broadcaster_id", toBroadcasterId)
+                parameter("moderator_id", moderatorId)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to send shoutout: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /**
+     * Get channel followers — check if a specific user follows a channel
+     */
+    suspend fun getChannelFollower(
+        accessToken: String,
+        broadcasterId: String,
+        userId: String
+    ): Result<FollowersResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/channels/followers") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("user_id", userId)
+            }.body<FollowersResponse>()
+
+            Result.Success(response)
+        } catch (e: Exception) {
+            Napier.e("Failed to get follower info: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
 }

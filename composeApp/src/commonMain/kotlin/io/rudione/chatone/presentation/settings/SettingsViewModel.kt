@@ -27,7 +27,10 @@ data class SettingsState(
         HighlightRule.SUBSCRIPTION_RULE,
         HighlightRule.FIRST_MESSAGE_RULE
     ),
-    val mentionSoundEnabled: Boolean = true
+    val mentionSoundEnabled: Boolean = true,
+    val mentionSoundVolume: Float = 0.8f,
+    val customMentionSoundPath: String = "",
+    val alwaysOnTop: Boolean = true
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
     enum class EmoteSize { SMALL, MEDIUM, LARGE }
@@ -52,6 +55,9 @@ sealed class SettingsEvent : UiEvent {
     data class OnAddHighlightRule(val pattern: String) : SettingsEvent()
     data class OnRemoveHighlightRule(val ruleId: String) : SettingsEvent()
     data class OnMentionSoundChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnMentionSoundVolumeChanged(val volume: Float) : SettingsEvent()
+    data class OnCustomMentionSoundPathChanged(val path: String) : SettingsEvent()
+    data class OnAlwaysOnTopChanged(val enabled: Boolean) : SettingsEvent()
 }
 
 sealed class SettingsEffect : UIEffect
@@ -74,6 +80,9 @@ class SettingsViewModel : BaseViewModel<SettingsState, SettingsEvent, SettingsEf
         private const val KEY_CHANNEL_NAV = "channel_navigation"
         private const val KEY_HIGHLIGHT_RULES = "highlight_rules"
         private const val KEY_MENTION_SOUND = "mention_sound"
+        private const val KEY_MENTION_VOLUME = "mention_volume"
+        private const val KEY_CUSTOM_SOUND_PATH = "custom_sound_path"
+        private const val KEY_ALWAYS_ON_TOP = "always_on_top"
 
         private val json = Json { ignoreUnknownKeys = true }
 
@@ -103,7 +112,10 @@ class SettingsViewModel : BaseViewModel<SettingsState, SettingsEvent, SettingsEf
                     settings.getInt(KEY_CHANNEL_NAV, 0)
                 ) ?: SettingsState.ChannelNavigation.TAB_BAR,
                 highlightRules = rules ?: SettingsState().highlightRules,
-                mentionSoundEnabled = settings.getBoolean(KEY_MENTION_SOUND, true)
+                mentionSoundEnabled = settings.getBoolean(KEY_MENTION_SOUND, true),
+                mentionSoundVolume = settings.getFloat(KEY_MENTION_VOLUME, 0.8f),
+                customMentionSoundPath = settings.getStringOrNull(KEY_CUSTOM_SOUND_PATH) ?: "",
+                alwaysOnTop = settings.getBoolean(KEY_ALWAYS_ON_TOP, true)
             )
         }
     }
@@ -204,6 +216,18 @@ class SettingsViewModel : BaseViewModel<SettingsState, SettingsEvent, SettingsEf
             is SettingsEvent.OnMentionSoundChanged -> {
                 settings.putBoolean(KEY_MENTION_SOUND, event.enabled)
                 update { it.copy(mentionSoundEnabled = event.enabled) }
+            }
+            is SettingsEvent.OnMentionSoundVolumeChanged -> {
+                settings.putFloat(KEY_MENTION_VOLUME, event.volume)
+                update { it.copy(mentionSoundVolume = event.volume) }
+            }
+            is SettingsEvent.OnCustomMentionSoundPathChanged -> {
+                settings.putString(KEY_CUSTOM_SOUND_PATH, event.path)
+                update { it.copy(customMentionSoundPath = event.path) }
+            }
+            is SettingsEvent.OnAlwaysOnTopChanged -> {
+                settings.putBoolean(KEY_ALWAYS_ON_TOP, event.enabled)
+                update { it.copy(alwaysOnTop = event.enabled) }
             }
         }
     }
