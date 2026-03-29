@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -68,6 +69,7 @@ fun ChatScreen(
     currentUserId: String = "",
     currentUserLogin: String = "",
     currentDisplayName: String = "",
+    isWideScreen: Boolean = false,
     onMentionDetected: (String) -> Unit = {},
     viewModel: ChatViewModel = koinViewModel()
 ) {
@@ -80,10 +82,50 @@ fun ChatScreen(
     var profilePopupUserId by remember { mutableStateOf<String?>(null) }
     var profilePopupMessage by remember { mutableStateOf<DisplayMessage.PrivMsg?>(null) }
     var pendingModAction by remember { mutableStateOf<PendingModAction?>(null) }
+    var isPausedByUser by remember { mutableStateOf(false) }
     val emoteRepository: EmoteRepository = koinInject()
+    val coroutineScope = rememberCoroutineScope()
+
+
+    val isAtBottom = remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val totalItems = layoutInfo.totalItemsCount
+            if (totalItems == 0) return@derivedStateOf true
+            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisibleIndex >= totalItems - 3
+        }
+    }
+
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress && !isAtBottom.value) {
+            isPausedByUser = true
+        }
+    }
+
+    LaunchedEffect(isAtBottom.value) {
+        if (isAtBottom.value) {
+            isPausedByUser = false
+        }
+    }
+
+    val messageCount = state.messages.size
+    LaunchedEffect(messageCount) {
+        if (!isPausedByUser && messageCount > 0) {
+            listState.animateScrollToItem(messageCount - 1)
+        }
+    }
 
     LaunchedEffect(channelLogin, accessToken) {
-        viewModel.sendEvent(ChatEvent.OnInit(channelLogin, accessToken, currentUserId, currentUserLogin, currentDisplayName))
+        viewModel.sendEvent(
+            ChatEvent.OnInit(
+                channelLogin,
+                accessToken,
+                currentUserId,
+                currentUserLogin,
+                currentDisplayName
+            )
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -91,7 +133,7 @@ fun ChatScreen(
             when (effect) {
                 is ChatEffect.ShowError -> {}
                 ChatEffect.ScrollToBottom -> {
-                    if (state.messages.isNotEmpty()) {
+                    if (!isPausedByUser && state.messages.isNotEmpty()) {
                         listState.animateScrollToItem(state.messages.size - 1)
                     }
                 }
@@ -113,7 +155,6 @@ fun ChatScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // ── Top Bar ─────────────────────────────────────────────────
         ChatTopBar(
             channelLogin = channelLogin,
             connectionStatus = state.connectionStatus,
@@ -123,19 +164,18 @@ fun ChatScreen(
             modModeEnabled = state.modModeEnabled,
             onBack = onNavigateBack,
             onToggleModMode = { viewModel.sendEvent(ChatEvent.OnToggleModMode) },
-            onOpenModPanel = { showModPanel = !showModPanel }
+            onOpenModPanel = { showModPanel = !showModPanel },
+            isCompact = !isWideScreen
         )
 
-        // ── Pinned Message ─────────────────────────────────────────
         state.pinnedMessage?.let { pinned ->
             PinnedMessageBar(
                 message = pinned,
-                canUnpin = state.isMod,
+                canUnpin = true,
                 onUnpin = { viewModel.sendEvent(ChatEvent.OnUnpinMessage) }
             )
         }
 
-        // ── Message List ────────────────────────────────────────────
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -195,19 +235,33 @@ fun ChatScreen(
                                 },
                                 onTimeout = {
                                     if (settingsState.confirmModActions) {
-                                        pendingModAction = PendingModAction.Timeout(message.userId, message.displayName, settingsState.defaultTimeoutDuration)
+                                        pendingModAction = PendingModAction.Timeout(
+                                            message.userId,
+                                            message.displayName,
+                                            settingsState.defaultTimeoutDuration
+                                        )
                                     } else {
-                                        viewModel.sendEvent(ChatEvent.OnTimeoutUser(message.userId, settingsState.defaultTimeoutDuration))
+                                        viewModel.sendEvent(
+                                            ChatEvent.OnTimeoutUser(
+                                                message.userId,
+                                                settingsState.defaultTimeoutDuration
+                                            )
+                                        )
                                     }
                                 },
                                 onBan = {
                                     if (settingsState.confirmModActions) {
-                                        pendingModAction = PendingModAction.Ban(message.userId, message.displayName)
+                                        pendingModAction = PendingModAction.Ban(
+                                            message.userId,
+                                            message.displayName
+                                        )
                                     } else {
                                         viewModel.sendEvent(ChatEvent.OnBanUser(message.userId))
                                     }
                                 },
-                                onDelete = { viewModel.sendEvent(ChatEvent.OnDeleteMessage(message.id)) }
+                                onDelete = {
+                                    viewModel.sendEvent(ChatEvent.OnDeleteMessage(message.id))
+                                }
                             )
                             is DisplayMessage.SystemMsg -> SystemMsgItem(message = message)
                             is DisplayMessage.UserNoticeMsg -> UserNoticeMsgItem(message = message)
@@ -217,22 +271,12 @@ fun ChatScreen(
                 }
             }
 
-            // Scroll to bottom FAB
-            val isAtBottom = remember {
-                derivedStateOf {
-                    val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                    lastVisible >= state.messages.size - 3
-                }
-            }
-            val coroutineScope = rememberCoroutineScope()
-            val showScrollButton = !isAtBottom.value && state.messages.isNotEmpty()
-            if (showScrollButton) {
+            if (isPausedByUser && state.messages.isNotEmpty()) {
                 SmallFloatingActionButton(
                     onClick = {
-                        if (state.messages.isNotEmpty()) {
-                            coroutineScope.launch {
-                                listState.animateScrollToItem(state.messages.size - 1)
-                            }
+                        coroutineScope.launch {
+                            listState.animateScrollToItem(state.messages.size - 1)
+                            isPausedByUser = false
                         }
                     },
                     modifier = Modifier
@@ -246,7 +290,6 @@ fun ChatScreen(
             }
         }
 
-        // ── Mod Panel ─────────────────────────────────────────────────
         AnimatedVisibility(
             visible = showModPanel && state.isMod,
             enter = expandVertically(tween(250)) + fadeIn(tween(200)),
@@ -259,23 +302,18 @@ fun ChatScreen(
                 onUpdateChatSettings = { settings ->
                     viewModel.sendEvent(ChatEvent.OnUpdateChatSettings(settings))
                 },
-                onClearChat = {
-                    viewModel.sendEvent(ChatEvent.OnClearChat)
-                },
+                onClearChat = { viewModel.sendEvent(ChatEvent.OnClearChat) },
                 onSendAnnouncement = { message, color ->
                     viewModel.sendEvent(ChatEvent.OnSendAnnouncement(message, color))
                 },
                 onStartRaid = { targetLogin ->
                     viewModel.sendEvent(ChatEvent.OnStartRaid(targetLogin))
                 },
-                onCancelRaid = {
-                    viewModel.sendEvent(ChatEvent.OnCancelRaid)
-                },
+                onCancelRaid = { viewModel.sendEvent(ChatEvent.OnCancelRaid) },
                 onClose = { showModPanel = false }
             )
         }
 
-        // ── @Mention Autocomplete ────────────────────────────────────
         if (state.showMentionCompletions && state.mentionCompletions.isNotEmpty()) {
             MentionAutocompleteRow(
                 usernames = state.mentionCompletions,
@@ -284,7 +322,6 @@ fun ChatScreen(
             )
         }
 
-        // ── Emote Autocomplete ────────────────────────────────────────
         if (state.showEmoteCompletions && state.emoteCompletions.isNotEmpty()) {
             EmoteAutocompleteRow(
                 emotes = state.emoteCompletions,
@@ -293,7 +330,6 @@ fun ChatScreen(
             )
         }
 
-        // ── Reply Bar ─────────────────────────────────────────────
         state.replyingTo?.let { replyMsg ->
             ReplyBar(
                 displayName = replyMsg.displayName,
@@ -310,7 +346,6 @@ fun ChatScreen(
             )
         }
 
-        // ── Message Input ───────────────────────────────────────────
         MessageInput(
             value = state.messageInput,
             onValueChange = { viewModel.sendEvent(ChatEvent.OnMessageInputChanged(it)) },
@@ -320,7 +355,6 @@ fun ChatScreen(
         )
     }
 
-    // ── Emote Picker ────────────────────────────────────────────────
     if (showEmotePicker) {
         val resolvedEmotes = emoteRepository.getResolvedEmotes(channelLogin)
         EmotePickerSheet(
@@ -339,13 +373,13 @@ fun ChatScreen(
         )
     }
 
-    // ── User Profile Popup ──────────────────────────────────────────
     profilePopupMessage?.let { msg ->
         UserProfilePopup(
             userId = msg.userId,
             username = msg.username,
             displayName = msg.displayName,
             color = msg.color,
+            channelMessages = state.messages,
             accessToken = state.currentAccessToken,
             channelId = state.channelId,
             isModerator = msg.isModerator,
@@ -372,13 +406,14 @@ fun ChatScreen(
         )
     }
 
-    // ── Mod Action Confirmation ──────────────────────────────────────
     pendingModAction?.let { action ->
         ModActionConfirmDialog(
             action = action,
             onConfirm = {
                 when (action) {
-                    is PendingModAction.Timeout -> viewModel.sendEvent(ChatEvent.OnTimeoutUser(action.userId, action.duration))
+                    is PendingModAction.Timeout -> viewModel.sendEvent(
+                        ChatEvent.OnTimeoutUser(action.userId, action.duration)
+                    )
                     is PendingModAction.Ban -> viewModel.sendEvent(ChatEvent.OnBanUser(action.userId))
                 }
                 pendingModAction = null
@@ -449,7 +484,8 @@ private fun ChatTopBar(
     modModeEnabled: Boolean,
     onBack: () -> Unit,
     onToggleModMode: () -> Unit,
-    onOpenModPanel: () -> Unit = {}
+    onOpenModPanel: () -> Unit = {},
+    isCompact: Boolean = false
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -462,12 +498,14 @@ private fun ChatTopBar(
                     .padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        Icons.Filled.Menu,
-                        contentDescription = "Menu",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
+                if (isCompact) {
+                    IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Filled.Menu,
+                            contentDescription = "Menu",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
 
                 Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
@@ -591,9 +629,16 @@ private fun PrivMsgItem(
     modifier: Modifier = Modifier
 ) {
     val extraColors = ChatoneTheme.extraColors
+
+    val mentionColor = if (message.highlightColor != null) {
+        Color(message.highlightColor)
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
     val backgroundColor = when {
         message.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
-        message.isMention && message.highlightColor != null -> Color(message.highlightColor).copy(alpha = 0.15f)
+        message.isMention && message.highlightColor != null -> Color(message.highlightColor).copy(alpha = 0.12f)
         message.isMention -> extraColors.mentionHighlight
         else -> Color.Transparent
     }
@@ -602,10 +647,20 @@ private fun PrivMsgItem(
         modifier = modifier
             .fillMaxWidth()
             .background(backgroundColor)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .then(
+                if (message.isMention) {
+                    Modifier.drawWithContent {
+                        drawContent()
+                        drawRect(
+                            color = mentionColor.copy(alpha = 0.85f),
+                            size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)
+                        )
+                    }
+                } else Modifier
+            )
+            .padding(start = if (message.isMention) 7.dp else 8.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.Top
     ) {
-        // Mod actions (compact icons inline with badges/username)
         if (showModActions) {
             Row(
                 modifier = Modifier.padding(end = 6.dp, top = 1.dp),
@@ -660,7 +715,6 @@ private fun PrivMsgItem(
             }
         }
 
-        // Timestamp
         if (timestampFormat != SettingsState.TimestampFormat.OFF) {
             Text(
                 text = formatTimestamp(message.timestamp, timestampFormat),
@@ -670,9 +724,7 @@ private fun PrivMsgItem(
             )
         }
 
-        // Badges
         if (showBadges) {
-            // Twitch badges
             message.badges.forEach { badge ->
                 if (badge.imageUrl.isNotEmpty()) {
                     AsyncImage(
@@ -685,7 +737,6 @@ private fun PrivMsgItem(
                 }
             }
 
-            // 7TV badge
             message.sevenTvBadge?.let { stvBadge ->
                 val badgeUrl = stvBadge.url2x.ifEmpty { stvBadge.url1x }
                 if (badgeUrl.isNotEmpty()) {
@@ -704,7 +755,6 @@ private fun PrivMsgItem(
             }
         }
 
-        // Message content with inline emotes
         val emoteSizeSp = when (emoteSize) {
             SettingsState.EmoteSize.SMALL -> 20.sp
             SettingsState.EmoteSize.MEDIUM -> 28.sp
@@ -717,7 +767,6 @@ private fun PrivMsgItem(
 
         val annotatedString = buildAnnotatedString {
             if (message.isDeleted) {
-                // Username clickable
                 pushStringAnnotation("username", message.userId)
                 if (paintBrush != null) {
                     withStyle(SpanStyle(brush = paintBrush, fontWeight = FontWeight.Bold)) {
@@ -730,23 +779,36 @@ private fun PrivMsgItem(
                 }
                 pop()
                 append(": ")
-                withStyle(SpanStyle(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                    fontStyle = FontStyle.Italic
-                )) {
+                withStyle(
+                    SpanStyle(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                        fontStyle = FontStyle.Italic
+                    )
+                ) {
                     append("<message deleted>")
                 }
             } else {
-                // Username with optional 7TV paint
                 pushStringAnnotation("username", message.userId)
                 if (message.isAction) {
                     if (paintBrush != null) {
-                        withStyle(SpanStyle(brush = paintBrush, fontStyle = FontStyle.Italic, fontWeight = FontWeight.SemiBold)) {
+                        withStyle(
+                            SpanStyle(
+                                brush = paintBrush,
+                                fontStyle = FontStyle.Italic,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        ) {
                             append(message.displayName)
                             append(" ")
                         }
                     } else {
-                        withStyle(SpanStyle(color = userColor, fontStyle = FontStyle.Italic, fontWeight = FontWeight.SemiBold)) {
+                        withStyle(
+                            SpanStyle(
+                                color = userColor,
+                                fontStyle = FontStyle.Italic,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        ) {
                             append(message.displayName)
                             append(" ")
                         }
@@ -765,7 +827,6 @@ private fun PrivMsgItem(
                 }
                 pop()
 
-                // Message tokens
                 val messageColor = if (message.isAction) userColor else Color.Unspecified
                 message.tokens.forEach { token ->
                     when (token) {
@@ -815,19 +876,23 @@ private fun PrivMsgItem(
                         }
                         is MessageToken.Link -> {
                             pushStringAnnotation("url", token.url)
-                            withStyle(SpanStyle(
-                                color = MaterialTheme.colorScheme.primary,
-                                textDecoration = TextDecoration.Underline
-                            )) {
+                            withStyle(
+                                SpanStyle(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textDecoration = TextDecoration.Underline
+                                )
+                            ) {
                                 append(token.displayText)
                             }
                             pop()
                         }
                         is MessageToken.Mention -> {
-                            withStyle(SpanStyle(
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )) {
+                            withStyle(
+                                SpanStyle(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            ) {
                                 append(token.username)
                             }
                         }
@@ -839,7 +904,6 @@ private fun PrivMsgItem(
         var showContextMenu by remember { mutableStateOf(false) }
         val clipboardManager = LocalClipboardManager.current
         val uriHandler = LocalUriHandler.current
-        // Track text layout for click offset detection
         var textLayoutResult by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
 
         Box(modifier = Modifier.weight(1f)) {
@@ -856,7 +920,6 @@ private fun PrivMsgItem(
                                 onTap = { offset ->
                                     textLayoutResult?.let { layoutResult ->
                                         val charOffset = layoutResult.getOffsetForPosition(offset)
-                                        // Check for URL annotation first
                                         annotatedString.getStringAnnotations("url", charOffset, charOffset)
                                             .firstOrNull()?.let { annotation ->
                                                 try {
@@ -864,7 +927,6 @@ private fun PrivMsgItem(
                                                 } catch (_: Exception) {}
                                                 return@detectTapGestures
                                             }
-                                        // Check for username annotation
                                         annotatedString.getStringAnnotations("username", charOffset, charOffset)
                                             .firstOrNull()?.let {
                                                 onUsernameClick()
@@ -872,31 +934,26 @@ private fun PrivMsgItem(
                                             }
                                     }
                                 },
-                                onLongPress = {
-                                    showContextMenu = true
-                                }
+                                onLongPress = { showContextMenu = true }
                             )
                         },
                     onTextLayout = { textLayoutResult = it }
                 )
             }
 
-            // Context menu (liquid glass + M3 expressive design)
             DropdownMenu(
                 expanded = showContextMenu,
                 onDismissRequest = { showContextMenu = false },
-                modifier = Modifier
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
-                                MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.88f)
-                            )
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    )
+                modifier = Modifier.background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
+                            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.88f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                )
             ) {
-                // Pin option (only for mods/broadcasters)
                 if (isMod) {
                     DropdownMenuItem(
                         text = {
@@ -956,7 +1013,6 @@ private fun PrivMsgItem(
                     },
                     onClick = {
                         showContextMenu = false
-                        // Build raw text from tokens
                         val rawText = message.tokens.joinToString("") { token ->
                             when (token) {
                                 is MessageToken.Text -> token.text
@@ -1154,8 +1210,8 @@ private fun EmoteAutocompleteRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             emotes.forEach { emote ->
@@ -1205,8 +1261,8 @@ private fun MentionAutocompleteRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(horizontal = 8.dp, vertical = 1.dp),
+            horizontalArrangement = Arrangement.spacedBy(1.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             usernames.forEach { username ->

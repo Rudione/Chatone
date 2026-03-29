@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class SevenTvUserConnection(
-    val id: String,
+    val id: String = "",
     val platform: String = "TWITCH",
     @SerialName("linked_at") val linkedAt: Long = 0,
     @SerialName("emote_capacity") val emoteCapacity: Int = 0,

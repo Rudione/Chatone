@@ -37,7 +37,11 @@ data class ChannelEmotes(
     }
 
     val all: List<GenericEmote> by lazy {
-        twitchEmotes + sevenTvChannel + bttvChannel + ffzChannel +
-                sevenTvGlobal + bttvGlobal + ffzGlobal
+        val seen = mutableSetOf<String>()
+        (twitchEmotes + sevenTvChannel + bttvChannel + ffzChannel +
+                sevenTvGlobal + bttvGlobal + ffzGlobal)
+            .filter { emote ->
+                seen.add("${emote.provider}_${emote.id}")
+            }
     }
 }

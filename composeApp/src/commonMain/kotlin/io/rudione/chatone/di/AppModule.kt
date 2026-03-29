@@ -30,7 +30,6 @@ import io.rudione.chatone.data.repository.UserNoteRepository
 import io.rudione.chatone.domain.usecase.*
 import io.rudione.chatone.presentation.auth.AuthViewModel
 import io.rudione.chatone.presentation.chat.ChatViewModel
-import io.rudione.chatone.presentation.home.HomeViewModel
 import io.rudione.chatone.presentation.main.MainViewModel
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.util.AppConfig
@@ -159,7 +158,6 @@ val useCaseModule = module {
 
 val viewModelModule = module {
     viewModelOf(::AuthViewModel)
-    viewModelOf(::HomeViewModel)
     viewModelOf(::ChatViewModel)
     viewModelOf(::SettingsViewModel)
     viewModelOf(::MainViewModel)

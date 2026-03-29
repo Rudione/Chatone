@@ -163,7 +163,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Chatone"
-            packageVersion = "1.0.1"
+            packageVersion = "1.0.2"
 
             modules(
                 "java.sql",
