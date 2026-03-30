@@ -23,8 +23,9 @@ sealed class DisplayMessage {
         val isBroadcaster: Boolean,
         val isMention: Boolean,
         val isAction: Boolean,
+        val isFirstMessage: Boolean = false,   // ← добавить
         val isDeleted: Boolean = false,
-        val rawMessage: ChatMessage,
+        val rawMessage: ChatMessage? = null,   // сделай nullable если ещё нет
         val sevenTvPaint: SevenTvCosmetics.Paint? = null,
         val sevenTvBadge: SevenTvCosmetics.Badge? = null,
         val highlightColor: Long? = null

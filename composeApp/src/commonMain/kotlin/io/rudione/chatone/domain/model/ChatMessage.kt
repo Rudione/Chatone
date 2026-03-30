@@ -20,7 +20,8 @@ data class ChatMessage(
     val isVip: Boolean = false,
     val isBroadcaster: Boolean = false,
     val isMention: Boolean = false,
-    val isAction: Boolean = false
+    val isAction: Boolean = false,
+    val isFirstMessage: Boolean = false   // ← first-msg IRC tag
 )
 
 @Serializable

@@ -435,7 +435,6 @@ class ChatViewModel(
         val tokens = MessageTokenizer.tokenize(message, channelEmotes)
         val resolvedBadges = badgeRepository.resolveBadges(message.badges, message.channelId)
 
-        // Check for 7TV paint
         val cosmetics = sevenTvCosmeticsClient.getCachedCosmetics(message.userId)
 
         return DisplayMessage.PrivMsg(
@@ -454,6 +453,7 @@ class ChatViewModel(
             isBroadcaster = message.isBroadcaster,
             isMention = message.isMention,
             isAction = message.isAction,
+            isFirstMessage = message.isFirstMessage,  // ← добавлено
             rawMessage = message,
             sevenTvPaint = cosmetics?.paint,
             sevenTvBadge = cosmetics?.badge

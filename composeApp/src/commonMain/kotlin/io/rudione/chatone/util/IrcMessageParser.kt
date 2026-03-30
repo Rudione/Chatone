@@ -6,9 +6,6 @@ import io.rudione.chatone.domain.model.Emote
 import io.rudione.chatone.domain.model.EmotePosition
 import kotlinx.datetime.Clock
 
-/**
- * Parsed representation of a raw IRC message before being converted to domain models.
- */
 data class IrcMessage(
     val tags: Map<String, String>,
     val prefix: String,
@@ -20,10 +17,6 @@ data class IrcMessage(
     val trailing: String get() = params.lastOrNull() ?: ""
 
     companion object {
-        /**
-         * Parse a raw IRC line into an IrcMessage.
-         * Format: [@tags] [:prefix] COMMAND [params...] [:trailing]
-         */
         fun parse(raw: String): IrcMessage? {
             if (raw.isBlank()) return null
 
@@ -31,7 +24,6 @@ data class IrcMessage(
             var tags = emptyMap<String, String>()
             var prefix = ""
 
-            // Parse tags
             if (remaining.startsWith("@")) {
                 val spaceIdx = remaining.indexOf(' ')
                 if (spaceIdx == -1) return null
@@ -39,7 +31,6 @@ data class IrcMessage(
                 remaining = remaining.substring(spaceIdx + 1).trimStart()
             }
 
-            // Parse prefix
             if (remaining.startsWith(":")) {
                 val spaceIdx = remaining.indexOf(' ')
                 if (spaceIdx == -1) return null
@@ -47,7 +38,6 @@ data class IrcMessage(
                 remaining = remaining.substring(spaceIdx + 1).trimStart()
             }
 
-            // Parse command
             val spaceIdx = remaining.indexOf(' ')
             val command: String
             if (spaceIdx == -1) {
@@ -58,7 +48,6 @@ data class IrcMessage(
                 remaining = remaining.substring(spaceIdx + 1).trimStart()
             }
 
-            // Parse params
             val params = mutableListOf<String>()
             while (remaining.isNotEmpty()) {
                 if (remaining.startsWith(":")) {
@@ -141,6 +130,9 @@ object IrcMessageParser {
         val isVip = badges.any { it.id == "vip" }
         val isBroadcaster = badges.any { it.id == "broadcaster" }
 
+        // ← first-msg tag: "1" = first time this user has chatted in this channel
+        val isFirstMessage = tags["first-msg"] == "1"
+
         val isAction = messageText.startsWith("\u0001ACTION ") && messageText.endsWith("\u0001")
         val finalMessage = if (isAction) {
             messageText.removePrefix("\u0001ACTION ").removeSuffix("\u0001")
@@ -165,11 +157,11 @@ object IrcMessageParser {
             isVip = isVip,
             isBroadcaster = isBroadcaster,
             isMention = false,
-            isAction = isAction
+            isAction = isAction,
+            isFirstMessage = isFirstMessage
         )
     }
 
-    // Legacy method for backward compat
     fun parseMessage(rawMessage: String): ChatMessage {
         val ircMessage = IrcMessage.parse(rawMessage)
             ?: throw IllegalArgumentException("Invalid IRC message format")
@@ -182,11 +174,7 @@ object IrcMessageParser {
         return badgesString.split(",").mapNotNull { badge ->
             val parts = badge.split("/")
             if (parts.size == 2) {
-                Badge(
-                    id = parts[0],
-                    version = parts[1],
-                    imageUrl = "" // Will be resolved by BadgeRepository
-                )
+                Badge(id = parts[0], version = parts[1], imageUrl = "")
             } else null
         }
     }
@@ -215,7 +203,6 @@ object IrcMessageParser {
                     } catch (e: Exception) {
                         emoteId
                     }
-
                     Emote(
                         id = emoteId,
                         name = emoteName,

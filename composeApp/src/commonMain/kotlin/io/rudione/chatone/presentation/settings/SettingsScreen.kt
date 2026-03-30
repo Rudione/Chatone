@@ -334,18 +334,18 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Version 1.0.2",
+                            text = "Version 1.0.3",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Kotlin Multiplatform Twitch Chat Client",
+                            text = "TG",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Emotes: 7TV, BetterTTV, FrankerFaceZ",
+                            text = "https://t.me/rudionee",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

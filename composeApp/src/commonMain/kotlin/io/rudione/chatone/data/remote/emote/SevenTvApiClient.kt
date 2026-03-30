@@ -57,9 +57,16 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
         val webpFiles = host.files.filter { it.format == "WEBP" }
         if (webpFiles.isEmpty()) return null
 
-        val url1x = webpFiles.find { it.name.contains("1x") }?.let { "$baseUrl/${it.name}" }
-        val url2x = webpFiles.find { it.name.contains("2x") }?.let { "$baseUrl/${it.name}" }
-        val url3x = (webpFiles.find { it.name.contains("4x") } ?: webpFiles.find { it.name.contains("3x") })?.let { "$baseUrl/${it.name}" }
+        val file1x = webpFiles.find { it.name.contains("1x") }
+        val file2x = webpFiles.find { it.name.contains("2x") }
+        val file3x = webpFiles.find { it.name.contains("4x") }
+            ?: webpFiles.find { it.name.contains("3x") }
+
+        val url1x = file1x?.let { "$baseUrl/${it.name}" }
+        val url2x = file2x?.let { "$baseUrl/${it.name}" }
+        val url3x = file3x?.let { "$baseUrl/${it.name}" }
+
+        val sizeFile = file2x ?: file1x ?: webpFiles.first()
 
         return GenericEmote(
             id = id,
@@ -68,7 +75,11 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
             url2x = url2x ?: url1x ?: "$baseUrl/${webpFiles.first().name}",
             url3x = url3x ?: url2x ?: url1x ?: "$baseUrl/${webpFiles.first().name}",
             provider = EmoteProvider.SEVEN_TV,
-            isZeroWidth = (flags and ZERO_WIDTH_FLAG) != 0 || (emoteData.flags and ZERO_WIDTH_FLAG) != 0
+            isZeroWidth = (flags and ZERO_WIDTH_FLAG) != 0 || (emoteData.flags and ZERO_WIDTH_FLAG) != 0,
+            width = sizeFile.width,
+            height = sizeFile.height,
+            originalName = emoteData.name,
+            authorName = emoteData.owner?.displayName?.ifEmpty { emoteData.owner.username } ?: ""
         )
     }
 }

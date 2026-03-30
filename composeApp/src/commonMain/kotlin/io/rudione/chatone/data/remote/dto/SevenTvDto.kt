@@ -28,7 +28,15 @@ data class SevenTvEmoteData(
     val id: String = "",
     val name: String = "",
     val flags: Int = 0,
-    val host: SevenTvHost = SevenTvHost()
+    val host: SevenTvHost = SevenTvHost(),
+    val owner: SevenTvEmoteOwner? = null
+)
+
+@Serializable
+data class SevenTvEmoteOwner(
+    val id: String = "",
+    val username: String = "",
+    @SerialName("display_name") val displayName: String = ""
 )
 
 @Serializable

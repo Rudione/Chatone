@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
@@ -664,7 +665,7 @@ private fun MessageHistoryItem(
             .clip(RoundedCornerShape(6.dp))
             .background(
                 if (message.isDeleted)
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
                 else
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
             )
@@ -679,21 +680,24 @@ private fun MessageHistoryItem(
             modifier = Modifier.padding(top = 1.dp, end = 6.dp)
         )
 
-        // Message text
-        if (message.isDeleted) {
-            Text(
-                text = "<deleted>",
-                style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
-            )
-        } else {
-            Text(
-                text = rawText,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (message.isAction) nameColor
-                else MaterialTheme.colorScheme.onSurface
-            )
-        }
+        // Message text — перечёркнутый если удалён
+        Text(
+            text = rawText.ifEmpty { if (message.isDeleted) "message deleted" else "" },
+            style = if (message.isDeleted) {
+                MaterialTheme.typography.bodySmall.copy(
+                    textDecoration = TextDecoration.LineThrough
+                )
+            } else {
+                MaterialTheme.typography.bodySmall
+            },
+            color = if (message.isDeleted) {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
+            } else if (message.isAction) {
+                nameColor
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
+        )
     }
 }
 

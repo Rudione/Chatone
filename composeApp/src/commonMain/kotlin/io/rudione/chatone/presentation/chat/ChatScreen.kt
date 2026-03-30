@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -50,6 +51,7 @@ import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.util.EmoteImageWithTooltip
 import io.rudione.chatone.util.MessageToken
 import io.rudione.chatone.util.NotificationSoundPlayer
 import kotlinx.datetime.Instant
@@ -58,6 +60,9 @@ import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+
+// First message highlight color
+private val FirstMessageColor = Color(0xFF7B2FBE)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +90,6 @@ fun ChatScreen(
     var isPausedByUser by remember { mutableStateOf(false) }
     val emoteRepository: EmoteRepository = koinInject()
     val coroutineScope = rememberCoroutineScope()
-
 
     val isAtBottom = remember {
         derivedStateOf {
@@ -460,14 +464,10 @@ private fun ModActionConfirmDialog(
                     containerColor = if (action is PendingModAction.Ban) ChatoneTheme.extraColors.modBan
                     else ChatoneTheme.extraColors.modTimeout
                 )
-            ) {
-                Text("Confirm")
-            }
+            ) { Text("Confirm") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
 }
@@ -534,7 +534,6 @@ private fun ChatTopBar(
                     }
                 }
 
-                // Mod mode toggle
                 if (isMod) {
                     FilledIconToggleButton(
                         checked = modModeEnabled,
@@ -547,18 +546,9 @@ private fun ChatTopBar(
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
-                        Icon(
-                            Icons.Filled.Star,
-                            contentDescription = "Mod Mode",
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Filled.Star, contentDescription = "Mod Mode", modifier = Modifier.size(18.dp))
                     }
-
-                    // Mod panel button
-                    IconButton(
-                        onClick = onOpenModPanel,
-                        modifier = Modifier.size(36.dp)
-                    ) {
+                    IconButton(onClick = onOpenModPanel, modifier = Modifier.size(36.dp)) {
                         Icon(
                             Icons.Outlined.Build,
                             contentDescription = "Mod Panel",
@@ -569,7 +559,6 @@ private fun ChatTopBar(
                 }
             }
 
-            // Room state chips
             val roomChips = buildList {
                 if (roomState.emoteOnly) add("Emote-only")
                 if (roomState.subsOnly) add("Sub-only")
@@ -610,6 +599,7 @@ private fun ChatTopBar(
 
 // ─── Message Items ──────────────────────────────────────────────────────
 
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PrivMsgItem(
@@ -637,123 +627,112 @@ private fun PrivMsgItem(
     }
 
     val backgroundColor = when {
-        message.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+        message.isDeleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.10f)
         message.isMention && message.highlightColor != null -> Color(message.highlightColor).copy(alpha = 0.12f)
         message.isMention -> extraColors.mentionHighlight
+        message.isFirstMessage -> FirstMessageColor.copy(alpha = 0.08f)
         else -> Color.Transparent
     }
+
+    val accentBarModifier = when {
+        message.isMention -> Modifier.drawWithContent {
+            drawContent()
+            drawRect(
+                color = mentionColor.copy(alpha = 0.85f),
+                size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)
+            )
+        }
+        message.isFirstMessage -> Modifier.drawWithContent {
+            drawContent()
+            drawRect(
+                color = FirstMessageColor.copy(alpha = 0.75f),
+                size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)
+            )
+        }
+        else -> Modifier
+    }
+
+    val hasAccentBar = message.isMention || message.isFirstMessage
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(backgroundColor)
-            .then(
-                if (message.isMention) {
-                    Modifier.drawWithContent {
-                        drawContent()
-                        drawRect(
-                            color = mentionColor.copy(alpha = 0.85f),
-                            size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)
-                        )
-                    }
-                } else Modifier
-            )
-            .padding(start = if (message.isMention) 7.dp else 8.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
-        verticalAlignment = Alignment.Top
+            .then(accentBarModifier)
+            .padding(
+                start = if (hasAccentBar) 7.dp else 8.dp,
+                end = 8.dp,
+                top = 3.dp,
+                bottom = 3.dp
+            ),
+        // ← ИСПРАВЛЕНИЕ 1: время и бейджики на уровне ника
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        // Mod action buttons
         if (showModActions) {
             Row(
-                modifier = Modifier.padding(end = 6.dp, top = 1.dp),
+                modifier = Modifier.padding(end = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(1.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onDelete)
-                        .padding(3.dp),
+                    modifier = Modifier.size(20.dp).clip(CircleShape).clickable(onClick = onDelete).padding(3.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Outlined.Delete,
-                        contentDescription = "Delete",
-                        modifier = Modifier.size(14.dp),
-                        tint = extraColors.modDelete
-                    )
+                    Icon(Icons.Outlined.Delete, contentDescription = "Delete", modifier = Modifier.size(14.dp), tint = extraColors.modDelete)
                 }
                 Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onTimeout)
-                        .padding(3.dp),
+                    modifier = Modifier.size(20.dp).clip(CircleShape).clickable(onClick = onTimeout).padding(3.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Outlined.Refresh,
-                        contentDescription = "Timeout",
-                        modifier = Modifier.size(14.dp),
-                        tint = extraColors.modTimeout
-                    )
+                    Icon(Icons.Outlined.Refresh, contentDescription = "Timeout", modifier = Modifier.size(14.dp), tint = extraColors.modTimeout)
                 }
                 Box(
-                    modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onBan)
-                        .padding(3.dp),
+                    modifier = Modifier.size(20.dp).clip(CircleShape).clickable(onClick = onBan).padding(3.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Ban",
-                        modifier = Modifier.size(14.dp),
-                        tint = extraColors.modBan
-                    )
+                    Icon(Icons.Filled.Close, contentDescription = "Ban", modifier = Modifier.size(14.dp), tint = extraColors.modBan)
                 }
             }
         }
 
+        // Timestamp
         if (timestampFormat != SettingsState.TimestampFormat.OFF) {
             Text(
                 text = formatTimestamp(message.timestamp, timestampFormat),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.padding(end = 4.dp, top = 1.dp)
+                modifier = Modifier.padding(end = 4.dp)
             )
         }
 
+        // Badges
         if (showBadges) {
             message.badges.forEach { badge ->
                 if (badge.imageUrl.isNotEmpty()) {
                     AsyncImage(
                         model = badge.imageUrl,
                         contentDescription = badge.id,
-                        modifier = Modifier
-                            .size(18.dp)
-                            .padding(end = 2.dp)
+                        modifier = Modifier.size(18.dp).padding(end = 2.dp)
                     )
                 }
             }
-
             message.sevenTvBadge?.let { stvBadge ->
                 val badgeUrl = stvBadge.url2x.ifEmpty { stvBadge.url1x }
                 if (badgeUrl.isNotEmpty()) {
                     AsyncImage(
                         model = badgeUrl,
                         contentDescription = stvBadge.tooltip,
-                        modifier = Modifier
-                            .size(18.dp)
-                            .padding(end = 2.dp)
+                        modifier = Modifier.size(18.dp).padding(end = 2.dp)
                     )
                 }
             }
-
             if (message.badges.isNotEmpty() || message.sevenTvBadge != null) {
                 Spacer(modifier = Modifier.width(2.dp))
             }
         }
+
+        var showContextMenu by remember { mutableStateOf(false) }
 
         val emoteSizeSp = when (emoteSize) {
             SettingsState.EmoteSize.SMALL -> 20.sp
@@ -767,6 +746,7 @@ private fun PrivMsgItem(
 
         val annotatedString = buildAnnotatedString {
             if (message.isDeleted) {
+                // ── ИСПРАВЛЕНИЕ 2: имя + перечёркнутый оригинальный текст ──
                 pushStringAnnotation("username", message.userId)
                 if (paintBrush != null) {
                     withStyle(SpanStyle(brush = paintBrush, fontWeight = FontWeight.Bold)) {
@@ -779,49 +759,57 @@ private fun PrivMsgItem(
                 }
                 pop()
                 append(": ")
+
+                val originalText = message.tokens.joinToString("") { token ->
+                    when (token) {
+                        is MessageToken.Text -> token.text
+                        is MessageToken.TwitchEmoteToken -> token.name
+                        is MessageToken.ThirdPartyEmoteToken -> token.emote.code
+                        is MessageToken.Link -> token.displayText
+                        is MessageToken.Mention -> token.username
+                    }
+                }
                 withStyle(
                     SpanStyle(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                        fontStyle = FontStyle.Italic
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
+                        textDecoration = TextDecoration.LineThrough
                     )
                 ) {
-                    append("<message deleted>")
+                    append(originalText.ifEmpty { "message deleted" })
                 }
             } else {
+                // ── ИСПРАВЛЕНИЕ 3: тег FIRST перед именем ──
+                if (message.isFirstMessage) {
+                    withStyle(
+                        SpanStyle(
+                            color = FirstMessageColor,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            background = FirstMessageColor.copy(alpha = 0.18f)
+                        )
+                    ) {
+                        append(" FIRST ")
+                    }
+                    append(" ")
+                }
+
+                // Username
                 pushStringAnnotation("username", message.userId)
                 if (message.isAction) {
                     if (paintBrush != null) {
-                        withStyle(
-                            SpanStyle(
-                                brush = paintBrush,
-                                fontStyle = FontStyle.Italic,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        ) {
-                            append(message.displayName)
-                            append(" ")
+                        withStyle(SpanStyle(brush = paintBrush, fontStyle = FontStyle.Italic, fontWeight = FontWeight.SemiBold)) {
+                            append(message.displayName); append(" ")
                         }
                     } else {
-                        withStyle(
-                            SpanStyle(
-                                color = userColor,
-                                fontStyle = FontStyle.Italic,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        ) {
-                            append(message.displayName)
-                            append(" ")
+                        withStyle(SpanStyle(color = userColor, fontStyle = FontStyle.Italic, fontWeight = FontWeight.SemiBold)) {
+                            append(message.displayName); append(" ")
                         }
                     }
                 } else {
                     if (paintBrush != null) {
-                        withStyle(SpanStyle(brush = paintBrush, fontWeight = FontWeight.Bold)) {
-                            append(message.displayName)
-                        }
+                        withStyle(SpanStyle(brush = paintBrush, fontWeight = FontWeight.Bold)) { append(message.displayName) }
                     } else {
-                        withStyle(SpanStyle(color = userColor, fontWeight = FontWeight.Bold)) {
-                            append(message.displayName)
-                        }
+                        withStyle(SpanStyle(color = userColor, fontWeight = FontWeight.Bold)) { append(message.displayName) }
                     }
                     append(": ")
                 }
@@ -832,9 +820,7 @@ private fun PrivMsgItem(
                     when (token) {
                         is MessageToken.Text -> {
                             if (message.isAction) {
-                                withStyle(SpanStyle(color = messageColor, fontStyle = FontStyle.Italic)) {
-                                    append(token.text)
-                                }
+                                withStyle(SpanStyle(color = messageColor, fontStyle = FontStyle.Italic)) { append(token.text) }
                             } else {
                                 append(token.text)
                             }
@@ -845,54 +831,41 @@ private fun PrivMsgItem(
                             inlineContent[key] = InlineTextContent(
                                 Placeholder(emoteSizeSp, emoteSizeSp, PlaceholderVerticalAlign.TextCenter)
                             ) {
-                                AnimatedEmoteImage(
-                                    url = token.url,
-                                    contentDescription = token.name,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                AnimatedEmoteImage(url = token.url, contentDescription = token.name, modifier = Modifier.fillMaxSize())
                             }
                         }
                         is MessageToken.ThirdPartyEmoteToken -> {
                             val key = "emote_${emoteCounter++}"
                             appendInlineContent(key, token.emote.code)
+                            val (emoteW, emoteH) = computeEmoteDisplaySize(
+                                origWidth = token.emote.width,
+                                origHeight = token.emote.height,
+                                baseHeightSp = emoteSizeSp
+                            )
                             inlineContent[key] = InlineTextContent(
-                                Placeholder(emoteSizeSp, emoteSizeSp, PlaceholderVerticalAlign.TextCenter)
+                                Placeholder(emoteW, emoteH, PlaceholderVerticalAlign.TextCenter)
                             ) {
                                 Box {
-                                    AnimatedEmoteImage(
-                                        url = token.emote.url2x,
-                                        contentDescription = token.emote.code,
-                                        modifier = Modifier.fillMaxSize()
+                                    EmoteImageWithTooltip(
+                                        emote = token.emote,
+                                        modifier = Modifier.fillMaxSize(),
+                                        onShowContextMenu = { showContextMenu = true }
                                     )
                                     token.overlays.forEach { overlay ->
-                                        AnimatedEmoteImage(
-                                            url = overlay.url2x,
-                                            contentDescription = overlay.code,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
+                                        EmoteImageWithTooltip(emote = overlay, modifier = Modifier.fillMaxSize())
                                     }
                                 }
                             }
                         }
                         is MessageToken.Link -> {
                             pushStringAnnotation("url", token.url)
-                            withStyle(
-                                SpanStyle(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textDecoration = TextDecoration.Underline
-                                )
-                            ) {
+                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) {
                                 append(token.displayText)
                             }
                             pop()
                         }
                         is MessageToken.Mention -> {
-                            withStyle(
-                                SpanStyle(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            ) {
+                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)) {
                                 append(token.username)
                             }
                         }
@@ -901,45 +874,43 @@ private fun PrivMsgItem(
             }
         }
 
-        var showContextMenu by remember { mutableStateOf(false) }
         val clipboardManager = LocalClipboardManager.current
         val uriHandler = LocalUriHandler.current
         var textLayoutResult by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
 
         Box(modifier = Modifier.weight(1f)) {
-            SelectionContainer {
-                Text(
-                    text = annotatedString,
-                    inlineContent = inlineContent,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .pointerInput(annotatedString) {
-                            detectTapGestures(
-                                onTap = { offset ->
-                                    textLayoutResult?.let { layoutResult ->
-                                        val charOffset = layoutResult.getOffsetForPosition(offset)
-                                        annotatedString.getStringAnnotations("url", charOffset, charOffset)
-                                            .firstOrNull()?.let { annotation ->
-                                                try {
-                                                    uriHandler.openUri(annotation.item)
-                                                } catch (_: Exception) {}
-                                                return@detectTapGestures
-                                            }
-                                        annotatedString.getStringAnnotations("username", charOffset, charOffset)
-                                            .firstOrNull()?.let {
-                                                onUsernameClick()
-                                                return@detectTapGestures
-                                            }
-                                    }
-                                },
-                                onLongPress = { showContextMenu = true }
-                            )
-                        },
-                    onTextLayout = { textLayoutResult = it }
-                )
-            }
+            // ← ИСПРАВЛЕНИЕ 4: убран SelectionContainer — он крашит при ПКМ на эмоут
+            // (TooltipArea внутри SelectionContainer вызывает "layouts are not part of the same hierarchy")
+            // Копирование текста доступно через контекстное меню "Copy Text"
+            Text(
+                text = annotatedString,
+                inlineContent = inlineContent,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .pointerInput(annotatedString) {
+                        detectTapGestures(
+                            onTap = { offset ->
+                                textLayoutResult?.let { layoutResult ->
+                                    val charOffset = layoutResult.getOffsetForPosition(offset)
+                                    annotatedString.getStringAnnotations("url", charOffset, charOffset)
+                                        .firstOrNull()?.let { annotation ->
+                                            try { uriHandler.openUri(annotation.item) } catch (_: Exception) {}
+                                            return@detectTapGestures
+                                        }
+                                    annotatedString.getStringAnnotations("username", charOffset, charOffset)
+                                        .firstOrNull()?.let {
+                                            onUsernameClick()
+                                            return@detectTapGestures
+                                        }
+                                }
+                            },
+                            onLongPress = { showContextMenu = true }
+                        )
+                    },
+                onTextLayout = { textLayoutResult = it }
+            )
 
             DropdownMenu(
                 expanded = showContextMenu,
@@ -958,55 +929,29 @@ private fun PrivMsgItem(
                     DropdownMenuItem(
                         text = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Filled.Place,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+                                Icon(Icons.Filled.Place, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Pin", fontWeight = FontWeight.SemiBold)
                             }
                         },
-                        onClick = {
-                            showContextMenu = false
-                            onPin()
-                        }
+                        onClick = { showContextMenu = false; onPin() }
                     )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
                 }
-
                 DropdownMenuItem(
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Send,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.width(8.dp))
                             Text("Reply")
                         }
                     },
-                    onClick = {
-                        showContextMenu = false
-                        onReply()
-                    }
+                    onClick = { showContextMenu = false; onReply() }
                 )
-
                 DropdownMenuItem(
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Outlined.Info,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.width(8.dp))
                             Text("Copy Text")
                         }
@@ -1036,18 +981,9 @@ private fun SystemMsgItem(message: DisplayMessage.SystemMsg) {
         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            Icons.Outlined.Info,
-            contentDescription = null,
-            modifier = Modifier.size(14.dp),
-            tint = ChatoneTheme.extraColors.systemMessage
-        )
+        Icon(Icons.Outlined.Info, contentDescription = null, modifier = Modifier.size(14.dp), tint = ChatoneTheme.extraColors.systemMessage)
         Spacer(Modifier.width(4.dp))
-        Text(
-            text = message.text,
-            style = MaterialTheme.typography.bodySmall,
-            color = ChatoneTheme.extraColors.systemMessage
-        )
+        Text(text = message.text, style = MaterialTheme.typography.bodySmall, color = ChatoneTheme.extraColors.systemMessage)
     }
 }
 
@@ -1061,12 +997,7 @@ private fun UserNoticeMsgItem(message: DisplayMessage.UserNoticeMsg) {
             .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.12f))
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
-        Text(
-            text = message.systemText,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(text = message.systemText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
         message.innerMessage?.let {
             Spacer(modifier = Modifier.height(2.dp))
             PrivMsgItem(message = it)
@@ -1081,31 +1012,15 @@ private fun ModerationMsgItem(message: DisplayMessage.ModerationMsg) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         val (icon, color) = when (message.action) {
-            DisplayMessage.ModerationMsg.ModerationAction.BAN ->
-                Icons.Filled.Close to ChatoneTheme.extraColors.modBan
-            DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT ->
-                Icons.Outlined.Refresh to ChatoneTheme.extraColors.modTimeout
-            DisplayMessage.ModerationMsg.ModerationAction.DELETE ->
-                Icons.Outlined.Delete to ChatoneTheme.extraColors.modDelete
-            DisplayMessage.ModerationMsg.ModerationAction.CLEAR ->
-                Icons.Outlined.Clear to ChatoneTheme.extraColors.modDelete
-            DisplayMessage.ModerationMsg.ModerationAction.UNBAN ->
-                Icons.Outlined.CheckCircle to ChatoneTheme.extraColors.modUnban
+            DisplayMessage.ModerationMsg.ModerationAction.BAN -> Icons.Filled.Close to ChatoneTheme.extraColors.modBan
+            DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT -> Icons.Outlined.Refresh to ChatoneTheme.extraColors.modTimeout
+            DisplayMessage.ModerationMsg.ModerationAction.DELETE -> Icons.Outlined.Delete to ChatoneTheme.extraColors.modDelete
+            DisplayMessage.ModerationMsg.ModerationAction.CLEAR -> Icons.Outlined.Clear to ChatoneTheme.extraColors.modDelete
+            DisplayMessage.ModerationMsg.ModerationAction.UNBAN -> Icons.Outlined.CheckCircle to ChatoneTheme.extraColors.modUnban
         }
-
-        Icon(
-            icon,
-            contentDescription = null,
-            modifier = Modifier.size(14.dp),
-            tint = color.copy(alpha = 0.7f)
-        )
+        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = color.copy(alpha = 0.7f))
         Spacer(Modifier.width(4.dp))
-        Text(
-            text = message.text,
-            style = MaterialTheme.typography.bodySmall,
-            color = color.copy(alpha = 0.7f),
-            fontStyle = FontStyle.Italic
-        )
+        Text(text = message.text, style = MaterialTheme.typography.bodySmall, color = color.copy(alpha = 0.7f), fontStyle = FontStyle.Italic)
     }
 }
 
@@ -1126,35 +1041,22 @@ private fun MessageInput(
         tonalElevation = 0.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Emote picker button
-            IconButton(
-                onClick = onEmotePickerClick,
-                enabled = enabled,
-                modifier = Modifier.size(36.dp)
-            ) {
+            IconButton(onClick = onEmotePickerClick, enabled = enabled, modifier = Modifier.size(36.dp)) {
                 Text(
                     text = ":)",
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (enabled) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             }
-
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
                 modifier = Modifier.weight(1f),
                 placeholder = {
-                    Text(
-                        "Send a message...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
+                    Text("Send a message...", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                 },
                 enabled = enabled,
                 singleLine = true,
@@ -1169,10 +1071,7 @@ private fun MessageInput(
                 keyboardActions = KeyboardActions(onSend = { onSend() }),
                 textStyle = MaterialTheme.typography.bodyMedium
             )
-
             Spacer(modifier = Modifier.width(4.dp))
-
-            // Send button
             FilledIconButton(
                 onClick = onSend,
                 enabled = enabled && value.isNotBlank(),
@@ -1184,11 +1083,7 @@ private fun MessageInput(
                     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    modifier = Modifier.size(18.dp)
-                )
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -1202,42 +1097,17 @@ private fun EmoteAutocompleteRow(
     onSelect: (io.rudione.chatone.domain.model.GenericEmote) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 2.dp
-    ) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 2.dp) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 2.dp),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             emotes.forEach { emote ->
-                Surface(
-                    onClick = { onSelect(emote) },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    tonalElevation = 1.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        AnimatedEmoteImage(
-                            url = emote.url2x,
-                            contentDescription = emote.code,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Text(
-                            text = emote.code,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                Surface(onClick = { onSelect(emote) }, shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, tonalElevation = 1.dp) {
+                    Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        AnimatedEmoteImage(url = emote.url2x, contentDescription = emote.code, modifier = Modifier.size(24.dp))
+                        Text(text = emote.code, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -1253,43 +1123,17 @@ private fun MentionAutocompleteRow(
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 2.dp
-    ) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 2.dp) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 1.dp),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 1.dp),
             horizontalArrangement = Arrangement.spacedBy(1.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             usernames.forEach { username ->
-                Surface(
-                    onClick = { onSelect(username) },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    tonalElevation = 1.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            Icons.Filled.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "@$username",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                Surface(onClick = { onSelect(username) }, shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainerHighest, tonalElevation = 1.dp) {
+                    Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text(text = "@$username", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -1308,54 +1152,19 @@ private fun PinnedMessageBar(
     val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh
     val primaryColor = MaterialTheme.colorScheme.primary
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = Color.Transparent,
-        tonalElevation = 2.dp
-    ) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = Color.Transparent, tonalElevation = 2.dp) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            primaryColor.copy(alpha = 0.08f),
-                            surfaceColor.copy(alpha = 0.92f),
-                            primaryColor.copy(alpha = 0.05f)
-                        )
-                    )
-                )
-                .border(
-                    width = 0.5.dp,
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            primaryColor.copy(alpha = 0.3f),
-                            primaryColor.copy(alpha = 0.1f),
-                            primaryColor.copy(alpha = 0.2f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(0.dp)
-                )
+                .background(brush = Brush.horizontalGradient(colors = listOf(primaryColor.copy(alpha = 0.08f), surfaceColor.copy(alpha = 0.92f), primaryColor.copy(alpha = 0.05f))))
+                .border(width = 0.5.dp, brush = Brush.horizontalGradient(colors = listOf(primaryColor.copy(alpha = 0.3f), primaryColor.copy(alpha = 0.1f), primaryColor.copy(alpha = 0.2f))), shape = RoundedCornerShape(0.dp))
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Filled.Place,
-                    contentDescription = "Pinned",
-                    modifier = Modifier.size(16.dp),
-                    tint = primaryColor.copy(alpha = 0.8f)
-                )
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Place, contentDescription = "Pinned", modifier = Modifier.size(16.dp), tint = primaryColor.copy(alpha = 0.8f))
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = message.displayName,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = parseColor(message.color) ?: primaryColor
-                    )
+                    Text(text = message.displayName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = parseColor(message.color) ?: primaryColor)
                     Text(
                         text = message.tokens.joinToString("") { token ->
                             when (token) {
@@ -1373,16 +1182,8 @@ private fun PinnedMessageBar(
                     )
                 }
                 if (canUnpin) {
-                    IconButton(
-                        onClick = onUnpin,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = "Unpin",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    IconButton(onClick = onUnpin, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Filled.Close, contentDescription = "Unpin", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -1393,55 +1194,17 @@ private fun PinnedMessageBar(
 // ─── Reply Bar ───────────────────────────────────────────────────────────
 
 @Composable
-private fun ReplyBar(
-    displayName: String,
-    messagePreview: String,
-    onCancel: () -> Unit
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f),
-        tonalElevation = 1.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .width(3.dp)
-                    .height(28.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.primary)
-            )
+private fun ReplyBar(displayName: String, messagePreview: String, onCancel: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f), tonalElevation = 1.dp) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.width(3.dp).height(28.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Replying to $displayName",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = messagePreview,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Text(text = "Replying to $displayName", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                Text(text = messagePreview, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            IconButton(
-                onClick = onCancel,
-                modifier = Modifier.size(24.dp)
-            ) {
-                Icon(
-                    Icons.Filled.Close,
-                    contentDescription = "Cancel reply",
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            IconButton(onClick = onCancel, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Filled.Close, contentDescription = "Cancel reply", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -1451,25 +1214,14 @@ private fun ReplyBar(
 
 private fun createPaintBrush(paint: SevenTvCosmetics.Paint): Brush? {
     if (paint.stops.isEmpty()) {
-        // Single color paint
-        paint.color?.let { argb ->
-            val color = argbToColor(argb)
-            return Brush.linearGradient(listOf(color, color))
-        }
+        paint.color?.let { return Brush.linearGradient(listOf(argbToColor(it), argbToColor(it))) }
         return null
     }
-
-    val colorStops = paint.stops.map { stop ->
-        stop.at to argbToColor(stop.color)
-    }.toTypedArray()
-
+    val colorStops = paint.stops.map { stop -> stop.at to argbToColor(stop.color) }.toTypedArray()
     return when (paint.function) {
         "LINEAR_GRADIENT" -> Brush.linearGradient(colorStops = colorStops)
         "RADIAL_GRADIENT" -> Brush.radialGradient(colorStops = colorStops)
-        else -> {
-            // Fallback to linear gradient
-            if (colorStops.isNotEmpty()) Brush.linearGradient(colorStops = colorStops) else null
-        }
+        else -> if (colorStops.isNotEmpty()) Brush.linearGradient(colorStops = colorStops) else null
     }
 }
 
@@ -1483,15 +1235,11 @@ private fun argbToColor(argb: Int): Color {
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
-private fun formatTimestamp(
-    timestamp: Long,
-    format: SettingsState.TimestampFormat = SettingsState.TimestampFormat.H24
-): String {
+private fun formatTimestamp(timestamp: Long, format: SettingsState.TimestampFormat = SettingsState.TimestampFormat.H24): String {
     val instant = Instant.fromEpochMilliseconds(timestamp)
     val dateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())
     return when (format) {
-        SettingsState.TimestampFormat.H24 ->
-            "${dateTime.hour.toString().padStart(2, '0')}:${dateTime.minute.toString().padStart(2, '0')}"
+        SettingsState.TimestampFormat.H24 -> "${dateTime.hour.toString().padStart(2, '0')}:${dateTime.minute.toString().padStart(2, '0')}"
         SettingsState.TimestampFormat.H12 -> {
             val hour12 = if (dateTime.hour == 0) 12 else if (dateTime.hour > 12) dateTime.hour - 12 else dateTime.hour
             val amPm = if (dateTime.hour < 12) "AM" else "PM"
@@ -1505,12 +1253,12 @@ private fun parseColor(hexColor: String?): Color? {
     if (hexColor == null || !hexColor.startsWith("#")) return null
     return try {
         val colorInt = hexColor.substring(1).toLong(16)
-        Color(
-            red = ((colorInt shr 16) and 0xFF) / 255f,
-            green = ((colorInt shr 8) and 0xFF) / 255f,
-            blue = (colorInt and 0xFF) / 255f
-        )
-    } catch (e: Exception) {
-        null
-    }
+        Color(red = ((colorInt shr 16) and 0xFF) / 255f, green = ((colorInt shr 8) and 0xFF) / 255f, blue = (colorInt and 0xFF) / 255f)
+    } catch (e: Exception) { null }
+}
+
+private fun computeEmoteDisplaySize(origWidth: Int, origHeight: Int, baseHeightSp: TextUnit): Pair<TextUnit, TextUnit> {
+    if (origWidth <= 0 || origHeight <= 0) return baseHeightSp to baseHeightSp
+    val clampedAspect = (origWidth.toFloat() / origHeight.toFloat()).coerceIn(0.5f, 4.0f)
+    return (baseHeightSp.value * clampedAspect).sp to baseHeightSp
 }

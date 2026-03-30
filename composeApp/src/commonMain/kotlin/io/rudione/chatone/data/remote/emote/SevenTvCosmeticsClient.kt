@@ -4,28 +4,21 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
-import io.ktor.client.request.parameter
 import io.rudione.chatone.data.remote.dto.*
 import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.domain.model.SevenTvUserCosmetic
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/**
- * Client for 7TV cosmetics API - loads paints and badges for users.
- * Caches cosmetics by user ID for efficient lookups during message rendering.
- */
 class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
     companion object {
         private const val TAG = "7TV-Cosmetics"
         private const val BASE_URL = "https://7tv.io/v3"
     }
 
-    // Cache: twitchUserId -> SevenTvUserCosmetic
     private val userCosmeticsCache = mutableMapOf<String, SevenTvUserCosmetic>()
     private val cacheMutex = Mutex()
 
-    // Batch lookup: we look up users by their Twitch IDs
     suspend fun getUserCosmetics(twitchUserId: String): SevenTvUserCosmetic? {
         cacheMutex.withLock {
             userCosmeticsCache[twitchUserId]?.let { return it }
@@ -34,13 +27,28 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
         return try {
             val response = httpClient.get("$BASE_URL/users/twitch/$twitchUserId")
                 .body<SevenTvUserConnection>()
-            val user = response.user ?: return null
+
+            // user может быть null если у юзера нет аккаунта 7TV
+            val user = response.user ?: run {
+                // Кэшируем пустой результат чтобы не делать повторные запросы
+                val empty = SevenTvUserCosmetic(sevenTvId = "", paint = null, badge = null, nameColor = null)
+                cacheMutex.withLock { userCosmeticsCache[twitchUserId] = empty }
+                return null
+            }
+
             val style = user.style
+
+            // Бейдж: сначала берём из style.badge если есть,
+            // иначе пробуем загрузить по badge_id
+            val badge = style.badge?.toCosmetic()
+                ?: style.badgeId?.let { badgeId ->
+                    loadBadgeById(badgeId)
+                }
 
             val cosmetic = SevenTvUserCosmetic(
                 sevenTvId = user.id,
                 paint = style.paint?.toCosmetic(),
-                badge = style.badge?.toCosmetic(),
+                badge = badge,
                 nameColor = style.color
             )
 
@@ -48,9 +56,18 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
                 userCosmeticsCache[twitchUserId] = cosmetic
             }
 
-            cosmetic
+            if (cosmetic.paint != null || cosmetic.badge != null) cosmetic else null
         } catch (e: Exception) {
             Napier.w("Failed to get 7TV cosmetics for user $twitchUserId: ${e.message}", tag = TAG)
+            null
+        }
+    }
+
+    private suspend fun loadBadgeById(badgeId: String): SevenTvCosmetics.Badge? {
+        return try {
+            val badge = httpClient.get("$BASE_URL/cosmetics/$badgeId").body<SevenTvBadge>()
+            badge.toCosmetic()
+        } catch (_: Exception) {
             null
         }
     }
@@ -70,10 +87,7 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
             function = function,
             color = color,
             stops = stops.map { stop ->
-                SevenTvCosmetics.PaintStop(
-                    at = stop.at.toFloat(),
-                    color = stop.color
-                )
+                SevenTvCosmetics.PaintStop(at = stop.at.toFloat(), color = stop.color)
             },
             repeat = repeat,
             angle = angle,
