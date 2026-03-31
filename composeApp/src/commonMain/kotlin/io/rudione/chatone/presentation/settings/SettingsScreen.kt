@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.HighlightRule
+import io.rudione.chatone.util.pickAudioFile
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,9 +53,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // Appearance section
-            item {
-                SectionHeader("Appearance")
-            }
+            item { SectionHeader("Appearance") }
             item {
                 SwitchPreference(
                     title = "Dark Theme",
@@ -86,7 +85,6 @@ fun SettingsScreen(
                     }
                 )
             }
-
             item {
                 ListPreference(
                     title = "Channel Navigation",
@@ -106,25 +104,19 @@ fun SettingsScreen(
                 )
             }
 
-            // Window section (desktop only)
-            item {
-                SectionHeader("Window")
-            }
+            // Window section
+            item { SectionHeader("Window") }
             item {
                 SwitchPreference(
                     title = "Always on Top",
                     subtitle = "Keep window above other windows",
                     checked = state.alwaysOnTop,
-                    onCheckedChange = {
-                        viewModel.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
-                    }
+                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it)) }
                 )
             }
 
             // Chat section
-            item {
-                SectionHeader("Chat")
-            }
+            item { SectionHeader("Chat") }
             item {
                 SwitchPreference(
                     title = "Show Timestamps",
@@ -133,8 +125,7 @@ fun SettingsScreen(
                     onCheckedChange = { enabled ->
                         viewModel.sendEvent(
                             SettingsEvent.OnTimestampFormatChanged(
-                                if (enabled) SettingsState.TimestampFormat.H24
-                                else SettingsState.TimestampFormat.OFF
+                                if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
                             )
                         )
                     }
@@ -153,8 +144,7 @@ fun SettingsScreen(
                         onSelected = { index ->
                             viewModel.sendEvent(
                                 SettingsEvent.OnTimestampFormatChanged(
-                                    if (index == 0) SettingsState.TimestampFormat.H12
-                                    else SettingsState.TimestampFormat.H24
+                                    if (index == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
                                 )
                             )
                         }
@@ -166,9 +156,7 @@ fun SettingsScreen(
                     title = "Show Badges",
                     subtitle = "Display user badges in chat",
                     checked = state.showBadges,
-                    onCheckedChange = {
-                        viewModel.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
-                    }
+                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnShowBadgesChanged(it)) }
                 )
             }
             item {
@@ -176,9 +164,7 @@ fun SettingsScreen(
                     title = "Show Deleted Messages",
                     subtitle = "Show deleted messages as grayed out",
                     checked = state.showDeletedMessages,
-                    onCheckedChange = {
-                        viewModel.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
-                    }
+                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnShowDeletedChanged(it)) }
                 )
             }
             item {
@@ -188,24 +174,18 @@ fun SettingsScreen(
                     valueRange = 100f..2000f,
                     steps = 18,
                     valueLabel = "${state.scrollbackLimit} messages",
-                    onValueChange = {
-                        viewModel.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
-                    }
+                    onValueChange = { viewModel.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt())) }
                 )
             }
 
             // Notifications section
-            item {
-                SectionHeader("Notifications & Highlights")
-            }
+            item { SectionHeader("Notifications & Highlights") }
             item {
                 SwitchPreference(
                     title = "Mention Sound",
                     subtitle = "Play sound when you are mentioned",
                     checked = state.mentionSoundEnabled,
-                    onCheckedChange = {
-                        viewModel.sendEvent(SettingsEvent.OnMentionSoundChanged(it))
-                    }
+                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) }
                 )
             }
             if (state.mentionSoundEnabled) {
@@ -218,37 +198,108 @@ fun SettingsScreen(
                         )
                         Slider(
                             value = state.mentionSoundVolume,
-                            onValueChange = {
-                                viewModel.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it))
-                            },
+                            onValueChange = { viewModel.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it)) },
                             valueRange = 0f..1f,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
                 item {
+                    // ── Custom Sound Picker ──────────────────────────────
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
                         Text(
-                            text = "Custom Sound (MP3/WAV path)",
+                            text = "Custom Mention Sound",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = state.customMentionSoundPath,
-                            onValueChange = {
-                                viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(it))
-                            },
-                            placeholder = {
+                        Spacer(Modifier.height(6.dp))
+
+                        if (state.customMentionSoundPath.isNotBlank()) {
+                            // Show current file with delete button
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Notifications,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = state.customMentionSoundPath.substringAfterLast("/").substringAfterLast("\\"),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    // Delete custom sound — reset to default
+                                    IconButton(
+                                        onClick = {
+                                            viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(""))
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            contentDescription = "Remove custom sound",
+                                            modifier = Modifier.size(16.dp),
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(6.dp))
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Browse button — opens system file picker
+                            OutlinedButton(
+                                onClick = {
+                                    val picked = pickAudioFile()
+                                    if (picked != null) {
+                                        viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(picked))
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
                                 Text(
-                                    "Leave empty for default tone",
-                                    style = MaterialTheme.typography.bodySmall
+                                    if (state.customMentionSoundPath.isBlank()) "Browse..." else "Change...",
+                                    style = MaterialTheme.typography.labelMedium
                                 )
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodySmall
-                        )
+                            }
+
+                            // Test sound button
+                            FilledTonalButton(
+                                onClick = {
+                                    io.rudione.chatone.util.NotificationSoundPlayer.playMentionSound(
+                                        volume = state.mentionSoundVolume,
+                                        customSoundPath = state.customMentionSoundPath
+                                    )
+                                }
+                            ) {
+                                Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Test", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+
+                        if (state.customMentionSoundPath.isBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "Using default tone. Select MP3 or WAV file.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -290,17 +341,13 @@ fun SettingsScreen(
             }
 
             // Moderation section
-            item {
-                SectionHeader("Moderation")
-            }
+            item { SectionHeader("Moderation") }
             item {
                 SwitchPreference(
                     title = "Confirm Mod Actions",
                     subtitle = "Show confirmation dialog before ban/timeout",
                     checked = state.confirmModActions,
-                    onCheckedChange = {
-                        viewModel.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it))
-                    }
+                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it)) }
                 )
             }
             item {
@@ -316,46 +363,24 @@ fun SettingsScreen(
             }
 
             // About section
-            item {
-                SectionHeader("About")
-            }
+            item { SectionHeader("About") }
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Chatone",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Text("Chatone", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Version 1.0.3",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "TG",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("Version 1.0.3", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("TG", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "https://t.me/rudionee",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text("https://t.me/rudionee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(32.dp))
-            }
+            item { Spacer(modifier = Modifier.height(32.dp)) }
         }
     }
 }
@@ -385,22 +410,12 @@ private fun SwitchPreference(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
             if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange
-        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -412,40 +427,19 @@ private fun ListPreference(
     onSelected: (Int) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-
     Box {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = true }
-                .padding(vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(text = title, style = MaterialTheme.typography.bodyLarge)
+                Text(text = value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEachIndexed { index, option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onSelected(index)
-                        expanded = false
-                    }
-                )
+                DropdownMenuItem(text = { Text(option) }, onClick = { onSelected(index); expanded = false })
             }
         }
     }
@@ -460,31 +454,12 @@ private fun SliderPreference(
     valueLabel: String,
     onValueChange: (Float) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = valueLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Text(text = valueLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Slider(
-            value = value.toFloat(),
-            onValueChange = onValueChange,
-            valueRange = valueRange,
-            steps = steps
-        )
+        Slider(value = value.toFloat(), onValueChange = onValueChange, valueRange = valueRange, steps = steps)
     }
 }
 
@@ -497,23 +472,14 @@ private fun HighlightRuleItem(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Color indicator
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
-                    .background(Color(rule.color))
-            )
+            Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(Color(rule.color)))
             Spacer(Modifier.width(10.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = rule.pattern.ifEmpty { rule.id.replace("_", " ").replaceFirstChar { it.uppercase() } },
@@ -521,47 +487,21 @@ private fun HighlightRuleItem(
                     fontWeight = FontWeight.Medium
                 )
                 if (rule.isRegex) {
-                    Text(
-                        text = "Regex",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(text = "Regex", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-
-            // Sound toggle
-            IconButton(
-                onClick = { onSoundToggle(!rule.playSound) },
-                modifier = Modifier.size(32.dp)
-            ) {
+            IconButton(onClick = { onSoundToggle(!rule.playSound) }, modifier = Modifier.size(32.dp)) {
                 Icon(
                     if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications,
                     contentDescription = "Toggle sound",
                     modifier = Modifier.size(18.dp),
-                    tint = if (rule.playSound) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            // Enable/disable toggle
-            Switch(
-                checked = rule.enabled,
-                onCheckedChange = onToggle,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-
-            // Remove button for custom rules
+            Switch(checked = rule.enabled, onCheckedChange = onToggle, modifier = Modifier.padding(start = 4.dp))
             if (onRemove != null) {
-                IconButton(
-                    onClick = onRemove,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Remove",
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
+                IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
                 }
             }
         }
