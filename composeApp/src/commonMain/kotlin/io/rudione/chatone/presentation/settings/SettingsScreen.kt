@@ -17,9 +17,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.HighlightRule
+import io.rudione.chatone.util.NotificationSoundPlayer
 import io.rudione.chatone.util.pickAudioFile
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -46,23 +48,17 @@ fun SettingsScreen(
         }
     ) { paddingValues ->
         LazyColumn(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(paddingValues),
+            modifier = modifier.fillMaxSize().padding(paddingValues),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Appearance section
+            // ── Appearance ───────────────────────────────────────────
             item { SectionHeader("Appearance") }
             item {
                 SwitchPreference(
-                    title = "Dark Theme",
-                    subtitle = "Use dark color scheme",
+                    title = "Dark Theme", subtitle = "Use dark color scheme",
                     checked = state.darkTheme,
-                    onCheckedChange = {
-                        viewModel.sendEvent(SettingsEvent.OnDarkThemeChanged(it))
-                        onThemeChanged(it)
-                    }
+                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it) }
                 )
             }
             item {
@@ -70,9 +66,7 @@ fun SettingsScreen(
                     title = "Font Size",
                     value = state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
                     options = SettingsState.FontSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
-                    onSelected = { index ->
-                        viewModel.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[index]))
-                    }
+                    onSelected = { viewModel.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
                 )
             }
             item {
@@ -80,9 +74,7 @@ fun SettingsScreen(
                     title = "Emote Size",
                     value = state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
                     options = SettingsState.EmoteSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
-                    onSelected = { index ->
-                        viewModel.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[index]))
-                    }
+                    onSelected = { viewModel.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
                 )
             }
             item {
@@ -94,40 +86,30 @@ fun SettingsScreen(
                         SettingsState.ChannelNavigation.BOTH -> "Both"
                     },
                     options = listOf("Tab Bar", "Mini Rail", "Both"),
-                    onSelected = { index ->
-                        viewModel.sendEvent(
-                            SettingsEvent.OnChannelNavigationChanged(
-                                SettingsState.ChannelNavigation.entries[index]
-                            )
-                        )
-                    }
+                    onSelected = { viewModel.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
                 )
             }
 
-            // Window section
+            // ── Window ───────────────────────────────────────────────
             item { SectionHeader("Window") }
             item {
                 SwitchPreference(
-                    title = "Always on Top",
-                    subtitle = "Keep window above other windows",
+                    title = "Always on Top", subtitle = "Keep window above other windows",
                     checked = state.alwaysOnTop,
                     onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it)) }
                 )
             }
 
-            // Chat section
+            // ── Chat ─────────────────────────────────────────────────
             item { SectionHeader("Chat") }
             item {
                 SwitchPreference(
-                    title = "Show Timestamps",
-                    subtitle = "Display message time in chat",
+                    title = "Show Timestamps", subtitle = "Display message time in chat",
                     checked = state.timestampFormat != SettingsState.TimestampFormat.OFF,
                     onCheckedChange = { enabled ->
-                        viewModel.sendEvent(
-                            SettingsEvent.OnTimestampFormatChanged(
-                                if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
-                            )
-                        )
+                        viewModel.sendEvent(SettingsEvent.OnTimestampFormatChanged(
+                            if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
+                        ))
                     }
                 )
             }
@@ -135,55 +117,60 @@ fun SettingsScreen(
                 item {
                     ListPreference(
                         title = "Timestamp Format",
-                        value = when (state.timestampFormat) {
-                            SettingsState.TimestampFormat.H12 -> "12-hour"
-                            SettingsState.TimestampFormat.H24 -> "24-hour"
-                            SettingsState.TimestampFormat.OFF -> "Off"
-                        },
+                        value = when (state.timestampFormat) { SettingsState.TimestampFormat.H12 -> "12-hour"; SettingsState.TimestampFormat.H24 -> "24-hour"; SettingsState.TimestampFormat.OFF -> "Off" },
                         options = listOf("12-hour", "24-hour"),
-                        onSelected = { index ->
-                            viewModel.sendEvent(
-                                SettingsEvent.OnTimestampFormatChanged(
-                                    if (index == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
-                                )
-                            )
-                        }
+                        onSelected = { viewModel.sendEvent(SettingsEvent.OnTimestampFormatChanged(if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24)) }
                     )
                 }
             }
             item {
                 SwitchPreference(
-                    title = "Show Badges",
-                    subtitle = "Display user badges in chat",
+                    title = "Show Badges", subtitle = "Display user badges in chat",
                     checked = state.showBadges,
                     onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnShowBadgesChanged(it)) }
                 )
             }
             item {
                 SwitchPreference(
-                    title = "Show Deleted Messages",
-                    subtitle = "Show deleted messages as grayed out",
+                    title = "Show Deleted Messages", subtitle = "Show deleted messages as grayed out",
                     checked = state.showDeletedMessages,
                     onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnShowDeletedChanged(it)) }
                 )
             }
             item {
                 SliderPreference(
-                    title = "Message History Limit",
-                    value = state.scrollbackLimit,
-                    valueRange = 100f..2000f,
-                    steps = 18,
+                    title = "Message History Limit", value = state.scrollbackLimit,
+                    valueRange = 100f..2000f, steps = 18,
                     valueLabel = "${state.scrollbackLimit} messages",
                     onValueChange = { viewModel.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt())) }
                 )
             }
 
-            // Notifications section
+            // ── Chat Pause ───────────────────────────────────────────
+            item { SectionHeader("Chat Auto-scroll") }
+            item {
+                SwitchPreference(
+                    title = "Pause on Hover",
+                    subtitle = "Stop auto-scrolling when mouse is over chat (off by default)",
+                    checked = state.pauseOnHover,
+                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it)) }
+                )
+            }
+            item {
+                // Hotkey recorder
+                HotkeyPreference(
+                    title = "Pause Hotkey",
+                    subtitle = "Press a key combo to toggle chat pause (e.g. Ctrl+Space, Alt+P)",
+                    currentHotkey = state.pauseHotkey,
+                    onHotkeyChanged = { viewModel.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it)) }
+                )
+            }
+
+            // ── Notifications ────────────────────────────────────────
             item { SectionHeader("Notifications & Highlights") }
             item {
                 SwitchPreference(
-                    title = "Mention Sound",
-                    subtitle = "Play sound when you are mentioned",
+                    title = "Mention Sound", subtitle = "Play sound when you are mentioned",
                     checked = state.mentionSoundEnabled,
                     onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) }
                 )
@@ -191,67 +178,34 @@ fun SettingsScreen(
             if (state.mentionSoundEnabled) {
                 item {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Volume: ${(state.mentionSoundVolume * 100).toInt()}%",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Text("Volume: ${(state.mentionSoundVolume * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
                         Slider(
                             value = state.mentionSoundVolume,
                             onValueChange = { viewModel.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it)) },
-                            valueRange = 0f..1f,
-                            modifier = Modifier.fillMaxWidth()
+                            valueRange = 0f..1f, modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
                 item {
-                    // ── Custom Sound Picker ──────────────────────────────
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text(
-                            text = "Custom Mention Sound",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Text("Custom Mention Sound", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.height(6.dp))
 
                         if (state.customMentionSoundPath.isNotBlank()) {
-                            // Show current file with delete button
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Notifications,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
+                            Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), shape = RoundedCornerShape(8.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Notifications, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(8.dp))
                                     Text(
                                         text = state.customMentionSoundPath.substringAfterLast("/").substringAfterLast("\\"),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    // Delete custom sound — reset to default
                                     IconButton(
-                                        onClick = {
-                                            viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(""))
-                                        },
+                                        onClick = { viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged("")) },
                                         modifier = Modifier.size(28.dp)
                                     ) {
-                                        Icon(
-                                            Icons.Filled.Close,
-                                            contentDescription = "Remove custom sound",
-                                            modifier = Modifier.size(16.dp),
-                                            tint = MaterialTheme.colorScheme.error
-                                        )
+                                        Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }
@@ -259,34 +213,26 @@ fun SettingsScreen(
                         }
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // Browse button — opens system file picker
                             OutlinedButton(
                                 onClick = {
                                     val picked = pickAudioFile()
-                                    if (picked != null) {
-                                        viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(picked))
-                                    }
+                                    if (picked != null) viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(picked))
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Icon(Icons.Outlined.Search, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Outlined.Search, null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text(
-                                    if (state.customMentionSoundPath.isBlank()) "Browse..." else "Change...",
-                                    style = MaterialTheme.typography.labelMedium
-                                )
+                                Text(if (state.customMentionSoundPath.isBlank()) "Browse..." else "Change...", style = MaterialTheme.typography.labelMedium)
                             }
-
-                            // Test sound button
                             FilledTonalButton(
                                 onClick = {
-                                    io.rudione.chatone.util.NotificationSoundPlayer.playMentionSound(
+                                    NotificationSoundPlayer.playMentionSound(
                                         volume = state.mentionSoundVolume,
                                         customSoundPath = state.customMentionSoundPath
                                     )
                                 }
                             ) {
-                                Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
                                 Text("Test", style = MaterialTheme.typography.labelMedium)
                             }
@@ -294,11 +240,7 @@ fun SettingsScreen(
 
                         if (state.customMentionSoundPath.isBlank()) {
                             Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "Using default tone. Select MP3 or WAV file.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("Using default tone. Select WAV", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -308,44 +250,26 @@ fun SettingsScreen(
                     rule = rule,
                     onToggle = { viewModel.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
                     onSoundToggle = { viewModel.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
-                    onRemove = if (!rule.id.startsWith("custom_")) null
-                    else {{ viewModel.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }}
+                    onRemove = if (!rule.id.startsWith("custom_")) null else {{ viewModel.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }}
                 )
             }
             item {
                 var newPattern by remember { mutableStateOf("") }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = newPattern,
-                        onValueChange = { newPattern = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Add highlight pattern...") },
-                        singleLine = true
-                    )
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = newPattern, onValueChange = { newPattern = it }, modifier = Modifier.weight(1f), placeholder = { Text("Add highlight pattern...") }, singleLine = true)
                     Spacer(Modifier.width(8.dp))
                     FilledTonalButton(
-                        onClick = {
-                            if (newPattern.isNotBlank()) {
-                                viewModel.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
-                                newPattern = ""
-                            }
-                        },
+                        onClick = { if (newPattern.isNotBlank()) { viewModel.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim())); newPattern = "" } },
                         enabled = newPattern.isNotBlank()
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add", modifier = Modifier.size(18.dp))
-                    }
+                    ) { Icon(Icons.Filled.Add, contentDescription = "Add", modifier = Modifier.size(18.dp)) }
                 }
             }
 
-            // Moderation section
+            // ── Moderation ───────────────────────────────────────────
             item { SectionHeader("Moderation") }
             item {
                 SwitchPreference(
-                    title = "Confirm Mod Actions",
-                    subtitle = "Show confirmation dialog before ban/timeout",
+                    title = "Confirm Mod Actions", subtitle = "Show confirmation dialog before ban/timeout",
                     checked = state.confirmModActions,
                     onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it)) }
                 )
@@ -355,105 +279,186 @@ fun SettingsScreen(
                     title = "Default Timeout Duration",
                     value = formatDuration(state.defaultTimeoutDuration),
                     options = listOf("10 seconds", "1 minute", "10 minutes", "1 hour", "1 day"),
-                    onSelected = { index ->
-                        val durations = listOf(10, 60, 600, 3600, 86400)
-                        viewModel.sendEvent(SettingsEvent.OnDefaultTimeoutChanged(durations[index]))
-                    }
+                    onSelected = { viewModel.sendEvent(SettingsEvent.OnDefaultTimeoutChanged(listOf(10, 60, 600, 3600, 86400)[it])) }
                 )
             }
 
-            // About section
+            // ── About ─────────────────────────────────────────────────
             item { SectionHeader("About") }
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Chatone", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("Version 1.0.3", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Version 1.0.4", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("TG", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("https://t.me/rudionee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
-
             item { Spacer(modifier = Modifier.height(32.dp)) }
         }
     }
 }
 
+// ─── Hotkey Recorder ────────────────────────────────────────────────────
+@Composable
+private fun HotkeyPreference(
+    title: String,
+    subtitle: String,
+    currentHotkey: String,
+    onHotkeyChanged: (String) -> Unit
+) {
+    var isRecording by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Current hotkey display / record button
+            Surface(
+                color = if (isRecording) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .onKeyEvent { event ->
+                        if (!isRecording) return@onKeyEvent false
+                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent true
+
+                        // Ignore lone modifier keys
+                        if (event.key == Key.CtrlLeft || event.key == Key.CtrlRight ||
+                            event.key == Key.AltLeft || event.key == Key.AltRight ||
+                            event.key == Key.ShiftLeft || event.key == Key.ShiftRight ||
+                            event.key == Key.MetaLeft || event.key == Key.MetaRight) {
+                            return@onKeyEvent true
+                        }
+
+                        // Escape = clear hotkey
+                        if (event.key == Key.Escape) {
+                            onHotkeyChanged("")
+                            isRecording = false
+                            return@onKeyEvent true
+                        }
+
+                        // Build hotkey string
+                        val parts = mutableListOf<String>()
+                        if (event.isCtrlPressed || event.isMetaPressed) parts.add("ctrl")
+                        if (event.isAltPressed) parts.add("alt")
+                        if (event.isShiftPressed) parts.add("shift")
+
+                        val keyName = keyToName(event.key)
+                        if (keyName.isNotEmpty()) parts.add(keyName)
+
+                        val hotkey = parts.joinToString("+")
+                        onHotkeyChanged(hotkey)
+                        isRecording = false
+                        true
+                    }
+                    .clickable { isRecording = true }
+            ) {
+                Text(
+                    text = when {
+                        isRecording -> "Press a key combo..."
+                        currentHotkey.isBlank() -> "Not set — click to record"
+                        else -> currentHotkey.uppercase().replace("+", " + ")
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = when {
+                        isRecording -> MaterialTheme.colorScheme.onPrimaryContainer
+                        currentHotkey.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        else -> MaterialTheme.colorScheme.onSurface
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                )
+            }
+
+            // Clear button
+            if (currentHotkey.isNotBlank() || isRecording) {
+                IconButton(
+                    onClick = { onHotkeyChanged(""); isRecording = false },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = "Clear hotkey", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        if (isRecording) {
+            Spacer(Modifier.height(4.dp))
+            Text("Press Escape to clear, or any key combo to set", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+private fun keyToName(key: Key): String = when (key) {
+    Key.Spacebar -> "space"
+    Key.Enter -> "enter"
+    Key.Tab -> "tab"
+    Key.Backspace -> "backspace"
+    Key.Delete -> "delete"
+    Key.MoveHome -> "home"
+    Key.MoveEnd -> "end"
+    Key.PageUp -> "pageup"
+    Key.PageDown -> "pagedown"
+    Key.DirectionUp -> "up"
+    Key.DirectionDown -> "down"
+    Key.DirectionLeft -> "left"
+    Key.DirectionRight -> "right"
+    Key.F1 -> "f1"; Key.F2 -> "f2"; Key.F3 -> "f3"; Key.F4 -> "f4"
+    Key.F5 -> "f5"; Key.F6 -> "f6"; Key.F7 -> "f7"; Key.F8 -> "f8"
+    Key.F9 -> "f9"; Key.F10 -> "f10"; Key.F11 -> "f11"; Key.F12 -> "f12"
+    else -> {
+        // Try to get a readable name from keyCode (letters/digits)
+        val code = key.keyCode
+        when {
+            code in 65L..90L -> ('A' + (code - 65).toInt()).lowercaseChar().toString()  // A-Z
+            code in 48L..57L -> (code - 48).toString()  // 0-9
+            else -> ""
+        }
+    }
+}
+
+// ─── Shared composables ──────────────────────────────────────────────────
+
 @Composable
 private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(vertical = 12.dp)
-    )
+    Text(text = title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 12.dp))
 }
 
 @Composable
-private fun SwitchPreference(
-    title: String,
-    subtitle: String? = null,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+private fun SwitchPreference(title: String, subtitle: String? = null, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.bodyLarge)
-            if (subtitle != null) {
-                Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            if (subtitle != null) Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
 @Composable
-private fun ListPreference(
-    title: String,
-    value: String,
-    options: List<String>,
-    onSelected: (Int) -> Unit
-) {
+private fun ListPreference(title: String, value: String, options: List<String>, onSelected: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, style = MaterialTheme.typography.bodyLarge)
                 Text(text = value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { index, option ->
-                DropdownMenuItem(text = { Text(option) }, onClick = { onSelected(index); expanded = false })
-            }
+            options.forEachIndexed { index, option -> DropdownMenuItem(text = { Text(option) }, onClick = { onSelected(index); expanded = false }) }
         }
     }
 }
 
 @Composable
-private fun SliderPreference(
-    title: String,
-    value: Int,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    valueLabel: String,
-    onValueChange: (Float) -> Unit
-) {
+private fun SliderPreference(title: String, value: Int, valueRange: ClosedFloatingPointRange<Float>, steps: Int, valueLabel: String, onValueChange: (Float) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(text = title, style = MaterialTheme.typography.bodyLarge)
@@ -464,37 +469,19 @@ private fun SliderPreference(
 }
 
 @Composable
-private fun HighlightRuleItem(
-    rule: HighlightRule,
-    onToggle: (Boolean) -> Unit,
-    onSoundToggle: (Boolean) -> Unit,
-    onRemove: (() -> Unit)?
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+private fun HighlightRuleItem(rule: HighlightRule, onToggle: (Boolean) -> Unit, onSoundToggle: (Boolean) -> Unit, onRemove: (() -> Unit)?) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(12.dp).clip(CircleShape).background(Color(rule.color)))
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = rule.pattern.ifEmpty { rule.id.replace("_", " ").replaceFirstChar { it.uppercase() } },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                if (rule.isRegex) {
-                    Text(text = "Regex", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text(text = rule.pattern.ifEmpty { rule.id.replace("_", " ").replaceFirstChar { it.uppercase() } }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                if (rule.isRegex) Text(text = "Regex", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = { onSoundToggle(!rule.playSound) }, modifier = Modifier.size(32.dp)) {
                 Icon(
                     if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications,
-                    contentDescription = "Toggle sound",
-                    modifier = Modifier.size(18.dp),
+                    contentDescription = "Toggle sound", modifier = Modifier.size(18.dp),
                     tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -508,11 +495,9 @@ private fun HighlightRuleItem(
     }
 }
 
-private fun formatDuration(seconds: Int): String {
-    return when {
-        seconds < 60 -> "$seconds seconds"
-        seconds < 3600 -> "${seconds / 60} minute${if (seconds / 60 > 1) "s" else ""}"
-        seconds < 86400 -> "${seconds / 3600} hour${if (seconds / 3600 > 1) "s" else ""}"
-        else -> "${seconds / 86400} day${if (seconds / 86400 > 1) "s" else ""}"
-    }
+private fun formatDuration(seconds: Int): String = when {
+    seconds < 60 -> "$seconds seconds"
+    seconds < 3600 -> "${seconds / 60} minute${if (seconds / 60 > 1) "s" else ""}"
+    seconds < 86400 -> "${seconds / 3600} hour${if (seconds / 3600 > 1) "s" else ""}"
+    else -> "${seconds / 86400} day${if (seconds / 86400 > 1) "s" else ""}"
 }
