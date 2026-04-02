@@ -36,12 +36,18 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.Channel
 import io.rudione.chatone.presentation.chat.ChatScreen
+import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.settings.SettingsScreen
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
 import io.rudione.chatone.presentation.theme.ChatoneColors
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.theme.LocalWallpaperController
+import io.rudione.chatone.presentation.theme.WallpaperGlowEdge
+import io.rudione.chatone.util.WallpaperLoader
 import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +62,9 @@ fun MainScreen(
     val settingsState by settingsViewModel.state.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val wallpaperController = LocalWallpaperController.current
+    val wallpaper by remember { derivedStateOf { wallpaperController.state } }
+    val wallpaperLoader: WallpaperLoader = koinInject()
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
@@ -74,7 +83,8 @@ fun MainScreen(
     if (state.showSettings) {
         SettingsScreen(
             onNavigateBack = { viewModel.sendEvent(MainEvent.HideSettings) },
-            onThemeChanged = onThemeChanged
+            onThemeChanged = onThemeChanged,
+            wallpaperLoader = wallpaperLoader
         )
         return
     }
@@ -82,6 +92,7 @@ fun MainScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { scaffoldPadding ->
+
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -92,38 +103,75 @@ fun MainScreen(
 
             if (isWideScreen) {
                 Row(modifier = Modifier.fillMaxSize()) {
-                    // Передаём isWideScreen = true — крестик скрывается
-                    ChannelSidebar(
-                        state = state,
-                        onEvent = { viewModel.sendEvent(it) },
-                        isWideScreen = true
-                    )
+                    // Sidebar — with wallpaper glow on right edge if wallpaper active
+                    Box {
+                        GlowSurface(
+                            dominantColor = wallpaper.dominantColor,
+                            intensity = 0.9f,
+                            centerX = 1.2f, // источник справа
+                            centerY = 0.5f
+                        ) {
+                            ChannelSidebar(
+                                state = state,
+                                onEvent = { viewModel.sendEvent(it) },
+                                isWideScreen = true
+                            )
+                        }
+                        // Glow bleeds from the chat boundary (right edge) into sidebar
+                        if (wallpaper.isActive) {
+                            WallpaperGlowEdge(
+                                dominantColor = wallpaper.dominantColor,
+                                fromRight = true,
+                                glowWidth = 100.dp,
+                                modifier = Modifier.matchParentSize()
+                            )
+                        }
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         val showTabBar =
                             settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
                         if (showTabBar && state.openChannels.size > 1) {
-                            ChannelTabBar(
-                                channels = state.openChannels,
-                                activeLogin = state.activeChannelLogin,
-                                onSelect = { viewModel.sendEvent(MainEvent.SelectChannel(it)) },
-                                onClose = { viewModel.sendEvent(MainEvent.CloseChannel(it)) }
-                            )
+                            // Tab bar with glow on bottom edge if wallpaper active
+                            Box {
+                                ChannelTabBar(
+                                    channels = state.openChannels,
+                                    activeLogin = state.activeChannelLogin,
+                                    onSelect = { viewModel.sendEvent(MainEvent.SelectChannel(it)) },
+                                    onClose = { viewModel.sendEvent(MainEvent.CloseChannel(it)) }
+                                )
+                                if (wallpaper.isActive) {
+                                    WallpaperGlowEdge(
+                                        dominantColor = wallpaper.dominantColor,
+                                        fromRight = false,
+                                        glowWidth = 60.dp,
+                                        modifier = Modifier.matchParentSize()
+                                    )
+                                }
+                            }
                         }
                         val activeChannel = state.activeChannelLogin
                         if (activeChannel != null) {
-                            ChatScreen(
-                                channelLogin = activeChannel,
-                                onNavigateBack = {},
-                                modifier = Modifier.weight(1f),
-                                accessToken = state.selectedAccount?.accessToken ?: "",
-                                currentUserId = state.selectedAccount?.userId ?: "",
-                                currentUserLogin = state.selectedAccount?.login ?: "",
-                                currentDisplayName = state.selectedAccount?.displayName ?: "",
-                                onMentionDetected = { login ->
-                                    viewModel.sendEvent(MainEvent.IncrementMentionCount(login))
-                                },
-                                isWideScreen = true
-                            )
+                            // Chat with wallpaper background
+                            ChatBackgroundLayer(
+                                wallpaper = wallpaper,
+                                darkTheme = settingsState.darkTheme,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                ChatScreen(
+                                    channelLogin = activeChannel,
+                                    onNavigateBack = {},
+                                    modifier = Modifier.fillMaxSize(),
+                                    accessToken = state.selectedAccount?.accessToken ?: "",
+                                    currentUserId = state.selectedAccount?.userId ?: "",
+                                    currentUserLogin = state.selectedAccount?.login ?: "",
+                                    currentDisplayName = state.selectedAccount?.displayName ?: "",
+                                    onMentionDetected = { login ->
+                                        viewModel.sendEvent(MainEvent.IncrementMentionCount(login))
+                                    },
+                                    isWideScreen = true,
+                                    wallpaper = wallpaper
+                                )
+                            }
                         } else {
                             Box(modifier = Modifier.weight(1f)) {
                                 EmptyState(
@@ -140,25 +188,42 @@ fun MainScreen(
                     val showTabBar =
                         settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
                     if (showTabBar && state.openChannels.size > 1) {
-                        ChannelTabBar(
-                            channels = state.openChannels,
-                            activeLogin = state.activeChannelLogin,
-                            onSelect = { viewModel.sendEvent(MainEvent.SelectChannel(it)) },
-                            onClose = { viewModel.sendEvent(MainEvent.CloseChannel(it)) }
-                        )
+                        Box {
+                            ChannelTabBar(
+                                channels = state.openChannels,
+                                activeLogin = state.activeChannelLogin,
+                                onSelect = { viewModel.sendEvent(MainEvent.SelectChannel(it)) },
+                                onClose = { viewModel.sendEvent(MainEvent.CloseChannel(it)) }
+                            )
+                            if (wallpaper.isActive) {
+                                WallpaperGlowEdge(
+                                    dominantColor = wallpaper.dominantColor,
+                                    fromRight = false,
+                                    glowWidth = 60.dp,
+                                    modifier = Modifier.matchParentSize()
+                                )
+                            }
+                        }
                     }
                     val activeChannel = state.activeChannelLogin
                     if (activeChannel != null) {
-                        ChatScreen(
-                            channelLogin = activeChannel,
-                            onNavigateBack = { viewModel.sendEvent(MainEvent.ToggleSidebar) },
-                            modifier = Modifier.weight(1f),
-                            accessToken = state.selectedAccount?.accessToken ?: "",
-                            currentUserId = state.selectedAccount?.userId ?: "",
-                            currentUserLogin = state.selectedAccount?.login ?: "",
-                            currentDisplayName = state.selectedAccount?.displayName ?: "",
-                            isWideScreen = false
-                        )
+                        ChatBackgroundLayer(
+                            wallpaper = wallpaper,
+                            darkTheme = settingsState.darkTheme,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            ChatScreen(
+                                channelLogin = activeChannel,
+                                onNavigateBack = { viewModel.sendEvent(MainEvent.ToggleSidebar) },
+                                modifier = Modifier.fillMaxSize(),
+                                accessToken = state.selectedAccount?.accessToken ?: "",
+                                currentUserId = state.selectedAccount?.userId ?: "",
+                                currentUserLogin = state.selectedAccount?.login ?: "",
+                                currentDisplayName = state.selectedAccount?.displayName ?: "",
+                                isWideScreen = false,
+                                wallpaper = wallpaper
+                            )
+                        }
                     } else {
                         Box(modifier = Modifier.weight(1f)) {
                             EmptyState(
@@ -173,11 +238,22 @@ fun MainScreen(
                 val showMiniRail =
                     settingsState.channelNavigation != SettingsState.ChannelNavigation.TAB_BAR
                 if (showMiniRail && !state.sidebarExpanded) {
-                    MiniRail(
-                        state = state,
-                        onEvent = { viewModel.sendEvent(it) },
-                        modifier = Modifier.align(Alignment.TopStart)
-                    )
+                    Box {
+                        MiniRail(
+                            state = state,
+                            onEvent = { viewModel.sendEvent(it) },
+                            modifier = Modifier.align(Alignment.TopStart)
+                        )
+                        // Mini rail glow — from right
+                        if (wallpaper.isActive) {
+                            WallpaperGlowEdge(
+                                dominantColor = wallpaper.dominantColor,
+                                fromRight = true,
+                                glowWidth = 80.dp,
+                                modifier = Modifier.align(Alignment.TopStart)
+                            )
+                        }
+                    }
                 }
 
                 // Scrim
@@ -198,18 +274,35 @@ fun MainScreen(
                     )
                 }
 
-                // Sidebar (compact — показываем крестик)
+                // Sidebar compact
                 AnimatedVisibility(
                     visible = state.sidebarExpanded,
                     enter = slideInHorizontally(tween(250)) + fadeIn(tween(200)),
                     exit = slideOutHorizontally(tween(250)) + fadeOut(tween(200)),
                     modifier = Modifier.align(Alignment.TopStart)
                 ) {
-                    ChannelSidebar(
-                        state = state,
-                        onEvent = { viewModel.sendEvent(it) },
-                        isWideScreen = false
-                    )
+                    Box {
+                        GlowSurface(
+                            dominantColor = wallpaper.dominantColor,
+                            intensity = 0.9f,
+                            centerX = 1.2f, // источник справа
+                            centerY = 0.5f
+                        ) {
+                            ChannelSidebar(
+                                state = state,
+                                onEvent = { viewModel.sendEvent(it) },
+                                isWideScreen = true
+                            )
+                        }
+                        if (wallpaper.isActive) {
+                            WallpaperGlowEdge(
+                                dominantColor = wallpaper.dominantColor,
+                                fromRight = true,
+                                glowWidth = 100.dp,
+                                modifier = Modifier.matchParentSize()
+                            )
+                        }
+                    }
                 }
             }
         }

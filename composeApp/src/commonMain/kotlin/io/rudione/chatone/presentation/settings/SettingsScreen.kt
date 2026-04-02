@@ -14,15 +14,23 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
 import io.rudione.chatone.domain.model.HighlightRule
+import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
+import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.util.NotificationSoundPlayer
+import io.rudione.chatone.util.WallpaperLoader
 import io.rudione.chatone.util.pickAudioFile
+import io.rudione.chatone.util.pickImageFile
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,9 +39,14 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onThemeChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    wallpaperLoader: WallpaperLoader = koinInject(),
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+
+    // Берём текущий wallpaper state
+    val wallpaperController = LocalWallpaperController.current
+    val wallpaper by remember { derivedStateOf { wallpaperController.state } }
 
     Scaffold(
         topBar = {
@@ -47,262 +60,164 @@ fun SettingsScreen(
             )
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = modifier.fillMaxSize().padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+        // Фон с обоями
+        ChatBackgroundLayer(
+            wallpaper = wallpaper,
+            darkTheme = state.darkTheme,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
-            // ── Appearance ───────────────────────────────────────────
-            item { SectionHeader("Appearance") }
-            item {
-                SwitchPreference(
-                    title = "Dark Theme", subtitle = "Use dark color scheme",
-                    checked = state.darkTheme,
-                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it) }
-                )
-            }
-            item {
-                ListPreference(
-                    title = "Font Size",
-                    value = state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
-                    options = SettingsState.FontSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
-                    onSelected = { viewModel.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
-                )
-            }
-            item {
-                ListPreference(
-                    title = "Emote Size",
-                    value = state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
-                    options = SettingsState.EmoteSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
-                    onSelected = { viewModel.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
-                )
-            }
-            item {
-                ListPreference(
-                    title = "Channel Navigation",
-                    value = when (state.channelNavigation) {
-                        SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
-                        SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
-                        SettingsState.ChannelNavigation.BOTH -> "Both"
-                    },
-                    options = listOf("Tab Bar", "Mini Rail", "Both"),
-                    onSelected = { viewModel.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
-                )
-            }
-
-            // ── Window ───────────────────────────────────────────────
-            item { SectionHeader("Window") }
-            item {
-                SwitchPreference(
-                    title = "Always on Top", subtitle = "Keep window above other windows",
-                    checked = state.alwaysOnTop,
-                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it)) }
-                )
-            }
-
-            // ── Chat ─────────────────────────────────────────────────
-            item { SectionHeader("Chat") }
-            item {
-                SwitchPreference(
-                    title = "Show Timestamps", subtitle = "Display message time in chat",
-                    checked = state.timestampFormat != SettingsState.TimestampFormat.OFF,
-                    onCheckedChange = { enabled ->
-                        viewModel.sendEvent(SettingsEvent.OnTimestampFormatChanged(
-                            if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
-                        ))
-                    }
-                )
-            }
-            if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
+            LazyColumn(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // ── Appearance ───────────────────────────────────────────
+                item { SectionHeader("Appearance") }
                 item {
-                    ListPreference(
-                        title = "Timestamp Format",
-                        value = when (state.timestampFormat) { SettingsState.TimestampFormat.H12 -> "12-hour"; SettingsState.TimestampFormat.H24 -> "24-hour"; SettingsState.TimestampFormat.OFF -> "Off" },
-                        options = listOf("12-hour", "24-hour"),
-                        onSelected = { viewModel.sendEvent(SettingsEvent.OnTimestampFormatChanged(if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24)) }
+                    SwitchPreference(
+                        title = "Dark Theme",
+                        subtitle = "Use dark color scheme",
+                        checked = state.darkTheme,
+                        onCheckedChange = {
+                            viewModel.sendEvent(SettingsEvent.OnDarkThemeChanged(it))
+                            onThemeChanged(it)
+                        }
                     )
                 }
-            }
-            item {
-                SwitchPreference(
-                    title = "Show Badges", subtitle = "Display user badges in chat",
-                    checked = state.showBadges,
-                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnShowBadgesChanged(it)) }
-                )
-            }
-            item {
-                SwitchPreference(
-                    title = "Show Deleted Messages", subtitle = "Show deleted messages as grayed out",
-                    checked = state.showDeletedMessages,
-                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnShowDeletedChanged(it)) }
-                )
-            }
-            item {
-                SliderPreference(
-                    title = "Message History Limit", value = state.scrollbackLimit,
-                    valueRange = 100f..2000f, steps = 18,
-                    valueLabel = "${state.scrollbackLimit} messages",
-                    onValueChange = { viewModel.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt())) }
-                )
-            }
-
-            // ── Chat Pause ───────────────────────────────────────────
-            item { SectionHeader("Chat Auto-scroll") }
-            item {
-                SwitchPreference(
-                    title = "Pause on Hover",
-                    subtitle = "Stop auto-scrolling when mouse is over chat (off by default)",
-                    checked = state.pauseOnHover,
-                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it)) }
-                )
-            }
-            item {
-                // Hotkey recorder
-                HotkeyPreference(
-                    title = "Pause Hotkey",
-                    subtitle = "Press a key combo to toggle chat pause (e.g. Ctrl+Space, Alt+P)",
-                    currentHotkey = state.pauseHotkey,
-                    onHotkeyChanged = { viewModel.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it)) }
-                )
-            }
-
-            // ── Notifications ────────────────────────────────────────
-            item { SectionHeader("Notifications & Highlights") }
-            item {
-                SwitchPreference(
-                    title = "Mention Sound", subtitle = "Play sound when you are mentioned",
-                    checked = state.mentionSoundEnabled,
-                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) }
-                )
-            }
-            if (state.mentionSoundEnabled) {
                 item {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text("Volume: ${(state.mentionSoundVolume * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
-                        Slider(
-                            value = state.mentionSoundVolume,
-                            onValueChange = { viewModel.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it)) },
-                            valueRange = 0f..1f, modifier = Modifier.fillMaxWidth()
+                    ListPreference(
+                        title = "Font Size",
+                        value = state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
+                        options = SettingsState.FontSize.entries.map {
+                            it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
+                        },
+                        onSelected = { viewModel.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
+                    )
+                }
+                item {
+                    ListPreference(
+                        title = "Emote Size",
+                        value = state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
+                        options = SettingsState.EmoteSize.entries.map {
+                            it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
+                        },
+                        onSelected = { viewModel.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
+                    )
+                }
+                item {
+                    ListPreference(
+                        title = "Channel Navigation",
+                        value = when (state.channelNavigation) {
+                            SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
+                            SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
+                            SettingsState.ChannelNavigation.BOTH -> "Both"
+                        },
+                        options = listOf("Tab Bar", "Mini Rail", "Both"),
+                        onSelected = {
+                            viewModel.sendEvent(
+                                SettingsEvent.OnChannelNavigationChanged(
+                                    SettingsState.ChannelNavigation.entries[it]
+                                )
+                            )
+                        }
+                    )
+                }
+
+                // ── Window ───────────────────────────────────────────────
+                item { SectionHeader("Window") }
+                item {
+                    SwitchPreference(
+                        title = "Always on Top",
+                        subtitle = "Keep window above other windows",
+                        checked = state.alwaysOnTop,
+                        onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it)) }
+                    )
+                }
+
+                // ── Chat ─────────────────────────────────────────────────
+                item { SectionHeader("Chat") }
+                item {
+                    SwitchPreference(
+                        title = "Show Timestamps",
+                        subtitle = "Display message time in chat",
+                        checked = state.timestampFormat != SettingsState.TimestampFormat.OFF,
+                        onCheckedChange = { enabled ->
+                            viewModel.sendEvent(
+                                SettingsEvent.OnTimestampFormatChanged(
+                                    if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
+                                )
+                            )
+                        }
+                    )
+                }
+                if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
+                    item {
+                        ListPreference(
+                            title = "Timestamp Format",
+                            value = when (state.timestampFormat) {
+                                SettingsState.TimestampFormat.H12 -> "12-hour"
+                                SettingsState.TimestampFormat.H24 -> "24-hour"
+                                SettingsState.TimestampFormat.OFF -> "Off"
+                            },
+                            options = listOf("12-hour", "24-hour"),
+                            onSelected = {
+                                viewModel.sendEvent(
+                                    SettingsEvent.OnTimestampFormatChanged(
+                                        if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
+                                    )
+                                )
+                            }
                         )
                     }
                 }
                 item {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                        Text("Custom Mention Sound", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                        Spacer(Modifier.height(6.dp))
+                    SwitchPreference(
+                        title = "Show Badges",
+                        subtitle = "Display user badges in chat",
+                        checked = state.showBadges,
+                        onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnShowBadgesChanged(it)) }
+                    )
+                }
 
-                        if (state.customMentionSoundPath.isNotBlank()) {
-                            Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), shape = RoundedCornerShape(8.dp)) {
-                                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Filled.Notifications, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = state.customMentionSoundPath.substringAfterLast("/").substringAfterLast("\\"),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    IconButton(
-                                        onClick = { viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged("")) },
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
-                                    }
-                                }
-                            }
-                            Spacer(Modifier.height(6.dp))
-                        }
+                // ── Wallpaper ─────────────────────────────────────────────
+                item { SectionHeader("Chat Background") }
+                item {
+                    WallpaperPreference(
+                        currentPath = state.wallpaperPath,
+                        blurRadius = state.wallpaperBlur,
+                        onPathChanged = { viewModel.sendEvent(SettingsEvent.OnWallpaperPathChanged(it)) },
+                        onBlurChanged = { viewModel.sendEvent(SettingsEvent.OnWallpaperBlurChanged(it)) }
+                    )
+                }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    val picked = pickAudioFile()
-                                    if (picked != null) viewModel.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(picked))
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Outlined.Search, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(if (state.customMentionSoundPath.isBlank()) "Browse..." else "Change...", style = MaterialTheme.typography.labelMedium)
-                            }
-                            FilledTonalButton(
-                                onClick = {
-                                    NotificationSoundPlayer.playMentionSound(
-                                        volume = state.mentionSoundVolume,
-                                        customSoundPath = state.customMentionSoundPath
-                                    )
-                                }
-                            ) {
-                                Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Test", style = MaterialTheme.typography.labelMedium)
-                            }
-                        }
-
-                        if (state.customMentionSoundPath.isBlank()) {
-                            Spacer(Modifier.height(4.dp))
-                            Text("Using default tone. Select WAV", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // ── About ─────────────────────────────────────────────────
+                item { SectionHeader("About") }
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Chatone", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Version 1.0.5", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("https://t.me/rudionee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
+                item { Spacer(modifier = Modifier.height(32.dp)) }
             }
-            items(state.highlightRules) { rule ->
-                HighlightRuleItem(
-                    rule = rule,
-                    onToggle = { viewModel.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-                    onSoundToggle = { viewModel.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
-                    onRemove = if (!rule.id.startsWith("custom_")) null else {{ viewModel.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }}
-                )
-            }
-            item {
-                var newPattern by remember { mutableStateOf("") }
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = newPattern, onValueChange = { newPattern = it }, modifier = Modifier.weight(1f), placeholder = { Text("Add highlight pattern...") }, singleLine = true)
-                    Spacer(Modifier.width(8.dp))
-                    FilledTonalButton(
-                        onClick = { if (newPattern.isNotBlank()) { viewModel.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim())); newPattern = "" } },
-                        enabled = newPattern.isNotBlank()
-                    ) { Icon(Icons.Filled.Add, contentDescription = "Add", modifier = Modifier.size(18.dp)) }
-                }
-            }
-
-            // ── Moderation ───────────────────────────────────────────
-            item { SectionHeader("Moderation") }
-            item {
-                SwitchPreference(
-                    title = "Confirm Mod Actions", subtitle = "Show confirmation dialog before ban/timeout",
-                    checked = state.confirmModActions,
-                    onCheckedChange = { viewModel.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it)) }
-                )
-            }
-            item {
-                ListPreference(
-                    title = "Default Timeout Duration",
-                    value = formatDuration(state.defaultTimeoutDuration),
-                    options = listOf("10 seconds", "1 minute", "10 minutes", "1 hour", "1 day"),
-                    onSelected = { viewModel.sendEvent(SettingsEvent.OnDefaultTimeoutChanged(listOf(10, 60, 600, 3600, 86400)[it])) }
-                )
-            }
-
-            // ── About ─────────────────────────────────────────────────
-            item { SectionHeader("About") }
-            item {
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Chatone", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Version 1.0.4", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("TG", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("https://t.me/rudionee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            item { Spacer(modifier = Modifier.height(32.dp)) }
         }
     }
 }
 
 // ─── Hotkey Recorder ────────────────────────────────────────────────────
+
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun HotkeyPreference(
     title: String,
@@ -500,4 +415,126 @@ private fun formatDuration(seconds: Int): String = when {
     seconds < 3600 -> "${seconds / 60} minute${if (seconds / 60 > 1) "s" else ""}"
     seconds < 86400 -> "${seconds / 3600} hour${if (seconds / 3600 > 1) "s" else ""}"
     else -> "${seconds / 86400} day${if (seconds / 86400 > 1) "s" else ""}"
+}
+
+// ─── Wallpaper Preference ────────────────────────────────────────────────
+
+@Composable
+private fun WallpaperPreference(
+    currentPath: String,
+    blurRadius: Float,
+    onPathChanged: (String) -> Unit,
+    onBlurChanged: (Float) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Current file row
+        if (currentPath.isNotBlank()) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = currentPath.substringAfterLast("/").substringAfterLast("\\"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    // Delete button — immediately clears wallpaper
+                    IconButton(
+                        onClick = { onPathChanged("") },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Remove background",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+
+            // Overlay blur slider
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Chat Overlay Blur",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = "${blurRadius.toInt()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Slider(
+                    value = blurRadius,
+                    onValueChange = onBlurChanged,
+                    valueRange = 0f..40f,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Transparent", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Opaque", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // Browse button
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    val picked = pickImageFile()
+                    if (picked != null) onPathChanged(picked)
+                }
+            }
+        ) {
+            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = if (currentPath.isBlank()) "Choose background image..." else "Change image...",
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+
+        if (currentPath.isBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "No background set. Supports JPG, PNG, WebP.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
