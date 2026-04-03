@@ -1,14 +1,10 @@
+// io/rudione/chatone/util/PickAudioFile.desktop.kt
 package io.rudione.chatone.util
 
 import java.io.File
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
-/**
- * Opens JFileChooser synchronously.
- * Compose Desktop runs on AWT/EDT, so we call showOpenDialog directly
- * without invokeLater — no deadlock, no latch needed.
- */
 actual fun pickAudioFile(): String? {
     val chooser = JFileChooser(File(System.getProperty("user.home"))).apply {
         dialogTitle = "Select Mention Sound"

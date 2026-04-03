@@ -163,7 +163,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Chatone"
-            packageVersion = "1.0.5"
+            packageVersion = "1.0.6"
 
             modules(
                 "java.sql",
@@ -192,4 +192,10 @@ sqldelight {
             verifyMigrations.set(true)
         }
     }
+}
+
+compose.resources {
+    publicResClass = true
+    packageOfResClass = "chatone.composeapp.generated.resources"
+    generateResClass = auto
 }

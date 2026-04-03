@@ -1,8 +1,10 @@
+// io/rudione/chatone/util/NotificationSoundPlayer.desktop.kt
 package io.rudione.chatone.util
 
 import java.io.File
 import javax.sound.sampled.*
 import kotlin.math.PI
+import kotlin.math.log10
 import kotlin.math.sin
 
 actual object NotificationSoundPlayer {
@@ -14,82 +16,69 @@ actual object NotificationSoundPlayer {
     actual fun playMentionSound(volume: Float, customSoundPath: String) {
         Thread {
             try {
+                val effectiveVolume = volume.coerceIn(0.0f, 1.0f)
+
                 if (customSoundPath.isNotBlank()) {
                     val file = File(customSoundPath)
                     if (file.exists() && file.canRead()) {
-                        val played = tryPlayFile(file, volume)
-                        if (!played) playDefaultTone(volume)
+                        val played = tryPlayFile(file, effectiveVolume)
+                        if (!played) {
+                            println("Failed to play custom sound, falling back to default")
+                            playDefaultTone(effectiveVolume)
+                        }
                     } else {
-                        playDefaultTone(volume)
+                        println("Custom sound file not found: $customSoundPath")
+                        playDefaultTone(effectiveVolume)
                     }
                 } else {
-                    playDefaultTone(volume)
+                    playDefaultTone(effectiveVolume)
                 }
-            } catch (_: Exception) {
-                try { playDefaultTone(volume) } catch (_: Exception) {}
+            } catch (e: Exception) {
+                println("Error playing mention sound: ${e.message}")
+                try { playDefaultTone(volume.coerceIn(0.0f, 1.0f)) } catch (_: Exception) {}
             }
         }.also { it.isDaemon = true }.start()
     }
 
-    /**
-     * Attempts to play an audio file.
-     * Returns true if playback started successfully, false if unsupported/error.
-     */
     private fun tryPlayFile(file: File, volume: Float): Boolean {
-        var rawStream: AudioInputStream? = null
+        var audioInputStream: AudioInputStream? = null
         var clip: Clip? = null
         return try {
-            rawStream = AudioSystem.getAudioInputStream(file)
-            val sourceFormat = rawStream.format
+            audioInputStream = AudioSystem.getAudioInputStream(file)
+            clip = AudioSystem.getClip()
+            clip.open(audioInputStream)
 
-            // Build a PCM target format from source properties
-            val channels = sourceFormat.channels.takeIf { it > 0 } ?: 2
-            val sampleRate = sourceFormat.sampleRate.takeIf { it > 0f } ?: 44100f
-            val targetFormat = AudioFormat(
-                AudioFormat.Encoding.PCM_SIGNED,
-                sampleRate,
-                16,
-                channels,
-                channels * 2,
-                sampleRate,
-                false
-            )
-
-            // Try to convert to PCM (works for WAV natively, MP3 needs SPI plugin)
-            val pcmStream = if (AudioSystem.isConversionSupported(targetFormat, sourceFormat)) {
-                AudioSystem.getAudioInputStream(targetFormat, rawStream)
-            } else {
-                rawStream // Use as-is if already PCM or conversion not available
+            // Apply volume
+            try {
+                val gainControl = clip.getControl(FloatControl.Type.MASTER_GAIN) as FloatControl
+                val dB = (20.0 * log10(volume.toDouble())).toFloat()
+                gainControl.value = dB.coerceIn(gainControl.minimum, gainControl.maximum)
+            } catch (e: IllegalArgumentException) {
+                try {
+                    val volumeControl = clip.getControl(FloatControl.Type.VOLUME) as FloatControl
+                    volumeControl.value = volume.coerceIn(volumeControl.minimum, volumeControl.maximum)
+                } catch (_: Exception) {}
             }
 
-            clip = AudioSystem.getClip()
-            clip.open(pcmStream)
-            applyVolume(clip, volume)
-
-            val finalClip = clip
-            val finalRaw = rawStream
-            finalClip.addLineListener { event ->
+            clip.addLineListener { event ->
                 if (event.type == LineEvent.Type.STOP) {
-                    finalClip.close()
-                    try { finalRaw.close() } catch (_: Exception) {}
+                    clip.close()
+                    try { audioInputStream?.close() } catch (_: Exception) {}
                 }
             }
-            finalClip.start()
+            clip.start()
             true
-        } catch (e: Exception) {
-            try { clip?.close() } catch (_: Exception) {}
-            try { rawStream?.close() } catch (_: Exception) {}
+        } catch (e: UnsupportedAudioFileException) {
+            println("Unsupported audio format: ${e.message}")
             false
+        } catch (e: Exception) {
+            println("Failed to play audio file: ${e.message}")
+            false
+        } finally {
+            if (clip?.isOpen == false) {
+                try { audioInputStream?.close() } catch (_: Exception) {}
+            }
         }
-    }
-
-    private fun applyVolume(clip: Clip, volume: Float) {
-        try {
-            val gain = clip.getControl(FloatControl.Type.MASTER_GAIN) as? FloatControl ?: return
-            val safeVolume = volume.coerceIn(0.0001f, 1.0f)
-            val dB = (20.0 * Math.log10(safeVolume.toDouble())).toFloat()
-            gain.value = dB.coerceIn(gain.minimum, gain.maximum)
-        } catch (_: Exception) {}
     }
 
     private fun playDefaultTone(volume: Float) {
@@ -121,6 +110,8 @@ actual object NotificationSoundPlayer {
                 if (event.type == LineEvent.Type.STOP) clip.close()
             }
             clip.start()
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            println("Failed to play default tone: ${e.message}")
+        }
     }
 }

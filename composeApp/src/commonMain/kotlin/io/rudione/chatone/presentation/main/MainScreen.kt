@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,21 +23,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.folder_outline
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.Channel
 import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.components.GlowSurface
+import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
+import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.main.components.LiquidGlassDropdown
 import io.rudione.chatone.presentation.settings.SettingsScreen
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
@@ -47,6 +54,7 @@ import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperGlowEdge
 import io.rudione.chatone.util.WallpaperLoader
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -63,6 +71,8 @@ fun MainScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val wallpaperController = LocalWallpaperController.current
+    // For desktop: tracks whether settings should open as Dialog
+    var isWideScreenForSettings by remember { mutableStateOf(false) }
     val wallpaper by remember { derivedStateOf { wallpaperController.state } }
     val wallpaperLoader: WallpaperLoader = koinInject()
 
@@ -80,10 +90,12 @@ fun MainScreen(
         }
     }
 
-    if (state.showSettings) {
+    // Settings: on desktop shows as Dialog over chat; on mobile stays full-screen
+    if (state.showSettings && !isWideScreenForSettings) {
         SettingsScreen(
             onNavigateBack = { viewModel.sendEvent(MainEvent.HideSettings) },
             onThemeChanged = onThemeChanged,
+            isWideScreen = false,
             wallpaperLoader = wallpaperLoader
         )
         return
@@ -93,6 +105,16 @@ fun MainScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { scaffoldPadding ->
 
+        // Desktop: show settings as overlay Dialog while chat stays visible
+        if (state.showSettings && isWideScreenForSettings) {
+            SettingsScreen(
+                onNavigateBack = { viewModel.sendEvent(MainEvent.HideSettings) },
+                onThemeChanged = onThemeChanged,
+                isWideScreen = true,
+                wallpaperLoader = wallpaperLoader
+            )
+        }
+
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
@@ -100,6 +122,8 @@ fun MainScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             val isWideScreen = maxWidth >= 850.dp
+            // Track isWideScreen at Scaffold level for settings dialog
+            LaunchedEffect(isWideScreen) { isWideScreenForSettings = isWideScreen }
 
             if (isWideScreen) {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -332,8 +356,6 @@ fun MainScreen(
     }
 }
 
-// ─── Mini Rail ────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MiniRail(
@@ -344,146 +366,169 @@ private fun MiniRail(
     val extra = ChatoneTheme.extraColors
     val uriHandler = LocalUriHandler.current
 
-    Row(
+    LiquidGlassSurface(
         modifier = modifier
             .padding(8.dp)
-            .shadow(
-                8.dp,
-                RoundedCornerShape(16.dp),
-                ambientColor = extra.shadowColor,
-                spotColor = extra.elevatedShadow
-            )
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                Brush.verticalGradient(
-                    listOf(extra.sidebarSurface, extra.sidebarSurface.copy(alpha = 0.95f))
-                )
-            )
-            .border(1.dp, extra.glassBorder, RoundedCornerShape(16.dp))
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
+            .shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = extra.shadowColor, spotColor = extra.elevatedShadow),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+        backgroundAlphaHigh = 0.95f,
+        backgroundAlphaLow = 0.88f
     ) {
-        IconButton(
-            onClick = { onEvent(MainEvent.ToggleSidebar) },
-            modifier = Modifier.size(36.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
         ) {
-            Icon(
-                Icons.Filled.Menu,
-                contentDescription = "Open sidebar",
-                tint = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.size(20.dp)
-            )
-        }
+            IconButton(
+                onClick = { onEvent(MainEvent.ToggleSidebar) },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Menu,
+                    contentDescription = "Open sidebar",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
 
-        state.openChannels.take(6).forEach { channel ->
-            val isActive = channel.login == state.activeChannelLogin
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                if (event.type == PointerEventType.Press &&
-                                    event.buttons.isSecondaryPressed
-                                ) {
-                                    try {
-                                        uriHandler.openUri("https://www.twitch.tv/${channel.login}")
-                                    } catch (_: Exception) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                items(state.openChannels, key = { it.login }) { channel ->
+                    val isActive = channel.login == state.activeChannelLogin
+                    var showTooltip by remember { mutableStateOf(false) }
+
+                    Box(
+                        modifier = Modifier.size(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Основной круг (фон + клики)
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                    else Color.Transparent
+                                )
+                                .clickable { onEvent(MainEvent.SelectChannel(channel.login)) }
+                                .then(
+                                    if (isActive) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                    else Modifier
+                                )
+                                .pointerInput(channel.login) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            when (event.type) {
+                                                PointerEventType.Enter -> showTooltip = true
+                                                PointerEventType.Exit -> showTooltip = false
+                                                PointerEventType.Press -> {
+                                                    if (event.buttons.isSecondaryPressed) {
+                                                        try {
+                                                            uriHandler.openUri("https://www.twitch.tv/${channel.login}")
+                                                        } catch (_: Exception) {}
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
-                                }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (channel.profileImageUrl.isNotEmpty()) {
+                                AsyncImage(
+                                    model = channel.profileImageUrl,
+                                    contentDescription = channel.displayName,
+                                    modifier = Modifier.size(28.dp),
+                                    // Убрал clip, так как родитель уже обрезает по кругу
+                                )
+                            } else {
+                                Text(
+                                    text = channel.displayName.take(2).uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isActive) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        // Тултип (поверх лейаута)
+                        if (showTooltip) {
+                            val tooltipText = channel.displayName.ifEmpty {
+                                channel.login.replaceFirstChar { it.uppercaseChar() }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .offset(y = 12.dp)
+                                    .zIndex(1f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    .shadow(4.dp, RoundedCornerShape(6.dp), ambientColor = Color.Black.copy(alpha = 0.15f))
+                            ) {
+                                Text(
+                                    text = tooltipText,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        // Live индикатор
+                        if (channel.isLive) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(ChatoneTheme.extraColors.live)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                            )
+                        }
+                        // Unread бейдж
+                        if (channel.unreadCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Red)
+                                    .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (channel.unreadCount > 9) "9+" else "${channel.unreadCount}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                                    color = Color.White
+                                )
                             }
                         }
                     }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                            else Color.Transparent
-                        )
-                        .clickable { onEvent(MainEvent.SelectChannel(channel.login)) }
-                        .then(
-                            if (isActive) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                            else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (channel.profileImageUrl.isNotEmpty()) {
-                        AsyncImage(
-                            model = channel.profileImageUrl,
-                            contentDescription = channel.displayName,
-                            modifier = Modifier.size(26.dp).clip(CircleShape)
-                        )
-                    } else {
-                        Text(
-                            text = channel.displayName.take(2).uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isActive) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                if (channel.isLive) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(ChatoneTheme.extraColors.live)
-                            .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                    )
-                }
-                if (channel.unreadCount > 0) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .size(12.dp)
-                            .clip(CircleShape)
-                            .background(Color.Red)
-                            .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (channel.unreadCount > 9) "9+" else "${channel.unreadCount}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
-                            color = Color.White
-                        )
-                    }
                 }
             }
-        }
 
-        IconButton(
-            onClick = { onEvent(MainEvent.ShowAddChannelDialog) },
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                Icons.Filled.Add,
-                contentDescription = "Add channel",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-        IconButton(
-            onClick = { onEvent(MainEvent.ShowSettings) },
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                Icons.Outlined.Settings,
-                contentDescription = "Settings",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
+            IconButton(
+                onClick = { onEvent(MainEvent.ShowAddChannelDialog) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = "Add channel",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
-
-// ─── Full Sidebar ─────────────────────────────────────────────────────────
 
 @Composable
 private fun ChannelSidebar(
@@ -707,8 +752,8 @@ private fun FolderItem(
                 )
                 Spacer(Modifier.width(4.dp))
                 Icon(
-                    if (folder.isExpanded) Icons.AutoMirrored.Filled.List
-                    else Icons.AutoMirrored.Outlined.List,
+                    if (folder.isExpanded) painterResource(Res.drawable.folder_outline)
+                    else painterResource(Res.drawable.folder_outline),
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
                     tint = parseFolderColor(folder.color)
@@ -905,40 +950,52 @@ private fun ChannelItem(
                 }
             }
         }
-        DropdownMenu(expanded = showContextMenu, onDismissRequest = { showContextMenu = false }) {
+
+        // ▼▼▼ Liquid Glass Dropdown ▼▼▼
+        LiquidGlassDropdown(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false },
+            modifier = Modifier.align(Alignment.TopEnd)
+        ) {
             if (currentFolderId != null) {
-                DropdownMenuItem(
-                    text = { Text("Remove from folder") },
-                    onClick = { showContextMenu = false; onMoveToFolder(null) },
-                    leadingIcon = {
-                        Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+                LiquidGlassDropdownItem(
+                    text = "Remove from folder",
+                    icon = Icons.Outlined.Close,
+                    onClick = {
+                        showContextMenu = false
+                        onMoveToFolder(null)
                     }
                 )
-                HorizontalDivider()
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                )
             }
             folders.filter { it.id != currentFolderId }.forEach { folder ->
-                DropdownMenuItem(
-                    text = { Text(folder.name) },
-                    onClick = { showContextMenu = false; onMoveToFolder(folder.id) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.List,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = parseFolderColor(folder.color)
-                        )
+                LiquidGlassDropdownItem(
+                    text = folder.name,
+                    icon = Icons.AutoMirrored.Outlined.List,
+                    iconTint = parseFolderColor(folder.color),
+                    onClick = {
+                        showContextMenu = false
+                        onMoveToFolder(folder.id)
                     }
                 )
             }
-            HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text("Close channel") },
-                onClick = { showContextMenu = false; onClose() },
-                leadingIcon = {
-                    Icon(Icons.Outlined.Close, contentDescription = null, modifier = Modifier.size(18.dp))
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 4.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+            )
+            LiquidGlassDropdownItem(
+                text = "Close channel",
+                icon = Icons.Outlined.Close,
+                onClick = {
+                    showContextMenu = false
+                    onClose()
                 }
             )
         }
+        // ▲▲▲ End Liquid Glass Dropdown ▲▲▲
     }
 }
 

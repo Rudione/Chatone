@@ -22,10 +22,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -115,14 +118,20 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.presentation.components.GlowSurface
+import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
+import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.ChatoneTheme
@@ -138,6 +147,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.math.roundToInt
 
 private val FirstMessageColor = Color(0xFF7B2FBE)
 
@@ -166,12 +176,10 @@ fun ChatScreen(
     var profilePopupMessage by remember { mutableStateOf<DisplayMessage.PrivMsg?>(null) }
     var pendingModAction by remember { mutableStateOf<PendingModAction?>(null) }
     var isPausedByUser by remember { mutableStateOf(false) }
-    // Pause on hover state
     var isHoveredOverChat by remember { mutableStateOf(false) }
     val emoteRepository: EmoteRepository = koinInject()
     val coroutineScope = rememberCoroutineScope()
 
-    // isPaused = user scrolled up OR (hover enabled AND hovering) OR hotkey toggled
     val effectivelyPaused = isPausedByUser || (settingsState.pauseOnHover && isHoveredOverChat)
 
     val isAtBottom = remember {
@@ -184,21 +192,18 @@ fun ChatScreen(
         }
     }
 
-    // Pause when scrolling up
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress && !isAtBottom.value) {
             isPausedByUser = true
         }
     }
 
-    // Unpause when reaching bottom
     LaunchedEffect(isAtBottom.value) {
         if (isAtBottom.value) {
             isPausedByUser = false
         }
     }
 
-    // Auto-scroll when new messages arrive
     val messageCount = state.messages.size
     LaunchedEffect(messageCount) {
         if (!effectivelyPaused && messageCount > 0) {
@@ -227,7 +232,6 @@ fun ChatScreen(
                         listState.animateScrollToItem(state.messages.size - 1)
                     }
                 }
-
                 is ChatEffect.MentionDetected -> {
                     if (settingsState.mentionSoundEnabled) {
                         NotificationSoundPlayer.playMentionSound(
@@ -241,210 +245,207 @@ fun ChatScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    // ▼▼▼ Box-контейнер для оверлеев ▼▼▼
+    Box(modifier = modifier.fillMaxSize()) {
 
-        GlowSurface(
-            dominantColor = wallpaper.dominantColor,
-            intensity = 1.1f,
-            centerX = 0.5f,
-            centerY = -0.3f // источник выше бара
-        ) {
-            ChatTopBar(
-                channelLogin = channelLogin,
-                connectionStatus = state.connectionStatus,
-                isConnected = state.isConnected,
-                roomState = state.roomState,
-                isMod = state.isMod,
-                modModeEnabled = state.modModeEnabled,
-                onBack = onNavigateBack,
-                onToggleModMode = { viewModel.sendEvent(ChatEvent.OnToggleModMode) },
-                onOpenModPanel = { showModPanel = !showModPanel },
-                isCompact = !isWideScreen
-            )
-        }
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
 
-        state.pinnedMessage?.let { pinned ->
-            PinnedMessageBar(
-                message = pinned,
-                canUnpin = true,
-                onUnpin = { viewModel.sendEvent(ChatEvent.OnUnpinMessage) })
-        }
-
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-
-            // ─── WALLPAPER BACKGROUND ─────────────────────────────
-            wallpaper.imageBitmap?.let { bitmap ->
-                Image(
-                    bitmap = bitmap,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .blur(wallpaper.blurRadius.dp)
+            GlowSurface(
+                dominantColor = wallpaper.dominantColor,
+                intensity = 1.1f,
+                centerX = 0.5f,
+                centerY = -0.3f
+            ) {
+                ChatTopBar(
+                    channelLogin = channelLogin,
+                    connectionStatus = state.connectionStatus,
+                    isConnected = state.isConnected,
+                    roomState = state.roomState,
+                    isMod = state.isMod,
+                    modModeEnabled = state.modModeEnabled,
+                    onBack = onNavigateBack,
+                    onToggleModMode = { viewModel.sendEvent(ChatEvent.OnToggleModMode) },
+                    onOpenModPanel = { showModPanel = !showModPanel },
+                    isCompact = !isWideScreen
                 )
             }
 
-// overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        wallpaper.dominantColor.copy(alpha = 0.4f)
-                    )
-            )
+            state.pinnedMessage?.let { pinned ->
+                PinnedMessageBar(
+                    message = pinned,
+                    canUnpin = true,
+                    onUnpin = { viewModel.sendEvent(ChatEvent.OnUnpinMessage) })
+            }
 
-            // ─── CONTENT ─────────────────────────────
-            Box(modifier = Modifier.fillMaxSize()) {
-
-                if (state.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center),
-                        color = MaterialTheme.colorScheme.primary
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                wallpaper.imageBitmap?.let { bitmap ->
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().blur(wallpaper.blurRadius.dp)
                     )
-                } else if (state.messages.isEmpty()) {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Outlined.MailOutline,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                }
+                Box(
+                    modifier = Modifier.fillMaxSize()
+                        .background(wallpaper.dominantColor.copy(alpha = 0.4f))
+                )
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "Waiting for messages...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
-                } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .handleHover(
-                                onEnter = {
-                                    if (settingsState.pauseOnHover) {
-                                        isHoveredOverChat = true
-                                    }
-                                },
-                                onExit = {
-                                    isHoveredOverChat = false
-                                }
+                    } else if (state.messages.isEmpty()) {
+                        Column(
+                            modifier = Modifier.align(Alignment.Center),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Outlined.MailOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Waiting for messages...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize().handleHover(
+                                onEnter = { if (settingsState.pauseOnHover) isHoveredOverChat = true },
+                                onExit = { isHoveredOverChat = false }
                             ),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                        verticalArrangement = Arrangement.spacedBy(1.dp)
-                    ) {
-                        items(items = state.messages, key = { it.id }) { message ->
-                            when (message) {
-                                is DisplayMessage.PrivMsg -> PrivMsgItem(
-                                    message = message,
-                                    showModActions = state.modModeEnabled,
-                                    timestampFormat = settingsState.timestampFormat,
-                                    showBadges = settingsState.showBadges,
-                                    isMod = state.isMod || message.isBroadcaster,
-                                    emoteSize = settingsState.emoteSize,
-                                    onUsernameClick = {
-                                        profilePopupMessage = message
-                                        profilePopupUserId = message.userId
-                                    },
-                                    onReply = {
-                                        viewModel.sendEvent(ChatEvent.OnReplyToMessage(message))
-                                    },
-                                    onPin = {
-                                        viewModel.sendEvent(ChatEvent.OnPinMessage(message.id))
-                                    },
-                                    onTimeout = {
-                                        if (settingsState.confirmModActions) {
-                                            pendingModAction = PendingModAction.Timeout(
-                                                message.userId,
-                                                message.displayName,
-                                                settingsState.defaultTimeoutDuration
-                                            )
-                                        } else {
-                                            viewModel.sendEvent(
-                                                ChatEvent.OnTimeoutUser(
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                            verticalArrangement = Arrangement.spacedBy(1.dp)
+                        ) {
+                            items(items = state.messages, key = { it.id }) { message ->
+                                when (message) {
+                                    is DisplayMessage.PrivMsg -> PrivMsgItem(
+                                        message = message,
+                                        showModActions = state.modModeEnabled,
+                                        timestampFormat = settingsState.timestampFormat,
+                                        showBadges = settingsState.showBadges,
+                                        isMod = state.isMod || message.isBroadcaster,
+                                        emoteSize = settingsState.emoteSize,
+                                        onUsernameClick = {
+                                            profilePopupMessage = message
+                                            profilePopupUserId = message.userId
+                                        },
+                                        onReply = { viewModel.sendEvent(ChatEvent.OnReplyToMessage(message)) },
+                                        onPin = { viewModel.sendEvent(ChatEvent.OnPinMessage(message.id)) },
+                                        onTimeout = {
+                                            if (settingsState.confirmModActions) {
+                                                pendingModAction = PendingModAction.Timeout(
                                                     message.userId,
+                                                    message.displayName,
                                                     settingsState.defaultTimeoutDuration
                                                 )
-                                            )
-                                        }
-                                    },
-                                    onBan = {
-                                        if (settingsState.confirmModActions) {
-                                            pendingModAction = PendingModAction.Ban(
-                                                message.userId,
-                                                message.displayName
-                                            )
-                                        } else {
-                                            viewModel.sendEvent(ChatEvent.OnBanUser(message.userId))
-                                        }
-                                    },
-                                    onDelete = {
-                                        viewModel.sendEvent(ChatEvent.OnDeleteMessage(message.id))
-                                    }
-                                )
-
-                                is DisplayMessage.SystemMsg -> SystemMsgItem(message)
-                                is DisplayMessage.UserNoticeMsg -> UserNoticeMsgItem(message)
-                                is DisplayMessage.ModerationMsg -> ModerationMsgItem(message)
+                                            } else {
+                                                viewModel.sendEvent(
+                                                    ChatEvent.OnTimeoutUser(
+                                                        message.userId,
+                                                        settingsState.defaultTimeoutDuration
+                                                    )
+                                                )
+                                            }
+                                        },
+                                        onBan = {
+                                            if (settingsState.confirmModActions) {
+                                                pendingModAction = PendingModAction.Ban(
+                                                    message.userId,
+                                                    message.displayName
+                                                )
+                                            } else {
+                                                viewModel.sendEvent(ChatEvent.OnBanUser(message.userId))
+                                            }
+                                        },
+                                        onDelete = { viewModel.sendEvent(ChatEvent.OnDeleteMessage(message.id)) }
+                                    )
+                                    is DisplayMessage.SystemMsg -> SystemMsgItem(message)
+                                    is DisplayMessage.UserNoticeMsg -> UserNoticeMsgItem(message)
+                                    is DisplayMessage.ModerationMsg -> ModerationMsgItem(message)
+                                }
                             }
                         }
                     }
-                }
 
-                // FAB
-                if (effectivelyPaused && state.messages.isNotEmpty()) {
-                    SmallFloatingActionButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                listState.animateScrollToItem(state.messages.size - 1)
-                                isPausedByUser = false
-                                isHoveredOverChat = false
-                            }
-                        },
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(12.dp),
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) {
-                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Scroll to bottom")
+                    if (effectivelyPaused && state.messages.isNotEmpty()) {
+                        SmallFloatingActionButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(state.messages.size - 1)
+                                    isPausedByUser = false
+                                    isHoveredOverChat = false
+                                }
+                            },
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        ) {
+                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Scroll to bottom")
+                        }
                     }
                 }
             }
-        }
 
-        AnimatedVisibility(
-            visible = showModPanel && state.isMod,
-            enter = expandVertically(tween(250)) + fadeIn(tween(200)),
-            exit = shrinkVertically(tween(250)) + fadeOut(tween(200))
-        ) {
-            ModerationPanel(
-                roomState = state.roomState, channelLogin = channelLogin, isMod = state.isMod,
-                onUpdateChatSettings = { settings ->
-                    viewModel.sendEvent(
-                        ChatEvent.OnUpdateChatSettings(
-                            settings
-                        )
-                    )
-                },
-                onClearChat = { viewModel.sendEvent(ChatEvent.OnClearChat) },
-                onSendAnnouncement = { message, color ->
-                    viewModel.sendEvent(
-                        ChatEvent.OnSendAnnouncement(
-                            message,
-                            color
-                        )
-                    )
-                },
-                onStartRaid = { targetLogin -> viewModel.sendEvent(ChatEvent.OnStartRaid(targetLogin)) },
-                onCancelRaid = { viewModel.sendEvent(ChatEvent.OnCancelRaid) },
-                onClose = { showModPanel = false }
+            AnimatedVisibility(
+                visible = showModPanel && state.isMod,
+                enter = expandVertically(tween(250)) + fadeIn(tween(200)),
+                exit = shrinkVertically(tween(250)) + fadeOut(tween(200))
+            ) {
+                ModerationPanel(
+                    roomState = state.roomState, channelLogin = channelLogin, isMod = state.isMod,
+                    onUpdateChatSettings = { settings ->
+                        viewModel.sendEvent(ChatEvent.OnUpdateChatSettings(settings))
+                    },
+                    onClearChat = { viewModel.sendEvent(ChatEvent.OnClearChat) },
+                    onSendAnnouncement = { message, color ->
+                        viewModel.sendEvent(ChatEvent.OnSendAnnouncement(message, color))
+                    },
+                    onStartRaid = { targetLogin -> viewModel.sendEvent(ChatEvent.OnStartRaid(targetLogin)) },
+                    onCancelRaid = { viewModel.sendEvent(ChatEvent.OnCancelRaid) },
+                    onClose = { showModPanel = false }
+                )
+            }
+
+            state.replyingTo?.let { replyMsg ->
+                ReplyBar(
+                    displayName = replyMsg.displayName,
+                    messagePreview = replyMsg.tokens.joinToString("") { token ->
+                        when (token) {
+                            is MessageToken.Text -> token.text
+                            is MessageToken.TwitchEmoteToken -> token.name
+                            is MessageToken.ThirdPartyEmoteToken -> token.emote.code
+                            is MessageToken.Link -> token.displayText
+                            is MessageToken.Mention -> token.username
+                        }
+                    },
+                    onCancel = { viewModel.sendEvent(ChatEvent.OnCancelReply) }
+                )
+            }
+
+            MessageInput(
+                value = state.messageInput,
+                onValueChange = { viewModel.sendEvent(ChatEvent.OnMessageInputChanged(it)) },
+                onSend = { viewModel.sendEvent(ChatEvent.OnSendMessage) },
+                onSendKeepText = { viewModel.sendEvent(ChatEvent.OnSendMessageKeepText) },
+                onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },
+                onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },
+                onEmotePickerClick = { showEmotePicker = true },
+                enabled = state.isConnected,
+                pauseHotkey = settingsState.pauseHotkey,
+                onTogglePause = { isPausedByUser = !isPausedByUser }
             )
         }
+
+        // ▲▲▲ Оверлеи поверх чата ▲▲▲
 
         if (state.showMentionCompletions && state.mentionCompletions.isNotEmpty()) {
             MentionAutocompleteRow(
@@ -461,35 +462,6 @@ fun ChatScreen(
                 onDismiss = { viewModel.sendEvent(ChatEvent.OnDismissCompletions) }
             )
         }
-
-        state.replyingTo?.let { replyMsg ->
-            ReplyBar(
-                displayName = replyMsg.displayName,
-                messagePreview = replyMsg.tokens.joinToString("") { token ->
-                    when (token) {
-                        is MessageToken.Text -> token.text
-                        is MessageToken.TwitchEmoteToken -> token.name
-                        is MessageToken.ThirdPartyEmoteToken -> token.emote.code
-                        is MessageToken.Link -> token.displayText
-                        is MessageToken.Mention -> token.username
-                    }
-                },
-                onCancel = { viewModel.sendEvent(ChatEvent.OnCancelReply) }
-            )
-        }
-
-        MessageInput(
-            value = state.messageInput,
-            onValueChange = { viewModel.sendEvent(ChatEvent.OnMessageInputChanged(it)) },
-            onSend = { viewModel.sendEvent(ChatEvent.OnSendMessage) },
-            onSendKeepText = { viewModel.sendEvent(ChatEvent.OnSendMessageKeepText) },
-            onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },
-            onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },
-            onEmotePickerClick = { showEmotePicker = true },
-            enabled = state.isConnected,
-            pauseHotkey = settingsState.pauseHotkey,
-            onTogglePause = { isPausedByUser = !isPausedByUser }
-        )
     }
 
     if (showEmotePicker) {
@@ -498,10 +470,15 @@ fun ChatScreen(
             emotes = resolvedEmotes.all,
             onEmoteSelected = { emote ->
                 val current = state.messageInput
-                val newInput =
-                    if (current.isEmpty() || current.endsWith(" ")) "$current${emote.code} " else "$current ${emote.code} "
+                val newInput = if (current.isEmpty() || current.endsWith(" ")) "$current${emote.code} " else "$current ${emote.code} "
                 viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
                 showEmotePicker = false
+            },
+            onEmojiSelected = { emoji ->
+                val current = state.messageInput
+                val newInput = if (current.isEmpty() || current.endsWith(" ")) "$current$emoji" else "$current $emoji"
+                viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
+                // onDismiss is called inside EmojiTab after selection
             },
             onDismiss = { showEmotePicker = false }
         )
@@ -524,12 +501,7 @@ fun ChatScreen(
             sevenTvBadge = msg.sevenTvBadge,
             showModActions = state.modModeEnabled || state.isMod,
             onTimeout = { seconds ->
-                viewModel.sendEvent(
-                    ChatEvent.OnTimeoutUser(
-                        msg.userId,
-                        seconds
-                    )
-                )
+                viewModel.sendEvent(ChatEvent.OnTimeoutUser(msg.userId, seconds))
             },
             onBan = { viewModel.sendEvent(ChatEvent.OnBanUser(msg.userId)) },
             onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(msg.userId)) },
@@ -548,12 +520,8 @@ fun ChatScreen(
             onConfirm = {
                 when (action) {
                     is PendingModAction.Timeout -> viewModel.sendEvent(
-                        ChatEvent.OnTimeoutUser(
-                            action.userId,
-                            action.duration
-                        )
+                        ChatEvent.OnTimeoutUser(action.userId, action.duration)
                     )
-
                     is PendingModAction.Ban -> viewModel.sendEvent(ChatEvent.OnBanUser(action.userId))
                 }
                 pendingModAction = null
@@ -711,8 +679,6 @@ private fun ChatTopBar(
         }
     }
 }
-
-// ─── Message Items ──────────────────────────────────────────────────────
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -1022,6 +988,7 @@ private fun PrivMsgItem(
         }
 
         val clipboardManager = LocalClipboardManager.current
+        var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
         val uriHandler = LocalUriHandler.current
         var textLayoutResult by remember {
             mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(
@@ -1029,6 +996,7 @@ private fun PrivMsgItem(
             )
         }
 
+        // ▼▼▼ Контейнер для текста + триггер контекстного меню ▼▼▼
         Box(modifier = Modifier.weight(1f)) {
             Text(
                 text = annotatedString,
@@ -1042,12 +1010,12 @@ private fun PrivMsgItem(
                                 val charOffset = layoutResult.getOffsetForPosition(offset)
                                 annotatedString.getStringAnnotations("url", charOffset, charOffset)
                                     .firstOrNull()?.let { annotation ->
-                                    try {
-                                        uriHandler.openUri(annotation.item)
-                                    } catch (_: Exception) {
+                                        try {
+                                            uriHandler.openUri(annotation.item)
+                                        } catch (_: Exception) {
+                                        }
+                                        return@detectTapGestures
                                     }
-                                    return@detectTapGestures
-                                }
                                 annotatedString.getStringAnnotations(
                                     "username",
                                     charOffset,
@@ -1057,81 +1025,78 @@ private fun PrivMsgItem(
                                 }
                             }
                         },
-                        onLongPress = { showContextMenu = true }
+                        onLongPress = { offset ->
+                            contextMenuOffset = IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
+                            showContextMenu = true
+                        }
                     )
                 },
                 onTextLayout = { textLayoutResult = it }
             )
+        }
 
-            DropdownMenu(
-                expanded = showContextMenu, onDismissRequest = { showContextMenu = false },
-                modifier = Modifier.background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
-                            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.88f)
-                        )
-                    ), shape = RoundedCornerShape(16.dp)
-                )
+        if (showContextMenu) {
+            Popup(
+                alignment = Alignment.TopStart,
+                offset = contextMenuOffset + IntOffset(8, 8),
+                properties = PopupProperties(
+                    focusable = true,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true
+                ),
+                onDismissRequest = { showContextMenu = false }
             ) {
-                if (isMod) {
-                    DropdownMenuItem(
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Filled.Place,
-                                    null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                ); Spacer(Modifier.width(8.dp)); Text(
-                                "Pin",
-                                fontWeight = FontWeight.SemiBold
+                LiquidGlassSurface(
+                    modifier = Modifier.widthIn(min = 160.dp, max = 240.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp),
+                    backgroundAlphaHigh = 0.94f,
+                    backgroundAlphaLow = 0.85f,
+                    borderAlphaHigh = 0f,
+                    borderAlphaLow = 0f
+                ) {
+                    Column {
+                        if (isMod) {
+                            LiquidGlassDropdownItem(
+                                text = "Pin",
+                                icon = Icons.Filled.Place,
+                                iconTint = MaterialTheme.colorScheme.primary,
+                                onClick = { showContextMenu = false; onPin() }
                             )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                            )
+                        }
+                        LiquidGlassDropdownItem(
+                            text = "Reply",
+                            icon = Icons.AutoMirrored.Filled.Send,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            onClick = { showContextMenu = false; onReply() }
+                        )
+                        LiquidGlassDropdownItem(
+                            text = "Copy Text",
+                            icon = Icons.Outlined.Info,
+                            iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            onClick = {
+                                showContextMenu = false
+                                val rawText = message.tokens.joinToString("") { token ->
+                                    when (token) {
+                                        is MessageToken.Text -> token.text
+                                        is MessageToken.TwitchEmoteToken -> token.name
+                                        is MessageToken.ThirdPartyEmoteToken -> token.emote.code
+                                        is MessageToken.Link -> token.displayText
+                                        is MessageToken.Mention -> token.username
+                                    }
+                                }
+                                clipboardManager.setText(AnnotatedString(rawText))
                             }
-                        },
-                        onClick = { showContextMenu = false; onPin() }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                    )
-                }
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.Send,
-                                null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            ); Spacer(Modifier.width(8.dp)); Text("Reply")
-                        }
-                    },
-                    onClick = { showContextMenu = false; onReply() }
-                )
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Outlined.Info,
-                                null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            ); Spacer(Modifier.width(8.dp)); Text("Copy Text")
-                        }
-                    },
-                    onClick = {
-                        showContextMenu = false
-                        val rawText = message.tokens.joinToString("") { token ->
-                            when (token) {
-                                is MessageToken.Text -> token.text; is MessageToken.TwitchEmoteToken -> token.name; is MessageToken.ThirdPartyEmoteToken -> token.emote.code; is MessageToken.Link -> token.displayText; is MessageToken.Mention -> token.username
-                            }
-                        }
-                        clipboardManager.setText(AnnotatedString(rawText))
+                        )
                     }
-                )
+                }
             }
         }
+        // ▲▲▲ Конец Popup-меню ▲▲▲
     }
 }
 
@@ -1380,45 +1345,70 @@ private fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
     } else false
 }
 
-// ─── Autocomplete rows ──────────────────────────────────────────────────
-
 @Composable
 private fun EmoteAutocompleteRow(
     emotes: List<io.rudione.chatone.domain.model.GenericEmote>,
     onSelect: (io.rudione.chatone.domain.model.GenericEmote) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 2.dp) {
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(10f)
+            .pointerInput(Unit) {
+                detectTapGestures(onPress = { onDismiss() })
+            }
+    ) {
+        LiquidGlassSurface(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                // Отступ 64.dp: ~56dp высота MessageInput + 8dp воздух
+                .padding(start = 8.dp, end = 8.dp, bottom = 64.dp)
+                .heightIn(max = 120.dp),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+            backgroundAlphaHigh = 0.80f,
+            backgroundAlphaLow = 0.65f,
+            borderAlphaHigh = 0f,
+            borderAlphaLow = 0f
         ) {
-            emotes.forEach { emote ->
-                Surface(
-                    onClick = { onSelect(emote) },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    tonalElevation = 1.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(emotes, key = { it.id }) { emote ->
+                    Surface(
+                        onClick = {
+                            onSelect(emote)
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            // Убрали widthIn(min = 80.dp) — пусть текст занимает сколько нужно
+                            .height(32.dp)
                     ) {
-                        AnimatedEmoteImage(
-                            url = emote.url2x,
-                            contentDescription = emote.code,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Text(
-                            emote.code,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            AnimatedEmoteImage(
+                                url = emote.url2x.ifEmpty { emote.url1x },
+                                contentDescription = emote.code,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = emote.code,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                                // Убрали weight/fill=false — текст теперь не обрезается
+                            )
+                        }
                     }
                 }
             }
@@ -1432,38 +1422,63 @@ private fun MentionAutocompleteRow(
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, tonalElevation = 2.dp) {
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 1.dp),
-            horizontalArrangement = Arrangement.spacedBy(1.dp),
-            verticalAlignment = Alignment.CenterVertically
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(10f)
+            .pointerInput(Unit) {
+                detectTapGestures(onPress = { onDismiss() })
+            }
+    ) {
+        LiquidGlassSurface(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                // Тот же отступ 64.dp, что и у EmoteAutocompleteRow
+                .padding(start = 8.dp, end = 8.dp, bottom = 64.dp)
+                .heightIn(max = 120.dp),
+            shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+            backgroundAlphaHigh = 0.80f,
+            backgroundAlphaLow = 0.65f,
+            borderAlphaHigh = 0f,
+            borderAlphaLow = 0f
         ) {
-            usernames.forEach { username ->
-                Surface(
-                    onClick = { onSelect(username) },
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    tonalElevation = 1.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(usernames, key = { it }) { username ->
+                    Surface(
+                        onClick = {
+                            onSelect(username)
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .height(32.dp)
                     ) {
-                        Icon(
-                            Icons.Filled.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "@$username",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "@$username",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

@@ -25,6 +25,7 @@ import io.rudione.chatone.domain.usecase.JoinChannelUseCase
 import io.rudione.chatone.domain.usecase.SendMessageUseCase
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.util.MessageTokenizer
+import io.rudione.chatone.util.NotificationSoundPlayer
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -149,16 +150,26 @@ class ChatViewModel(
 
     private data class HighlightMatch(val color: Long, val playSound: Boolean)
 
-    private fun checkHighlightRules(messageText: String, currentUserLogin: String): HighlightMatch? {
+    private suspend fun checkHighlightRules(messageText: String, currentUserLogin: String): HighlightMatch? {
         val settings = SettingsViewModel.loadInitialState()
         val rules = settings.highlightRules.filter { it.enabled }
+
+        val effectiveLogin = when {
+            currentUserLogin.isNotEmpty() -> currentUserLogin.lowercase()
+            state.value.currentUserLogin.isNotEmpty() -> state.value.currentUserLogin.lowercase()
+            state.value.currentDisplayName.isNotEmpty() -> state.value.currentDisplayName.lowercase()
+            else -> return null
+        }
+
         for (rule in rules) {
             val pattern = when (rule.id) {
-                "username" -> currentUserLogin
+                "username" -> effectiveLogin
                 "whispers", "subscriptions", "first_message" -> continue
                 else -> rule.pattern
             }
+
             if (pattern.isEmpty()) continue
+
             val matches = if (rule.isRegex) {
                 try {
                     val options = if (rule.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
@@ -167,7 +178,13 @@ class ChatViewModel(
             } else {
                 messageText.contains(pattern, ignoreCase = !rule.caseSensitive)
             }
-            if (matches) return HighlightMatch(color = rule.color, playSound = rule.playSound)
+
+            if (matches) {
+                return HighlightMatch(
+                    color = rule.color,
+                    playSound = rule.playSound && settings.mentionSoundEnabled
+                )
+            }
         }
         return null
     }
@@ -335,8 +352,9 @@ class ChatViewModel(
                             if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
                                 if (state.value.channelLogin == channelLogin) {
                                     update { state ->
+                                        // FIX Bug 2: always apply latest 7TV cosmetics, not just when both are null
                                         state.copy(messages = state.messages.map { dm ->
-                                            if (dm is DisplayMessage.PrivMsg && dm.userId == userId && dm.sevenTvPaint == null && dm.sevenTvBadge == null)
+                                            if (dm is DisplayMessage.PrivMsg && dm.userId == userId)
                                                 dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
                                             else dm
                                         })
@@ -453,8 +471,9 @@ class ChatViewModel(
                             val cosmetics = sevenTvCosmeticsClient.getUserCosmetics(message.userId)
                             if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
                                 update { state ->
+                                    // FIX Bug 2: always apply latest 7TV cosmetics unconditionally
                                     state.copy(messages = state.messages.map { dm ->
-                                        if (dm is DisplayMessage.PrivMsg && dm.id == msgId && dm.sevenTvPaint == null && dm.sevenTvBadge == null)
+                                        if (dm is DisplayMessage.PrivMsg && dm.id == msgId)
                                             dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
                                         else dm
                                     })
@@ -465,7 +484,11 @@ class ChatViewModel(
                     val displayMsg = chatMessageToDisplay(message)
                     val s = state.value
                     val isOwnMessage = message.userId == s.currentUserId
-                    val matchResult = if (!isOwnMessage) checkHighlightRules(message.message, s.currentUserLogin) else null
+
+                    val matchResult = if (!isOwnMessage) {
+                        checkHighlightRules(message.message, s.currentUserLogin)
+                    } else null
+
                     val finalMsg = if (matchResult != null) displayMsg.copy(isMention = true, highlightColor = matchResult.color) else displayMsg
                     update { state ->
                         if (!state.channelLogin.equals(message.channelName, ignoreCase = true)) return@update state
@@ -473,14 +496,38 @@ class ChatViewModel(
                         state.copy(messages = newMessages, mentionCount = if (matchResult != null) state.mentionCount + 1 else state.mentionCount)
                     }
                     sendEffect(ChatEffect.ScrollToBottom)
-                    if (matchResult != null && matchResult.playSound) sendEffect(ChatEffect.MentionDetected(s.channelLogin))
+
+                    if (matchResult != null && matchResult.playSound) {
+                        val settings = SettingsViewModel.loadInitialState()
+                        if (settings.customMentionSoundPath.isNotBlank()) {
+                            NotificationSoundPlayer.playMentionSound(
+                                settings.mentionSoundVolume,
+                                settings.customMentionSoundPath
+                            )
+                        } else {
+                            NotificationSoundPlayer.playMentionSound()
+                        }
+                        sendEffect(ChatEffect.MentionDetected(s.channelLogin))
+                    }
+
                     chatRepository.saveMessage(message)
                 } else {
                     val s = state.value
                     val isOwnMessage = message.userId == s.currentUserId
                     if (!isOwnMessage) {
                         val matchResult = checkHighlightRules(message.message, s.currentUserLogin)
-                        if (matchResult != null && matchResult.playSound) sendEffect(ChatEffect.MentionDetected(message.channelName))
+                        if (matchResult != null && matchResult.playSound) {
+                            val settings = SettingsViewModel.loadInitialState()
+                            if (settings.customMentionSoundPath.isNotBlank()) {
+                                NotificationSoundPlayer.playMentionSound(
+                                    settings.mentionSoundVolume,
+                                    settings.customMentionSoundPath
+                                )
+                            } else {
+                                NotificationSoundPlayer.playMentionSound()
+                            }
+                            sendEffect(ChatEffect.MentionDetected(message.channelName))
+                        }
                     }
                 }
             }
@@ -573,6 +620,39 @@ class ChatViewModel(
                         if (event.channel.equals(channelLogin, ignoreCase = true)) {
                             channelModCache[channelLogin.lowercase()] = event.isMod
                             if (event.badges.isNotEmpty()) currentUserBadgeRaw = event.badges
+
+                            // FIX Bug 3: parse the freshly received badges and retroactively patch
+                            // the most recent local-echo message (id starts with "local_") that
+                            // was sent by the current user and still has an empty badge list.
+                            // This happens when the user sends their first message and USERSTATE
+                            // arrives after the local echo was already added.
+                            if (event.badges.isNotEmpty()) {
+                                val freshBadges = event.badges.split(",").mapNotNull { pair ->
+                                    val parts = pair.split("/", limit = 2)
+                                    if (parts.size == 2) Badge(id = parts[0], version = parts[1], imageUrl = "") else null
+                                }
+                                val resolvedFreshBadges = badgeRepository.resolveBadges(
+                                    freshBadges,
+                                    state.value.channelId.ifEmpty { null }
+                                )
+                                val currentUserId = state.value.currentUserId
+                                update { st ->
+                                    // Find the last local-echo message for the current user that has no badges
+                                    val targetIndex = st.messages.indexOfLast { dm ->
+                                        dm is DisplayMessage.PrivMsg &&
+                                                dm.id.startsWith("local_") &&
+                                                dm.userId == currentUserId &&
+                                                dm.badges.all { it.imageUrl.isEmpty() }
+                                    }
+                                    if (targetIndex == -1) return@update st
+                                    val patched = (st.messages[targetIndex] as DisplayMessage.PrivMsg)
+                                        .copy(badges = resolvedFreshBadges, isModerator = event.isMod)
+                                    val newMessages = st.messages.toMutableList()
+                                    newMessages[targetIndex] = patched
+                                    st.copy(messages = newMessages)
+                                }
+                            }
+
                             update { it.copy(
                                 isMod = event.isMod,
                                 currentUserColor = event.color ?: it.currentUserColor,
@@ -640,7 +720,6 @@ class ChatViewModel(
     // ── Autocomplete ────────────────────────────────────────────────
 
     private fun updateMessageInput(input: String) {
-        // Reset history navigation when user types manually
         update { it.copy(messageInput = input, historyIndex = -1) }
 
         val lastWord = input.trimEnd().split(" ").lastOrNull() ?: ""
@@ -738,6 +817,9 @@ class ChatViewModel(
                 sendMessageUseCase(channelLogin, message)
 
                 val now = Clock.System.now().toEpochMilliseconds()
+                // Use currentUserBadgeRaw if available (for non-first messages).
+                // For the very first message, this may be empty — the badges will be
+                // retroactively patched when USERSTATE arrives (see observeIrcEvents).
                 val ownBadges = if (currentUserBadgeRaw.isNotEmpty()) {
                     currentUserBadgeRaw.split(",").mapNotNull { pair ->
                         val parts = pair.split("/", limit = 2)
@@ -760,7 +842,6 @@ class ChatViewModel(
                 )
                 val displayMsg = chatMessageToDisplay(rawMsg)
 
-                // Add message to sent history (prepend so index 0 = most recent)
                 val newHistory = (listOf(message) + s.sentMessageHistory).take(MAX_HISTORY)
 
                 update { state ->

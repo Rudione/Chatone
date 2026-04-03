@@ -14,17 +14,14 @@ actual suspend fun pickImageFile(): String? = suspendCancellableCoroutine { cont
                 dialogTitle = "Select Background Image"
                 fileSelectionMode = JFileChooser.FILES_ONLY
                 isAcceptAllFileFilterUsed = false
-
                 addChoosableFileFilter(
                     FileNameExtensionFilter(
-                        "Images (JPG, PNG, WebP, GIF)",
+                        "Images (JPG, PNG, WebP, GIF, BMP)",
                         "jpg", "jpeg", "png", "webp", "gif", "bmp"
                     )
                 )
             }
-
             val result = chooser.showOpenDialog(null)
-
             if (result == JFileChooser.APPROVE_OPTION) {
                 cont.resume(chooser.selectedFile?.absolutePath)
             } else {
