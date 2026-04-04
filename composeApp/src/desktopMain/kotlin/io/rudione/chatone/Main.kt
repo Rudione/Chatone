@@ -17,8 +17,8 @@ fun main() {
 
     application {
         val windowState = rememberWindowState(
-            width = 950.dp,
-            height = 800.dp
+            width = 800.dp,
+            height = 900.dp
         )
 
         // Reactive alwaysOnTop — reads initial value, App() provides SettingsViewModel reactively

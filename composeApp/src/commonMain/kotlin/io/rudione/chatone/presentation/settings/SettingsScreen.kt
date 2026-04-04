@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -71,21 +72,14 @@ private enum class SettingsSection(
 ) {
     APPEARANCE("Appearance", Res.drawable.palette_fill_16, Res.drawable.palette_stroke_12),
     CHAT("Chat", Res.drawable.chatbubbles, Res.drawable.chatbubbles_outline),
-    NOTIFICATIONS(
-        "Notifications",
-        Res.drawable.musical_notes_outline,
-        null
-    ), // можно потом заменить
+    NOTIFICATIONS("Notifications", Res.drawable.musical_notes_outline, null),
     HIGHLIGHTS("Highlights", Res.drawable.images, Res.drawable.images_outline),
     BACKGROUND("Background", Res.drawable.images, Res.drawable.images_outline),
     HOTKEYS("Hotkeys", Res.drawable.keyboard_24_filled, Res.drawable.keyboard_24_regular),
-    MODERATION(
-        "Moderation",
-        Res.drawable.shield_checkmark_sharp,
-        Res.drawable.shield_checkmark_outline
-    ),
+    MODERATION("Moderation", Res.drawable.shield_checkmark_sharp, Res.drawable.shield_checkmark_outline),
     ABOUT("About", Res.drawable.panel_left_key_16_regular, null),
 }
+
 // ─── Entry point ─────────────────────────────────────────────────────────
 
 @Composable
@@ -161,7 +155,6 @@ private fun SettingsDialogContent(
                     )
                     .drawWithContent {
                         drawContent()
-                        // Right border line
                         drawRect(
                             color = extra.cardBorder,
                             topLeft = Offset(size.width - 1.dp.toPx(), 0f),
@@ -169,7 +162,6 @@ private fun SettingsDialogContent(
                         )
                     }
             ) {
-                // App name header
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
                     Text(
                         "Settings",
@@ -187,7 +179,6 @@ private fun SettingsDialogContent(
                 HorizontalDivider(color = extra.cardBorder)
                 Spacer(Modifier.height(8.dp))
 
-                // Nav items
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -204,36 +195,32 @@ private fun SettingsDialogContent(
                     }
                 }
 
-                // Close
+                Spacer(Modifier.height(12.dp))
                 HorizontalDivider(color = extra.cardBorder)
                 TextButton(
                     onClick = onNavigateBack,
-                    modifier = Modifier.fillMaxWidth().padding(12.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)
                 ) {
-                    Icon(Icons.Filled.Close, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
                     Text("Close")
                 }
             }
 
             // ── Right content ─────────────────────────────────────────
-            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                AnimatedContent(
-                    targetState = selectedSection,
-                    transitionSpec = {
-                        fadeIn(tween(160)) + slideInVertically(tween(200)) { it / 20 } togetherWith
-                                fadeOut(tween(100))
-                    },
-                    label = "settings_section"
-                ) { section ->
-                    SectionContent(section, state, onThemeChanged, viewModel)
-                }
-            }
+            // Десктоп: используем LazyColumn (у него есть фиксированная высота из Dialog)
+            SectionContentLazy(
+                section = selectedSection,
+                state = state,
+                onThemeChanged = onThemeChanged,
+                viewModel = viewModel,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
         }
     }
 }
 
-// ─── Mobile full screen ───────────────────────────────────────────────────
+// ─── Mobile: accordion (НЕТ вложенных LazyColumn!) ───────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -244,52 +231,97 @@ private fun SettingsFullScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel
 ) {
-    var selectedSection by remember { mutableStateOf<SettingsSection?>(null) }
+    var expandedSections by remember { mutableStateOf(setOf<SettingsSection>()) }
 
-    if (selectedSection != null) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(selectedSection!!.label) },
-                    navigationIcon = {
-                        IconButton(onClick = { selectedSection = null }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
-                        }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Settings") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
-                )
-            },
-            modifier = modifier
-        ) { padding ->
-            SectionContent(
-                selectedSection!!,
-                state,
-                onThemeChanged,
-                viewModel,
-                Modifier.padding(padding)
+                }
             )
-        }
-    } else {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("Settings") },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+        },
+        modifier = modifier
+    ) { padding ->
+        // Один Column с вертикальным скроллом — никаких вложенных LazyColumn!
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+        ) {
+            SettingsSection.entries.forEach { section ->
+                val isExpanded = section in expandedSections
+
+                // Заголовок секции (аккордеон)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            expandedSections = if (isExpanded)
+                                expandedSections - section
+                            else
+                                expandedSections + section
                         }
-                    }
-                )
-            },
-            modifier = modifier
-        ) { padding ->
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-                items(SettingsSection.entries) { section ->
-                    MobileSectionRow(section) { selectedSection = section }
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painterResource(
+                            if (isExpanded) section.icon
+                            else (section.iconOutlined ?: section.icon)
+                        ),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = if (isExpanded) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        section.label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (isExpanded) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (isExpanded) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        if (isExpanded) Icons.Filled.KeyboardArrowDown
+                        else Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .graphicsLayer { rotationZ = if (isExpanded) 0f else -90f },
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+
+                // Контент секции — обычный Column (НЕ LazyColumn!)
+                AnimatedVisibility(
+                    visible = isExpanded,
+                    enter = expandVertically(tween(200)) + fadeIn(tween(150)),
+                    exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
+                ) {
+                    SectionContentColumn(
+                        section = section,
+                        state = state,
+                        onThemeChanged = onThemeChanged,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                if (isExpanded) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                 }
             }
+
+            Spacer(Modifier.height(32.dp))
         }
     }
 }
@@ -304,7 +336,6 @@ private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClic
     )
     val contentColor =
         if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    val icon = if (isSelected) section.icon else (section.iconOutlined ?: section.icon)
 
     Row(
         modifier = Modifier
@@ -340,44 +371,10 @@ private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClic
     }
 }
 
-// ─── Mobile section row ───────────────────────────────────────────────────
+// ─── Section content — LazyColumn версия (для десктопного диалога) ────────
 
 @Composable
-private fun MobileSectionRow(section: SettingsSection, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Icon(
-            painterResource(Res.drawable.images),
-            null,
-            modifier = Modifier.size(22.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            section.label,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        Icon(
-            painterResource(Res.drawable.chevronright),
-            null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 58.dp),
-        color = MaterialTheme.colorScheme.outlineVariant
-    )
-}
-
-// ─── Section content router ───────────────────────────────────────────────
-
-@Composable
-private fun SectionContent(
+private fun SectionContentLazy(
     section: SettingsSection,
     state: SettingsState,
     onThemeChanged: (Boolean) -> Unit,
@@ -385,7 +382,7 @@ private fun SectionContent(
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier,
         contentPadding = PaddingValues(horizontal = 28.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -399,347 +396,136 @@ private fun SectionContent(
             )
         }
         when (section) {
-            SettingsSection.APPEARANCE -> appearanceItems(state, onThemeChanged, viewModel)
-            SettingsSection.CHAT -> chatItems(state, viewModel)
-            SettingsSection.NOTIFICATIONS -> notificationItems(state, viewModel)
-            SettingsSection.HIGHLIGHTS -> highlightItems(state, viewModel)
-            SettingsSection.BACKGROUND -> backgroundItems(state, viewModel)
-            SettingsSection.HOTKEYS -> hotkeyItems(state, viewModel)
-            SettingsSection.MODERATION -> moderationItems(state, viewModel)
-            SettingsSection.ABOUT -> aboutItems()
+            SettingsSection.APPEARANCE -> appearanceLazyItems(state, onThemeChanged, viewModel)
+            SettingsSection.CHAT -> chatLazyItems(state, viewModel)
+            SettingsSection.NOTIFICATIONS -> notificationLazyItems(state, viewModel)
+            SettingsSection.HIGHLIGHTS -> highlightLazyItems(state, viewModel)
+            SettingsSection.BACKGROUND -> backgroundLazyItems(state, viewModel)
+            SettingsSection.HOTKEYS -> hotkeyLazyItems(state, viewModel)
+            SettingsSection.MODERATION -> moderationLazyItems(state, viewModel)
+            SettingsSection.ABOUT -> aboutLazyItems()
         }
     }
 }
 
-// ─── Section item builders ────────────────────────────────────────────────
+// ─── Section content — Column версия (для мобильного аккордеона) ─────────
 
-private fun LazyListScope.appearanceItems(
+@Composable
+private fun SectionContentColumn(
+    section: SettingsSection,
+    state: SettingsState,
+    onThemeChanged: (Boolean) -> Unit,
+    viewModel: SettingsViewModel,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        when (section) {
+            SettingsSection.APPEARANCE -> AppearanceContent(state, onThemeChanged, viewModel)
+            SettingsSection.CHAT -> ChatContent(state, viewModel)
+            SettingsSection.NOTIFICATIONS -> NotificationContent(state, viewModel)
+            SettingsSection.HIGHLIGHTS -> HighlightContent(state, viewModel)
+            SettingsSection.BACKGROUND -> BackgroundContent(state, viewModel)
+            SettingsSection.HOTKEYS -> HotkeyContent(state, viewModel)
+            SettingsSection.MODERATION -> ModerationContent(state, viewModel)
+            SettingsSection.ABOUT -> AboutContent()
+        }
+    }
+}
+
+// ─── LazyListScope builders (для десктопного диалога) ────────────────────
+
+private fun LazyListScope.appearanceLazyItems(
     state: SettingsState,
     onThemeChanged: (Boolean) -> Unit,
     vm: SettingsViewModel
 ) {
-    item {
-        SettingsGroup("Theme") {
-            SwitchRow("Dark Theme", "Use dark color scheme", state.darkTheme) {
-                vm.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it)
-            }
+    item { SettingsGroup("Theme") {
+        SwitchRow("Dark Theme", "Use dark color scheme", state.darkTheme) {
+            vm.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it)
         }
-    }
-    item {
-        SettingsGroup("Display") {
-            ListRow(
-                "Font Size",
-                state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
-                SettingsState.FontSize.entries.map {
-                    it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
-                }
-            ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
+    } }
+    item { SettingsGroup("Display") {
+        ListRow("Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
+            SettingsState.FontSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+        ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
+        RowDivider()
+        ListRow("Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
+            SettingsState.EmoteSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+        ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
+        RowDivider()
+        ListRow("Channel Navigation",
+            when (state.channelNavigation) {
+                SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
+                SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
+                SettingsState.ChannelNavigation.BOTH -> "Both"
+            },
+            listOf("Tab Bar", "Mini Rail", "Both")
+        ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
+    } }
+    item { SettingsGroup("Window") {
+        SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
+            vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
+        }
+    } }
+}
+
+private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item { SettingsGroup("Messages") {
+        SwitchRow("Show Timestamps", "Display message time in chat",
+            state.timestampFormat != SettingsState.TimestampFormat.OFF) { enabled ->
+            vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(
+                if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF))
+        }
+        if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
             RowDivider()
-            ListRow(
-                "Emote Size",
-                state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
-                SettingsState.EmoteSize.entries.map {
-                    it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
-                }
-            ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
-            RowDivider()
-            ListRow(
-                "Channel Navigation",
-                when (state.channelNavigation) {
-                    SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
-                    SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
-                    SettingsState.ChannelNavigation.BOTH -> "Both"
+            ListRow("Timestamp Format",
+                when (state.timestampFormat) {
+                    SettingsState.TimestampFormat.H12 -> "12-hour"
+                    SettingsState.TimestampFormat.H24 -> "24-hour"
+                    else -> "Off"
                 },
-                listOf("Tab Bar", "Mini Rail", "Both")
-            ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
+                listOf("12-hour", "24-hour")
+            ) { vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(
+                if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24)) }
         }
-    }
-    item {
-        SettingsGroup("Window") {
-            SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
-                vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
-            }
+        RowDivider()
+        SwitchRow("Show Badges", "Display user badges in chat", state.showBadges) {
+            vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
         }
-    }
+        RowDivider()
+        SwitchRow("Show Deleted Messages", "Show deleted messages as grayed out", state.showDeletedMessages) {
+            vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
+        }
+    } }
+    item { SettingsGroup("Auto-scroll") {
+        SwitchRow("Pause on Hover", "Stop auto-scrolling when mouse is over chat", state.pauseOnHover) {
+            vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
+        }
+    } }
+    item { SettingsGroup("Emote Picker") {
+        SwitchRow("Close on Mouse Leave", "Hide emote picker when cursor leaves it", state.closeEmotePickerOnMouseLeave) {
+            vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
+        }
+    } }
+    item { SettingsGroup("History") {
+        SliderRow("Message History Limit", state.scrollbackLimit, 100f..2000f, 18,
+            "${state.scrollbackLimit} messages") {
+            vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
+        }
+    } }
 }
 
-private fun LazyListScope.chatItems(state: SettingsState, vm: SettingsViewModel) {
-    item {
-        SettingsGroup("Messages") {
-            SwitchRow(
-                "Show Timestamps", "Display message time in chat",
-                state.timestampFormat != SettingsState.TimestampFormat.OFF
-            ) { enabled ->
-                vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF))
-            }
-            if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
-                RowDivider()
-                ListRow(
-                    "Timestamp Format",
-                    when (state.timestampFormat) {
-                        SettingsState.TimestampFormat.H12 -> "12-hour"; SettingsState.TimestampFormat.H24 -> "24-hour"; else -> "Off"
-                    },
-                    listOf("12-hour", "24-hour")
-                ) { vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24)) }
-            }
-            RowDivider()
-            SwitchRow(
-                "Show Badges",
-                "Display user badges in chat",
-                state.showBadges
-            ) { vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it)) }
-            RowDivider()
-            SwitchRow(
-                "Show Deleted Messages",
-                "Show deleted messages as grayed out",
-                state.showDeletedMessages
-            ) { vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it)) }
-        }
-    }
-    item {
-        SettingsGroup("Auto-scroll") {
-            SwitchRow(
-                "Pause on Hover",
-                "Stop auto-scrolling when mouse is over chat",
-                state.pauseOnHover
-            ) {
-                vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
-            }
-        }
-    }
-    item {
-        SettingsGroup("History") {
-            SliderRow(
-                "Message History Limit",
-                state.scrollbackLimit,
-                100f..2000f,
-                18,
-                "${state.scrollbackLimit} messages"
-            ) {
-                vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
-            }
-        }
-    }
-}
-
-private fun LazyListScope.notificationItems(state: SettingsState, vm: SettingsViewModel) {
-    item {
-        LiquidGlassSurface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(16.dp),
-            backgroundAlphaHigh = 0.80f,
-            backgroundAlphaLow = 0.65f,
-            borderAlphaHigh = 0f,
-            borderAlphaLow = 0f
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-
-                // Заголовок группы
-                Text(
-                    "Mention Sound",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                // Тумблер включения
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Enable Mention Sound",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            "Play sound when you are mentioned",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = state.mentionSoundEnabled,
-                        onCheckedChange = {
-                            vm.sendEvent(SettingsEvent.OnMentionSoundChanged(it))
-                        }
-                    )
-                }
-
-                // Громкость (только если включено)
-                if (state.mentionSoundEnabled) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "Volume",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                "${(state.mentionSoundVolume * 100).toInt()}%",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        Slider(
-                            value = state.mentionSoundVolume,
-                            onValueChange = {
-                                vm.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it))
-                            },
-                            valueRange = 0f..1f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                            )
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // Кастомный звук — отдельная карточка, только если включено
+private fun LazyListScope.notificationLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item { NotificationGroupCard(state, vm) }
     if (state.mentionSoundEnabled) {
-        item {
-            LiquidGlassSurface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(16.dp),
-                backgroundAlphaHigh = 0.80f,
-                backgroundAlphaLow = 0.65f,
-                borderAlphaHigh = 0f,
-                borderAlphaLow = 0f
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-
-                    // Заголовок
-                    Text(
-                        "Custom Sound",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    // Отображение выбранного файла + кнопка очистки
-                    if (state.customMentionSoundPath.isNotBlank()) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    painter = painterResource(Res.drawable.musical_notes_outline),
-                                    null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = state.customMentionSoundPath
-                                        .substringAfterLast('/')
-                                        .substringAfterLast('\\'),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                IconButton(
-                                    onClick = {
-                                        vm.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(""))
-                                    },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Close,
-                                        null,
-                                        modifier = Modifier.size(14.dp),
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Кнопки: выбор файла + тест
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        // Кнопка выбора файла
-                        FilledIconButton(
-                            onClick = {
-                                val picked = pickAudioFile() // ← ИСПРАВЛЕНО: было pickImageFile()
-                                if (picked != null) {
-                                    vm.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(picked))
-                                }
-                            },
-                            modifier = Modifier.weight(1f).height(40.dp),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Text(
-                                if (state.customMentionSoundPath.isBlank()) "Browse." else "Change...",
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        }
-
-                        // Кнопка теста звука
-                        FilledIconButton(
-                            onClick = {
-                                NotificationSoundPlayer.playMentionSound(
-                                    volume = state.mentionSoundVolume,
-                                    customSoundPath = state.customMentionSoundPath
-                                )
-                            },
-                            modifier = Modifier.size(40.dp),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.secondary,
-                                contentColor = MaterialTheme.colorScheme.onSecondary
-                            )
-                        ) {
-                            Icon(
-                                Icons.Filled.PlayArrow,
-                                null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    // Подсказка по форматам
-                    Text(
-                        text = if (state.customMentionSoundPath.isBlank()) {
-                            "Using default tone. Select WAV or OGG."
-                        } else {
-                            "Supported: WAV, OGG"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        }
+        item { CustomSoundCard(state, vm) }
     }
 }
 
-private fun LazyListScope.highlightItems(state: SettingsState, vm: SettingsViewModel) {
+private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsViewModel) {
     item {
         Text(
             "Rules matched against incoming messages. Your username is always highlighted.",
@@ -752,14 +538,7 @@ private fun LazyListScope.highlightItems(state: SettingsState, vm: SettingsViewM
         HightlightRuleCard(
             rule = rule,
             onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-            onSoundToggle = {
-                vm.sendEvent(
-                    SettingsEvent.OnHighlightRuleSoundToggled(
-                        rule.id,
-                        it
-                    )
-                )
-            },
+            onSoundToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
             onRemove = if (!rule.id.startsWith("custom_")) null else {
                 { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
             }
@@ -781,235 +560,377 @@ private fun LazyListScope.highlightItems(state: SettingsState, vm: SettingsViewM
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp)
             )
-            FilledTonalButton(onClick = {
-                if (newPattern.isNotBlank()) {
-                    vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim())); newPattern =
-                        ""
-                }
-            }, enabled = newPattern.isNotBlank()) {
+            FilledTonalButton(
+                onClick = {
+                    if (newPattern.isNotBlank()) {
+                        vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
+                        newPattern = ""
+                    }
+                },
+                enabled = newPattern.isNotBlank()
+            ) {
                 Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
             }
         }
     }
 }
 
-private fun LazyListScope.backgroundItems(state: SettingsState, vm: SettingsViewModel) {
-    item {
-        SettingsGroup("Chat Background Image") {
-            Column(modifier = Modifier.padding(16.dp)) {
-                val scope = rememberCoroutineScope()
-                var previewBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+private fun LazyListScope.backgroundLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item { BackgroundCard(state, vm) }
+}
 
-                if (state.wallpaperPath.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(150.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    ) {
-                        AsyncImage(
-                            model = state.wallpaperPath,   // Coil сам загрузит файл по пути
-                            contentDescription = "Background preview",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        // Имитация затемнения (как в чате)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = state.wallpaperBlur / 40f))
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                }
+private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item { SettingsGroup("Chat Controls") {
+        HotkeyRow("Pause Auto-scroll", "Toggle chat pause while reading", state.pauseHotkey) {
+            vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
+        }
+    } }
+}
 
-                // Отображение пути и кнопка удаления
-                if (state.wallpaperPath.isNotBlank()) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                painterResource(Res.drawable.images),
-                                null,
-                                modifier = Modifier.size(15.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                state.wallpaperPath.substringAfterLast("/")
-                                    .substringAfterLast("\\"),
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            IconButton(onClick = {
-                                vm.sendEvent(SettingsEvent.OnWallpaperPathChanged(""))
-                            }, modifier = Modifier.size(26.dp)) {
-                                Icon(
-                                    Icons.Filled.Close,
-                                    null,
-                                    modifier = Modifier.size(13.dp),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(14.dp))
-                }
+private fun LazyListScope.moderationLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item { SettingsGroup("Actions") {
+        SwitchRow("Confirm Mod Actions", "Show confirmation dialog before ban/timeout", state.confirmModActions) {
+            vm.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it))
+        }
+        RowDivider()
+        ListRow("Default Timeout Duration", formatDuration(state.defaultTimeoutDuration),
+            listOf("10 seconds", "1 minute", "10 minutes", "1 hour", "1 day")
+        ) {
+            vm.sendEvent(SettingsEvent.OnDefaultTimeoutChanged(listOf(10, 60, 600, 3600, 86400)[it]))
+        }
+    } }
+}
 
-                // Ползунок прозрачности
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Overlay Opacity", style = MaterialTheme.typography.bodyMedium)
-                    Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text(
-                            "${state.wallpaperBlur.toInt()}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-                Slider(
-                    value = state.wallpaperBlur,
-                    onValueChange = { vm.sendEvent(SettingsEvent.OnWallpaperBlurChanged(it)) },
-                    valueRange = 0f..40f,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Transparent", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("Opaque", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Spacer(Modifier.height(10.dp))
+private fun LazyListScope.aboutLazyItems() {
+    item { AboutCard() }
+}
 
-                // Кнопка выбора файла (с корутиной)
-                OutlinedButton(
-                    onClick = {
-                        scope.launch {
-                            val picked = pickImageFile()
-                            if (picked != null) vm.sendEvent(SettingsEvent.OnWallpaperPathChanged(picked))
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(painterResource(Res.drawable.images_outline), null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(if (state.wallpaperPath.isBlank()) "Choose background image..." else "Change image...")
-                }
+// ─── Column composables (для мобильного аккордеона) ──────────────────────
 
-                if (state.wallpaperPath.isBlank()) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Supports JPG, PNG, WebP.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+@Composable
+private fun AppearanceContent(state: SettingsState, onThemeChanged: (Boolean) -> Unit, vm: SettingsViewModel) {
+    SettingsGroup("Theme") {
+        SwitchRow("Dark Theme", "Use dark color scheme", state.darkTheme) {
+            vm.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it)
+        }
+    }
+    SettingsGroup("Display") {
+        ListRow("Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
+            SettingsState.FontSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+        ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
+        RowDivider()
+        ListRow("Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
+            SettingsState.EmoteSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+        ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
+        RowDivider()
+        ListRow("Channel Navigation",
+            when (state.channelNavigation) {
+                SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
+                SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
+                SettingsState.ChannelNavigation.BOTH -> "Both"
+            },
+            listOf("Tab Bar", "Mini Rail", "Both")
+        ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
+    }
+    SettingsGroup("Window") {
+        SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
+            vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
         }
     }
 }
 
-private fun LazyListScope.hotkeyItems(state: SettingsState, vm: SettingsViewModel) {
-    item {
-        SettingsGroup("Chat Controls") {
-            HotkeyRow("Pause Auto-scroll", "Toggle chat pause while reading", state.pauseHotkey) {
-                vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
-            }
+@Composable
+private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
+    SettingsGroup("Messages") {
+        SwitchRow("Show Timestamps", "Display message time in chat",
+            state.timestampFormat != SettingsState.TimestampFormat.OFF) { enabled ->
+            vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(
+                if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF))
         }
-    }
-}
-
-private fun LazyListScope.moderationItems(state: SettingsState, vm: SettingsViewModel) {
-    item {
-        SettingsGroup("Actions") {
-            SwitchRow(
-                "Confirm Mod Actions",
-                "Show confirmation dialog before ban/timeout",
-                state.confirmModActions
-            ) {
-                vm.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it))
-            }
+        if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
             RowDivider()
-            ListRow(
-                "Default Timeout Duration", formatDuration(state.defaultTimeoutDuration),
-                listOf("10 seconds", "1 minute", "10 minutes", "1 hour", "1 day")
-            ) {
-                vm.sendEvent(
-                    SettingsEvent.OnDefaultTimeoutChanged(
-                        listOf(
-                            10,
-                            60,
-                            600,
-                            3600,
-                            86400
-                        )[it]
-                    )
-                )
+            ListRow("Timestamp Format",
+                when (state.timestampFormat) {
+                    SettingsState.TimestampFormat.H12 -> "12-hour"
+                    SettingsState.TimestampFormat.H24 -> "24-hour"
+                    else -> "Off"
+                },
+                listOf("12-hour", "24-hour")
+            ) { vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(
+                if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24)) }
+        }
+        RowDivider()
+        SwitchRow("Show Badges", "Display user badges in chat", state.showBadges) {
+            vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
+        }
+        RowDivider()
+        SwitchRow("Show Deleted Messages", "Show deleted messages as grayed out", state.showDeletedMessages) {
+            vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
+        }
+    }
+    SettingsGroup("Auto-scroll") {
+        SwitchRow("Pause on Hover", "Stop auto-scrolling when mouse is over chat", state.pauseOnHover) {
+            vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
+        }
+    }
+    SettingsGroup("Emote Picker") {
+        SwitchRow("Close on Mouse Leave", "Hide emote picker when cursor leaves it", state.closeEmotePickerOnMouseLeave) {
+            vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
+        }
+    }
+    SettingsGroup("History") {
+        SliderRow("Message History Limit", state.scrollbackLimit, 100f..2000f, 18,
+            "${state.scrollbackLimit} messages") {
+            vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
+        }
+    }
+}
+
+@Composable
+private fun NotificationContent(state: SettingsState, vm: SettingsViewModel) {
+    NotificationGroupCard(state, vm)
+    if (state.mentionSoundEnabled) {
+        Spacer(Modifier.height(8.dp))
+        CustomSoundCard(state, vm)
+    }
+}
+
+@Composable
+private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
+    Text(
+        "Rules matched against incoming messages. Your username is always highlighted.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(bottom = 12.dp)
+    )
+    state.highlightRules.forEach { rule ->
+        HightlightRuleCard(
+            rule = rule,
+            onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
+            onSoundToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
+            onRemove = if (!rule.id.startsWith("custom_")) null else {
+                { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
+            }
+        )
+        Spacer(Modifier.height(4.dp))
+    }
+    var newPattern by remember { mutableStateOf("") }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = newPattern,
+            onValueChange = { newPattern = it },
+            modifier = Modifier.weight(1f),
+            placeholder = { Text("Add highlight pattern...") },
+            singleLine = true,
+            shape = RoundedCornerShape(10.dp)
+        )
+        FilledTonalButton(
+            onClick = {
+                if (newPattern.isNotBlank()) {
+                    vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
+                    newPattern = ""
+                }
+            },
+            enabled = newPattern.isNotBlank()
+        ) {
+            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun BackgroundContent(state: SettingsState, vm: SettingsViewModel) {
+    BackgroundCard(state, vm)
+}
+
+@Composable
+private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
+    SettingsGroup("Chat Controls") {
+        HotkeyRow("Pause Auto-scroll", "Toggle chat pause while reading", state.pauseHotkey) {
+            vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
+        }
+    }
+}
+
+@Composable
+private fun ModerationContent(state: SettingsState, vm: SettingsViewModel) {
+    SettingsGroup("Actions") {
+        SwitchRow("Confirm Mod Actions", "Show confirmation dialog before ban/timeout", state.confirmModActions) {
+            vm.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it))
+        }
+        RowDivider()
+        ListRow("Default Timeout Duration", formatDuration(state.defaultTimeoutDuration),
+            listOf("10 seconds", "1 minute", "10 minutes", "1 hour", "1 day")
+        ) {
+            vm.sendEvent(SettingsEvent.OnDefaultTimeoutChanged(listOf(10, 60, 600, 3600, 86400)[it]))
+        }
+    }
+}
+
+@Composable
+private fun AboutContent() {
+    AboutCard()
+}
+
+// ─── Shared card composables ──────────────────────────────────────────────
+
+@Composable
+private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
+    LiquidGlassSurface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(16.dp),
+        backgroundAlphaHigh = 0.80f,
+        backgroundAlphaLow = 0.65f,
+        borderAlphaHigh = 0f,
+        borderAlphaLow = 0f
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Mention Sound", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Enable Mention Sound", style = MaterialTheme.typography.bodyMedium)
+                    Text("Play sound when you are mentioned", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = state.mentionSoundEnabled, onCheckedChange = { vm.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) })
+            }
+            if (state.mentionSoundEnabled) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Volume", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${(state.mentionSoundVolume * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Slider(value = state.mentionSoundVolume, onValueChange = { vm.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it)) }, valueRange = 0f..1f)
+                }
             }
         }
     }
 }
 
-private fun LazyListScope.aboutItems() {
-    item {
-        SettingsGroup("App Info") {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "C",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column {
-                        Text(
-                            "Chatone",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Version 1.0.6",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+@Composable
+private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
+    LiquidGlassSurface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        contentPadding = PaddingValues(16.dp),
+        backgroundAlphaHigh = 0.80f,
+        backgroundAlphaLow = 0.65f,
+        borderAlphaHigh = 0f,
+        borderAlphaLow = 0f
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Custom Sound", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            if (state.customMentionSoundPath.isNotBlank()) {
+                Surface(color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f), shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(painterResource(Res.drawable.musical_notes_outline), null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text(state.customMentionSoundPath.substringAfterLast('/').substringAfterLast('\\'),
+                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        IconButton(onClick = { vm.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged("")) }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Filled.Close, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "Twitch chat client built with Kotlin Multiplatform & Compose.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "https://t.me/rudionee",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                FilledIconButton(
+                    onClick = { val picked = pickAudioFile(); if (picked != null) vm.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(picked)) },
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
+                ) { Text(if (state.customMentionSoundPath.isBlank()) "Browse..." else "Change...", style = MaterialTheme.typography.labelMedium) }
+                FilledIconButton(
+                    onClick = { NotificationSoundPlayer.playMentionSound(volume = state.mentionSoundVolume, customSoundPath = state.customMentionSoundPath) },
+                    modifier = Modifier.size(40.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.secondary, contentColor = MaterialTheme.colorScheme.onSecondary)
+                ) { Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp)) }
+            }
+            Text(
+                text = if (state.customMentionSoundPath.isBlank()) "Using default tone. Select WAV or OGG." else "Supported: WAV, OGG",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
+    SettingsGroup("Chat Background Image") {
+        Column(modifier = Modifier.padding(16.dp)) {
+            val scope = rememberCoroutineScope()
+            if (state.wallpaperPath.isNotBlank()) {
+                Box(modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(12.dp))) {
+                    AsyncImage(model = state.wallpaperPath, contentDescription = "Background preview",
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = state.wallpaperBlur / 40f)))
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+            if (state.wallpaperPath.isNotBlank()) {
+                Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f), shape = RoundedCornerShape(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(Res.drawable.images), null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text(state.wallpaperPath.substringAfterLast("/").substringAfterLast("\\"),
+                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        IconButton(onClick = { vm.sendEvent(SettingsEvent.OnWallpaperPathChanged("")) }, modifier = Modifier.size(26.dp)) {
+                            Icon(Icons.Filled.Close, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Overlay Opacity", style = MaterialTheme.typography.bodyMedium)
+                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(4.dp)) {
+                    Text("${state.wallpaperBlur.toInt()}", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+            }
+            Slider(value = state.wallpaperBlur, onValueChange = { vm.sendEvent(SettingsEvent.OnWallpaperBlurChanged(it)) }, valueRange = 0f..40f, modifier = Modifier.fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Transparent", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Opaque", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = { scope.launch { val picked = pickImageFile(); if (picked != null) vm.sendEvent(SettingsEvent.OnWallpaperPathChanged(picked)) } },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(painterResource(Res.drawable.images_outline), null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(if (state.wallpaperPath.isBlank()) "Choose background image..." else "Change image...")
+            }
+            if (state.wallpaperPath.isBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text("Supports JPG, PNG, WebP.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutCard() {
+    SettingsGroup("App Info") {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                    Text("C", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    Text("Chatone", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Version 1.0.6", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text("Twitch chat client built with Kotlin Multiplatform & Compose.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+            Text("https://t.me/rudionee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
@@ -1020,20 +941,13 @@ private fun LazyListScope.aboutItems() {
 private fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         if (title != null) {
-            Text(
-                title, style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                letterSpacing = 0.6.sp,
-                modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
-            )
+            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 6.dp, start = 2.dp))
         }
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-            border = BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(content = content)
@@ -1044,161 +958,74 @@ private fun SettingsGroup(title: String? = null, content: @Composable ColumnScop
 
 @Composable
 private fun RowDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-    )
+    HorizontalDivider(modifier = Modifier.padding(start = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 }
 
 @Composable
-private fun SwitchRow(
-    title: String,
-    subtitle: String? = null,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+private fun SwitchRow(title: String, subtitle: String? = null, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            if (subtitle != null) Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
 @Composable
-private fun ListRow(
-    title: String,
-    value: String,
-    options: List<String>,
-    onSelected: (Int) -> Unit
-) {
+private fun ListRow(title: String, value: String, options: List<String>, onSelected: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    value,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Icon(
-                painterResource(Res.drawable.unfold_more),
-                null,
-                modifier = Modifier.size(17.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Icon(painterResource(Res.drawable.unfold_more), null, modifier = Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { i, opt ->
-                DropdownMenuItem(
-                    text = { Text(opt) },
-                    onClick = { onSelected(i); expanded = false })
-            }
+            options.forEachIndexed { i, opt -> DropdownMenuItem(text = { Text(opt) }, onClick = { onSelected(i); expanded = false }) }
         }
     }
 }
 
 @Composable
-private fun SliderRow(
-    title: String,
-    value: Int,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    valueLabel: String,
-    isFloat: Boolean = false,
-    onFloatChange: ((Float) -> Unit)? = null,
-    onValueChange: ((Float) -> Unit)? = null
-) {
+private fun SliderRow(title: String, value: Int, valueRange: ClosedFloatingPointRange<Float>, steps: Int, valueLabel: String,
+                      isFloat: Boolean = false, onFloatChange: ((Float) -> Unit)? = null, onValueChange: ((Float) -> Unit)? = null) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                valueLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Text(valueLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         }
         if (isFloat && onFloatChange != null) {
-            Slider(
-                value = value / 100f,
-                onValueChange = onFloatChange,
-                valueRange = valueRange,
-                steps = steps
-            )
+            Slider(value = value / 100f, onValueChange = onFloatChange, valueRange = valueRange, steps = steps)
         } else if (onValueChange != null) {
-            Slider(
-                value = value.toFloat(),
-                onValueChange = onValueChange,
-                valueRange = valueRange,
-                steps = steps
-            )
+            Slider(value = value.toFloat(), onValueChange = onValueChange, valueRange = valueRange, steps = steps)
         }
     }
 }
 
 @Composable
-private fun HightlightRuleCard(
-    rule: HighlightRule,
-    onToggle: (Boolean) -> Unit,
-    onSoundToggle: (Boolean) -> Unit,
-    onRemove: (() -> Unit)?
-) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+private fun HightlightRuleCard(rule: HighlightRule, onToggle: (Boolean) -> Unit, onSoundToggle: (Boolean) -> Unit, onRemove: (() -> Unit)?) {
+    Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(rule.color)))
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(rule.pattern.ifEmpty {
-                    rule.id.replace("_", " ").replaceFirstChar { it.uppercase() }
-                }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                if (rule.isRegex) Text(
-                    "Regex",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(rule.pattern.ifEmpty { rule.id.replace("_", " ").replaceFirstChar { it.uppercase() } },
+                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                if (rule.isRegex) Text("Regex", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(
-                onClick = { onSoundToggle(!rule.playSound) },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications,
-                    null,
+            IconButton(onClick = { onSoundToggle(!rule.playSound) }, modifier = Modifier.size(32.dp)) {
+                Icon(if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications, null,
                     modifier = Modifier.size(16.dp),
-                    tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                    tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked = rule.enabled, onCheckedChange = onToggle)
             if (onRemove != null) {
                 IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        Icons.Filled.Close,
-                        null,
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
+                    Icon(Icons.Filled.Close, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -1207,55 +1034,25 @@ private fun HightlightRuleCard(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun HotkeyRow(
-    title: String,
-    subtitle: String,
-    currentHotkey: String,
-    onHotkeyChanged: (String) -> Unit
-) {
+private fun HotkeyRow(title: String, subtitle: String, currentHotkey: String, onHotkeyChanged: (String) -> Unit) {
     var isRecording by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(12.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 color = if (isRecording) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(
-                    1.dp,
-                    if (isRecording) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                ),
+                border = BorderStroke(1.dp, if (isRecording) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier.widthIn(min = 110.dp)
                     .onKeyEvent { event ->
                         if (!isRecording) return@onKeyEvent false
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent true
-                        if (event.key in listOf(
-                                Key.CtrlLeft,
-                                Key.CtrlRight,
-                                Key.AltLeft,
-                                Key.AltRight,
-                                Key.ShiftLeft,
-                                Key.ShiftRight,
-                                Key.MetaLeft,
-                                Key.MetaRight
-                            )
-                        ) return@onKeyEvent true
-                        if (event.key == Key.Escape) {
-                            onHotkeyChanged(""); isRecording = false; return@onKeyEvent true
-                        }
+                        if (event.key in listOf(Key.CtrlLeft, Key.CtrlRight, Key.AltLeft, Key.AltRight, Key.ShiftLeft, Key.ShiftRight, Key.MetaLeft, Key.MetaRight)) return@onKeyEvent true
+                        if (event.key == Key.Escape) { onHotkeyChanged(""); isRecording = false; return@onKeyEvent true }
                         val parts = mutableListOf<String>()
                         if (event.isCtrlPressed || event.isMetaPressed) parts.add("ctrl")
                         if (event.isAltPressed) parts.add("alt")
@@ -1263,40 +1060,20 @@ private fun HotkeyRow(
                         val keyName = hotkeyKeyToName(event.key)
                         if (keyName.isNotEmpty()) parts.add(keyName)
                         onHotkeyChanged(parts.joinToString("+"))
-                        isRecording = false
-                        true
+                        isRecording = false; true
                     }
                     .clickable { isRecording = true }
             ) {
                 Text(
-                    when {
-                        isRecording -> "Recording..."
-                        currentHotkey.isBlank() -> "Not set"
-                        else -> currentHotkey.uppercase().replace("+", " + ")
-                    },
+                    when { isRecording -> "Recording..."; currentHotkey.isBlank() -> "Not set"; else -> currentHotkey.uppercase().replace("+", " + ") },
                     style = MaterialTheme.typography.labelMedium,
-                    color = when {
-                        isRecording -> MaterialTheme.colorScheme.onPrimaryContainer
-                        currentHotkey.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                            alpha = 0.45f
-                        )
-
-                        else -> MaterialTheme.colorScheme.onSurface
-                    },
+                    color = when { isRecording -> MaterialTheme.colorScheme.onPrimaryContainer; currentHotkey.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f); else -> MaterialTheme.colorScheme.onSurface },
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                 )
             }
             if (currentHotkey.isNotBlank() || isRecording) {
-                IconButton(
-                    onClick = { onHotkeyChanged(""); isRecording = false },
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        null,
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
+                IconButton(onClick = { onHotkeyChanged(""); isRecording = false }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Filled.Close, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
                 }
             }
         }

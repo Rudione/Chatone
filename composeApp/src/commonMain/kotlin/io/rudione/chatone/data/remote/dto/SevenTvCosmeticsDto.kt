@@ -3,7 +3,87 @@ package io.rudione.chatone.data.remote.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// ─── 7TV User Connection (full user data) ───────────────────────────────
+// ─── 7TV Paint ───────────────────────────────────────────────────────────
+
+@Serializable
+data class SevenTvPaint(
+    val id: String,
+    val name: String = "",
+    val function: String = "LINEAR_GRADIENT",
+    val color: Int? = null,
+    val stops: List<SevenTvPaintStop> = emptyList(),
+    val repeat: Boolean = false,
+    val angle: Int = 0,
+    @SerialName("image_url") val imageUrl: String = "",
+    val shape: String = "",
+    val shadows: List<SevenTvPaintShadow> = emptyList()
+)
+
+@Serializable
+data class SevenTvPaintStop(
+    val at: Double = 0.0,
+    val color: Int = 0,
+    val center: Double? = null
+)
+
+@Serializable
+data class SevenTvPaintShadow(
+    @SerialName("x_offset") val xOffset: Double = 0.0,
+    @SerialName("y_offset") val yOffset: Double = 0.0,
+    val radius: Double = 0.0,
+    val color: Int = 0
+)
+
+// ─── 7TV Badge ───────────────────────────────────────────────────────────
+
+@Serializable
+data class SevenTvBadge(
+    val id: String,
+    val name: String = "",
+    val tooltip: String = "",
+    val tag: String = "",
+    val host: SevenTvHost = SevenTvHost()
+)
+
+// ─── GQL запрос для получения полного стиля пользователя ────────────────
+// POST /v3/gql — единственный надёжный способ получить объекты пейнта/бейджа
+
+@Serializable
+data class SevenTvGqlRequest(
+    val query: String,
+    val variables: Map<String, String> = emptyMap()
+)
+
+@Serializable
+data class SevenTvGqlResponse(
+    val data: SevenTvGqlData? = null,
+    val errors: List<SevenTvGqlError>? = null
+)
+
+@Serializable
+data class SevenTvGqlData(
+    @SerialName("user") val user: SevenTvGqlUser? = null
+)
+
+@Serializable
+data class SevenTvGqlUser(
+    val id: String = "",
+    val style: SevenTvGqlStyle = SevenTvGqlStyle()
+)
+
+@Serializable
+data class SevenTvGqlStyle(
+    val color: Int? = null,
+    val badge: SevenTvBadge? = null,
+    val paint: SevenTvPaint? = null
+)
+
+@Serializable
+data class SevenTvGqlError(
+    val message: String = ""
+)
+
+// ─── Остальные DTO для EventAPI ──────────────────────────────────────────
 
 @Serializable
 data class SevenTvUserConnection(
@@ -47,49 +127,7 @@ data class SevenTvUserStyle(
     @SerialName("badge_id") val badgeId: String? = null
 )
 
-// ─── 7TV Paints ─────────────────────────────────────────────────────────
-
-@Serializable
-data class SevenTvPaint(
-    val id: String,
-    val name: String = "",
-    val function: String = "LINEAR_GRADIENT",  // LINEAR_GRADIENT, RADIAL_GRADIENT, URL
-    val color: Int? = null,
-    val stops: List<SevenTvPaintStop> = emptyList(),
-    val repeat: Boolean = false,
-    val angle: Int = 0,
-    @SerialName("image_url") val imageUrl: String = "",
-    val shape: String = "",  // for radial: circle, ellipse
-    val shadows: List<SevenTvPaintShadow> = emptyList()
-)
-
-@Serializable
-data class SevenTvPaintStop(
-    val at: Double = 0.0,
-    val color: Int = 0,
-    val center: Double? = null
-)
-
-@Serializable
-data class SevenTvPaintShadow(
-    @SerialName("x_offset") val xOffset: Double = 0.0,
-    @SerialName("y_offset") val yOffset: Double = 0.0,
-    val radius: Double = 0.0,
-    val color: Int = 0
-)
-
-// ─── 7TV Badges ─────────────────────────────────────────────────────────
-
-@Serializable
-data class SevenTvBadge(
-    val id: String,
-    val name: String = "",
-    val tooltip: String = "",
-    val tag: String = "",
-    val host: SevenTvHost = SevenTvHost()
-)
-
-// ─── 7TV Cosmetics Response ─────────────────────────────────────────────
+// ─── 7TV Cosmetics Response (старый эндпоинт) ───────────────────────────
 
 @Serializable
 data class SevenTvCosmeticsResponse(
@@ -101,17 +139,16 @@ data class SevenTvCosmeticsResponse(
 
 @Serializable
 data class SevenTvEventMessage(
-    val op: Int,       // 0=dispatch, 1=hello, 2=heartbeat, 5=subscribe, 34=ack, 35=error
+    val op: Int,
     val d: SevenTvEventData? = null,
-    val t: Int? = null  // timestamp
+    val t: Int? = null
 )
 
 @Serializable
 data class SevenTvEventData(
-    val type: String = "",      // emote_set.update, cosmetic.create, user.update
+    val type: String = "",
     val body: SevenTvEventBody? = null,
     @SerialName("condition") val condition: Map<String, String> = emptyMap(),
-    // Hello data
     @SerialName("heartbeat_interval") val heartbeatInterval: Long? = null,
     @SerialName("session_id") val sessionId: String? = null
 )
@@ -119,11 +156,11 @@ data class SevenTvEventData(
 @Serializable
 data class SevenTvEventBody(
     val id: String = "",
-    val kind: Int = 0,         // 1=add, 2=update, 3=remove
+    val kind: Int = 0,
     val key: String = "",
     val actor: SevenTvEventActor? = null,
     val old: SevenTvEventValue? = null,
-    @SerialName("new") val new_: SevenTvEventValue? = null,  // renamed to avoid Kotlin keyword
+    @SerialName("new") val new_: SevenTvEventValue? = null,
     val pushed: List<SevenTvEventPushedItem> = emptyList(),
     val pulled: List<SevenTvEventPulledItem> = emptyList(),
     val updated: List<SevenTvEventUpdatedItem> = emptyList()

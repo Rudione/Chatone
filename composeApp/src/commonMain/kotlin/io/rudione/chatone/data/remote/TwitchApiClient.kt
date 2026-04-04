@@ -117,14 +117,20 @@ class TwitchApiClient(
         userIds: List<String> = emptyList(),
         logins: List<String> = emptyList()
     ): Result<UsersResponse> {
+        val validLogins = logins.filter { login ->
+            login.isNotBlank() && login.all { it.code in 32..126 }
+        }
+        if (validLogins.isEmpty() && userIds.isEmpty()) {
+            return Result.Success(UsersResponse(data = emptyList()))
+        }
         return try {
             val response = httpClient.get("$baseUrl/users") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 userIds.forEach { parameter("id", it) }
-                logins.forEach { parameter("login", it) }
+                validLogins.forEach { parameter("login", it) }
             }.body<UsersResponse>()
-            
+
             Napier.d("Got ${response.data.size} users", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
@@ -165,17 +171,25 @@ class TwitchApiClient(
         accessToken: String,
         userIds: List<String> = emptyList(),
         userLogins: List<String> = emptyList(),
-        first: Int = 20
+        first: Int = 100
     ): Result<ChannelsResponse> {
+        // Twitch принимает только логины из букв a-z, цифр, подчёркивания, 4–25 символов
+        // НО реально проверяет только ASCII-printable, кириллица даёт 400 на весь запрос
+        val validLogins = userLogins.filter { login ->
+            login.isNotBlank() && login.all { it.code in 32..126 }
+        }
+        if (validLogins.isEmpty() && userIds.isEmpty()) {
+            return Result.Success(ChannelsResponse(data = emptyList()))
+        }
         return try {
             val response = httpClient.get("$baseUrl/streams") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 userIds.forEach { parameter("user_id", it) }
-                userLogins.forEach { parameter("user_login", it) }
+                validLogins.forEach { parameter("user_login", it) }
                 parameter("first", first)
             }.body<ChannelsResponse>()
-            
+
             Napier.d("Got ${response.data.size} streams", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {

@@ -1,12 +1,13 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -22,9 +23,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.russhwolf.settings.Settings
 import io.rudione.chatone.domain.model.EmoteProvider
 import io.rudione.chatone.domain.model.GenericEmote
-import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.util.handleHover
 
 // ── Native emoji data ────────────────────────────────────────────────────────
 
@@ -119,8 +121,29 @@ fun EmotePickerSheet(
     emotes: List<GenericEmote>,
     onEmoteSelected: (GenericEmote) -> Unit,
     onEmojiSelected: (String) -> Unit = {},
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    // Закрывать при уходе мышки (управляется настройкой)
+    closeOnMouseLeave: Boolean = false
 ) {
+    // Избранные смайлики — хранятся в Settings
+    val settings = remember { Settings() }
+    var favoriteIds by remember {
+        mutableStateOf(
+            settings.getStringOrNull("favorite_emotes")
+                ?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+        )
+    }
+
+    fun toggleFavorite(emote: GenericEmote) {
+        val key = "${emote.provider}_${emote.id}"
+        favoriteIds = if (key in favoriteIds) favoriteIds - key else favoriteIds + key
+        settings.putString("favorite_emotes", favoriteIds.joinToString(","))
+    }
+
+    val favoriteEmotes = remember(favoriteIds, emotes) {
+        emotes.filter { "${it.provider}_${it.id}" in favoriteIds }
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     // Tab 0 = Emotes, Tab 1 = Emoji
     var mainTab by remember { mutableIntStateOf(0) }
@@ -144,6 +167,13 @@ fun EmotePickerSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 480.dp)
+                // Если включено в настройках — закрываем при уходе мышки
+                .then(
+                    if (closeOnMouseLeave)
+                        Modifier.handleHover(onEnter = {}, onExit = { onDismiss() })
+                    else
+                        Modifier
+                )
         ) {
             // ── Main tabs: Emotes / Emoji ────────────────────────
             TabRow(
@@ -182,16 +212,20 @@ fun EmotePickerSheet(
             when (mainTab) {
                 0 -> EmoteTab(
                     emotes = emotes,
+                    favoriteEmotes = favoriteEmotes,
+                    favoriteIds = favoriteIds,
                     searchQuery = searchQuery,
                     onSearchQueryChange = { searchQuery = it },
-                    onEmoteSelected = onEmoteSelected
+                    // НЕ закрываем плашку после выбора смайлика
+                    onEmoteSelected = onEmoteSelected,
+                    onToggleFavorite = { toggleFavorite(it) }
                 )
                 1 -> EmojiTab(
                     searchQuery = searchQuery,
                     onSearchQueryChange = { searchQuery = it },
                     onEmojiSelected = { emoji ->
                         onEmojiSelected(emoji)
-                        onDismiss()
+                        onDismiss() // Эмодзи всё равно закрываем
                     }
                 )
             }
@@ -201,41 +235,60 @@ fun EmotePickerSheet(
     }
 }
 
-// ── Emote tab (unchanged logic, just extracted) ───────────────────────────────
+// ── Emote tab ─────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EmoteTab(
     emotes: List<GenericEmote>,
+    favoriteEmotes: List<GenericEmote>,
+    favoriteIds: Set<String>,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
-    onEmoteSelected: (GenericEmote) -> Unit
+    onEmoteSelected: (GenericEmote) -> Unit,
+    onToggleFavorite: (GenericEmote) -> Unit
 ) {
-    data class ProviderTab(val label: String, val provider: EmoteProvider?, val count: Int)
+    data class ProviderTab(
+        val label: String,
+        val provider: EmoteProvider?,
+        val isFav: Boolean = false,
+        val count: Int
+    )
 
-    val tabs = remember(emotes) {
-        val all = emotes.size
-        val s7 = emotes.count { it.provider == EmoteProvider.SEVEN_TV }
-        val bt = emotes.count { it.provider == EmoteProvider.BTTV }
-        val fz = emotes.count { it.provider == EmoteProvider.FFZ }
-        val tw = emotes.count { it.provider == EmoteProvider.TWITCH }
+    val tabs = remember(emotes, favoriteEmotes) {
         buildList {
-            add(ProviderTab("All ($all)", null, all))
-            if (tw > 0) add(ProviderTab("Twitch", EmoteProvider.TWITCH, tw))
-            if (s7 > 0) add(ProviderTab("7TV", EmoteProvider.SEVEN_TV, s7))
-            if (bt > 0) add(ProviderTab("BTTV", EmoteProvider.BTTV, bt))
-            if (fz > 0) add(ProviderTab("FFZ", EmoteProvider.FFZ, fz))
+            // Избранные — первым табом если есть
+            if (favoriteEmotes.isNotEmpty()) {
+                add(ProviderTab("★ (${favoriteEmotes.size})", null, isFav = true, count = favoriteEmotes.size))
+            }
+            val all = emotes.size
+            val s7 = emotes.count { it.provider == EmoteProvider.SEVEN_TV }
+            val bt = emotes.count { it.provider == EmoteProvider.BTTV }
+            val fz = emotes.count { it.provider == EmoteProvider.FFZ }
+            val tw = emotes.count { it.provider == EmoteProvider.TWITCH }
+            add(ProviderTab("All ($all)", null, count = all))
+            if (tw > 0) add(ProviderTab("Twitch", EmoteProvider.TWITCH, count = tw))
+            if (s7 > 0) add(ProviderTab("7TV", EmoteProvider.SEVEN_TV, count = s7))
+            if (bt > 0) add(ProviderTab("BTTV", EmoteProvider.BTTV, count = bt))
+            if (fz > 0) add(ProviderTab("FFZ", EmoteProvider.FFZ, count = fz))
         }
     }
 
     var selectedProviderTab by remember { mutableIntStateOf(0) }
 
-    val filteredEmotes = remember(emotes, searchQuery, selectedProviderTab, tabs) {
-        var filtered = emotes
-        val tab = tabs.getOrNull(selectedProviderTab)
-        if (tab?.provider != null) filtered = filtered.filter { it.provider == tab.provider }
-        if (searchQuery.isNotBlank()) filtered = filtered.filter { it.code.contains(searchQuery, ignoreCase = true) }
-        filtered
+    // Если список tabs изменился (появились/исчезли фавориты), clamp индекс
+    val safeTab = selectedProviderTab.coerceAtMost(tabs.lastIndex)
+
+    val filteredEmotes = remember(emotes, favoriteEmotes, searchQuery, safeTab, tabs) {
+        val tab = tabs.getOrNull(safeTab)
+        var list: List<GenericEmote> = when {
+            tab?.isFav == true -> favoriteEmotes
+            tab?.provider != null -> emotes.filter { it.provider == tab.provider }
+            else -> emotes
+        }
+        if (searchQuery.isNotBlank()) {
+            list = list.filter { it.code.contains(searchQuery, ignoreCase = true) }
+        }
+        list
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -278,7 +331,7 @@ private fun EmoteTab(
 
         // Provider sub-tabs
         ScrollableTabRow(
-            selectedTabIndex = selectedProviderTab,
+            selectedTabIndex = safeTab,
             modifier = Modifier.fillMaxWidth(),
             containerColor = Color.Transparent,
             contentColor = MaterialTheme.colorScheme.primary,
@@ -287,13 +340,16 @@ private fun EmoteTab(
         ) {
             tabs.forEachIndexed { index, tab ->
                 Tab(
-                    selected = selectedProviderTab == index,
+                    selected = safeTab == index,
                     onClick = { selectedProviderTab = index },
                     text = {
                         Text(
                             text = tab.label,
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (selectedProviderTab == index) FontWeight.SemiBold else FontWeight.Normal
+                            fontWeight = if (safeTab == index) FontWeight.SemiBold else FontWeight.Normal,
+                            // Золотой цвет для таба избранных
+                            color = if (tab.isFav) Color(0xFFFFD700)
+                            else Color.Unspecified
                         )
                     }
                 )
@@ -312,9 +368,11 @@ private fun EmoteTab(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
                         text = if (searchQuery.isNotBlank()) "No emotes match \"$searchQuery\""
+                        else if (tabs.getOrNull(safeTab)?.isFav == true) "No favorites yet\nLong-press an emote to add"
                         else "No emotes loaded yet",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
                     )
                     if (searchQuery.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))
@@ -334,7 +392,13 @@ private fun EmoteTab(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 items(filteredEmotes, key = { "${it.provider}_${it.id}" }) { emote ->
-                    EmoteGridItem(emote = emote, onClick = { onEmoteSelected(emote) })
+                    val isFav = "${emote.provider}_${emote.id}" in favoriteIds
+                    EmoteGridItem(
+                        emote = emote,
+                        isFavorite = isFav,
+                        onClick = { onEmoteSelected(emote) },
+                        onToggleFavorite = { onToggleFavorite(emote) }
+                    )
                 }
             }
         }
@@ -343,7 +407,6 @@ private fun EmoteTab(
 
 // ── Emoji tab ─────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EmojiTab(
     searchQuery: String,
@@ -352,20 +415,15 @@ private fun EmojiTab(
 ) {
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
 
-    // When there's a search query show results across all categories
     val displayEmojis = remember(searchQuery, selectedCategoryIndex) {
         if (searchQuery.isNotBlank()) {
-            // simple substring match on codepoint name not available in KMP,
-            // so just match the emoji character itself or show all
-            EMOJI_CATEGORIES.flatMap { it.emojis }
-                .filter { it.contains(searchQuery) }
+            EMOJI_CATEGORIES.flatMap { it.emojis }.filter { it.contains(searchQuery) }
         } else {
             EMOJI_CATEGORIES.getOrNull(selectedCategoryIndex)?.emojis ?: emptyList()
         }
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Search bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
@@ -402,7 +460,6 @@ private fun EmojiTab(
             textStyle = MaterialTheme.typography.bodyMedium
         )
 
-        // Category icon tabs — only visible when not searching
         if (searchQuery.isBlank()) {
             ScrollableTabRow(
                 selectedTabIndex = selectedCategoryIndex,
@@ -430,17 +487,12 @@ private fun EmojiTab(
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = category.icon,
-                                fontSize = 18.sp,
-                                textAlign = TextAlign.Center
-                            )
+                            Text(text = category.icon, fontSize = 18.sp, textAlign = TextAlign.Center)
                         }
                     }
                 }
             }
 
-            // Category label
             Text(
                 text = EMOJI_CATEGORIES.getOrNull(selectedCategoryIndex)?.label ?: "",
                 style = MaterialTheme.typography.labelSmall,
@@ -453,9 +505,7 @@ private fun EmojiTab(
 
         if (displayEmojis.isEmpty()) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
+                modifier = Modifier.fillMaxWidth().height(120.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -485,24 +535,38 @@ private fun EmojiTab(
 
 // ── Grid items ────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EmoteGridItem(
     emote: GenericEmote,
-    onClick: () -> Unit
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
+            // Длинное нажатие = добавить/убрать из избранных
+            .combinedClickable(onClick = onClick, onLongClick = onToggleFavorite)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        AnimatedEmoteImage(
-            url = emote.url2x,
-            contentDescription = emote.code,
-            modifier = Modifier.size(36.dp)
-        )
+        Box {
+            AnimatedEmoteImage(
+                url = emote.url2x,
+                contentDescription = emote.code,
+                modifier = Modifier.size(36.dp)
+            )
+            // Звёздочка избранного
+            if (isFavorite) {
+                Text(
+                    "★",
+                    fontSize = 10.sp,
+                    color = Color(0xFFFFD700),
+                    modifier = Modifier.align(Alignment.TopEnd)
+                )
+            }
+        }
         Text(
             text = emote.code,
             style = MaterialTheme.typography.labelSmall,
@@ -524,13 +588,10 @@ private fun EmojiGridItem(
         modifier = Modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(6.dp))
+            .background(Color.Transparent)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = emoji,
-            fontSize = 22.sp,
-            textAlign = TextAlign.Center
-        )
+        Text(text = emoji, fontSize = 22.sp, textAlign = TextAlign.Center)
     }
 }

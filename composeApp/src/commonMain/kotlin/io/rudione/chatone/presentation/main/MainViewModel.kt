@@ -61,6 +61,9 @@ sealed class MainEvent : UiEvent {
     object CloseSidebar : MainEvent()
     data class SelectChannel(val login: String) : MainEvent()
     data class CloseChannel(val login: String) : MainEvent()
+    // В sealed class MainEvent добавь:
+    data class ReorderChannels(val fromIndex: Int, val toIndex: Int) : MainEvent()
+    data class DropChannelOnFolder(val channelLogin: String, val folderId: String) : MainEvent()
     data class AddChannel(val login: String, val profileImageUrl: String = "", val displayName: String = "") : MainEvent()
     object ShowAddChannelDialog : MainEvent()
     object HideAddChannelDialog : MainEvent()
@@ -136,6 +139,21 @@ class MainViewModel(
             MainEvent.HideCreateFolderDialog -> update { it.copy(isCreateFolderDialogVisible = false) }
             is MainEvent.UpdateNewFolderName -> update { it.copy(newFolderName = event.name) }
             MainEvent.CreateFolder -> createFolder()
+            is MainEvent.ReorderChannels -> {
+                update { state ->
+                    val channels = state.openChannels.toMutableList()
+                    if (event.fromIndex in channels.indices && event.toIndex in channels.indices) {
+                        val item = channels.removeAt(event.fromIndex)
+                        channels.add(event.toIndex, item)
+                        state.copy(openChannels = channels)
+                    } else state
+                }
+                saveChannelState()
+            }
+
+            is MainEvent.DropChannelOnFolder -> {
+                moveChannelToFolder(event.channelLogin, event.folderId)
+            }
             is MainEvent.ToggleFolder -> toggleFolder(event.folderId)
             is MainEvent.DeleteFolder -> deleteFolder(event.folderId)
             is MainEvent.MoveChannelToFolder -> moveChannelToFolder(event.channelLogin, event.folderId)
@@ -231,7 +249,8 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 joinChannelUseCase(normalized)
-                fetchAndUpdateProfileImages()
+                // ↓↓↓ ВАЖНО: сразу проверяем live статус и аватарки для нового канала
+                pollLiveStatus()
                 Napier.d("Joined channel: $normalized", tag = TAG)
             } catch (e: Exception) {
                 Napier.e("Failed to join $normalized: ${e.message}", e, tag = TAG)
@@ -401,14 +420,30 @@ class MainViewModel(
         val account = state.value.selectedAccount ?: return
         val allLogins = getAllChannelLogins()
         if (allLogins.isEmpty()) return
+
+        Napier.d("🔵 [PollLive] Requesting streams for: $allLogins", tag = TAG)
+
         try {
-            val result = apiClient.getStreams(accessToken = account.accessToken, userLogins = allLogins.take(100))
-            if (result is Result.Success) {
-                val liveLogins = result.data.data.map { it.userLogin.lowercase() }.toSet()
-                updateLiveStatus(liveLogins)
-                fetchAndUpdateProfileImages()
+            val result = apiClient.getStreams(
+                accessToken = account.accessToken,
+                userLogins = allLogins.take(100),
+                first = 100  // ← ВАЖНО: увеличь с 20 до 100!
+            )
+            when (result) {
+                is Result.Success -> {
+                    val liveLogins = result.data.data.map { it.userLogin.lowercase() }.toSet()
+                    Napier.d("🟢 [PollLive] API returned ${result.data.data.size} live streams: $liveLogins", tag = TAG)
+                    updateLiveStatus(liveLogins)
+                    fetchAndUpdateProfileImages()
+                }
+                is Result.Error -> {
+                    Napier.e("🔴 [PollLive] API error: ${result.exception?.message}", tag = TAG)
+                }
+                else -> {}
             }
-        } catch (e: Exception) { Napier.w("Failed to poll live status: ${e.message}", tag = TAG) }
+        } catch (e: Exception) {
+            Napier.e("🔴 [PollLive] Exception: ${e.message}", e, tag = TAG)
+        }
     }
 
     private fun getAllChannelLogins(): List<String> {

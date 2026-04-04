@@ -177,10 +177,15 @@ fun ChatScreen(
     var pendingModAction by remember { mutableStateOf<PendingModAction?>(null) }
     var isPausedByUser by remember { mutableStateOf(false) }
     var isHoveredOverChat by remember { mutableStateOf(false) }
+    // Отдельный флаг для тултипа эмота — не сбрасывает паузу при hover pause on
+    var isHoveredOverEmoteTooltip by remember { mutableStateOf(false) }
+    // Показываем кнопку скрола только когда пришли НОВЫЕ сообщения пока пауза
+    var hasNewMessagesWhilePaused by remember { mutableStateOf(false) }
     val emoteRepository: EmoteRepository = koinInject()
     val coroutineScope = rememberCoroutineScope()
 
-    val effectivelyPaused = isPausedByUser || (settingsState.pauseOnHover && isHoveredOverChat)
+    val effectivelyPaused = isPausedByUser ||
+            (settingsState.pauseOnHover && isHoveredOverChat && !isHoveredOverEmoteTooltip)
 
     val isAtBottom = remember {
         derivedStateOf {
@@ -201,6 +206,7 @@ fun ChatScreen(
     LaunchedEffect(isAtBottom.value) {
         if (isAtBottom.value) {
             isPausedByUser = false
+            hasNewMessagesWhilePaused = false
         }
     }
 
@@ -208,6 +214,9 @@ fun ChatScreen(
     LaunchedEffect(messageCount) {
         if (!effectivelyPaused && messageCount > 0) {
             listState.animateScrollToItem(messageCount - 1)
+        } else if (effectivelyPaused && messageCount > 0) {
+            // Новые сообщения пришли пока пауза — показываем кнопку
+            hasNewMessagesWhilePaused = true
         }
     }
 
@@ -376,13 +385,14 @@ fun ChatScreen(
                         }
                     }
 
-                    if (effectivelyPaused && state.messages.isNotEmpty()) {
+                    if (hasNewMessagesWhilePaused && state.messages.isNotEmpty()) {
                         SmallFloatingActionButton(
                             onClick = {
                                 coroutineScope.launch {
                                     listState.animateScrollToItem(state.messages.size - 1)
                                     isPausedByUser = false
                                     isHoveredOverChat = false
+                                    hasNewMessagesWhilePaused = false
                                 }
                             },
                             modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
@@ -468,17 +478,17 @@ fun ChatScreen(
         val resolvedEmotes = emoteRepository.getResolvedEmotes(channelLogin)
         EmotePickerSheet(
             emotes = resolvedEmotes.all,
+            closeOnMouseLeave = settingsState.closeEmotePickerOnMouseLeave,
             onEmoteSelected = { emote ->
                 val current = state.messageInput
                 val newInput = if (current.isEmpty() || current.endsWith(" ")) "$current${emote.code} " else "$current ${emote.code} "
                 viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
-                showEmotePicker = false
+                // НЕ закрываем плашку после выбора — можно добавить несколько смайликов
             },
             onEmojiSelected = { emoji ->
                 val current = state.messageInput
                 val newInput = if (current.isEmpty() || current.endsWith(" ")) "$current$emoji" else "$current $emoji"
                 viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
-                // onDismiss is called inside EmojiTab after selection
             },
             onDismiss = { showEmotePicker = false }
         )
@@ -794,26 +804,34 @@ private fun PrivMsgItem(
         }
 
         if (showBadges) {
-            message.badges.forEach { badge ->
-                if (badge.imageUrl.isNotEmpty()) AsyncImage(
-                    model = badge.imageUrl,
-                    contentDescription = badge.id,
-                    modifier = Modifier.size(18.dp).padding(end = 2.dp)
-                )
+            // Бейджи выровнены напротив никнейма, а не по верхнему краю сообщения
+            // (когда эмоты выше строки, бейджи не уходят в самый верх)
+            val hasBadges = message.badges.any { it.imageUrl.isNotEmpty() } ||
+                    (message.sevenTvBadge?.let { it.url2x.isNotEmpty() || it.url1x.isNotEmpty() } ?: false)
+            if (hasBadges) {
+                Column(
+                    modifier = Modifier.padding(top = 3.dp, end = 2.dp),
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        message.badges.forEach { badge ->
+                            if (badge.imageUrl.isNotEmpty()) AsyncImage(
+                                model = badge.imageUrl,
+                                contentDescription = badge.id,
+                                modifier = Modifier.size(18.dp).padding(end = 2.dp)
+                            )
+                        }
+                        message.sevenTvBadge?.let { stvBadge ->
+                            val badgeUrl = stvBadge.url2x.ifEmpty { stvBadge.url1x }
+                            if (badgeUrl.isNotEmpty()) AsyncImage(
+                                model = badgeUrl,
+                                contentDescription = stvBadge.tooltip,
+                                modifier = Modifier.size(18.dp).padding(end = 2.dp)
+                            )
+                        }
+                    }
+                }
             }
-            message.sevenTvBadge?.let { stvBadge ->
-                val badgeUrl = stvBadge.url2x.ifEmpty { stvBadge.url1x }
-                if (badgeUrl.isNotEmpty()) AsyncImage(
-                    model = badgeUrl,
-                    contentDescription = stvBadge.tooltip,
-                    modifier = Modifier.size(18.dp).padding(end = 2.dp)
-                )
-            }
-            if (message.badges.isNotEmpty() || message.sevenTvBadge != null) Spacer(
-                modifier = Modifier.width(
-                    2.dp
-                )
-            )
         }
 
         var showContextMenu by remember { mutableStateOf(false) }
@@ -821,7 +839,7 @@ private fun PrivMsgItem(
             SettingsState.EmoteSize.SMALL -> 20.sp; SettingsState.EmoteSize.MEDIUM -> 28.sp; SettingsState.EmoteSize.LARGE -> 36.sp
         }
         val userColor = parseColor(message.color) ?: MaterialTheme.colorScheme.primary
-        val paintBrush = message.sevenTvPaint?.let { createPaintBrush(it) }
+        val paintBrush = null //message.sevenTvPaint?.let { createPaintBrush(it) }
         val inlineContent = mutableMapOf<String, InlineTextContent>()
         var emoteCounter = 0
 
@@ -1240,17 +1258,22 @@ private fun MessageInput(
                                 true
                             }
 
-                            // Up
-                            event.key == Key.DirectionUp && !isCtrl && !event.isShiftPressed && !event.isAltPressed -> {
+                            // Up — история только если курсор в начале строки или поле пустое
+                            event.key == Key.DirectionUp && !isCtrl && !event.isShiftPressed && !event.isAltPressed
+                                    && (tfv.text.isEmpty() || tfv.selection.start == 0) -> {
                                 onHistoryUp()
                                 true
                             }
 
-                            // Down
-                            event.key == Key.DirectionDown && !isCtrl && !event.isShiftPressed && !event.isAltPressed -> {
+                            // Down — история только если курсор в конце строки или поле пустое
+                            event.key == Key.DirectionDown && !isCtrl && !event.isShiftPressed && !event.isAltPressed
+                                    && (tfv.text.isEmpty() || tfv.selection.end == tfv.text.length) -> {
                                 onHistoryDown()
                                 true
                             }
+
+                            // Shift+Backspace — явно отдаём TextField (фикс бага когда нельзя удалять с Shift)
+                            event.key == Key.Backspace && event.isShiftPressed -> false
 
                             // Pause hotkey
                             pauseHotkeyMatches(event, pauseHotkey) -> {
@@ -1629,7 +1652,8 @@ private fun argbToColor(argb: Int): Color {
     val r = ((argb shr 16) and 0xFF) / 255f
     val g = ((argb shr 8) and 0xFF) / 255f;
     val b = (argb and 0xFF) / 255f
-    return Color(r, g, b, if (a == 0f) 1f else a)
+    //return Color(r, g, b, if (a == 0f) 1f else a)
+    return Color(r, g, b, a)
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────
