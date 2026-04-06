@@ -19,26 +19,17 @@ kotlin {
 
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         instrumentedTestVariant.sourceSetTree.set(KotlinSourceSetTree.test)
     }
 
     jvm("desktop") {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
     }
 
-    listOf(
-        iosX64(),
-        iosArm64(),
-        iosSimulatorArm64()
-    ).forEach { iosTarget ->
+    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
         iosTarget.binaries.framework {
             baseName = "ComposeApp"
             isStatic = true
@@ -55,8 +46,6 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
-
-            // Ktor
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.client.serialization)
@@ -64,32 +53,16 @@ kotlin {
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.websockets)
             implementation(libs.ktor.client.auth)
-
-            // Koin
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
-
-            // SQLDelight
             implementation(libs.sqldelight.coroutines)
-
-            // Serialization
             implementation(libs.kotlinx.serialization.json)
-
-            // Coroutines
             implementation(libs.kotlinx.coroutines.core)
-
-            // DateTime
             implementation(libs.kotlinx.datetime)
-
-            // Logging
             implementation(libs.napier)
-
-            // Settings
             implementation(libs.multiplatform.settings)
             implementation(libs.multiplatform.settings.noarg)
-
-            // Coil for image loading
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
         }
@@ -118,7 +91,6 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.slf4j.simple)
-            // Ktor server for OAuth callback
             implementation(libs.ktor.server.cio)
         }
     }
@@ -127,29 +99,20 @@ kotlin {
 android {
     namespace = "io.rudione.chatone"
     compileSdk = 35
-
     defaultConfig {
         applicationId = "io.rudione.chatone"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0.0"
-
+        versionName = "1.0.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
-
     packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     }
-
     buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-        }
+        getByName("release") { isMinifyEnabled = false }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -161,21 +124,29 @@ compose.desktop {
         mainClass = "io.rudione.chatone.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "Chatone"
-            packageVersion = "1.0.6"
+            // ▼▼▼ Если Zip не работает — оставляем только Dmg и Msi ▼▼▼
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi)
+            // ▲▲▲ ▲▲▲
 
+            packageName = "Chatone"
+            packageVersion = "1.0.7"
+
+            // ▼▼▼ Настройки для портативного запуска ▼▼▼
+            includeAllModules = true
             modules(
-                "java.sql",
-                "java.naming",
-                "java.management"
+                "java.sql", "java.naming", "java.management",
+                "java.desktop", "java.logging"
             )
+            // ▲▲▲ ▲▲▲
 
             macOS {
                 iconFile.set(project.file("src/desktopMain/resources/icon.icns"))
             }
             windows {
                 iconFile.set(project.file("src/desktopMain/resources/icon.ico"))
+                perUserInstall = true
+                menuGroup = "Chatone"
+                shortcut = true
             }
             linux {
                 iconFile.set(project.file("src/desktopMain/resources/icon.png"))
@@ -183,6 +154,29 @@ compose.desktop {
         }
     }
 }
+
+// ▼▼▼ Задача для создания портативного архива ▼▼▼
+tasks.register<Zip>("createPortableZip") {
+    dependsOn("packageReleaseDistributionForCurrentOS")
+
+    // Путь зависит от ОС: ms i для Windows, dmg для Mac, deb/rpm для Linux
+    val os = org.gradle.internal.os.OperatingSystem.current()
+    val distDir = when {
+        os.isWindows -> file("build/compose/binaries/main-release/msi")
+        os.isMacOsX -> file("build/compose/binaries/main-release/dmg")
+        else -> file("build/compose/binaries/main-release/deb")
+    }
+
+    from(distDir)
+    archiveFileName.set("Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-portable.zip")
+    destinationDirectory.set(file("build/distributions"))
+
+    doLast {
+        println("✅ Portable ZIP created: ${archiveFileName.get()}")
+        println("📁 Location: ${destinationDirectory.get()}")
+    }
+}
+// ▲▲▲ ▲▲▲
 
 sqldelight {
     databases {
@@ -198,4 +192,14 @@ compose.resources {
     publicResClass = true
     packageOfResClass = "chatone.composeapp.generated.resources"
     generateResClass = auto
+}
+
+tasks.register("publishRelease") {
+    dependsOn("packageReleaseDistributionForCurrentOS", "createPortableZip")
+    doLast {
+        println("✅ Release packages ready in build/compose/binaries/")
+        println("✅ Portable ZIP ready in build/distributions/")
+        println("📤 Upload to GitHub:")
+        println("gh release upload v${compose.desktop.application.nativeDistributions.packageVersion} build/compose/binaries/main-release/** build/distributions/*.zip")
+    }
 }

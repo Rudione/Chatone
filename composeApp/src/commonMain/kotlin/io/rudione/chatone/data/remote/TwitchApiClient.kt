@@ -14,6 +14,9 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.rudione.chatone.data.remote.dto.*
 import io.rudione.chatone.util.Result
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 class TwitchApiClient(
     private val httpClient: HttpClient,
@@ -21,19 +24,12 @@ class TwitchApiClient(
 ) {
     private val baseUrl = "https://api.twitch.tv/helix"
     private val authUrl = "https://id.twitch.tv/oauth2"
-    
+
     companion object {
         private const val TAG = "TwitchApiClient"
     }
-    
-    /**
-     * OAuth - Exchange authorization code for access token
-     */
-    suspend fun getAccessToken(
-        code: String,
-        clientSecret: String,
-        redirectUri: String
-    ): Result<TokenResponse> {
+
+    suspend fun getAccessToken(code: String, clientSecret: String, redirectUri: String): Result<TokenResponse> {
         return try {
             val response = httpClient.post("$authUrl/token") {
                 parameter("client_id", clientId)
@@ -42,7 +38,6 @@ class TwitchApiClient(
                 parameter("grant_type", "authorization_code")
                 parameter("redirect_uri", redirectUri)
             }.body<TokenResponse>()
-            
             Napier.d("Access token received successfully", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
@@ -50,14 +45,8 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-    
-    /**
-     * OAuth - Refresh access token
-     */
-    suspend fun refreshAccessToken(
-        refreshToken: String,
-        clientSecret: String
-    ): Result<TokenResponse> {
+
+    suspend fun refreshAccessToken(refreshToken: String, clientSecret: String): Result<TokenResponse> {
         return try {
             val response = httpClient.post("$authUrl/token") {
                 parameter("client_id", clientId)
@@ -65,7 +54,6 @@ class TwitchApiClient(
                 parameter("grant_type", "refresh_token")
                 parameter("refresh_token", refreshToken)
             }.body<TokenResponse>()
-            
             Napier.d("Token refreshed successfully", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
@@ -73,16 +61,12 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-    
-    /**
-     * Validate token
-     */
+
     suspend fun validateToken(accessToken: String): Result<ValidateTokenResponse> {
         return try {
             val response = httpClient.get("$authUrl/validate") {
                 header("Authorization", "OAuth $accessToken")
             }.body<ValidateTokenResponse>()
-            
             Napier.d("Token validated successfully", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
@@ -90,17 +74,13 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-    
-    /**
-     * Revoke token
-     */
+
     suspend fun revokeToken(accessToken: String): Result<Unit> {
         return try {
             httpClient.post("$authUrl/revoke") {
                 parameter("client_id", clientId)
                 parameter("token", accessToken)
             }
-
             Napier.d("Token revoked successfully", tag = TAG)
             Result.Success(Unit)
         } catch (e: Exception) {
@@ -108,21 +88,10 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-    
-    /**
-     * Get user info
-     */
-    suspend fun getUsers(
-        accessToken: String,
-        userIds: List<String> = emptyList(),
-        logins: List<String> = emptyList()
-    ): Result<UsersResponse> {
-        val validLogins = logins.filter { login ->
-            login.isNotBlank() && login.all { it.code in 32..126 }
-        }
-        if (validLogins.isEmpty() && userIds.isEmpty()) {
-            return Result.Success(UsersResponse(data = emptyList()))
-        }
+
+    suspend fun getUsers(accessToken: String, userIds: List<String> = emptyList(), logins: List<String> = emptyList()): Result<UsersResponse> {
+        val validLogins = logins.filter { it.isNotBlank() && it.all { c -> c.code in 32..126 } }
+        if (validLogins.isEmpty() && userIds.isEmpty()) return Result.Success(UsersResponse(data = emptyList()))
         return try {
             val response = httpClient.get("$baseUrl/users") {
                 header("Authorization", "Bearer $accessToken")
@@ -130,7 +99,6 @@ class TwitchApiClient(
                 userIds.forEach { parameter("id", it) }
                 validLogins.forEach { parameter("login", it) }
             }.body<UsersResponse>()
-
             Napier.d("Got ${response.data.size} users", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
@@ -138,15 +106,8 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-    
-    /**
-     * Search channels
-     */
-    suspend fun searchChannels(
-        accessToken: String,
-        query: String,
-        first: Int = 20
-    ): Result<SearchChannelsResponse> {
+
+    suspend fun searchChannels(accessToken: String, query: String, first: Int = 20): Result<SearchChannelsResponse> {
         return try {
             val response = httpClient.get("$baseUrl/search/channels") {
                 header("Authorization", "Bearer $accessToken")
@@ -155,7 +116,6 @@ class TwitchApiClient(
                 parameter("first", first)
                 parameter("live_only", false)
             }.body<SearchChannelsResponse>()
-            
             Napier.d("Found ${response.data.size} channels for query: $query", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
@@ -163,24 +123,10 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-    
-    /**
-     * Get streams
-     */
-    suspend fun getStreams(
-        accessToken: String,
-        userIds: List<String> = emptyList(),
-        userLogins: List<String> = emptyList(),
-        first: Int = 100
-    ): Result<ChannelsResponse> {
-        // Twitch принимает только логины из букв a-z, цифр, подчёркивания, 4–25 символов
-        // НО реально проверяет только ASCII-printable, кириллица даёт 400 на весь запрос
-        val validLogins = userLogins.filter { login ->
-            login.isNotBlank() && login.all { it.code in 32..126 }
-        }
-        if (validLogins.isEmpty() && userIds.isEmpty()) {
-            return Result.Success(ChannelsResponse(data = emptyList()))
-        }
+
+    suspend fun getStreams(accessToken: String, userIds: List<String> = emptyList(), userLogins: List<String> = emptyList(), first: Int = 100): Result<ChannelsResponse> {
+        val validLogins = userLogins.filter { it.isNotBlank() && it.all { c -> c.code in 32..126 } }
+        if (validLogins.isEmpty() && userIds.isEmpty()) return Result.Success(ChannelsResponse(data = emptyList()))
         return try {
             val response = httpClient.get("$baseUrl/streams") {
                 header("Authorization", "Bearer $accessToken")
@@ -189,7 +135,6 @@ class TwitchApiClient(
                 validLogins.forEach { parameter("user_login", it) }
                 parameter("first", first)
             }.body<ChannelsResponse>()
-
             Napier.d("Got ${response.data.size} streams", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
@@ -197,10 +142,7 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-    
-    /**
-     * Get global badges
-     */
+
     suspend fun getGlobalBadges(accessToken: String): Result<BadgesResponse> {
         return try {
             val response = httpClient.get("$baseUrl/chat/badges/global") {
@@ -214,9 +156,6 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Get channel badges
-     */
     suspend fun getChannelBadges(broadcasterId: String, accessToken: String): Result<BadgesResponse> {
         return try {
             val response = httpClient.get("$baseUrl/chat/badges") {
@@ -232,7 +171,8 @@ class TwitchApiClient(
     }
 
     /**
-     * Ban or timeout a user
+     * Ban or timeout a user.
+     * FIX: duration=null (permanent ban) must be omitted from body, not sent as null.
      */
     suspend fun banUser(
         accessToken: String,
@@ -243,17 +183,22 @@ class TwitchApiClient(
         reason: String? = null
     ): Result<Unit> {
         return try {
+            val dataBody = buildJsonObject {
+                put("user_id", JsonPrimitive(userId))
+                // Only include duration for timeouts — permanent bans must NOT have duration field
+                if (duration != null && duration > 0) {
+                    put("duration", JsonPrimitive(duration))
+                }
+                put("reason", JsonPrimitive(reason ?: ""))
+            }
+            val body = buildJsonObject { put("data", dataBody) }
             httpClient.post("$baseUrl/moderation/bans") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 parameter("broadcaster_id", broadcasterId)
                 parameter("moderator_id", moderatorId)
                 contentType(ContentType.Application.Json)
-                setBody(mapOf("data" to mapOf(
-                    "user_id" to userId,
-                    "duration" to duration,
-                    "reason" to (reason ?: "")
-                )))
+                setBody(body)
             }
             Result.Success(Unit)
         } catch (e: Exception) {
@@ -262,15 +207,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Unban a user
-     */
-    suspend fun unbanUser(
-        accessToken: String,
-        broadcasterId: String,
-        moderatorId: String,
-        userId: String
-    ): Result<Unit> {
+    suspend fun unbanUser(accessToken: String, broadcasterId: String, moderatorId: String, userId: String): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/moderation/bans") {
                 header("Authorization", "Bearer $accessToken")
@@ -286,15 +223,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Delete a specific message
-     */
-    suspend fun deleteMessage(
-        accessToken: String,
-        broadcasterId: String,
-        moderatorId: String,
-        messageId: String
-    ): Result<Unit> {
+    suspend fun deleteMessage(accessToken: String, broadcasterId: String, moderatorId: String, messageId: String): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/moderation/chat") {
                 header("Authorization", "Bearer $accessToken")
@@ -310,14 +239,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Clear chat
-     */
-    suspend fun clearChat(
-        accessToken: String,
-        broadcasterId: String,
-        moderatorId: String
-    ): Result<Unit> {
+    suspend fun clearChat(accessToken: String, broadcasterId: String, moderatorId: String): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/moderation/chat") {
                 header("Authorization", "Bearer $accessToken")
@@ -333,7 +255,7 @@ class TwitchApiClient(
     }
 
     /**
-     * Update chat settings (slow mode, sub-only, emote-only, follower-only)
+     * Update chat settings. Uses buildJsonObject so Boolean/Int serialize correctly.
      */
     suspend fun updateChatSettings(
         accessToken: String,
@@ -342,13 +264,25 @@ class TwitchApiClient(
         settings: Map<String, Any>
     ): Result<Unit> {
         return try {
+            val body = buildJsonObject {
+                settings.forEach { (key, value) ->
+                    when (value) {
+                        is Boolean -> put(key, JsonPrimitive(value))
+                        is Int -> put(key, JsonPrimitive(value))
+                        is Long -> put(key, JsonPrimitive(value))
+                        is Double -> put(key, JsonPrimitive(value))
+                        is String -> put(key, JsonPrimitive(value))
+                        else -> put(key, JsonPrimitive(value.toString()))
+                    }
+                }
+            }
             httpClient.patch("$baseUrl/chat/settings") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 parameter("broadcaster_id", broadcasterId)
                 parameter("moderator_id", moderatorId)
                 contentType(ContentType.Application.Json)
-                setBody(settings)
+                setBody(body)
             }
             Result.Success(Unit)
         } catch (e: Exception) {
@@ -357,15 +291,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Send whisper
-     */
-    suspend fun sendWhisper(
-        accessToken: String,
-        fromUserId: String,
-        toUserId: String,
-        message: String
-    ): Result<Unit> {
+    suspend fun sendWhisper(accessToken: String, fromUserId: String, toUserId: String, message: String): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/whispers") {
                 header("Authorization", "Bearer $accessToken")
@@ -373,7 +299,7 @@ class TwitchApiClient(
                 parameter("from_user_id", fromUserId)
                 parameter("to_user_id", toUserId)
                 contentType(ContentType.Application.Json)
-                setBody(mapOf("message" to message))
+                setBody(buildJsonObject { put("message", JsonPrimitive(message)) })
             }
             Result.Success(Unit)
         } catch (e: Exception) {
@@ -382,14 +308,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Add channel moderator
-     */
-    suspend fun addModerator(
-        accessToken: String,
-        broadcasterId: String,
-        userId: String
-    ): Result<Unit> {
+    suspend fun addModerator(accessToken: String, broadcasterId: String, userId: String): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/moderation/moderators") {
                 header("Authorization", "Bearer $accessToken")
@@ -404,14 +323,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Remove channel moderator
-     */
-    suspend fun removeModerator(
-        accessToken: String,
-        broadcasterId: String,
-        userId: String
-    ): Result<Unit> {
+    suspend fun removeModerator(accessToken: String, broadcasterId: String, userId: String): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/moderation/moderators") {
                 header("Authorization", "Bearer $accessToken")
@@ -426,14 +338,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Add channel VIP
-     */
-    suspend fun addVip(
-        accessToken: String,
-        broadcasterId: String,
-        userId: String
-    ): Result<Unit> {
+    suspend fun addVip(accessToken: String, broadcasterId: String, userId: String): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/channels/vips") {
                 header("Authorization", "Bearer $accessToken")
@@ -448,14 +353,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Remove channel VIP
-     */
-    suspend fun removeVip(
-        accessToken: String,
-        broadcasterId: String,
-        userId: String
-    ): Result<Unit> {
+    suspend fun removeVip(accessToken: String, broadcasterId: String, userId: String): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/channels/vips") {
                 header("Authorization", "Bearer $accessToken")
@@ -470,14 +368,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Get chat settings
-     */
-    suspend fun getChatSettings(
-        accessToken: String,
-        broadcasterId: String,
-        moderatorId: String? = null
-    ): Result<ChatSettingsResponse> {
+    suspend fun getChatSettings(accessToken: String, broadcasterId: String, moderatorId: String? = null): Result<ChatSettingsResponse> {
         return try {
             val response = httpClient.get("$baseUrl/chat/settings") {
                 header("Authorization", "Bearer $accessToken")
@@ -485,7 +376,6 @@ class TwitchApiClient(
                 parameter("broadcaster_id", broadcasterId)
                 moderatorId?.let { parameter("moderator_id", it) }
             }.body<ChatSettingsResponse>()
-            
             Napier.d("Got chat settings for broadcaster: $broadcasterId", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
@@ -494,16 +384,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Send announcement to chat
-     */
-    suspend fun sendAnnouncement(
-        accessToken: String,
-        broadcasterId: String,
-        moderatorId: String,
-        message: String,
-        color: String = "primary" // primary, blue, green, orange, purple
-    ): Result<Unit> {
+    suspend fun sendAnnouncement(accessToken: String, broadcasterId: String, moderatorId: String, message: String, color: String = "primary"): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/chat/announcements") {
                 header("Authorization", "Bearer $accessToken")
@@ -511,7 +392,10 @@ class TwitchApiClient(
                 parameter("broadcaster_id", broadcasterId)
                 parameter("moderator_id", moderatorId)
                 contentType(ContentType.Application.Json)
-                setBody(mapOf("message" to message, "color" to color))
+                setBody(buildJsonObject {
+                    put("message", JsonPrimitive(message))
+                    put("color", JsonPrimitive(color))
+                })
             }
             Result.Success(Unit)
         } catch (e: Exception) {
@@ -520,14 +404,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Start a raid to another channel
-     */
-    suspend fun startRaid(
-        accessToken: String,
-        fromBroadcasterId: String,
-        toBroadcasterId: String
-    ): Result<Unit> {
+    suspend fun startRaid(accessToken: String, fromBroadcasterId: String, toBroadcasterId: String): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/raids") {
                 header("Authorization", "Bearer $accessToken")
@@ -542,13 +419,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Cancel a raid
-     */
-    suspend fun cancelRaid(
-        accessToken: String,
-        broadcasterId: String
-    ): Result<Unit> {
+    suspend fun cancelRaid(accessToken: String, broadcasterId: String): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/raids") {
                 header("Authorization", "Bearer $accessToken")
@@ -562,15 +433,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Send a shoutout to another user
-     */
-    suspend fun sendShoutout(
-        accessToken: String,
-        fromBroadcasterId: String,
-        toBroadcasterId: String,
-        moderatorId: String
-    ): Result<Unit> {
+    suspend fun sendShoutout(accessToken: String, fromBroadcasterId: String, toBroadcasterId: String, moderatorId: String): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/chat/shoutouts") {
                 header("Authorization", "Bearer $accessToken")
@@ -586,14 +449,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Get channel followers — check if a specific user follows a channel
-     */
-    suspend fun getChannelFollower(
-        accessToken: String,
-        broadcasterId: String,
-        userId: String
-    ): Result<FollowersResponse> {
+    suspend fun getChannelFollower(accessToken: String, broadcasterId: String, userId: String): Result<FollowersResponse> {
         return try {
             val response = httpClient.get("$baseUrl/channels/followers") {
                 header("Authorization", "Bearer $accessToken")
@@ -601,7 +457,6 @@ class TwitchApiClient(
                 parameter("broadcaster_id", broadcasterId)
                 parameter("user_id", userId)
             }.body<FollowersResponse>()
-
             Result.Success(response)
         } catch (e: Exception) {
             Napier.e("Failed to get follower info: ${e.message}", e, tag = TAG)

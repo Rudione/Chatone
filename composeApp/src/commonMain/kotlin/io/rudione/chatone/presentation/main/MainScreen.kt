@@ -18,6 +18,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -70,6 +72,8 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.hypot
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 // ─── Data classes для отслеживания границ ────────────────────────────────
 private data class ItemBounds(val id: String, val rect: Rect)
@@ -90,6 +94,8 @@ fun MainScreen(
     var isWideScreenForSettings by remember { mutableStateOf(false) }
     val wallpaper by remember { derivedStateOf { wallpaperController.state } }
     val wallpaperLoader: WallpaperLoader = koinInject()
+    var showWhisperOverlay by remember { mutableStateOf(false) }
+    var showMentionsOverlay by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
@@ -97,6 +103,7 @@ fun MainScreen(
                 MainEffect.NavigateToAuth -> onNavigateToAuth()
                 is MainEffect.ShowError -> scope.launch { snackbarHostState.showSnackbar(effect.message) }
                 is MainEffect.ShowEmoteUpdate -> scope.launch { snackbarHostState.showSnackbar(effect.text) }
+                is MainEffect.IncomingWhisper -> scope.launch { snackbarHostState.showSnackbar("💬 ${effect.fromDisplayName}: ${effect.text}") }
             }
         }
     }
@@ -195,6 +202,9 @@ fun MainScreen(
                                     onMentionDetected = { login: String ->
                                         viewModel.sendEvent(MainEvent.IncrementMentionCount(login))
                                     },
+                                    onMentionReceived = { entry ->
+                                        viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
+                                    },
                                     isWideScreen = true,
                                     wallpaper = wallpaper
                                 )
@@ -249,6 +259,12 @@ fun MainScreen(
                                 currentUserId = state.selectedAccount?.userId ?: "",
                                 currentUserLogin = state.selectedAccount?.login ?: "",
                                 currentDisplayName = state.selectedAccount?.displayName ?: "",
+                                onMentionDetected = { login: String ->
+                                    viewModel.sendEvent(MainEvent.IncrementMentionCount(login))
+                                },
+                                onMentionReceived = { entry ->
+                                    viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
+                                },
                                 isWideScreen = false,
                                 wallpaper = wallpaper
                             )
@@ -333,6 +349,39 @@ fun MainScreen(
         }
     }
 
+    // ── Whisper Panel overlay ──────────────────────────────────────────
+    if (state.showWhisperPanel) {
+        Box(modifier = Modifier.fillMaxSize().zIndex(50f), contentAlignment = Alignment.BottomEnd) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { viewModel.sendEvent(MainEvent.HideWhisperPanel) }
+            )
+            WhisperPanel(
+                state = state,
+                onEvent = { viewModel.sendEvent(it) },
+                modifier = Modifier.padding(end = 16.dp, bottom = 72.dp)
+            )
+        }
+    }
+
+    // ── Mentions Feed overlay ───────────────────────────────────────
+    if (state.showMentionsFeed) {
+        Box(modifier = Modifier.fillMaxSize().zIndex(50f), contentAlignment = Alignment.BottomEnd) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { viewModel.sendEvent(MainEvent.HideMentionsFeed) }
+            )
+            MentionsFeed(
+                state = state,
+                onEvent = { viewModel.sendEvent(it) },
+                onChannelClick = { login -> viewModel.sendEvent(MainEvent.SelectChannel(login)) },
+                modifier = Modifier.padding(end = 16.dp, bottom = 72.dp)
+            )
+        }
+    }
+
     if (state.isAddChannelDialogVisible) {
         AddChannelDialog(
             query = state.addChannelQuery,
@@ -383,7 +432,7 @@ private fun MiniRail(
                 items(state.openChannels, key = { channel: ChannelTab -> channel.login }) { channel ->
                     val isActive = channel.login == state.activeChannelLogin
                     var showTooltip by remember { mutableStateOf(false) }
-                    Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
@@ -428,6 +477,28 @@ private fun MiniRail(
                                 Text(text = channel.displayName.ifBlank { channel.login.replaceFirstChar { char -> char.uppercaseChar() } }, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                             }
                         }
+                    }
+                }
+            }
+            // Mentions button
+            Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                IconButton(onClick = { onEvent(MainEvent.ToggleMentionsFeed) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.Notifications, contentDescription = "Mentions", tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                }
+                if (state.unreadMentionsCount > 0) {
+                    Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp).size(14.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error).border(1.dp, MaterialTheme.colorScheme.surface, CircleShape).zIndex(2f), contentAlignment = Alignment.Center) {
+                        Text(text = if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp), color = Color.White)
+                    }
+                }
+            }
+            // Whisper button
+            Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+                IconButton(onClick = { onEvent(MainEvent.ToggleWhisperPanel) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Filled.MailOutline, contentDescription = "Whispers", tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                }
+                if (state.totalUnreadWhispers > 0) {
+                    Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp).size(14.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error).border(1.dp, MaterialTheme.colorScheme.surface, CircleShape).zIndex(2f), contentAlignment = Alignment.Center) {
+                        Text(text = if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp), color = Color.White)
                     }
                 }
             }
@@ -593,6 +664,44 @@ private fun ChannelSidebar(
             }
         }
 
+        // Mentions button
+        TextButton(onClick = { onEvent(MainEvent.ToggleMentionsFeed) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)) {
+            Box {
+                Icon(Icons.Filled.Notifications, contentDescription = null, modifier = Modifier.size(18.dp))
+                if (state.unreadMentionsCount > 0) {
+                    Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error), contentAlignment = Alignment.Center) {
+                        Text(if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp), color = Color.White)
+                    }
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("/mentions")
+            Spacer(Modifier.weight(1f))
+            if (state.unreadMentionsCount > 0) {
+                Surface(color = MaterialTheme.colorScheme.error, shape = CircleShape) {
+                    Text("${state.unreadMentionsCount}", style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                }
+            }
+        }
+        // Whispers button
+        TextButton(onClick = { onEvent(MainEvent.ToggleWhisperPanel) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)) {
+            Box {
+                Icon(Icons.Filled.MailOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                if (state.totalUnreadWhispers > 0) {
+                    Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error), contentAlignment = Alignment.Center) {
+                        Text(if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp), color = Color.White)
+                    }
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("Whispers")
+            Spacer(Modifier.weight(1f))
+            if (state.totalUnreadWhispers > 0) {
+                Surface(color = MaterialTheme.colorScheme.error, shape = CircleShape) {
+                    Text("${state.totalUnreadWhispers}", style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                }
+            }
+        }
         TextButton(onClick = { onEvent(MainEvent.ShowSettings) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
             Icon(Icons.Outlined.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))

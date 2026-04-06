@@ -6,6 +6,8 @@ import io.rudione.chatone.base.UIEffect
 import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
 import io.rudione.chatone.domain.model.HighlightRule
+import io.rudione.chatone.domain.model.Macro
+import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.util.WallpaperLoader
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -39,13 +41,17 @@ data class SettingsState(
     val pauseHotkey: String = "",
     val wallpaperPath: String = "",
     val wallpaperBlur: Float = 12f,
-    // Закрывать плашку смайликов при уходе мышки (по умолчанию выключено)
-    val closeEmotePickerOnMouseLeave: Boolean = false
+    val closeEmotePickerOnMouseLeave: Boolean = false,
+    val customModButtons: List<ModActionButton> = emptyList(),
+    val macros: List<Macro> = emptyList()
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
     enum class EmoteSize { SMALL, MEDIUM, LARGE }
     enum class FontSize { SMALL, MEDIUM, LARGE }
     enum class ChannelNavigation { TAB_BAR, MINI_RAIL, BOTH }
+
+    val pinnedMacros: List<Macro>
+        get() = macros.filter { it.pinnedIndex in 0..4 }.sortedBy { it.pinnedIndex }.take(5)
 }
 
 sealed class SettingsEvent : UiEvent {
@@ -60,9 +66,11 @@ sealed class SettingsEvent : UiEvent {
     data class OnConfirmModActionsChanged(val confirm: Boolean) : SettingsEvent()
     data class OnChannelNavigationChanged(val navigation: SettingsState.ChannelNavigation) :
         SettingsEvent()
+
     data class OnHighlightRuleToggled(val ruleId: String, val enabled: Boolean) : SettingsEvent()
     data class OnHighlightRuleSoundToggled(val ruleId: String, val playSound: Boolean) :
         SettingsEvent()
+
     data class OnHighlightRuleColorChanged(val ruleId: String, val color: Long) : SettingsEvent()
     data class OnAddHighlightRule(val pattern: String) : SettingsEvent()
     data class OnRemoveHighlightRule(val ruleId: String) : SettingsEvent()
@@ -75,6 +83,18 @@ sealed class SettingsEvent : UiEvent {
     data class OnWallpaperPathChanged(val path: String) : SettingsEvent()
     data class OnWallpaperBlurChanged(val blur: Float) : SettingsEvent()
     data class OnCloseEmotePickerOnMouseLeaveChanged(val enabled: Boolean) : SettingsEvent()
+
+    // Mod buttons
+    data class OnAddModButton(val durationSeconds: Int, val label: String) : SettingsEvent()
+    data class OnRemoveModButton(val id: String) : SettingsEvent()
+    data class OnUpdateModButton(val button: ModActionButton) : SettingsEvent()
+    data class OnReorderModButtons(val from: Int, val to: Int) : SettingsEvent()
+
+    // Macros
+    data class OnAddMacro(val name: String, val icon: String) : SettingsEvent()
+    data class OnRemoveMacro(val id: String) : SettingsEvent()
+    data class OnUpdateMacro(val macro: Macro) : SettingsEvent()
+    data class OnPinMacro(val macroId: String, val slotIndex: Int) : SettingsEvent()
 }
 
 sealed class SettingsEffect : UIEffect {
@@ -106,8 +126,9 @@ class SettingsViewModel(
         private const val KEY_WALLPAPER_PATH = "wallpaper_path"
         private const val KEY_WALLPAPER_BLUR = "wallpaper_blur"
         private const val KEY_EMOTE_PICKER_MOUSE_LEAVE = "emote_picker_mouse_leave"
+        private const val KEY_CUSTOM_MOD_BUTTONS = "custom_mod_buttons"
+        private const val KEY_MACROS = "macros"
         private val json = Json { ignoreUnknownKeys = true }
-
         private val _effects = MutableSharedFlow<SettingsEffect>()
         val effects = _effects.asSharedFlow()
 
@@ -118,24 +139,49 @@ class SettingsViewModel(
             } catch (_: Exception) {
                 null
             }
+            val modButtons = try {
+                val j = settings.getStringOrNull(KEY_CUSTOM_MOD_BUTTONS)
+                if (j != null) json.decodeFromString<List<ModActionButton>>(j) else emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val macros = try {
+                val j = settings.getStringOrNull(KEY_MACROS)
+                if (j != null) json.decodeFromString<List<Macro>>(j) else emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+
             return SettingsState(
                 darkTheme = settings.getBoolean(KEY_DARK_THEME, true),
                 timestampFormat = SettingsState.TimestampFormat.entries.getOrNull(
-                    settings.getInt(KEY_TIMESTAMP_FORMAT, 1)
+                    settings.getInt(
+                        KEY_TIMESTAMP_FORMAT,
+                        1
+                    )
                 ) ?: SettingsState.TimestampFormat.H24,
                 showDeletedMessages = settings.getBoolean(KEY_SHOW_DELETED, true),
                 scrollbackLimit = settings.getInt(KEY_SCROLLBACK_LIMIT, 500),
                 emoteSize = SettingsState.EmoteSize.entries.getOrNull(
-                    settings.getInt(KEY_EMOTE_SIZE, 1)
+                    settings.getInt(
+                        KEY_EMOTE_SIZE,
+                        1
+                    )
                 ) ?: SettingsState.EmoteSize.MEDIUM,
                 showBadges = settings.getBoolean(KEY_SHOW_BADGES, true),
                 fontSize = SettingsState.FontSize.entries.getOrNull(
-                    settings.getInt(KEY_FONT_SIZE, 1)
+                    settings.getInt(
+                        KEY_FONT_SIZE,
+                        1
+                    )
                 ) ?: SettingsState.FontSize.MEDIUM,
                 defaultTimeoutDuration = settings.getInt(KEY_DEFAULT_TIMEOUT, 600),
                 confirmModActions = settings.getBoolean(KEY_CONFIRM_MOD, true),
                 channelNavigation = SettingsState.ChannelNavigation.entries.getOrNull(
-                    settings.getInt(KEY_CHANNEL_NAV, 0)
+                    settings.getInt(
+                        KEY_CHANNEL_NAV,
+                        0
+                    )
                 ) ?: SettingsState.ChannelNavigation.TAB_BAR,
                 highlightRules = rules ?: SettingsState().highlightRules,
                 mentionSoundEnabled = settings.getBoolean(KEY_MENTION_SOUND, true),
@@ -146,7 +192,12 @@ class SettingsViewModel(
                 pauseHotkey = settings.getStringOrNull(KEY_PAUSE_HOTKEY) ?: "",
                 wallpaperPath = settings.getStringOrNull(KEY_WALLPAPER_PATH) ?: "",
                 wallpaperBlur = settings.getFloat(KEY_WALLPAPER_BLUR, 12f),
-                closeEmotePickerOnMouseLeave = settings.getBoolean(KEY_EMOTE_PICKER_MOUSE_LEAVE, false)
+                closeEmotePickerOnMouseLeave = settings.getBoolean(
+                    KEY_EMOTE_PICKER_MOUSE_LEAVE,
+                    false
+                ),
+                customModButtons = modButtons,
+                macros = macros
             )
         }
     }
@@ -158,129 +209,263 @@ class SettingsViewModel(
     override suspend fun onEvent(event: SettingsEvent) {
         when (event) {
             is SettingsEvent.OnDarkThemeChanged -> {
-                settings.putBoolean(KEY_DARK_THEME, event.enabled)
-                update { it.copy(darkTheme = event.enabled) }
+                settings.putBoolean(
+                    KEY_DARK_THEME,
+                    event.enabled
+                ); update { it.copy(darkTheme = event.enabled) }
             }
+
             is SettingsEvent.OnTimestampFormatChanged -> {
-                settings.putInt(KEY_TIMESTAMP_FORMAT, event.format.ordinal)
-                update { it.copy(timestampFormat = event.format) }
-            }
-            is SettingsEvent.OnShowDeletedChanged -> {
-                settings.putBoolean(KEY_SHOW_DELETED, event.show)
-                update { it.copy(showDeletedMessages = event.show) }
-            }
-            is SettingsEvent.OnScrollbackLimitChanged -> {
-                settings.putInt(KEY_SCROLLBACK_LIMIT, event.limit)
-                update { it.copy(scrollbackLimit = event.limit) }
-            }
-            is SettingsEvent.OnEmoteSizeChanged -> {
-                settings.putInt(KEY_EMOTE_SIZE, event.size.ordinal)
-                update { it.copy(emoteSize = event.size) }
-            }
-            is SettingsEvent.OnShowBadgesChanged -> {
-                settings.putBoolean(KEY_SHOW_BADGES, event.show)
-                update { it.copy(showBadges = event.show) }
-            }
-            is SettingsEvent.OnFontSizeChanged -> {
-                settings.putInt(KEY_FONT_SIZE, event.size.ordinal)
-                update { it.copy(fontSize = event.size) }
-            }
-            is SettingsEvent.OnDefaultTimeoutChanged -> {
-                settings.putInt(KEY_DEFAULT_TIMEOUT, event.duration)
-                update { it.copy(defaultTimeoutDuration = event.duration) }
-            }
-            is SettingsEvent.OnConfirmModActionsChanged -> {
-                settings.putBoolean(KEY_CONFIRM_MOD, event.confirm)
-                update { it.copy(confirmModActions = event.confirm) }
-            }
-            is SettingsEvent.OnChannelNavigationChanged -> {
-                settings.putInt(KEY_CHANNEL_NAV, event.navigation.ordinal)
-                update { it.copy(channelNavigation = event.navigation) }
-            }
-            is SettingsEvent.OnHighlightRuleToggled -> {
-                update { s ->
-                    val n = s.highlightRules.map { if (it.id == event.ruleId) it.copy(enabled = event.enabled) else it }
-                    saveHighlightRules(n); s.copy(highlightRules = n)
-                }
-            }
-            is SettingsEvent.OnHighlightRuleSoundToggled -> {
-                update { s ->
-                    val n = s.highlightRules.map { if (it.id == event.ruleId) it.copy(playSound = event.playSound) else it }
-                    saveHighlightRules(n); s.copy(highlightRules = n)
-                }
-            }
-            is SettingsEvent.OnHighlightRuleColorChanged -> {
-                update { s ->
-                    val n = s.highlightRules.map { if (it.id == event.ruleId) it.copy(color = event.color) else it }
-                    saveHighlightRules(n); s.copy(highlightRules = n)
-                }
-            }
-            is SettingsEvent.OnAddHighlightRule -> {
-                update { s ->
-                    val rule = HighlightRule(
-                        id = "custom_${Clock.System.now().toEpochMilliseconds()}",
-                        pattern = event.pattern,
-                        playSound = true,
-                        showInMentions = true
+                settings.putInt(KEY_TIMESTAMP_FORMAT, event.format.ordinal); update {
+                    it.copy(
+                        timestampFormat = event.format
                     )
-                    val n = s.highlightRules + rule
-                    saveHighlightRules(n); s.copy(highlightRules = n)
                 }
             }
-            is SettingsEvent.OnRemoveHighlightRule -> {
-                update { s ->
-                    val n = s.highlightRules.filter { it.id != event.ruleId }
-                    saveHighlightRules(n); s.copy(highlightRules = n)
+
+            is SettingsEvent.OnShowDeletedChanged -> {
+                settings.putBoolean(KEY_SHOW_DELETED, event.show); update {
+                    it.copy(
+                        showDeletedMessages = event.show
+                    )
                 }
             }
+
+            is SettingsEvent.OnScrollbackLimitChanged -> {
+                settings.putInt(
+                    KEY_SCROLLBACK_LIMIT,
+                    event.limit
+                ); update { it.copy(scrollbackLimit = event.limit) }
+            }
+
+            is SettingsEvent.OnEmoteSizeChanged -> {
+                settings.putInt(
+                    KEY_EMOTE_SIZE,
+                    event.size.ordinal
+                ); update { it.copy(emoteSize = event.size) }
+            }
+
+            is SettingsEvent.OnShowBadgesChanged -> {
+                settings.putBoolean(
+                    KEY_SHOW_BADGES,
+                    event.show
+                ); update { it.copy(showBadges = event.show) }
+            }
+
+            is SettingsEvent.OnFontSizeChanged -> {
+                settings.putInt(
+                    KEY_FONT_SIZE,
+                    event.size.ordinal
+                ); update { it.copy(fontSize = event.size) }
+            }
+
+            is SettingsEvent.OnDefaultTimeoutChanged -> {
+                settings.putInt(KEY_DEFAULT_TIMEOUT, event.duration); update {
+                    it.copy(
+                        defaultTimeoutDuration = event.duration
+                    )
+                }
+            }
+
+            is SettingsEvent.OnConfirmModActionsChanged -> {
+                settings.putBoolean(KEY_CONFIRM_MOD, event.confirm); update {
+                    it.copy(
+                        confirmModActions = event.confirm
+                    )
+                }
+            }
+
+            is SettingsEvent.OnChannelNavigationChanged -> {
+                settings.putInt(KEY_CHANNEL_NAV, event.navigation.ordinal); update {
+                    it.copy(
+                        channelNavigation = event.navigation
+                    )
+                }
+            }
+
+            is SettingsEvent.OnHighlightRuleToggled -> update { s ->
+                val n =
+                    s.highlightRules.map { if (it.id == event.ruleId) it.copy(enabled = event.enabled) else it }; saveHighlightRules(
+                n
+            ); s.copy(highlightRules = n)
+            }
+
+            is SettingsEvent.OnHighlightRuleSoundToggled -> update { s ->
+                val n =
+                    s.highlightRules.map { if (it.id == event.ruleId) it.copy(playSound = event.playSound) else it }; saveHighlightRules(
+                n
+            ); s.copy(highlightRules = n)
+            }
+
+            is SettingsEvent.OnHighlightRuleColorChanged -> update { s ->
+                val n =
+                    s.highlightRules.map { if (it.id == event.ruleId) it.copy(color = event.color) else it }; saveHighlightRules(
+                n
+            ); s.copy(highlightRules = n)
+            }
+
+            is SettingsEvent.OnAddHighlightRule -> update { s ->
+                val rule = HighlightRule(
+                    id = "custom_${Clock.System.now().toEpochMilliseconds()}",
+                    pattern = event.pattern,
+                    playSound = true,
+                    showInMentions = true
+                );
+                val n = s.highlightRules + rule; saveHighlightRules(n); s.copy(highlightRules = n)
+            }
+
+            is SettingsEvent.OnRemoveHighlightRule -> update { s ->
+                val n =
+                    s.highlightRules.filter { it.id != event.ruleId }; saveHighlightRules(n); s.copy(
+                highlightRules = n
+            )
+            }
+
             is SettingsEvent.OnMentionSoundChanged -> {
-                settings.putBoolean(KEY_MENTION_SOUND, event.enabled)
-                update { it.copy(mentionSoundEnabled = event.enabled) }
+                settings.putBoolean(KEY_MENTION_SOUND, event.enabled); update {
+                    it.copy(
+                        mentionSoundEnabled = event.enabled
+                    )
+                }
             }
+
             is SettingsEvent.OnMentionSoundVolumeChanged -> {
-                settings.putFloat(KEY_MENTION_VOLUME, event.volume)
-                update { it.copy(mentionSoundVolume = event.volume) }
+                settings.putFloat(KEY_MENTION_VOLUME, event.volume); update {
+                    it.copy(
+                        mentionSoundVolume = event.volume
+                    )
+                }
             }
+
             is SettingsEvent.OnCustomMentionSoundPathChanged -> {
-                settings.putString(KEY_CUSTOM_SOUND_PATH, event.path)
-                update { it.copy(customMentionSoundPath = event.path) }
+                settings.putString(KEY_CUSTOM_SOUND_PATH, event.path); update {
+                    it.copy(
+                        customMentionSoundPath = event.path
+                    )
+                }
             }
+
             is SettingsEvent.OnAlwaysOnTopChanged -> {
-                settings.putBoolean(KEY_ALWAYS_ON_TOP, event.enabled)
-                update { it.copy(alwaysOnTop = event.enabled) }
+                settings.putBoolean(
+                    KEY_ALWAYS_ON_TOP,
+                    event.enabled
+                ); update { it.copy(alwaysOnTop = event.enabled) }
             }
+
             is SettingsEvent.OnPauseOnHoverChanged -> {
-                settings.putBoolean(KEY_PAUSE_ON_HOVER, event.enabled)
-                update { it.copy(pauseOnHover = event.enabled) }
+                settings.putBoolean(KEY_PAUSE_ON_HOVER, event.enabled); update {
+                    it.copy(
+                        pauseOnHover = event.enabled
+                    )
+                }
             }
+
             is SettingsEvent.OnPauseHotkeyChanged -> {
-                settings.putString(KEY_PAUSE_HOTKEY, event.hotkey)
-                update { it.copy(pauseHotkey = event.hotkey) }
+                settings.putString(
+                    KEY_PAUSE_HOTKEY,
+                    event.hotkey
+                ); update { it.copy(pauseHotkey = event.hotkey) }
             }
+
             is SettingsEvent.OnWallpaperPathChanged -> {
-                settings.putString(KEY_WALLPAPER_PATH, event.path)
-                val wallpaper = loadWallpaper(event.path, state.value.wallpaperBlur)
-                update { it.copy(wallpaperPath = event.path) }
-                wallpaper?.let { sendEffect(SettingsEffect.WallpaperChanged(it)) }
+                settings.putString(KEY_WALLPAPER_PATH, event.path);
+                val w = loadWallpaper(event.path, state.value.wallpaperBlur); update {
+                    it.copy(
+                        wallpaperPath = event.path
+                    )
+                }; w?.let { sendEffect(SettingsEffect.WallpaperChanged(it)) }
             }
+
             is SettingsEvent.OnWallpaperBlurChanged -> {
-                settings.putFloat(KEY_WALLPAPER_BLUR, event.blur)
-                val wallpaper = loadWallpaper(state.value.wallpaperPath, event.blur)
-                update { it.copy(wallpaperBlur = event.blur) }
-                wallpaper?.let { sendEffect(SettingsEffect.WallpaperChanged(it)) }
+                settings.putFloat(KEY_WALLPAPER_BLUR, event.blur);
+                val w = loadWallpaper(state.value.wallpaperPath, event.blur); update {
+                    it.copy(
+                        wallpaperBlur = event.blur
+                    )
+                }; w?.let { sendEffect(SettingsEffect.WallpaperChanged(it)) }
             }
+
             is SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged -> {
-                settings.putBoolean(KEY_EMOTE_PICKER_MOUSE_LEAVE, event.enabled)
-                update { it.copy(closeEmotePickerOnMouseLeave = event.enabled) }
+                settings.putBoolean(KEY_EMOTE_PICKER_MOUSE_LEAVE, event.enabled); update {
+                    it.copy(
+                        closeEmotePickerOnMouseLeave = event.enabled
+                    )
+                }
+            }
+
+            is SettingsEvent.OnAddModButton -> update { s ->
+                if (s.customModButtons.size >= 8) return@update s
+                val btn = ModActionButton(
+                    id = "btn_${Clock.System.now().toEpochMilliseconds()}",
+                    durationSeconds = event.durationSeconds,
+                    label = event.label
+                )
+                val n = s.customModButtons + btn; saveModButtons(n); s.copy(customModButtons = n)
+            }
+
+            is SettingsEvent.OnRemoveModButton -> update { s ->
+                val n = s.customModButtons.filter { it.id != event.id }; saveModButtons(n); s.copy(
+                customModButtons = n
+            )
+            }
+
+            is SettingsEvent.OnUpdateModButton -> update { s ->
+                val n =
+                    s.customModButtons.map { if (it.id == event.button.id) event.button else it }; saveModButtons(
+                n
+            ); s.copy(customModButtons = n)
+            }
+
+            is SettingsEvent.OnReorderModButtons -> update { s ->
+                val list = s.customModButtons.toMutableList()
+                if (event.from in list.indices && event.to in list.indices) {
+                    val item = list.removeAt(event.from); list.add(event.to, item)
+                }
+                saveModButtons(list); s.copy(customModButtons = list)
+            }
+
+            is SettingsEvent.OnAddMacro -> update { s ->
+                val macro = Macro(
+                    id = "macro_${Clock.System.now().toEpochMilliseconds()}",
+                    name = event.name,
+                    icon = event.icon
+                )
+                val n = s.macros + macro; saveMacros(n); s.copy(macros = n)
+            }
+
+            is SettingsEvent.OnRemoveMacro -> update { s ->
+                val n = s.macros.filter { it.id != event.id }; saveMacros(n); s.copy(macros = n)
+            }
+
+            is SettingsEvent.OnUpdateMacro -> update { s ->
+                val n =
+                    s.macros.map { if (it.id == event.macro.id) event.macro else it }; saveMacros(n); s.copy(
+                macros = n
+            )
+            }
+
+            is SettingsEvent.OnPinMacro -> update { s ->
+                val n = s.macros.map { m ->
+                    when {
+                        m.id == event.macroId -> m.copy(pinnedIndex = event.slotIndex); m.pinnedIndex == event.slotIndex && event.slotIndex != -1 -> m.copy(
+                        pinnedIndex = -1
+                    ); else -> m
+                    }
+                }
+                saveMacros(n); s.copy(macros = n)
             }
         }
     }
 
-    private fun loadWallpaper(path: String, blur: Float): WallpaperState? {
-        return wallpaperLoader.load(path, blur)
-    }
+    private fun loadWallpaper(path: String, blur: Float): WallpaperState? =
+        wallpaperLoader.load(path, blur)
 
-    private fun saveHighlightRules(rules: List<HighlightRule>) {
+    private fun saveHighlightRules(rules: List<HighlightRule>) =
         settings.putString(KEY_HIGHLIGHT_RULES, json.encodeToString(rules))
-    }
+
+    private fun saveModButtons(buttons: List<ModActionButton>) =
+        settings.putString(KEY_CUSTOM_MOD_BUTTONS, json.encodeToString(buttons))
+
+    private fun saveMacros(macros: List<Macro>) =
+        settings.putString(KEY_MACROS, json.encodeToString(macros))
 }

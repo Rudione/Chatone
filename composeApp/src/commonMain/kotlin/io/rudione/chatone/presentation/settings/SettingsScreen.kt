@@ -588,17 +588,12 @@ private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsView
 }
 
 private fun LazyListScope.moderationLazyItems(state: SettingsState, vm: SettingsViewModel) {
-    item { SettingsGroup("Actions") {
-        SwitchRow("Confirm Mod Actions", "Show confirmation dialog before ban/timeout", state.confirmModActions) {
-            vm.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it))
-        }
-        RowDivider()
-        ListRow("Default Timeout Duration", formatDuration(state.defaultTimeoutDuration),
-            listOf("10 seconds", "1 minute", "10 minutes", "1 hour", "1 day")
-        ) {
-            vm.sendEvent(SettingsEvent.OnDefaultTimeoutChanged(listOf(10, 60, 600, 3600, 86400)[it]))
-        }
-    } }
+    item {
+        ModerationSettingsSection(
+            state = state,
+            onEvent = { vm.sendEvent(it) }
+        )
+    }
 }
 
 private fun LazyListScope.aboutLazyItems() {
@@ -758,17 +753,10 @@ private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun ModerationContent(state: SettingsState, vm: SettingsViewModel) {
-    SettingsGroup("Actions") {
-        SwitchRow("Confirm Mod Actions", "Show confirmation dialog before ban/timeout", state.confirmModActions) {
-            vm.sendEvent(SettingsEvent.OnConfirmModActionsChanged(it))
-        }
-        RowDivider()
-        ListRow("Default Timeout Duration", formatDuration(state.defaultTimeoutDuration),
-            listOf("10 seconds", "1 minute", "10 minutes", "1 hour", "1 day")
-        ) {
-            vm.sendEvent(SettingsEvent.OnDefaultTimeoutChanged(listOf(10, 60, 600, 3600, 86400)[it]))
-        }
-    }
+    ModerationSettingsSection(
+        state = state,
+        onEvent = { vm.sendEvent(it) }
+    )
 }
 
 @Composable
@@ -924,11 +912,11 @@ private fun AboutCard() {
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text("Chatone", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Version 1.0.6", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Version 1.0.7", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Text("Twitch chat client built with Kotlin Multiplatform & Compose.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("TG", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
             Text("https://t.me/rudionee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         }

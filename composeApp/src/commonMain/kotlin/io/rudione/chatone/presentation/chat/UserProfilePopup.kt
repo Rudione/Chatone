@@ -1,6 +1,8 @@
 package io.rudione.chatone.presentation.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +24,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import coil3.compose.AsyncImage
@@ -39,6 +42,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.koinInject
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun UserProfilePopup(
     userId: String,
@@ -55,9 +59,10 @@ fun UserProfilePopup(
     isBroadcaster: Boolean = false,
     badges: List<Badge> = emptyList(),
     sevenTvBadge: SevenTvCosmetics.Badge? = null,
-    // All messages in current channel for history
     channelMessages: List<DisplayMessage> = emptyList(),
     showModActions: Boolean = false,
+    // currentUserIsBroadcaster — смотрящий является бродкастером?
+    currentUserIsBroadcaster: Boolean = false,
     onTimeout: (Int) -> Unit = {},
     onBan: () -> Unit = {},
     onUnban: () -> Unit = {},
@@ -79,10 +84,8 @@ fun UserProfilePopup(
     var fetchedCreatedAt by remember { mutableStateOf(createdAt) }
     var followedAt by remember { mutableStateOf<String?>(null) }
 
-    // Tab: 0=Usercard, 1=Messages
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    // Filter messages from this user in the current channel
     val userMessages = remember(channelMessages, userId) {
         channelMessages
             .filterIsInstance<DisplayMessage.PrivMsg>()
@@ -124,119 +127,65 @@ fun UserProfilePopup(
             text = { Text("Are you sure you want to delete this note?") },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        noteRepository.deleteNote(userId)
-                        noteText = ""
-                        showDeleteConfirmation = false
-                    },
+                    onClick = { noteRepository.deleteNote(userId); noteText = ""; showDeleteConfirmation = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text("Delete") }
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") }
-            }
+            dismissButton = { TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") } }
         )
     }
 
-    Popup(
-        onDismissRequest = onDismiss,
-        properties = PopupProperties(focusable = true)
-    ) {
+    Popup(onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         Card(
-            modifier = Modifier
-                .width(320.dp)
-                .padding(8.dp),
+            modifier = Modifier.width(320.dp).padding(8.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            ),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column {
-                // ── Header ────────────────────────────────────────
+                // ── Header ────────────────────────────────────────────────
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (fetchedAvatarUrl.isNotEmpty()) {
-                            AsyncImage(
-                                model = fetchedAvatarUrl,
-                                contentDescription = displayName,
-                                modifier = Modifier.size(48.dp).clip(CircleShape)
-                            )
+                            AsyncImage(model = fetchedAvatarUrl, contentDescription = displayName,
+                                modifier = Modifier.size(48.dp).clip(CircleShape))
                         } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primaryContainer),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = displayName.take(2).uppercase(),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                            Box(modifier = Modifier.size(48.dp).clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center) {
+                                Text(displayName.take(2).uppercase(), style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
                         }
-
                         Spacer(Modifier.width(12.dp))
-
                         Column(modifier = Modifier.weight(1f)) {
                             val nameColor = parseHexColor(color) ?: MaterialTheme.colorScheme.primary
-                            Text(
-                                text = displayName,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = nameColor,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(displayName, style = MaterialTheme.typography.titleMedium,
+                                color = nameColor, fontWeight = FontWeight.Bold)
                             if (username.lowercase() != displayName.lowercase()) {
-                                Text(
-                                    text = "@$username",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text("@$username", style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-
                         IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                Icons.Filled.Close,
-                                contentDescription = "Close",
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Icon(Icons.Filled.Close, null, modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
-                    // Badges row
                     if (badges.isNotEmpty() || sevenTvBadge != null) {
                         Spacer(Modifier.height(8.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                             badges.forEach { badge ->
-                                if (badge.imageUrl.isNotEmpty()) {
-                                    AsyncImage(
-                                        model = badge.imageUrl,
-                                        contentDescription = badge.id,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                if (badge.imageUrl.isNotEmpty()) AsyncImage(model = badge.imageUrl, contentDescription = badge.id, modifier = Modifier.size(20.dp))
                             }
                             sevenTvBadge?.let { stv ->
                                 val badgeUrl = stv.url2x.ifEmpty { stv.url1x }
-                                if (badgeUrl.isNotEmpty()) {
-                                    AsyncImage(
-                                        model = badgeUrl,
-                                        contentDescription = stv.tooltip,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                                if (badgeUrl.isNotEmpty()) AsyncImage(model = badgeUrl, contentDescription = stv.tooltip, modifier = Modifier.size(20.dp))
                             }
                         }
                     }
 
-                    // Roles
                     val hasRoles = isBroadcaster || isModerator || isVip || isSubscriber
                     if (hasRoles) {
                         Spacer(Modifier.height(6.dp))
@@ -249,97 +198,50 @@ fun UserProfilePopup(
                     }
                 }
 
-                // ── Tabs ──────────────────────────────────────────
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
+                // ── Tabs ─────────────────────────────────────────────────
+                TabRow(selectedTabIndex = selectedTab, containerColor = Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.primary,
-                    divider = {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    }
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
+                    divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)) }) {
+                    Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
+                        text = { Text("Usercard", style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal) })
+                    Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
                         text = {
-                            Text(
-                                "Usercard",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    "Messages",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Messages", style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal)
                                 if (userMessages.isNotEmpty()) {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = CircleShape
-                                    ) {
-                                        Text(
-                                            text = "${userMessages.size}",
-                                            style = MaterialTheme.typography.labelSmall,
+                                    Surface(color = MaterialTheme.colorScheme.primary, shape = CircleShape) {
+                                        Text("${userMessages.size}", style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                        )
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                                     }
                                 }
                             }
-                        }
-                    )
+                        })
                 }
 
-                // ── Tab Content ───────────────────────────────────
                 when (selectedTab) {
                     0 -> UsercardTab(
-                        userId = userId,
-                        fetchedCreatedAt = fetchedCreatedAt,
-                        followedAt = followedAt,
-                        noteText = noteText,
-                        isNoteLoaded = isNoteLoaded,
-                        noteRepository = noteRepository,
-                        clipboardManager = clipboardManager,
-                        showModActions = showModActions,
-                        isBroadcaster = isBroadcaster,
-                        isModerator = isModerator,
-                        isVip = isVip,
-                        isSubscriber = isSubscriber,
-                        onNoteChange = { noteText = it },
-                        onShowDeleteConfirmation = { showDeleteConfirmation = true },
-                        onWhisper = onWhisper,
-                        onTimeout = onTimeout,
-                        onBan = onBan,
-                        onUnban = onUnban,
-                        onMod = onMod,
-                        onUnmod = onUnmod,
-                        onVip = onVip,
-                        onUnvip = onUnvip,
-                        onDismiss = onDismiss
+                        userId = userId, fetchedCreatedAt = fetchedCreatedAt, followedAt = followedAt,
+                        noteText = noteText, isNoteLoaded = isNoteLoaded, noteRepository = noteRepository,
+                        clipboardManager = clipboardManager, showModActions = showModActions,
+                        isBroadcaster = isBroadcaster, isModerator = isModerator, isVip = isVip,
+                        isSubscriber = isSubscriber, currentUserIsBroadcaster = currentUserIsBroadcaster,
+                        onNoteChange = { noteText = it }, onShowDeleteConfirmation = { showDeleteConfirmation = true },
+                        onWhisper = onWhisper, onTimeout = onTimeout, onBan = onBan, onUnban = onUnban,
+                        onMod = onMod, onUnmod = onUnmod, onVip = onVip, onUnvip = onUnvip, onDismiss = onDismiss
                     )
-                    1 -> MessagesTab(
-                        messages = userMessages,
-                        displayName = displayName,
-                        userColor = color
-                    )
+                    1 -> MessagesTab(messages = userMessages, displayName = displayName, userColor = color)
                 }
             }
         }
     }
 }
 
-// ─── Usercard Tab ────────────────────────────────────────────────────────
+// ─── Usercard Tab ──────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun UsercardTab(
     userId: String,
@@ -354,6 +256,7 @@ private fun UsercardTab(
     isModerator: Boolean,
     isVip: Boolean,
     isSubscriber: Boolean,
+    currentUserIsBroadcaster: Boolean,
     onNoteChange: (String) -> Unit,
     onShowDeleteConfirmation: () -> Unit,
     onWhisper: () -> Unit,
@@ -369,99 +272,53 @@ private fun UsercardTab(
     Column(modifier = Modifier.padding(16.dp)) {
         if (fetchedCreatedAt.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Outlined.DateRange,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Icon(Icons.Outlined.DateRange, null, modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "Joined $fetchedCreatedAt",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text("Joined $fetchedCreatedAt", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-
         followedAt?.let { date ->
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Filled.Favorite,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                )
+                Icon(Icons.Filled.Favorite, null, modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "Following since $date",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text("Following since $date", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
-        // Note
         if (isNoteLoaded) {
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             Spacer(Modifier.height(8.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    Icons.Outlined.Edit,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(4.dp))
-                Text(
-                    text = "Note",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text("Note", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.weight(1f))
                 if (noteText.isNotEmpty()) {
-                    TextButton(
-                        onClick = { clipboardManager.setText(AnnotatedString(noteText)) },
-                        modifier = Modifier.height(24.dp),
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                    ) {
+                    TextButton(onClick = { clipboardManager.setText(AnnotatedString(noteText)) },
+                        modifier = Modifier.height(24.dp), contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)) {
                         Text("Copy", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                     }
-                    IconButton(
-                        onClick = onShowDeleteConfirmation,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Delete,
-                            contentDescription = "Delete note",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
+                    IconButton(onClick = onShowDeleteConfirmation, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Outlined.Delete, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
             Spacer(Modifier.height(4.dp))
-
             OutlinedTextField(
                 value = noteText,
                 onValueChange = { newText ->
                     onNoteChange(newText)
-                    if (newText.isNotBlank()) {
-                        noteRepository.saveNote(userId, newText)
-                    } else if (newText.isEmpty()) {
-                        noteRepository.deleteNote(userId)
-                    }
+                    if (newText.isNotBlank()) noteRepository.saveNote(userId, newText)
+                    else if (newText.isEmpty()) noteRepository.deleteNote(userId)
                 },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 16.dp, max = 72.dp),
-                placeholder = {
-                    Text("Add a note about this user...", style = MaterialTheme.typography.bodySmall)
-                },
+                placeholder = { Text("Add a note about this user...", style = MaterialTheme.typography.bodySmall) },
                 textStyle = MaterialTheme.typography.bodySmall,
                 shape = RoundedCornerShape(8.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -477,12 +334,9 @@ private fun UsercardTab(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
         Spacer(Modifier.height(8.dp))
 
-        TextButton(
-            onClick = { onWhisper(); onDismiss() },
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Icon(Icons.Outlined.MailOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+        TextButton(onClick = { onWhisper(); onDismiss() }, modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+            Icon(Icons.Outlined.MailOutline, null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
             Text("Whisper", modifier = Modifier.weight(1f))
         }
@@ -490,33 +344,28 @@ private fun UsercardTab(
         if (showModActions && !isBroadcaster) {
             Spacer(Modifier.height(4.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
 
-            Text(
-                text = "MODERATION",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+            Text("MODERATION", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(bottom = 8.dp))
 
-            Row(
+            // ── Timeout buttons — FlowRow ────────────────────────────
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                TimeoutChip("1s", 1, onTimeout)
-                TimeoutChip("10s", 10, onTimeout)
-                TimeoutChip("1m", 60, onTimeout)
-                TimeoutChip("10m", 600, onTimeout)
-                TimeoutChip("1h", 3600, onTimeout)
-                TimeoutChip("1d", 86400, onTimeout)
+                listOf(1 to "1s", 30 to "30s", 60 to "1m", 600 to "10m", 3600 to "1h", 86400 to "1d").forEach { (sec, label) ->
+                    TimeoutChip(label, sec, onTimeout, onDismiss)
+                }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            // ── Ban / Unban ──────────────────────────────────────────
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(
                     onClick = { onBan(); onDismiss() },
                     modifier = Modifier.weight(1f),
@@ -526,11 +375,10 @@ private fun UsercardTab(
                     ),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.Close, null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Ban", style = MaterialTheme.typography.labelMedium)
                 }
-
                 FilledTonalButton(
                     onClick = { onUnban(); onDismiss() },
                     modifier = Modifier.weight(1f),
@@ -540,113 +388,63 @@ private fun UsercardTab(
                     ),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Outlined.CheckCircle, null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Unban", style = MaterialTheme.typography.labelMedium)
                 }
             }
 
-            Spacer(Modifier.height(4.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (isModerator) {
+            // ── VIP / Mod — только если смотрящий является бродкастером ──
+            if (currentUserIsBroadcaster) {
+                Spacer(Modifier.height(6.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
-                        onClick = { onUnmod(); onDismiss() },
+                        onClick = { if (isModerator) onUnmod() else onMod(); onDismiss() },
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                    ) { Text("Unmod", style = MaterialTheme.typography.labelMedium) }
-                } else {
+                    ) {
+                        Text(if (isModerator) "Unmod" else "Mod", style = MaterialTheme.typography.labelMedium)
+                    }
                     OutlinedButton(
-                        onClick = { onMod(); onDismiss() },
+                        onClick = { if (isVip) onUnvip() else onVip(); onDismiss() },
                         modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                    ) { Text("Mod", style = MaterialTheme.typography.labelMedium) }
-                }
-
-                if (isVip) {
-                    OutlinedButton(
-                        onClick = { onUnvip(); onDismiss() },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                    ) { Text("Un-VIP", style = MaterialTheme.typography.labelMedium) }
-                } else {
-                    OutlinedButton(
-                        onClick = { onVip(); onDismiss() },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                    ) { Text("VIP", style = MaterialTheme.typography.labelMedium) }
+                    ) {
+                        Text(if (isVip) "Un-VIP" else "VIP", style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
         }
     }
 }
 
-// ─── Messages Tab ────────────────────────────────────────────────────────
+// ─── Messages Tab ──────────────────────────────────────────────────────────
 
 @Composable
-private fun MessagesTab(
-    messages: List<DisplayMessage.PrivMsg>,
-    displayName: String,
-    userColor: String?
-) {
+private fun MessagesTab(messages: List<DisplayMessage.PrivMsg>, displayName: String, userColor: String?) {
     val listState = rememberLazyListState()
     val nameColor = parseHexColor(userColor) ?: MaterialTheme.colorScheme.primary
-
     if (messages.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.MailOutline,
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                )
-                Text(
-                    text = "No messages in this session",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
+        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.MailOutline, null, modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                Text("No messages in this session", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
             }
         }
     } else {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 120.dp, max = 360.dp),
+        LazyColumn(state = listState, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 360.dp),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(messages, key = { it.id }) { msg ->
-                MessageHistoryItem(
-                    message = msg,
-                    nameColor = nameColor
-                )
-            }
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(messages, key = { it.id }) { msg -> MessageHistoryItem(message = msg, nameColor = nameColor) }
         }
     }
 }
 
 @Composable
-private fun MessageHistoryItem(
-    message: DisplayMessage.PrivMsg,
-    nameColor: Color
-) {
-    val timeText = remember(message.timestamp) {
-        formatMessageTime(message.timestamp)
-    }
-
+private fun MessageHistoryItem(message: DisplayMessage.PrivMsg, nameColor: Color) {
+    val timeText = remember(message.timestamp) { formatMessageTime(message.timestamp) }
     val rawText = remember(message.tokens) {
         message.tokens.joinToString("") { token ->
             when (token) {
@@ -658,46 +456,18 @@ private fun MessageHistoryItem(
             }
         }
     }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(6.dp))
-            .background(
-                if (message.isDeleted)
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
-                else
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
-            )
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        // Timestamp
-        Text(
-            text = timeText,
-            style = MaterialTheme.typography.labelSmall,
+    Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
+        .background(if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
+        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f))
+        .padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.Top) {
+        Text(timeText, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.padding(top = 1.dp, end = 6.dp)
-        )
-
-        // Message text — перечёркнутый если удалён
-        Text(
-            text = rawText.ifEmpty { if (message.isDeleted) "message deleted" else "" },
-            style = if (message.isDeleted) {
-                MaterialTheme.typography.bodySmall.copy(
-                    textDecoration = TextDecoration.LineThrough
-                )
-            } else {
-                MaterialTheme.typography.bodySmall
-            },
-            color = if (message.isDeleted) {
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
-            } else if (message.isAction) {
-                nameColor
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            }
-        )
+            modifier = Modifier.padding(top = 1.dp, end = 6.dp))
+        Text(rawText.ifEmpty { if (message.isDeleted) "message deleted" else "" },
+            style = if (message.isDeleted) MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.LineThrough)
+            else MaterialTheme.typography.bodySmall,
+            color = if (message.isDeleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
+            else if (message.isAction) nameColor else MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -707,47 +477,36 @@ private fun formatMessageTime(timestamp: Long): String {
     return "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
 }
 
-// ─── Shared helpers ──────────────────────────────────────────────────────
+// ─── Helpers ───────────────────────────────────────────────────────────────
 
 @Composable
 private fun RoleBadge(label: String, color: Color) {
-    Surface(
-        color = color.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(4.dp)
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-        )
+    Surface(color = color.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color,
+            fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
 
 @Composable
-private fun TimeoutChip(label: String, seconds: Int, onTimeout: (Int) -> Unit) {
-    SuggestionChip(
-        onClick = { onTimeout(seconds) },
-        label = { Text(text = label, style = MaterialTheme.typography.labelSmall) },
-        colors = SuggestionChipDefaults.suggestionChipColors(
-            containerColor = ChatoneTheme.extraColors.modTimeout.copy(alpha = 0.1f),
-            labelColor = ChatoneTheme.extraColors.modTimeout
-        ),
-        border = null
-    )
+private fun TimeoutChip(label: String, seconds: Int, onTimeout: (Int) -> Unit, onDismiss: () -> Unit) {
+    Surface(
+        onClick = { onTimeout(seconds); onDismiss() },
+        shape = RoundedCornerShape(8.dp),
+        color = ChatoneTheme.extraColors.modTimeout.copy(alpha = 0.1f),
+        modifier = Modifier.border(0.5.dp, ChatoneTheme.extraColors.modTimeout.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall,
+            color = ChatoneTheme.extraColors.modTimeout, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+    }
 }
 
 private fun parseHexColor(hexColor: String?): Color? {
     if (hexColor == null || !hexColor.startsWith("#")) return null
     return try {
         val colorInt = hexColor.substring(1).toLong(16)
-        Color(
-            red = ((colorInt shr 16) and 0xFF) / 255f,
+        Color(red = ((colorInt shr 16) and 0xFF) / 255f,
             green = ((colorInt shr 8) and 0xFF) / 255f,
-            blue = (colorInt and 0xFF) / 255f
-        )
-    } catch (e: Exception) {
-        null
-    }
+            blue = (colorInt and 0xFF) / 255f)
+    } catch (e: Exception) { null }
 }

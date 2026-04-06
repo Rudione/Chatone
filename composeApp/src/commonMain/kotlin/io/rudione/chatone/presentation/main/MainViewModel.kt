@@ -9,7 +9,10 @@ import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
 import io.rudione.chatone.data.remote.emote.SevenTvEventApi
 import io.rudione.chatone.domain.model.Channel
+import io.rudione.chatone.domain.model.MentionEntry
 import io.rudione.chatone.domain.model.TwitchAccount
+import io.rudione.chatone.domain.model.WhisperConversation
+import io.rudione.chatone.domain.model.WhisperMessage
 import io.rudione.chatone.domain.usecase.*
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.ChannelFolderRepository
@@ -53,7 +56,16 @@ data class MainState(
     val isConnected: Boolean = false,
     val showSettings: Boolean = false,
     val isCreateFolderDialogVisible: Boolean = false,
-    val newFolderName: String = ""
+    val newFolderName: String = "",
+    // ── Whispers ───────────────────────────────────────────────────────────
+    val whisperConversations: List<WhisperConversation> = emptyList(),
+    val activeWhisperUserId: String? = null,
+    val showWhisperPanel: Boolean = false,
+    val totalUnreadWhispers: Int = 0,
+    // ── Mentions feed ──────────────────────────────────────────────────────
+    val mentions: List<MentionEntry> = emptyList(),
+    val showMentionsFeed: Boolean = false,
+    val unreadMentionsCount: Int = 0
 ) : UiState
 
 sealed class MainEvent : UiEvent {
@@ -61,7 +73,6 @@ sealed class MainEvent : UiEvent {
     object CloseSidebar : MainEvent()
     data class SelectChannel(val login: String) : MainEvent()
     data class CloseChannel(val login: String) : MainEvent()
-    // В sealed class MainEvent добавь:
     data class ReorderChannels(val fromIndex: Int, val toIndex: Int) : MainEvent()
     data class DropChannelOnFolder(val channelLogin: String, val folderId: String) : MainEvent()
     data class AddChannel(val login: String, val profileImageUrl: String = "", val displayName: String = "") : MainEvent()
@@ -84,12 +95,25 @@ sealed class MainEvent : UiEvent {
     data class IncrementMentionCount(val channelLogin: String) : MainEvent()
     data class ResetMentionCount(val channelLogin: String) : MainEvent()
     object NavigateToAuth : MainEvent()
+    // ── Whispers ─────────────────────────────────────────────────────────
+    object ToggleWhisperPanel : MainEvent()
+    object HideWhisperPanel : MainEvent()
+    data class OpenWhisperWith(val userId: String, val username: String, val displayName: String, val avatarUrl: String = "", val color: String? = null) : MainEvent()
+    data class SendWhisper(val toUserId: String, val toUsername: String, val text: String) : MainEvent()
+    data class ReceiveWhisper(val fromUserId: String, val fromUsername: String, val fromDisplayName: String, val fromColor: String?, val text: String) : MainEvent()
+    data class MarkWhisperRead(val userId: String) : MainEvent()
+    // ── Mentions feed ────────────────────────────────────────────────────
+    object ToggleMentionsFeed : MainEvent()
+    object HideMentionsFeed : MainEvent()
+    object MarkAllMentionsRead : MainEvent()
+    data class AddMentionEntry(val entry: MentionEntry) : MainEvent()
 }
 
 sealed class MainEffect : UIEffect {
     object NavigateToAuth : MainEffect()
     data class ShowError(val message: String) : MainEffect()
     data class ShowEmoteUpdate(val text: String) : MainEffect()
+    data class IncomingWhisper(val fromDisplayName: String, val text: String) : MainEffect()
 }
 
 class MainViewModel(
@@ -121,6 +145,7 @@ class MainViewModel(
         restoreSavedChannels()
         restoreFolders()
         observeEmoteUpdates()
+        observeWhispers()
         startLiveStatusPolling()
     }
 
@@ -150,10 +175,7 @@ class MainViewModel(
                 }
                 saveChannelState()
             }
-
-            is MainEvent.DropChannelOnFolder -> {
-                moveChannelToFolder(event.channelLogin, event.folderId)
-            }
+            is MainEvent.DropChannelOnFolder -> moveChannelToFolder(event.channelLogin, event.folderId)
             is MainEvent.ToggleFolder -> toggleFolder(event.folderId)
             is MainEvent.DeleteFolder -> deleteFolder(event.folderId)
             is MainEvent.MoveChannelToFolder -> moveChannelToFolder(event.channelLogin, event.folderId)
@@ -165,8 +187,142 @@ class MainViewModel(
             is MainEvent.IncrementMentionCount -> incrementMentionCount(event.channelLogin)
             is MainEvent.ResetMentionCount -> resetMentionCount(event.channelLogin)
             MainEvent.NavigateToAuth -> sendEffect(MainEffect.NavigateToAuth)
+            // ── Whispers ────────────────────────────────────────────────
+            MainEvent.ToggleWhisperPanel -> update { it.copy(showWhisperPanel = !it.showWhisperPanel, showMentionsFeed = false) }
+            MainEvent.HideWhisperPanel -> update { it.copy(showWhisperPanel = false) }
+            is MainEvent.OpenWhisperWith -> openWhisperWith(event.userId, event.username, event.displayName, event.avatarUrl, event.color)
+            is MainEvent.SendWhisper -> sendWhisperMessage(event.toUserId, event.toUsername, event.text)
+            is MainEvent.ReceiveWhisper -> receiveWhisper(event.fromUserId, event.fromUsername, event.fromDisplayName, event.fromColor, event.text)
+            is MainEvent.MarkWhisperRead -> markWhisperRead(event.userId)
+            // ── Mentions ────────────────────────────────────────────────
+            MainEvent.ToggleMentionsFeed -> update { it.copy(showMentionsFeed = !it.showMentionsFeed, showWhisperPanel = false) }
+            MainEvent.HideMentionsFeed -> update { it.copy(showMentionsFeed = false) }
+            MainEvent.MarkAllMentionsRead -> update { it.copy(mentions = it.mentions.map { m -> m.copy(isRead = true) }, unreadMentionsCount = 0) }
+            is MainEvent.AddMentionEntry -> update { it.copy(
+                mentions = (it.mentions + event.entry).takeLast(200),
+                unreadMentionsCount = it.unreadMentionsCount + 1
+            ) }
         }
     }
+
+    // ── Whisper logic ───────────────────────────────────────────────────
+
+    private fun observeWhispers() {
+        viewModelScope.launch {
+            chatRepository.events.collectLatest { event ->
+                if (event is io.rudione.chatone.domain.model.IrcEvent.Whisper) {
+                    receiveWhisper(
+                        fromUserId = event.userId,
+                        fromUsername = event.fromUser,
+                        fromDisplayName = event.displayName,
+                        fromColor = event.color,
+                        text = event.message
+                    )
+                }
+            }
+        }
+    }
+
+    private fun openWhisperWith(userId: String, username: String, displayName: String, avatarUrl: String, color: String?) {
+        update { state ->
+            val existing = state.whisperConversations.find { it.userId == userId }
+            val conversations = if (existing == null) {
+                state.whisperConversations + WhisperConversation(
+                    userId = userId, username = username, displayName = displayName,
+                    avatarUrl = avatarUrl, color = color
+                )
+            } else {
+                state.whisperConversations.map { if (it.userId == userId) it.copy(unreadCount = 0) else it }
+            }
+            state.copy(
+                whisperConversations = conversations,
+                activeWhisperUserId = userId,
+                showWhisperPanel = true,
+                totalUnreadWhispers = conversations.sumOf { it.unreadCount }
+            )
+        }
+    }
+
+    private fun sendWhisperMessage(toUserId: String, toUsername: String, text: String) {
+        val account = state.value.selectedAccount ?: return
+        val msg = WhisperMessage(
+            fromUserId = account.userId,
+            fromUsername = account.login,
+            fromDisplayName = account.displayName,
+            text = text,
+            isOwn = true
+        )
+        update { state ->
+            val conversations = state.whisperConversations.toMutableList()
+            val idx = conversations.indexOfFirst { it.userId == toUserId }
+            if (idx >= 0) {
+                conversations[idx] = conversations[idx].copy(messages = conversations[idx].messages + msg)
+            } else {
+                conversations.add(WhisperConversation(userId = toUserId, username = toUsername, displayName = toUsername, messages = listOf(msg)))
+            }
+            state.copy(whisperConversations = conversations)
+        }
+        viewModelScope.launch {
+            try {
+                apiClient.sendWhisper(
+                    accessToken = account.accessToken,
+                    fromUserId = account.userId,
+                    toUserId = toUserId,
+                    message = text
+                )
+            } catch (e: Exception) {
+                Napier.e("Whisper send failed: ${e.message}", tag = TAG)
+                sendEffect(MainEffect.ShowError("Failed to send whisper"))
+            }
+        }
+    }
+
+    private fun receiveWhisper(fromUserId: String, fromUsername: String, fromDisplayName: String, fromColor: String?, text: String) {
+        val msg = WhisperMessage(
+            fromUserId = fromUserId,
+            fromUsername = fromUsername,
+            fromDisplayName = fromDisplayName,
+            fromColor = fromColor,
+            text = text,
+            isOwn = false
+        )
+        val isActiveConvo = state.value.activeWhisperUserId == fromUserId && state.value.showWhisperPanel
+        update { state ->
+            val conversations = state.whisperConversations.toMutableList()
+            val idx = conversations.indexOfFirst { it.userId == fromUserId }
+            if (idx >= 0) {
+                val conv = conversations[idx]
+                conversations[idx] = conv.copy(
+                    messages = conv.messages + msg,
+                    unreadCount = if (isActiveConvo) 0 else conv.unreadCount + 1
+                )
+            } else {
+                conversations.add(0, WhisperConversation(
+                    userId = fromUserId, username = fromUsername, displayName = fromDisplayName,
+                    color = fromColor, messages = listOf(msg),
+                    unreadCount = if (isActiveConvo) 0 else 1
+                ))
+            }
+            state.copy(
+                whisperConversations = conversations,
+                totalUnreadWhispers = conversations.sumOf { it.unreadCount }
+            )
+        }
+        if (!isActiveConvo) {
+            viewModelScope.launch { sendEffect(MainEffect.IncomingWhisper(fromDisplayName, text)) }
+        }
+    }
+
+    private fun markWhisperRead(userId: String) {
+        update { state ->
+            val conversations = state.whisperConversations.map {
+                if (it.userId == userId) it.copy(unreadCount = 0) else it
+            }
+            state.copy(whisperConversations = conversations, totalUnreadWhispers = conversations.sumOf { it.unreadCount })
+        }
+    }
+
+    // ── Channel logic ───────────────────────────────────────────────────
 
     private fun loadAccounts() {
         viewModelScope.launch {
@@ -217,6 +373,7 @@ class MainViewModel(
             state.copy(
                 activeChannelLogin = normalized,
                 sidebarExpanded = false,
+                showMentionsFeed = false,
                 openChannels = state.openChannels.map { if (it.login == normalized) it.copy(unreadCount = 0) else it },
                 unfolderedChannels = state.unfolderedChannels.map { if (it.login == normalized) it.copy(unreadCount = 0) else it },
                 folders = state.folders.map { folder ->
@@ -249,7 +406,6 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 joinChannelUseCase(normalized)
-                // ↓↓↓ ВАЖНО: сразу проверяем live статус и аватарки для нового канала
                 pollLiveStatus()
                 Napier.d("Joined channel: $normalized", tag = TAG)
             } catch (e: Exception) {
@@ -312,9 +468,7 @@ class MainViewModel(
     }
 
     private fun toggleFolder(folderId: String) {
-        update { state ->
-            state.copy(folders = state.folders.map { folder -> if (folder.id == folderId) folder.copy(isExpanded = !folder.isExpanded) else folder })
-        }
+        update { state -> state.copy(folders = state.folders.map { if (it.id == folderId) it.copy(isExpanded = !it.isExpanded) else it }) }
         val expanded = state.value.folders.find { it.id == folderId }?.isExpanded ?: return
         try { channelFolderRepository.updateFolderExpanded(folderId, expanded) } catch (e: Exception) { Napier.w("Failed to persist folder toggle: ${e.message}", tag = TAG) }
     }
@@ -331,7 +485,10 @@ class MainViewModel(
     private fun moveChannelToFolder(channelLogin: String, folderId: String?) {
         val currentFolderId = state.value.folders.find { folder -> folder.channels.any { it.login == channelLogin } }?.id
         update { state ->
-            val channel = state.openChannels.find { it.login == channelLogin } ?: state.unfolderedChannels.find { it.login == channelLogin } ?: state.folders.flatMap { it.channels }.find { it.login == channelLogin } ?: return@update state
+            val channel = state.openChannels.find { it.login == channelLogin }
+                ?: state.unfolderedChannels.find { it.login == channelLogin }
+                ?: state.folders.flatMap { it.channels }.find { it.login == channelLogin }
+                ?: return@update state
             if (folderId == null) {
                 val updatedFolders = state.folders.map { folder -> folder.copy(channels = folder.channels.filter { it.login != channelLogin }) }
                 state.copy(folders = updatedFolders, unfolderedChannels = if (state.unfolderedChannels.none { it.login == channelLogin }) state.unfolderedChannels + channel else state.unfolderedChannels)
@@ -382,10 +539,10 @@ class MainViewModel(
         update { state -> state.copy(openChannels = tabs, unfolderedChannels = tabs, activeChannelLogin = activeChannel ?: tabs.firstOrNull()?.login) }
         viewModelScope.launch {
             var attempts = 0
-            while (!state.value.isConnected && attempts < 20) { kotlinx.coroutines.delay(500); attempts++ }
+            while (!state.value.isConnected && attempts < 20) { delay(500); attempts++ }
             if (state.value.isConnected) {
                 channelLogins.forEach { login ->
-                    try { joinChannelUseCase(login); Napier.d("Restored channel: $login", tag = TAG) } catch (e: Exception) { Napier.w("Failed to restore channel $login: ${e.message}", tag = TAG) }
+                    try { joinChannelUseCase(login) } catch (e: Exception) { Napier.w("Failed to restore channel $login: ${e.message}", tag = TAG) }
                 }
                 fetchAndUpdateProfileImages()
             }
@@ -420,30 +577,13 @@ class MainViewModel(
         val account = state.value.selectedAccount ?: return
         val allLogins = getAllChannelLogins()
         if (allLogins.isEmpty()) return
-
-        Napier.d("🔵 [PollLive] Requesting streams for: $allLogins", tag = TAG)
-
         try {
-            val result = apiClient.getStreams(
-                accessToken = account.accessToken,
-                userLogins = allLogins.take(100),
-                first = 100  // ← ВАЖНО: увеличь с 20 до 100!
-            )
+            val result = apiClient.getStreams(accessToken = account.accessToken, userLogins = allLogins.take(100), first = 100)
             when (result) {
-                is Result.Success -> {
-                    val liveLogins = result.data.data.map { it.userLogin.lowercase() }.toSet()
-                    Napier.d("🟢 [PollLive] API returned ${result.data.data.size} live streams: $liveLogins", tag = TAG)
-                    updateLiveStatus(liveLogins)
-                    fetchAndUpdateProfileImages()
-                }
-                is Result.Error -> {
-                    Napier.e("🔴 [PollLive] API error: ${result.exception?.message}", tag = TAG)
-                }
+                is Result.Success -> { updateLiveStatus(result.data.data.map { it.userLogin.lowercase() }.toSet()); fetchAndUpdateProfileImages() }
                 else -> {}
             }
-        } catch (e: Exception) {
-            Napier.e("🔴 [PollLive] Exception: ${e.message}", e, tag = TAG)
-        }
+        } catch (e: Exception) { Napier.e("PollLive exception: ${e.message}", e, tag = TAG) }
     }
 
     private fun getAllChannelLogins(): List<String> {

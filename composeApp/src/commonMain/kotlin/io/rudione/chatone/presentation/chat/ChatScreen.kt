@@ -23,13 +23,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -105,6 +110,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -128,6 +137,10 @@ import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.domain.model.DisplayMessage
+import io.rudione.chatone.domain.model.MentionEntry
+import io.rudione.chatone.domain.model.MacroStep
+import io.rudione.chatone.domain.model.Macro
+import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
@@ -163,6 +176,7 @@ fun ChatScreen(
     currentDisplayName: String = "",
     isWideScreen: Boolean = false,
     onMentionDetected: (String) -> Unit = {},
+    onMentionReceived: (MentionEntry) -> Unit = {},
     wallpaper: WallpaperState,
     viewModel: ChatViewModel = koinViewModel()
 ) {
@@ -177,6 +191,9 @@ fun ChatScreen(
     var pendingModAction by remember { mutableStateOf<PendingModAction?>(null) }
     var isPausedByUser by remember { mutableStateOf(false) }
     var isHoveredOverChat by remember { mutableStateOf(false) }
+    val inputFocusRequester = remember { FocusRequester() }
+    var emoteTabIndex by remember { mutableStateOf(-1) }
+    var mentionTabIndex by remember { mutableStateOf(-1) }
     // Отдельный флаг для тултипа эмота — не сбрасывает паузу при hover pause on
     var isHoveredOverEmoteTooltip by remember { mutableStateOf(false) }
     // Показываем кнопку скрола только когда пришли НОВЫЕ сообщения пока пауза
@@ -249,6 +266,28 @@ fun ChatScreen(
                         )
                     }
                     onMentionDetected(effect.channelLogin)
+                    // Build MentionEntry for the feed
+                    val mentionMsg = effect.message
+                    if (mentionMsg != null) {
+                        val entry = MentionEntry(
+                            messageId = mentionMsg.id,
+                            channelLogin = channelLogin,
+                            fromUsername = mentionMsg.username,
+                            fromDisplayName = mentionMsg.displayName,
+                            fromColor = mentionMsg.color,
+                            text = mentionMsg.tokens.joinToString("") { token ->
+                                when (token) {
+                                    is io.rudione.chatone.util.MessageToken.Text -> token.text
+                                    is io.rudione.chatone.util.MessageToken.TwitchEmoteToken -> token.name
+                                    is io.rudione.chatone.util.MessageToken.ThirdPartyEmoteToken -> token.emote.code
+                                    is io.rudione.chatone.util.MessageToken.Link -> token.displayText
+                                    is io.rudione.chatone.util.MessageToken.Mention -> token.username
+                                }
+                            },
+                            timestamp = mentionMsg.timestamp
+                        )
+                        onMentionReceived(entry)
+                    }
                 }
             }
         }
@@ -272,9 +311,12 @@ fun ChatScreen(
                     roomState = state.roomState,
                     isMod = state.isMod,
                     modModeEnabled = state.modModeEnabled,
+                    modPanelOpen = showModPanel,
+                    pinnedMacros = settingsState.pinnedMacros,
                     onBack = onNavigateBack,
                     onToggleModMode = { viewModel.sendEvent(ChatEvent.OnToggleModMode) },
                     onOpenModPanel = { showModPanel = !showModPanel },
+                    onExecuteMacro = { macro -> viewModel.sendEvent(ChatEvent.OnExecuteMacro(macro)) },
                     isCompact = !isWideScreen
                 )
             }
@@ -343,9 +385,20 @@ fun ChatScreen(
                                         showBadges = settingsState.showBadges,
                                         isMod = state.isMod || message.isBroadcaster,
                                         emoteSize = settingsState.emoteSize,
+                                        customModButtons = settingsState.customModButtons,
                                         onUsernameClick = {
                                             profilePopupMessage = message
                                             profilePopupUserId = message.userId
+                                        },
+                                        onMentionClick = { mentionedUsername ->
+                                            // Ищем юзера по нику в текущих сообщениях
+                                            val mentionedMsg = state.messages
+                                                .filterIsInstance<DisplayMessage.PrivMsg>()
+                                                .lastOrNull { it.username.equals(mentionedUsername.removePrefix("@"), ignoreCase = true) }
+                                            if (mentionedMsg != null) {
+                                                profilePopupMessage = mentionedMsg
+                                                profilePopupUserId = mentionedMsg.userId
+                                            }
                                         },
                                         onReply = { viewModel.sendEvent(ChatEvent.OnReplyToMessage(message)) },
                                         onPin = { viewModel.sendEvent(ChatEvent.OnPinMessage(message.id)) },
@@ -364,6 +417,9 @@ fun ChatScreen(
                                                     )
                                                 )
                                             }
+                                        },
+                                        onCustomTimeout = { seconds ->
+                                            viewModel.sendEvent(ChatEvent.OnTimeoutUser(message.userId, seconds))
                                         },
                                         onBan = {
                                             if (settingsState.confirmModActions) {
@@ -412,15 +468,14 @@ fun ChatScreen(
             ) {
                 ModerationPanel(
                     roomState = state.roomState, channelLogin = channelLogin, isMod = state.isMod,
-                    onUpdateChatSettings = { settings ->
-                        viewModel.sendEvent(ChatEvent.OnUpdateChatSettings(settings))
-                    },
+                    pinnedMacros = settingsState.pinnedMacros,
+                    onUpdateChatSettings = { settings -> viewModel.sendEvent(ChatEvent.OnUpdateChatSettings(settings)) },
                     onClearChat = { viewModel.sendEvent(ChatEvent.OnClearChat) },
-                    onSendAnnouncement = { message, color ->
-                        viewModel.sendEvent(ChatEvent.OnSendAnnouncement(message, color))
-                    },
+                    onSendAnnouncement = { message, color -> viewModel.sendEvent(ChatEvent.OnSendAnnouncement(message, color)) },
                     onStartRaid = { targetLogin -> viewModel.sendEvent(ChatEvent.OnStartRaid(targetLogin)) },
                     onCancelRaid = { viewModel.sendEvent(ChatEvent.OnCancelRaid) },
+                    onExecuteMacro = { macro -> viewModel.sendEvent(ChatEvent.OnExecuteMacro(macro)) },
+                    onSendPinMessage = { msg -> viewModel.sendEvent(ChatEvent.OnSendMessageText(msg)) },
                     onClose = { showModPanel = false }
                 )
             }
@@ -443,15 +498,40 @@ fun ChatScreen(
 
             MessageInput(
                 value = state.messageInput,
-                onValueChange = { viewModel.sendEvent(ChatEvent.OnMessageInputChanged(it)) },
+                onValueChange = {
+                    emoteTabIndex = -1
+                    mentionTabIndex = -1
+                    viewModel.sendEvent(ChatEvent.OnMessageInputChanged(it))
+                },
                 onSend = { viewModel.sendEvent(ChatEvent.OnSendMessage) },
                 onSendKeepText = { viewModel.sendEvent(ChatEvent.OnSendMessageKeepText) },
-                onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },
-                onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },
+                onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },  // ← Важно!
+                onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },  // ← Важно!
                 onEmotePickerClick = { showEmotePicker = true },
                 enabled = state.isConnected,
                 pauseHotkey = settingsState.pauseHotkey,
-                onTogglePause = { isPausedByUser = !isPausedByUser }
+                onTogglePause = { isPausedByUser = !isPausedByUser },
+                focusRequester = inputFocusRequester,
+                showEmoteCompletions = state.showEmoteCompletions && state.emoteCompletions.isNotEmpty(),
+                showMentionCompletions = state.showMentionCompletions && state.mentionCompletions.isNotEmpty(),
+                emoteCount = state.emoteCompletions.size,
+                mentionCount = state.mentionCompletions.size,
+                emoteTabIndex = emoteTabIndex,
+                mentionTabIndex = mentionTabIndex,
+                onTabEmote = { idx -> emoteTabIndex = idx },
+                onTabMention = { idx -> mentionTabIndex = idx },
+                onConfirmEmoteTab = {
+                    val idx = emoteTabIndex.coerceIn(0, state.emoteCompletions.lastIndex)
+                    viewModel.sendEvent(ChatEvent.OnSelectEmoteCompletion(state.emoteCompletions[idx]))
+                    emoteTabIndex = -1
+                    inputFocusRequester.requestFocus()
+                },
+                onConfirmMentionTab = {
+                    val idx = mentionTabIndex.coerceIn(0, state.mentionCompletions.lastIndex)
+                    viewModel.sendEvent(ChatEvent.OnSelectMentionCompletion(state.mentionCompletions[idx]))
+                    mentionTabIndex = -1
+                    inputFocusRequester.requestFocus()
+                }
             )
         }
 
@@ -460,16 +540,32 @@ fun ChatScreen(
         if (state.showMentionCompletions && state.mentionCompletions.isNotEmpty()) {
             MentionAutocompleteRow(
                 usernames = state.mentionCompletions,
-                onSelect = { viewModel.sendEvent(ChatEvent.OnSelectMentionCompletion(it)) },
-                onDismiss = { viewModel.sendEvent(ChatEvent.OnDismissMentionCompletions) }
+                selectedIndex = mentionTabIndex,
+                onSelect = {
+                    viewModel.sendEvent(ChatEvent.OnSelectMentionCompletion(it))
+                    mentionTabIndex = -1
+                    inputFocusRequester.requestFocus()
+                },
+                onDismiss = {
+                    viewModel.sendEvent(ChatEvent.OnDismissMentionCompletions)
+                    mentionTabIndex = -1
+                }
             )
         }
 
         if (state.showEmoteCompletions && state.emoteCompletions.isNotEmpty()) {
             EmoteAutocompleteRow(
                 emotes = state.emoteCompletions,
-                onSelect = { viewModel.sendEvent(ChatEvent.OnSelectEmoteCompletion(it)) },
-                onDismiss = { viewModel.sendEvent(ChatEvent.OnDismissCompletions) }
+                selectedIndex = emoteTabIndex,
+                onSelect = {
+                    viewModel.sendEvent(ChatEvent.OnSelectEmoteCompletion(it))
+                    emoteTabIndex = -1
+                    inputFocusRequester.requestFocus()
+                },
+                onDismiss = {
+                    viewModel.sendEvent(ChatEvent.OnDismissCompletions)
+                    emoteTabIndex = -1
+                }
             )
         }
     }
@@ -510,9 +606,8 @@ fun ChatScreen(
             badges = msg.badges,
             sevenTvBadge = msg.sevenTvBadge,
             showModActions = state.modModeEnabled || state.isMod,
-            onTimeout = { seconds ->
-                viewModel.sendEvent(ChatEvent.OnTimeoutUser(msg.userId, seconds))
-            },
+            currentUserIsBroadcaster = state.currentUserLogin.equals(channelLogin, ignoreCase = true),
+            onTimeout = { seconds -> viewModel.sendEvent(ChatEvent.OnTimeoutUser(msg.userId, seconds)) },
             onBan = { viewModel.sendEvent(ChatEvent.OnBanUser(msg.userId)) },
             onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(msg.userId)) },
             onMod = { viewModel.sendEvent(ChatEvent.OnModUser(msg.userId)) },
@@ -590,9 +685,12 @@ private fun ChatTopBar(
     roomState: RoomState,
     isMod: Boolean,
     modModeEnabled: Boolean,
+    modPanelOpen: Boolean = false,
+    pinnedMacros: List<io.rudione.chatone.domain.model.Macro> = emptyList(),
     onBack: () -> Unit,
     onToggleModMode: () -> Unit,
     onOpenModPanel: () -> Unit = {},
+    onExecuteMacro: (io.rudione.chatone.domain.model.Macro) -> Unit = {},
     isCompact: Boolean = false
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
@@ -603,34 +701,43 @@ private fun ChatTopBar(
             ) {
                 if (isCompact) {
                     IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            Icons.Filled.Menu,
-                            contentDescription = "Menu",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                        Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 }
                 Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                    Text(
-                        "#$channelLogin",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Text("#$channelLogin", style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier.size(6.dp).clip(CircleShape)
-                                .background(if (isConnected) ChatoneTheme.extraColors.connected else MaterialTheme.colorScheme.error)
-                        )
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape)
+                            .background(if (isConnected) ChatoneTheme.extraColors.connected else MaterialTheme.colorScheme.error))
                         Spacer(Modifier.width(4.dp))
-                        Text(
-                            connectionStatus,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text(connectionStatus, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 if (isMod) {
+                    // ── Pinned macros (up to 5, drag to this area from settings) ──
+                    if (pinnedMacros.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 4.dp)
+                        ) {
+                            pinnedMacros.forEach { macro ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                                        .border(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                        .clickable { onExecuteMacro(macro) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(macro.icon, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
                     FilledIconToggleButton(
                         checked = modModeEnabled,
                         onCheckedChange = { onToggleModMode() },
@@ -642,19 +749,20 @@ private fun ChatTopBar(
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
-                        Icon(
-                            Icons.Filled.Star,
-                            contentDescription = "Mod Mode",
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Filled.Star, contentDescription = "Mod Mode", modifier = Modifier.size(18.dp))
                     }
-                    IconButton(onClick = onOpenModPanel, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            Icons.Outlined.Build,
-                            contentDescription = "Mod Panel",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    FilledIconToggleButton(
+                        checked = modPanelOpen,
+                        onCheckedChange = { onOpenModPanel() },
+                        modifier = Modifier.size(36.dp),
+                        colors = IconButtonDefaults.filledIconToggleButtonColors(
+                            checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    ) {
+                        Icon(Icons.Outlined.Build, contentDescription = "Mod Panel", modifier = Modifier.size(18.dp))
                     }
                 }
             }
@@ -666,21 +774,14 @@ private fun ChatTopBar(
             }
             if (roomChips.isNotEmpty()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     roomChips.forEach { chip ->
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            shape = RoundedCornerShape(4.dp)
-                        ) {
-                            Text(
-                                chip,
-                                style = MaterialTheme.typography.labelSmall,
+                        Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(4.dp)) {
+                            Text(chip, style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                         }
                     }
                 }
@@ -699,11 +800,14 @@ private fun PrivMsgItem(
     showBadges: Boolean = true,
     isMod: Boolean = false,
     emoteSize: SettingsState.EmoteSize = SettingsState.EmoteSize.SMALL,
+    customModButtons: List<ModActionButton> = emptyList(),
     onUsernameClick: () -> Unit = {},
+    onMentionClick: (String) -> Unit = {},
     onReply: () -> Unit = {},
     onCopyText: () -> Unit = {},
     onPin: () -> Unit = {},
     onTimeout: () -> Unit = {},
+    onCustomTimeout: (Int) -> Unit = {},
     onBan: () -> Unit = {},
     onDelete: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -753,44 +857,33 @@ private fun PrivMsgItem(
         verticalAlignment = Alignment.Top
     ) {
         if (showModActions) {
+            // ▼▼▼ ИСПРАВЛЕНО: Arrangement.spacedBy(0.dp) для плотного расположения ▼▼▼
             Row(
-                modifier = Modifier.padding(end = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(1.dp),
+                modifier = Modifier.padding(end = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier.size(20.dp).clip(CircleShape).clickable(onClick = onDelete)
-                        .padding(3.dp), contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.Delete,
-                        contentDescription = "Delete",
-                        modifier = Modifier.size(14.dp),
-                        tint = extraColors.modDelete
+                // ── Delete (always first) ───────────────────────────────────
+                ModActionIconBtn(icon = Icons.Outlined.Delete, label = "Del",
+                    tint = extraColors.modDelete, onClick = onDelete)
+
+                // ── Custom timeout buttons ──────────────────────────────────
+                customModButtons.filter { it.enabled }.take(8).forEach { btn ->
+                    ModActionIconBtn(
+                        icon = Icons.Outlined.Refresh,
+                        label = btn.displayLabel,
+                        tint = extraColors.modTimeout,
+                        onClick = { onCustomTimeout(btn.durationSeconds) }
                     )
                 }
-                Box(
-                    modifier = Modifier.size(20.dp).clip(CircleShape).clickable(onClick = onTimeout)
-                        .padding(3.dp), contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.Refresh,
-                        contentDescription = "Timeout",
-                        modifier = Modifier.size(14.dp),
-                        tint = extraColors.modTimeout
-                    )
-                }
-                Box(
-                    modifier = Modifier.size(20.dp).clip(CircleShape).clickable(onClick = onBan)
-                        .padding(3.dp), contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Ban",
-                        modifier = Modifier.size(14.dp),
-                        tint = extraColors.modBan
-                    )
-                }
+
+                // ── Default timeout ─────────────────────────────────────────
+                ModActionIconBtn(icon = Icons.Outlined.Refresh, label = "10m",
+                    tint = extraColors.modTimeout, onClick = onTimeout)
+
+                // ── Ban (always last) ───────────────────────────────────────
+                ModActionIconBtn(icon = Icons.Filled.Close, label = "Ban",
+                    tint = extraColors.modBan, onClick = onBan)
             }
         }
 
@@ -799,7 +892,9 @@ private fun PrivMsgItem(
                 formatTimestamp(message.timestamp, timestampFormat),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.padding(end = 4.dp)
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .offset(y = 4.dp)
             )
         }
 
@@ -994,12 +1089,17 @@ private fun PrivMsgItem(
                             pop()
                         }
 
-                        is MessageToken.Mention -> withStyle(
-                            SpanStyle(
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        ) { append(token.username) }
+                        is MessageToken.Mention -> {
+                            // Добавляем аннотацию с именем — при клике откроем профиль
+                            pushStringAnnotation("mention", token.username)
+                            withStyle(
+                                SpanStyle(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            ) { append(token.username) }
+                            pop()
+                        }
                     }
                 }
             }
@@ -1026,21 +1126,23 @@ private fun PrivMsgItem(
                         onTap = { offset ->
                             textLayoutResult?.let { layoutResult ->
                                 val charOffset = layoutResult.getOffsetForPosition(offset)
+                                // URL click
                                 annotatedString.getStringAnnotations("url", charOffset, charOffset)
                                     .firstOrNull()?.let { annotation ->
-                                        try {
-                                            uriHandler.openUri(annotation.item)
-                                        } catch (_: Exception) {
-                                        }
+                                        try { uriHandler.openUri(annotation.item) } catch (_: Exception) {}
                                         return@detectTapGestures
                                     }
-                                annotatedString.getStringAnnotations(
-                                    "username",
-                                    charOffset,
-                                    charOffset
-                                ).firstOrNull()?.let {
-                                    onUsernameClick(); return@detectTapGestures
-                                }
+                                // Nickname (display name) click
+                                annotatedString.getStringAnnotations("username", charOffset, charOffset)
+                                    .firstOrNull()?.let {
+                                        onUsernameClick(); return@detectTapGestures
+                                    }
+                                // @Mention tag click — find the user in messages by username
+                                annotatedString.getStringAnnotations("mention", charOffset, charOffset)
+                                    .firstOrNull()?.let { annotation ->
+                                        onMentionClick(annotation.item)
+                                        return@detectTapGestures
+                                    }
                             }
                         },
                         onLongPress = { offset ->
@@ -1117,6 +1219,60 @@ private fun PrivMsgItem(
         // ▲▲▲ Конец Popup-меню ▲▲▲
     }
 }
+
+// ─── Mod Action Icon Button with label below — ИСПРАВЛЕННЫЙ ▼▼▼
+
+// ─── Mod Action Icon Button — ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ ▼▼▼
+
+@Composable
+private fun ModActionIconBtn(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .clip(RoundedCornerShape(4.dp))
+            .background(tint.copy(alpha = 0.08f))
+            // ▼▼▼ Явно задаём минимальные размеры ▼▼▼
+            .widthIn(min = 0.dp)
+            .heightIn(min = 0.dp)
+            .wrapContentWidth()
+            .wrapContentHeight()
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            // ▼▼▼ Минимальные отступы ▼▼▼
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp)
+        ) {
+            // ▼▼▼ Иконка без лишних отступов ▼▼▼
+            Icon(
+                icon,
+                contentDescription = label,
+                modifier = Modifier
+                    .size(12.dp)
+                    .wrapContentSize()
+                ,
+                tint = tint
+            )
+            // ▼▼▼ Текст с отключённой мин. высотой строки ▼▼▼
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 6.sp,
+                    lineHeight = 6.sp  // ← Важно: равен fontSize
+                ),
+                color = tint,
+                modifier = Modifier.wrapContentHeight()
+            )
+        }
+    }
+}
+// ▲▲▲ ▲▲▲
+
+// ─── System / moderation message items ──────────────────────────────────────
 
 @Composable
 private fun SystemMsgItem(message: DisplayMessage.SystemMsg) {
@@ -1199,15 +1355,22 @@ private fun MessageInput(
     onTogglePause: () -> Unit = {},
     pauseHotkey: String = "",
     enabled: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester = remember { FocusRequester() },
+    // Tab autocomplete
+    showEmoteCompletions: Boolean = false,
+    showMentionCompletions: Boolean = false,
+    emoteCount: Int = 0,
+    mentionCount: Int = 0,
+    emoteTabIndex: Int = -1,
+    mentionTabIndex: Int = -1,
+    onTabEmote: (Int) -> Unit = {},
+    onTabMention: (Int) -> Unit = {},
+    onConfirmEmoteTab: () -> Unit = {},
+    onConfirmMentionTab: () -> Unit = {}
 ) {
     var tfv by remember {
-        mutableStateOf(
-            TextFieldValue(
-                value,
-                selection = TextRange(value.length)
-            )
-        )
+        mutableStateOf(TextFieldValue(value, selection = TextRange(value.length)))
     }
 
     LaunchedEffect(value) {
@@ -1225,16 +1388,11 @@ private fun MessageInput(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = onEmotePickerClick,
-                enabled = enabled,
-                modifier = Modifier.size(36.dp)
-            ) {
+            IconButton(onClick = onEmotePickerClick, enabled = enabled, modifier = Modifier.size(36.dp)) {
                 Text(
                     ":)", style = MaterialTheme.typography.titleMedium,
-                    color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(
-                        alpha = 0.38f
-                    )
+                    color = if (enabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             }
 
@@ -1246,42 +1404,91 @@ private fun MessageInput(
                 },
                 modifier = Modifier
                     .weight(1f)
-                    .onKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    .focusRequester(focusRequester)
+                    // ▼▼▼ КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: onPreviewKeyEvent ▼▼▼
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
 
                         val isCtrl = event.isCtrlPressed || event.isMetaPressed
 
+                        // 🖥️ Отладочный лог
+                        println("🎹 Key: ${event.key} | EmoteTab: $emoteTabIndex | MentionTab: $mentionTabIndex | Cursor: ${tfv.selection.start}/${tfv.text.length}")
+
                         when {
-                            // Ctrl+Enter
+                            // ── TAB: Цикл по автодополнению ──
+                            event.key == Key.Tab && !isCtrl && !event.isAltPressed -> {
+                                when {
+                                    showEmoteCompletions && emoteCount > 0 -> {
+                                        val next = if (emoteTabIndex < 0) 0 else (emoteTabIndex + 1) % emoteCount
+                                        println("🔄 Tab: emote index -> $next")
+                                        onTabEmote(next)
+                                    }
+                                    showMentionCompletions && mentionCount > 0 -> {
+                                        val next = if (mentionTabIndex < 0) 0 else (mentionTabIndex + 1) % mentionCount
+                                        println("🔄 Tab: mention index -> $next")
+                                        onTabMention(next)
+                                    }
+                                }
+                                true // Потребляем событие
+                            }
+
+                            // ── ENTER: Подтвердить автодополнение ИЛИ отправить сообщение ──
+                            event.key == Key.Enter && !isCtrl && !event.isShiftPressed -> {
+                                when {
+                                    // Если выбран смайлик (индекс >= 0) — вставляем его
+                                    showEmoteCompletions && emoteTabIndex >= 0 -> {
+                                        println("✅ Confirming emote at index $emoteTabIndex")
+                                        onConfirmEmoteTab()
+                                        true // Потребляем, чтобы не отправилось
+                                    }
+                                    // Если выбран никнейм — вставляем его
+                                    showMentionCompletions && mentionTabIndex >= 0 -> {
+                                        println("✅ Confirming mention at index $mentionTabIndex")
+                                        onConfirmMentionTab()
+                                        true // Потребляем
+                                    }
+                                    // Иначе — отправляем сообщение
+                                    else -> {
+                                        println("📤 Sending message")
+                                        onSend()
+                                        true
+                                    }
+                                }
+                            }
+
+                            // ── CTRL+ENTER: Отправить, не очищая поле ──
                             isCtrl && event.key == Key.Enter -> {
                                 onSendKeepText()
                                 true
                             }
 
-                            // Up — история только если курсор в начале строки или поле пустое
+                            // ── UP: История (только если курсор в начале или поле пустое) ──
                             event.key == Key.DirectionUp && !isCtrl && !event.isShiftPressed && !event.isAltPressed
                                     && (tfv.text.isEmpty() || tfv.selection.start == 0) -> {
+                                println("⬆️ History UP triggered")
                                 onHistoryUp()
                                 true
                             }
 
-                            // Down — история только если курсор в конце строки или поле пустое
+                            // ── DOWN: История (только если курсор в конце или поле пустое) ──
                             event.key == Key.DirectionDown && !isCtrl && !event.isShiftPressed && !event.isAltPressed
                                     && (tfv.text.isEmpty() || tfv.selection.end == tfv.text.length) -> {
+                                println("⬇️ History DOWN triggered")
                                 onHistoryDown()
                                 true
                             }
 
-                            // Shift+Backspace — явно отдаём TextField (фикс бага когда нельзя удалять с Shift)
+                            // ── Shift+Backspace: Отдаём TextField'у ──
                             event.key == Key.Backspace && event.isShiftPressed -> false
 
-                            // Pause hotkey
+                            // ── Pause Hotkey ──
                             pauseHotkeyMatches(event, pauseHotkey) -> {
                                 onTogglePause()
                                 true
                             }
 
-                            else -> false // ВСЁ остальное отдаём TextField
+                            // ── Всё остальное: пусть обрабатывает TextField ──
+                            else -> false
                         }
                     },
                 placeholder = {
@@ -1371,21 +1578,28 @@ private fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
 @Composable
 private fun EmoteAutocompleteRow(
     emotes: List<io.rudione.chatone.domain.model.GenericEmote>,
+    selectedIndex: Int = -1,
     onSelect: (io.rudione.chatone.domain.model.GenericEmote) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val listState = rememberLazyListState()
+
+    // Автоскролл к выбранному элементу
+    LaunchedEffect(selectedIndex) {
+        if (selectedIndex >= 0) {
+            listState.animateScrollToItem(selectedIndex)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .zIndex(10f)
-            .pointerInput(Unit) {
-                detectTapGestures(onPress = { onDismiss() })
-            }
+            .pointerInput(Unit) { detectTapGestures(onPress = { onDismiss() }) }
     ) {
         LiquidGlassSurface(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                // Отступ 64.dp: ~56dp высота MessageInput + 8dp воздух
                 .padding(start = 8.dp, end = 8.dp, bottom = 64.dp)
                 .heightIn(max = 120.dp),
             shape = RoundedCornerShape(12.dp),
@@ -1396,21 +1610,26 @@ private fun EmoteAutocompleteRow(
             borderAlphaLow = 0f
         ) {
             LazyRow(
+                state = listState,
                 contentPadding = PaddingValues(horizontal = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items(emotes, key = { it.id }) { emote ->
+                itemsIndexed(emotes, key = { _, e -> e.id }) { idx, emote ->
+                    val isSelected = idx == selectedIndex
                     Surface(
-                        onClick = {
-                            onSelect(emote)
-                            onDismiss()
-                        },
+                        onClick = { onSelect(emote); onDismiss() },
                         shape = RoundedCornerShape(8.dp),
-                        color = Color.Transparent,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                        else Color.Transparent,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            // Убрали widthIn(min = 80.dp) — пусть текст занимает сколько нужно
+                            .then(
+                                if (isSelected) Modifier.border(
+                                    1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                    RoundedCornerShape(8.dp)
+                                ) else Modifier
+                            )
                             .height(32.dp)
                     ) {
                         Row(
@@ -1426,10 +1645,10 @@ private fun EmoteAutocompleteRow(
                             Text(
                                 text = emote.code,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
-                                // Убрали weight/fill=false — текст теперь не обрезается
                             )
                         }
                     }
@@ -1442,21 +1661,25 @@ private fun EmoteAutocompleteRow(
 @Composable
 private fun MentionAutocompleteRow(
     usernames: List<String>,
+    selectedIndex: Int = -1,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(selectedIndex) {
+        if (selectedIndex >= 0) listState.animateScrollToItem(selectedIndex)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .zIndex(10f)
-            .pointerInput(Unit) {
-                detectTapGestures(onPress = { onDismiss() })
-            }
+            .pointerInput(Unit) { detectTapGestures(onPress = { onDismiss() }) }
     ) {
         LiquidGlassSurface(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                // Тот же отступ 64.dp, что и у EmoteAutocompleteRow
                 .padding(start = 8.dp, end = 8.dp, bottom = 64.dp)
                 .heightIn(max = 120.dp),
             shape = RoundedCornerShape(12.dp),
@@ -1467,20 +1690,26 @@ private fun MentionAutocompleteRow(
             borderAlphaLow = 0f
         ) {
             LazyRow(
+                state = listState,
                 contentPadding = PaddingValues(horizontal = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items(usernames, key = { it }) { username ->
+                itemsIndexed(usernames, key = { _, u -> u }) { idx, username ->
+                    val isSelected = idx == selectedIndex
                     Surface(
-                        onClick = {
-                            onSelect(username)
-                            onDismiss()
-                        },
+                        onClick = { onSelect(username); onDismiss() },
                         shape = RoundedCornerShape(8.dp),
-                        color = Color.Transparent,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                        else Color.Transparent,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
+                            .then(
+                                if (isSelected) Modifier.border(
+                                    1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                    RoundedCornerShape(8.dp)
+                                ) else Modifier
+                            )
                             .height(32.dp)
                     ) {
                         Row(
@@ -1492,12 +1721,14 @@ private fun MentionAutocompleteRow(
                                 Icons.Filled.Person,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                             )
                             Text(
                                 text = "@$username",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )

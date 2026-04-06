@@ -21,14 +21,19 @@ import io.rudione.chatone.domain.model.IrcEvent
 import io.rudione.chatone.domain.model.SevenTvUserCosmetic
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.domain.model.HighlightRule
+import io.rudione.chatone.domain.model.Macro
+import io.rudione.chatone.domain.model.MacroStep
 import io.rudione.chatone.domain.usecase.JoinChannelUseCase
 import io.rudione.chatone.domain.usecase.SendMessageUseCase
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.util.MessageTokenizer
 import io.rudione.chatone.util.NotificationSoundPlayer
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
+
+// ─── ChatState ──────────────────────────────────────────────────────
 
 data class ChatState(
     val channelLogin: String = "",
@@ -57,9 +62,10 @@ data class ChatState(
     val replyingTo: DisplayMessage.PrivMsg? = null,
     // Pinned message
     val pinnedMessage: DisplayMessage.PrivMsg? = null,
-    // Message history (own sent messages for arrow up/down navigation)
+    // ▼▼▼ Message history (own sent messages for arrow up/down navigation) ▼▼▼
     val sentMessageHistory: List<String> = emptyList(),
-    val historyIndex: Int = -1  // -1 = not navigating
+    val historyIndex: Int = -1  // -1 = not navigating, 0 = oldest, higher = newer
+    // ▲▲▲ ▲▲▲
 ) : UiState
 
 data class RoomState(
@@ -69,6 +75,8 @@ data class RoomState(
     val subsOnly: Boolean = false,
     val r9k: Boolean = false
 )
+
+// ─── ChatEvent ──────────────────────────────────────────────────────
 
 sealed class ChatEvent : UiEvent {
     data class OnInit(
@@ -80,11 +88,11 @@ sealed class ChatEvent : UiEvent {
     ) : ChatEvent()
     data class OnMessageInputChanged(val input: String) : ChatEvent()
     object OnSendMessage : ChatEvent()
-    // Ctrl+Enter — sends but keeps text in input field
     object OnSendMessageKeepText : ChatEvent()
-    // Arrow up/down in input — navigate sent message history
-    object OnHistoryUp : ChatEvent()
-    object OnHistoryDown : ChatEvent()
+    // ▼▼▼ Arrow up/down in input — navigate sent message history ▼▼▼
+    data object OnHistoryUp : ChatEvent()
+    data object OnHistoryDown : ChatEvent()
+    // ▲▲▲ ▲▲▲
     object OnReconnect : ChatEvent()
     object OnToggleModMode : ChatEvent()
     data class OnTimeoutUser(val userId: String, val duration: Int) : ChatEvent()
@@ -115,13 +123,19 @@ sealed class ChatEvent : UiEvent {
     data class OnStartRaid(val targetLogin: String) : ChatEvent()
     object OnCancelRaid : ChatEvent()
     data class OnSendShoutout(val targetUserId: String) : ChatEvent()
+    data class OnSendMessageText(val text: String) : ChatEvent()
+    data class OnExecuteMacro(val macro: Macro) : ChatEvent()
 }
+
+// ─── ChatEffect ─────────────────────────────────────────────────────
 
 sealed class ChatEffect : UIEffect {
     data class ShowError(val message: String) : ChatEffect()
     object ScrollToBottom : ChatEffect()
-    data class MentionDetected(val channelLogin: String) : ChatEffect()
+    data class MentionDetected(val channelLogin: String, val message: DisplayMessage.PrivMsg? = null) : ChatEffect()
 }
+
+// ─── ChatViewModel ──────────────────────────────────────────────────
 
 class ChatViewModel(
     private val chatRepository: ChatRepository,
@@ -203,8 +217,10 @@ class ChatViewModel(
             is ChatEvent.OnMessageInputChanged -> updateMessageInput(event.input)
             ChatEvent.OnSendMessage -> sendMessage(keepText = false)
             ChatEvent.OnSendMessageKeepText -> sendMessage(keepText = true)
+            // ▼▼▼ Обработчики истории сообщений ▼▼▼
             ChatEvent.OnHistoryUp -> navigateHistory(up = true)
             ChatEvent.OnHistoryDown -> navigateHistory(up = false)
+            // ▲▲▲ ▲▲▲
             ChatEvent.OnReconnect -> reconnect()
             ChatEvent.OnToggleModMode -> toggleModMode()
             is ChatEvent.OnTimeoutUser -> timeoutUser(event.userId, event.duration)
@@ -230,20 +246,25 @@ class ChatViewModel(
             is ChatEvent.OnStartRaid -> startRaid(event.targetLogin)
             ChatEvent.OnCancelRaid -> cancelRaid()
             is ChatEvent.OnSendShoutout -> sendShoutout(event.targetUserId)
+            is ChatEvent.OnSendMessageText -> sendRawMessage(event.text)
+            is ChatEvent.OnExecuteMacro -> executeMacro(event.macro)
         }
     }
 
-    // ── Message history navigation (Arrow Up/Down) ──────────────────
-
+    // ▼▼▼ Навигация по истории сообщений (стрелки ↑/↓) ▼▼▼
     private fun navigateHistory(up: Boolean) {
         val s = state.value
         val history = s.sentMessageHistory
+
+        // Если истории нет — ничего не делаем
         if (history.isEmpty()) return
 
         val newIndex = if (up) {
+            // Стрелка вверх: идём к более старым сообщениям
             if (s.historyIndex == -1) 0
             else (s.historyIndex + 1).coerceAtMost(history.lastIndex)
         } else {
+            // Стрелка вниз: идём к более новым сообщениям
             if (s.historyIndex <= 0) {
                 update { it.copy(historyIndex = -1, messageInput = "") }
                 return
@@ -251,7 +272,21 @@ class ChatViewModel(
             s.historyIndex - 1
         }
 
+        // Обновляем поле ввода и индекс
         update { it.copy(historyIndex = newIndex, messageInput = history[newIndex]) }
+    }
+    // ▲▲▲ ▲▲▲
+
+    private fun sendRawMessage(text: String) {
+        val s = state.value
+        if (text.isBlank() || s.channelLogin.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                sendMessageUseCase(s.channelLogin, text)
+            } catch (e: Exception) {
+                sendEffect(ChatEffect.ShowError("Failed to send: ${e.message}"))
+            }
+        }
     }
 
     private fun initChannel(channelLogin: String, accessToken: String, userId: String, userLogin: String, userDisplayName: String) {
@@ -296,7 +331,11 @@ class ChatViewModel(
                 currentAccessToken = if (accessToken.isNotEmpty()) accessToken else it.currentAccessToken,
                 currentUserId = if (userId.isNotEmpty()) userId else it.currentUserId,
                 currentUserLogin = if (userLogin.isNotEmpty()) userLogin else it.currentUserLogin,
-                currentDisplayName = if (userDisplayName.isNotEmpty()) userDisplayName else it.currentDisplayName
+                currentDisplayName = if (userDisplayName.isNotEmpty()) userDisplayName else it.currentDisplayName,
+                // ▼▼▼ Сбрасываем историю при смене канала ▼▼▼
+                sentMessageHistory = emptyList(),
+                historyIndex = -1
+                // ▲▲▲ ▲▲▲
             )
         }
 
@@ -334,6 +373,21 @@ class ChatViewModel(
         }
     }
 
+    // ▼▼▼ Добавление сообщения в историю ▼▼▼
+    private fun addToHistory(state: ChatState, message: String): ChatState {
+        val trimmed = message.trim()
+        if (trimmed.isBlank()) return state
+
+        // Не добавляем дубликаты подряд
+        if (state.sentMessageHistory.firstOrNull() == trimmed) return state
+
+        return state.copy(
+            sentMessageHistory = listOf(trimmed) + state.sentMessageHistory.take(MAX_HISTORY - 1),
+            historyIndex = -1  // Сбрасываем позицию при новом сообщении
+        )
+    }
+    // ▲▲▲ ▲▲▲
+
     private suspend fun loadRecentMessages(channelLogin: String) {
         try {
             val recent = recentMessagesClient.getRecentMessages(channelLogin)
@@ -352,7 +406,6 @@ class ChatViewModel(
                             if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
                                 if (state.value.channelLogin == channelLogin) {
                                     update { state ->
-                                        // FIX Bug 2: always apply latest 7TV cosmetics, not just when both are null
                                         state.copy(messages = state.messages.map { dm ->
                                             if (dm is DisplayMessage.PrivMsg && dm.userId == userId)
                                                 dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
@@ -471,7 +524,6 @@ class ChatViewModel(
                             val cosmetics = sevenTvCosmeticsClient.getUserCosmetics(message.userId)
                             if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
                                 update { state ->
-                                    // FIX Bug 2: always apply latest 7TV cosmetics unconditionally
                                     state.copy(messages = state.messages.map { dm ->
                                         if (dm is DisplayMessage.PrivMsg && dm.id == msgId)
                                             dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
@@ -507,7 +559,7 @@ class ChatViewModel(
                         } else {
                             NotificationSoundPlayer.playMentionSound()
                         }
-                        sendEffect(ChatEffect.MentionDetected(s.channelLogin))
+                        sendEffect(ChatEffect.MentionDetected(s.channelLogin, finalMsg as? DisplayMessage.PrivMsg))
                     }
 
                     chatRepository.saveMessage(message)
@@ -621,11 +673,6 @@ class ChatViewModel(
                             channelModCache[channelLogin.lowercase()] = event.isMod
                             if (event.badges.isNotEmpty()) currentUserBadgeRaw = event.badges
 
-                            // FIX Bug 3: parse the freshly received badges and retroactively patch
-                            // the most recent local-echo message (id starts with "local_") that
-                            // was sent by the current user and still has an empty badge list.
-                            // This happens when the user sends their first message and USERSTATE
-                            // arrives after the local echo was already added.
                             if (event.badges.isNotEmpty()) {
                                 val freshBadges = event.badges.split(",").mapNotNull { pair ->
                                     val parts = pair.split("/", limit = 2)
@@ -637,7 +684,6 @@ class ChatViewModel(
                                 )
                                 val currentUserId = state.value.currentUserId
                                 update { st ->
-                                    // Find the last local-echo message for the current user that has no badges
                                     val targetIndex = st.messages.indexOfLast { dm ->
                                         dm is DisplayMessage.PrivMsg &&
                                                 dm.id.startsWith("local_") &&
@@ -817,9 +863,6 @@ class ChatViewModel(
                 sendMessageUseCase(channelLogin, message)
 
                 val now = Clock.System.now().toEpochMilliseconds()
-                // Use currentUserBadgeRaw if available (for non-first messages).
-                // For the very first message, this may be empty — the badges will be
-                // retroactively patched when USERSTATE arrives (see observeIrcEvents).
                 val ownBadges = if (currentUserBadgeRaw.isNotEmpty()) {
                     currentUserBadgeRaw.split(",").mapNotNull { pair ->
                         val parts = pair.split("/", limit = 2)
@@ -842,7 +885,8 @@ class ChatViewModel(
                 )
                 val displayMsg = chatMessageToDisplay(rawMsg)
 
-                val newHistory = (listOf(message) + s.sentMessageHistory).take(MAX_HISTORY)
+                // ▼▼▼ Добавляем в историю и обновляем состояние ▼▼▼
+                val updatedState = addToHistory(s, message)
 
                 update { state ->
                     val newMessages = (state.messages + displayMsg).takeLast(MAX_MESSAGES)
@@ -852,10 +896,12 @@ class ChatViewModel(
                         emoteCompletions = emptyList(),
                         messages = newMessages,
                         replyingTo = if (keepText) state.replyingTo else null,
-                        sentMessageHistory = newHistory,
-                        historyIndex = -1
+                        sentMessageHistory = updatedState.sentMessageHistory,
+                        historyIndex = updatedState.historyIndex
                     )
                 }
+                // ▲▲▲ ▲▲▲
+
                 sendEffect(ChatEffect.ScrollToBottom)
             } catch (e: Exception) {
                 Napier.e("Failed to send message: ${e.message}", e, tag = TAG)
@@ -1014,6 +1060,40 @@ class ChatViewModel(
         viewModelScope.launch {
             val result = apiClient.sendShoutout(s.currentAccessToken, s.channelId, targetUserId, s.currentUserId)
             if (result.isError) sendEffect(ChatEffect.ShowError("Failed to send shoutout"))
+        }
+    }
+
+    private fun executeMacro(macro: Macro) {
+        val s = state.value
+        if (s.channelLogin.isEmpty()) return
+        viewModelScope.launch {
+            macro.steps.forEach { step ->
+                when (step) {
+                    is MacroStep.SendMessage -> {
+                        try { sendMessageUseCase(s.channelLogin, step.text) } catch (_: Exception) {}
+                    }
+                    is MacroStep.SubMode ->
+                        updateChatSettings(mapOf("subscriber_mode" to step.enable))
+                    is MacroStep.EmoteMode ->
+                        updateChatSettings(mapOf("emote_mode" to step.enable))
+                    is MacroStep.SlowMode ->
+                        if (step.enable) updateChatSettings(mapOf("slow_mode" to true, "slow_mode_wait_time" to step.seconds))
+                        else updateChatSettings(mapOf("slow_mode" to false))
+                    is MacroStep.FollowerMode ->
+                        if (step.enable) updateChatSettings(mapOf("follower_mode" to true, "follower_mode_duration" to step.minutes))
+                        else updateChatSettings(mapOf("follower_mode" to false))
+                    is MacroStep.R9KMode ->
+                        updateChatSettings(mapOf("unique_chat_mode" to step.enable))
+                    is MacroStep.StartRaid ->
+                        startRaid(step.targetLogin)
+                    is MacroStep.PinMessage ->
+                        try { sendMessageUseCase(s.channelLogin, "/pin ${step.message}") } catch (_: Exception) {}
+                    is MacroStep.Delay ->
+                        delay(step.seconds * 1000L)
+                    is MacroStep.ClearChat ->
+                        clearChat()
+                }
+            }
         }
     }
 }
