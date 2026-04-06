@@ -7,11 +7,16 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
 import io.ktor.client.request.delete
+import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.Parameters
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.rudione.chatone.data.remote.dto.*
 import io.rudione.chatone.util.Result
 import kotlinx.serialization.json.JsonPrimitive
@@ -64,48 +69,67 @@ class TwitchApiClient(
 
     suspend fun validateToken(accessToken: String): Result<ValidateTokenResponse> {
         return try {
-            val response = httpClient.get("$authUrl/validate") {
-                header("Authorization", "OAuth $accessToken")
-            }.body<ValidateTokenResponse>()
-            Napier.d("Token validated successfully", tag = TAG)
-            Result.Success(response)
+            val response = httpClient.get("https://id.twitch.tv/oauth2/validate") {
+                header(HttpHeaders.Authorization, "OAuth $accessToken")
+            }
+
+            if (response.status.isSuccess()) {
+                Result.Success(response.body())
+            } else {
+                Result.Error(Exception("Token validation failed: ${response.status}"))
+            }
         } catch (e: Exception) {
-            Napier.e("Failed to validate token: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
     }
 
     suspend fun revokeToken(accessToken: String): Result<Unit> {
         return try {
-            httpClient.post("$authUrl/revoke") {
-                parameter("client_id", clientId)
-                parameter("token", accessToken)
+            httpClient.post("https://id.twitch.tv/oauth2/revoke") {
+                // ▼▼▼ Правильное кодирование form-urlencoded ▼▼▼
+                setBody(
+                    FormDataContent(
+                        Parameters.build {
+                            append("client_id", clientId)
+                            append("token", accessToken)
+                        }
+                    )
+                )
+                contentType(ContentType.Application.FormUrlEncoded)
             }
-            Napier.d("Token revoked successfully", tag = TAG)
             Result.Success(Unit)
         } catch (e: Exception) {
-            Napier.e("Failed to revoke token: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
     }
 
-    suspend fun getUsers(accessToken: String, userIds: List<String> = emptyList(), logins: List<String> = emptyList()): Result<UsersResponse> {
-        val validLogins = logins.filter { it.isNotBlank() && it.all { c -> c.code in 32..126 } }
-        if (validLogins.isEmpty() && userIds.isEmpty()) return Result.Success(UsersResponse(data = emptyList()))
+    suspend fun getUsers(accessToken: String, logins: List<String> = emptyList()): Result<UsersResponse> {
         return try {
             val response = httpClient.get("$baseUrl/users") {
-                header("Authorization", "Bearer $accessToken")
-                header("Client-Id", clientId)
-                userIds.forEach { parameter("id", it) }
-                validLogins.forEach { parameter("login", it) }
-            }.body<UsersResponse>()
-            Napier.d("Got ${response.data.size} users", tag = TAG)
-            Result.Success(response)
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                header("Client-ID", clientId)
+                header(HttpHeaders.Accept, "application/json")
+
+                if (logins.isNotEmpty()) {
+                    logins.take(100).forEach { login ->
+                        url { parameters.append("login", login) }
+                    }
+                }
+            }
+
+            if (response.status.isSuccess()) {
+                Result.Success(response.body())
+            } else {
+                val errorBody = response.bodyAsText()
+                Napier.e("Failed to get users: ${response.status} — $errorBody", tag = TAG)
+                Result.Error(Exception("Failed to get users: ${response.status}"))
+            }
         } catch (e: Exception) {
-            Napier.e("Failed to get users: ${e.message}", e, tag = TAG)
+            Napier.e("Exception in getUsers: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
     }
+
 
     suspend fun searchChannels(accessToken: String, query: String, first: Int = 20): Result<SearchChannelsResponse> {
         return try {

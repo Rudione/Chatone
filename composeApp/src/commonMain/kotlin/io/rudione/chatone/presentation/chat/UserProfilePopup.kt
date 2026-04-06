@@ -100,7 +100,7 @@ fun UserProfilePopup(
         isNoteLoaded = true
 
         if (accessToken.isNotEmpty() && userId.isNotEmpty()) {
-            val result = twitchApiClient.getUsers(accessToken, userIds = listOf(userId))
+            val result = twitchApiClient.getUsers(accessToken)
             if (result is Result.Success) {
                 result.data.data.firstOrNull()?.let { userData ->
                     if (fetchedAvatarUrl.isEmpty()) fetchedAvatarUrl = userData.profileImageUrl

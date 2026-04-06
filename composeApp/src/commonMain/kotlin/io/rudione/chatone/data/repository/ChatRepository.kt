@@ -43,11 +43,11 @@ class ChatRepositoryImpl(
     private val apiClient: TwitchApiClient,
     private val database: ChatoneDatabase
 ) : ChatRepository {
-    
+
     companion object {
         private const val TAG = "ChatRepository"
     }
-    
+
     override val messages: SharedFlow<ChatMessage> = ircClient.messages
     override val events: SharedFlow<IrcEvent> = ircClient.events
     override val connectionState: StateFlow<TwitchIrcClient.ConnectionState> = ircClient.connectionState
@@ -61,16 +61,16 @@ class ChatRepositoryImpl(
         Napier.d("Connecting IRC anonymously", tag = TAG)
         ircClient.connect("justinfan12345", "")
     }
-    
+
     override suspend fun disconnect() {
         Napier.d("Disconnecting IRC", tag = TAG)
         ircClient.disconnect()
     }
-    
+
     override suspend fun joinChannel(channelName: String) {
         Napier.d("Joining channel: $channelName", tag = TAG)
         ircClient.joinChannel(channelName)
-        
+
         // Update last joined timestamp
         val channel = database.channelQueries.getChannelById(channelName).executeAsOneOrNull()
         if (channel != null) {
@@ -80,17 +80,17 @@ class ChatRepositoryImpl(
             )
         }
     }
-    
+
     override suspend fun partChannel(channelName: String) {
         Napier.d("Leaving channel: $channelName", tag = TAG)
         ircClient.partChannel(channelName)
     }
-    
+
     override suspend fun sendMessage(channelName: String, message: String) {
         Napier.d("Sending message to $channelName: $message", tag = TAG)
         ircClient.sendMessage(channelName, message)
     }
-    
+
     override suspend fun searchChannels(query: String, accessToken: String): Result<List<Channel>> {
         return try {
             val result = apiClient.searchChannels(accessToken, query)
@@ -117,21 +117,21 @@ class ChatRepositoryImpl(
             Result.Error(e)
         }
     }
-    
+
     override suspend fun getChannelInfo(channelLogin: String, accessToken: String): Result<Channel?> {
         return try {
             val userResult = apiClient.getUsers(accessToken, logins = listOf(channelLogin))
             if (userResult !is Result.Success || userResult.data.data.isEmpty()) {
                 return Result.Success(null)
             }
-            
+
             val userData = userResult.data.data.first()
-            
+
             val streamResult = apiClient.getStreams(accessToken, userLogins = listOf(channelLogin))
             val streamData = if (streamResult is Result.Success && streamResult.data.data.isNotEmpty()) {
                 streamResult.data.data.first()
             } else null
-            
+
             val channel = Channel(
                 id = userData.id,
                 login = userData.login,
@@ -143,14 +143,14 @@ class ChatRepositoryImpl(
                 gameName = streamData?.gameName ?: "",
                 title = streamData?.title ?: ""
             )
-            
+
             Result.Success(channel)
         } catch (e: Exception) {
             Napier.e("Failed to get channel info: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
     }
-    
+
     override suspend fun saveChannel(channel: Channel) {
         database.channelQueries.insertOrUpdateChannel(
             id = channel.id,
@@ -167,7 +167,7 @@ class ChatRepositoryImpl(
         )
         Napier.d("Channel saved: ${channel.login}", tag = TAG)
     }
-    
+
     override suspend fun getChannels(): Flow<List<Channel>> = flow {
         val channels = database.channelQueries.getAllChannels()
             .executeAsList()
@@ -186,7 +186,7 @@ class ChatRepositoryImpl(
             }
         emit(channels)
     }
-    
+
     override suspend fun getFavoriteChannels(): Flow<List<Channel>> = flow {
         val channels = database.channelQueries.getFavoriteChannels()
             .executeAsList()
@@ -205,14 +205,14 @@ class ChatRepositoryImpl(
             }
         emit(channels)
     }
-    
+
     override suspend fun updateFavorite(channelId: String, isFavorite: Boolean) {
         database.channelQueries.updateFavorite(
             isFavorite = if (isFavorite) 1 else 0,
             id = channelId
         )
     }
-    
+
     override suspend fun saveMessage(message: ChatMessage) {
         database.messageQueries.insertMessage(
             id = message.id,
@@ -234,7 +234,7 @@ class ChatRepositoryImpl(
             isAction = if (message.isAction) 1 else 0
         )
     }
-    
+
     override suspend fun getMessagesForChannel(channelId: String, limit: Long): Flow<List<ChatMessage>> = flow {
         val messages = database.messageQueries.getMessagesByChannel(channelId, limit)
             .executeAsList()
