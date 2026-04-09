@@ -33,8 +33,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 
-// ─── ChatState ──────────────────────────────────────────────────────
-
 data class ChatState(
     val channelLogin: String = "",
     val channelId: String = "",
@@ -62,10 +60,9 @@ data class ChatState(
     val replyingTo: DisplayMessage.PrivMsg? = null,
     // Pinned message
     val pinnedMessage: DisplayMessage.PrivMsg? = null,
-    // ▼▼▼ Message history (own sent messages for arrow up/down navigation) ▼▼▼
+    // Message history (own sent messages for arrow up/down navigation)
     val sentMessageHistory: List<String> = emptyList(),
-    val historyIndex: Int = -1  // -1 = not navigating, 0 = oldest, higher = newer
-    // ▲▲▲ ▲▲▲
+    val historyIndex: Int = -1  // -1 = not navigating
 ) : UiState
 
 data class RoomState(
@@ -75,8 +72,6 @@ data class RoomState(
     val subsOnly: Boolean = false,
     val r9k: Boolean = false
 )
-
-// ─── ChatEvent ──────────────────────────────────────────────────────
 
 sealed class ChatEvent : UiEvent {
     data class OnInit(
@@ -88,11 +83,11 @@ sealed class ChatEvent : UiEvent {
     ) : ChatEvent()
     data class OnMessageInputChanged(val input: String) : ChatEvent()
     object OnSendMessage : ChatEvent()
+    // Ctrl+Enter — sends but keeps text in input field
     object OnSendMessageKeepText : ChatEvent()
-    // ▼▼▼ Arrow up/down in input — navigate sent message history ▼▼▼
-    data object OnHistoryUp : ChatEvent()
-    data object OnHistoryDown : ChatEvent()
-    // ▲▲▲ ▲▲▲
+    // Arrow up/down in input — navigate sent message history
+    object OnHistoryUp : ChatEvent()
+    object OnHistoryDown : ChatEvent()
     object OnReconnect : ChatEvent()
     object OnToggleModMode : ChatEvent()
     data class OnTimeoutUser(val userId: String, val duration: Int) : ChatEvent()
@@ -100,6 +95,7 @@ sealed class ChatEvent : UiEvent {
     data class OnUnbanUser(val userId: String) : ChatEvent()
     data class OnDeleteMessage(val messageId: String) : ChatEvent()
     data class OnWhisper(val username: String) : ChatEvent()
+    data class OnInsertMention(val displayName: String) : ChatEvent()
     data class OnModUser(val userId: String) : ChatEvent()
     data class OnUnmodUser(val userId: String) : ChatEvent()
     data class OnVipUser(val userId: String) : ChatEvent()
@@ -127,15 +123,11 @@ sealed class ChatEvent : UiEvent {
     data class OnExecuteMacro(val macro: Macro) : ChatEvent()
 }
 
-// ─── ChatEffect ─────────────────────────────────────────────────────
-
 sealed class ChatEffect : UIEffect {
     data class ShowError(val message: String) : ChatEffect()
     object ScrollToBottom : ChatEffect()
     data class MentionDetected(val channelLogin: String, val message: DisplayMessage.PrivMsg? = null) : ChatEffect()
 }
-
-// ─── ChatViewModel ──────────────────────────────────────────────────
 
 class ChatViewModel(
     private val chatRepository: ChatRepository,
@@ -168,12 +160,38 @@ class ChatViewModel(
         val settings = SettingsViewModel.loadInitialState()
         val rules = settings.highlightRules.filter { it.enabled }
 
+        // Resolve effective login — also use displayName (Twitch uses it in @mentions)
+        val stateLogin = state.value.currentUserLogin
+        val stateDisplay = state.value.currentDisplayName
         val effectiveLogin = when {
             currentUserLogin.isNotEmpty() -> currentUserLogin.lowercase()
-            state.value.currentUserLogin.isNotEmpty() -> state.value.currentUserLogin.lowercase()
-            state.value.currentDisplayName.isNotEmpty() -> state.value.currentDisplayName.lowercase()
-            else -> return null
+            stateLogin.isNotEmpty() -> stateLogin.lowercase()
+            stateDisplay.isNotEmpty() -> stateDisplay.lowercase()
+            else -> ""
         }
+        // Also collect display name variations for matching
+        val effectiveDisplay = when {
+            stateDisplay.isNotEmpty() -> stateDisplay.lowercase()
+            stateLogin.isNotEmpty() -> stateLogin.lowercase()
+            currentUserLogin.isNotEmpty() -> currentUserLogin.lowercase()
+            else -> ""
+        }
+
+        // Always check @mention in text: try both login and display name
+        if (effectiveLogin.isNotEmpty() || effectiveDisplay.isNotEmpty()) {
+            val loginMatch = effectiveLogin.isNotEmpty() && messageText.contains("@$effectiveLogin", ignoreCase = true)
+            val displayMatch = effectiveDisplay.isNotEmpty() && effectiveDisplay != effectiveLogin &&
+                    messageText.contains("@$effectiveDisplay", ignoreCase = true)
+            if (loginMatch || displayMatch) {
+                return HighlightMatch(
+                    color = rules.firstOrNull { it.id == "username" }?.color ?: 0xFFFF6B6B,
+                    playSound = settings.mentionSoundEnabled
+                )
+            }
+        }
+
+        // If no login resolved, skip rule-based check to avoid false positives
+        if (effectiveLogin.isEmpty() && effectiveDisplay.isEmpty()) return null
 
         for (rule in rules) {
             val pattern = when (rule.id) {
@@ -217,10 +235,8 @@ class ChatViewModel(
             is ChatEvent.OnMessageInputChanged -> updateMessageInput(event.input)
             ChatEvent.OnSendMessage -> sendMessage(keepText = false)
             ChatEvent.OnSendMessageKeepText -> sendMessage(keepText = true)
-            // ▼▼▼ Обработчики истории сообщений ▼▼▼
             ChatEvent.OnHistoryUp -> navigateHistory(up = true)
             ChatEvent.OnHistoryDown -> navigateHistory(up = false)
-            // ▲▲▲ ▲▲▲
             ChatEvent.OnReconnect -> reconnect()
             ChatEvent.OnToggleModMode -> toggleModMode()
             is ChatEvent.OnTimeoutUser -> timeoutUser(event.userId, event.duration)
@@ -228,6 +244,7 @@ class ChatViewModel(
             is ChatEvent.OnUnbanUser -> unbanUser(event.userId)
             is ChatEvent.OnDeleteMessage -> deleteMessage(event.messageId)
             is ChatEvent.OnWhisper -> whisperUser(event.username)
+            is ChatEvent.OnInsertMention -> insertMention(event.displayName)
             is ChatEvent.OnModUser -> modUser(event.userId)
             is ChatEvent.OnUnmodUser -> unmodUser(event.userId)
             is ChatEvent.OnVipUser -> vipUser(event.userId)
@@ -251,20 +268,17 @@ class ChatViewModel(
         }
     }
 
-    // ▼▼▼ Навигация по истории сообщений (стрелки ↑/↓) ▼▼▼
+    // ── Message history navigation (Arrow Up/Down) ──────────────────
+
     private fun navigateHistory(up: Boolean) {
         val s = state.value
         val history = s.sentMessageHistory
-
-        // Если истории нет — ничего не делаем
         if (history.isEmpty()) return
 
         val newIndex = if (up) {
-            // Стрелка вверх: идём к более старым сообщениям
             if (s.historyIndex == -1) 0
             else (s.historyIndex + 1).coerceAtMost(history.lastIndex)
         } else {
-            // Стрелка вниз: идём к более новым сообщениям
             if (s.historyIndex <= 0) {
                 update { it.copy(historyIndex = -1, messageInput = "") }
                 return
@@ -272,16 +286,22 @@ class ChatViewModel(
             s.historyIndex - 1
         }
 
-        // Обновляем поле ввода и индекс
         update { it.copy(historyIndex = newIndex, messageInput = history[newIndex]) }
     }
-    // ▲▲▲ ▲▲▲
 
     private fun sendRawMessage(text: String) {
         val s = state.value
         if (text.isBlank() || s.channelLogin.isEmpty()) return
         viewModelScope.launch {
             try {
+                // /pin is not supported in Twitch IRC — send as announcement instead
+                if (text.startsWith("/pin ", ignoreCase = true)) {
+                    val pinMsg = text.removePrefix("/pin ").removePrefix("/PIN ").trim()
+                    if (pinMsg.isNotBlank() && s.currentAccessToken.isNotEmpty() && s.channelId.isNotEmpty()) {
+                        apiClient.sendAnnouncement(s.currentAccessToken, s.channelId, s.currentUserId, "📌 $pinMsg", "primary")
+                    }
+                    return@launch
+                }
                 sendMessageUseCase(s.channelLogin, text)
             } catch (e: Exception) {
                 sendEffect(ChatEffect.ShowError("Failed to send: ${e.message}"))
@@ -332,10 +352,8 @@ class ChatViewModel(
                 currentUserId = if (userId.isNotEmpty()) userId else it.currentUserId,
                 currentUserLogin = if (userLogin.isNotEmpty()) userLogin else it.currentUserLogin,
                 currentDisplayName = if (userDisplayName.isNotEmpty()) userDisplayName else it.currentDisplayName,
-                // ▼▼▼ Сбрасываем историю при смене канала ▼▼▼
                 sentMessageHistory = emptyList(),
                 historyIndex = -1
-                // ▲▲▲ ▲▲▲
             )
         }
 
@@ -362,7 +380,11 @@ class ChatViewModel(
                 }
                 launch { emoteRepository.loadGlobalEmotes(); retokenizeMessages() }
                 launch { loadBadgesWithToken(); retokenizeMessages() }
-                if (resolvedChannelId.isNotEmpty()) launch { loadChannelEmotesAndBadges(resolvedChannelId) }
+                if (resolvedChannelId.isNotEmpty()) {
+                    launch { loadChannelEmotesAndBadges(resolvedChannelId) }
+                    // FIX: Check mod status via API immediately so buttons appear without sending a message
+                    launch { checkAndSetModStatus(resolvedChannelId) }
+                }
                 launch { loadRecentMessages(channelLogin) }
                 update { it.copy(isLoading = false) }
             } catch (e: Exception) {
@@ -370,6 +392,39 @@ class ChatViewModel(
                 update { it.copy(isLoading = false) }
                 sendEffect(ChatEffect.ShowError("Failed to join channel: ${e.message}"))
             }
+        }
+    }
+
+    /** Check moderator status via API right after joining a channel */
+    private suspend fun checkAndSetModStatus(channelId: String) {
+        val s = state.value
+        val token = s.currentAccessToken
+        val userId = s.currentUserId
+        if (token.isEmpty() || userId.isEmpty()) return
+        try {
+            // Check if viewer count of channel equals userId → broadcaster
+            val channelLogin = s.channelLogin
+            val streamerResult = apiClient.getUsers(token, logins = listOf(channelLogin))
+            if (streamerResult is io.rudione.chatone.util.Result.Success) {
+                val streamerId = streamerResult.data.data.firstOrNull()?.id
+                if (streamerId != null && streamerId == userId) {
+                    // We ARE the broadcaster
+                    channelModCache[channelLogin.lowercase()] = true
+                    update { it.copy(isMod = true) }
+                    return
+                }
+                // Check moderators list
+                if (streamerId != null) {
+                    val modResult = apiClient.getChannelModerators(token, streamerId, userId)
+                    if (modResult is io.rudione.chatone.util.Result.Success) {
+                        val isMod = modResult.data.data.any { it.userId == userId }
+                        channelModCache[channelLogin.lowercase()] = isMod
+                        update { it.copy(isMod = isMod) }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Napier.w("Failed to check mod status: ${e.message}", tag = TAG)
         }
     }
 
@@ -406,6 +461,7 @@ class ChatViewModel(
                             if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
                                 if (state.value.channelLogin == channelLogin) {
                                     update { state ->
+                                        // FIX Bug 2: always apply latest 7TV cosmetics, not just when both are null
                                         state.copy(messages = state.messages.map { dm ->
                                             if (dm is DisplayMessage.PrivMsg && dm.userId == userId)
                                                 dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
@@ -524,6 +580,7 @@ class ChatViewModel(
                             val cosmetics = sevenTvCosmeticsClient.getUserCosmetics(message.userId)
                             if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
                                 update { state ->
+                                    // FIX Bug 2: always apply latest 7TV cosmetics unconditionally
                                     state.copy(messages = state.messages.map { dm ->
                                         if (dm is DisplayMessage.PrivMsg && dm.id == msgId)
                                             dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
@@ -549,26 +606,10 @@ class ChatViewModel(
                     }
                     sendEffect(ChatEffect.ScrollToBottom)
 
-                    if (matchResult != null && matchResult.playSound) {
-                        val settings = SettingsViewModel.loadInitialState()
-                        if (settings.customMentionSoundPath.isNotBlank()) {
-                            NotificationSoundPlayer.playMentionSound(
-                                settings.mentionSoundVolume,
-                                settings.customMentionSoundPath
-                            )
-                        } else {
-                            NotificationSoundPlayer.playMentionSound()
-                        }
+                    if (matchResult != null) {
+                        // Always fire MentionDetected so MentionsFeed gets it regardless of sound setting
                         sendEffect(ChatEffect.MentionDetected(s.channelLogin, finalMsg as? DisplayMessage.PrivMsg))
-                    }
-
-                    chatRepository.saveMessage(message)
-                } else {
-                    val s = state.value
-                    val isOwnMessage = message.userId == s.currentUserId
-                    if (!isOwnMessage) {
-                        val matchResult = checkHighlightRules(message.message, s.currentUserLogin)
-                        if (matchResult != null && matchResult.playSound) {
+                        if (matchResult.playSound) {
                             val settings = SettingsViewModel.loadInitialState()
                             if (settings.customMentionSoundPath.isNotBlank()) {
                                 NotificationSoundPlayer.playMentionSound(
@@ -578,7 +619,31 @@ class ChatViewModel(
                             } else {
                                 NotificationSoundPlayer.playMentionSound()
                             }
-                            sendEffect(ChatEffect.MentionDetected(message.channelName))
+                        }
+                    }
+
+                    chatRepository.saveMessage(message)
+                } else {
+                    val s = state.value
+                    val isOwnMessage = message.userId == s.currentUserId
+                    if (!isOwnMessage) {
+                        val matchResult = checkHighlightRules(message.message, s.currentUserLogin)
+                        if (matchResult != null) {
+                            // Build display message for the mention entry
+                            val otherDisplayMsg = chatMessageToDisplay(message)
+                            val otherFinalMsg = otherDisplayMsg.copy(isMention = true, highlightColor = matchResult.color)
+                            sendEffect(ChatEffect.MentionDetected(message.channelName, otherFinalMsg))
+                            if (matchResult.playSound) {
+                                val settings = SettingsViewModel.loadInitialState()
+                                if (settings.customMentionSoundPath.isNotBlank()) {
+                                    NotificationSoundPlayer.playMentionSound(
+                                        settings.mentionSoundVolume,
+                                        settings.customMentionSoundPath
+                                    )
+                                } else {
+                                    NotificationSoundPlayer.playMentionSound()
+                                }
+                            }
                         }
                     }
                 }
@@ -673,6 +738,11 @@ class ChatViewModel(
                             channelModCache[channelLogin.lowercase()] = event.isMod
                             if (event.badges.isNotEmpty()) currentUserBadgeRaw = event.badges
 
+                            // FIX Bug 3: parse the freshly received badges and retroactively patch
+                            // the most recent local-echo message (id starts with "local_") that
+                            // was sent by the current user and still has an empty badge list.
+                            // This happens when the user sends their first message and USERSTATE
+                            // arrives after the local echo was already added.
                             if (event.badges.isNotEmpty()) {
                                 val freshBadges = event.badges.split(",").mapNotNull { pair ->
                                     val parts = pair.split("/", limit = 2)
@@ -684,6 +754,7 @@ class ChatViewModel(
                                 )
                                 val currentUserId = state.value.currentUserId
                                 update { st ->
+                                    // Find the last local-echo message for the current user that has no badges
                                     val targetIndex = st.messages.indexOfLast { dm ->
                                         dm is DisplayMessage.PrivMsg &&
                                                 dm.id.startsWith("local_") &&
@@ -863,6 +934,9 @@ class ChatViewModel(
                 sendMessageUseCase(channelLogin, message)
 
                 val now = Clock.System.now().toEpochMilliseconds()
+                // Use currentUserBadgeRaw if available (for non-first messages).
+                // For the very first message, this may be empty — the badges will be
+                // retroactively patched when USERSTATE arrives (see observeIrcEvents).
                 val ownBadges = if (currentUserBadgeRaw.isNotEmpty()) {
                     currentUserBadgeRaw.split(",").mapNotNull { pair ->
                         val parts = pair.split("/", limit = 2)
@@ -885,8 +959,7 @@ class ChatViewModel(
                 )
                 val displayMsg = chatMessageToDisplay(rawMsg)
 
-                // ▼▼▼ Добавляем в историю и обновляем состояние ▼▼▼
-                val updatedState = addToHistory(s, message)
+                val newHistory = (listOf(message) + s.sentMessageHistory).take(MAX_HISTORY)
 
                 update { state ->
                     val newMessages = (state.messages + displayMsg).takeLast(MAX_MESSAGES)
@@ -896,12 +969,10 @@ class ChatViewModel(
                         emoteCompletions = emptyList(),
                         messages = newMessages,
                         replyingTo = if (keepText) state.replyingTo else null,
-                        sentMessageHistory = updatedState.sentMessageHistory,
-                        historyIndex = updatedState.historyIndex
+                        sentMessageHistory = newHistory,
+                        historyIndex = -1
                     )
                 }
-                // ▲▲▲ ▲▲▲
-
                 sendEffect(ChatEffect.ScrollToBottom)
             } catch (e: Exception) {
                 Napier.e("Failed to send message: ${e.message}", e, tag = TAG)
@@ -997,6 +1068,20 @@ class ChatViewModel(
     }
 
     private fun whisperUser(username: String) { update { it.copy(messageInput = "/w $username ") } }
+
+    private fun insertMention(displayName: String) {
+        update { st ->
+            val current = st.messageInput
+            val tag = "@$displayName "
+            val newInput = when {
+                current.isEmpty() -> tag
+                current.endsWith(" ") -> "$current$tag"
+                else -> "$current $tag"
+            }
+            // showMentionCompletions = false so autocomplete does NOT appear
+            st.copy(messageInput = newInput, showMentionCompletions = false, mentionCompletions = emptyList())
+        }
+    }
 
     private fun updateChatSettings(settings: Map<String, Any>) {
         val s = state.value

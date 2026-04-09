@@ -1,7 +1,6 @@
-package io.rudione.chatone.presentation.main
+package io.rudione.chatone.presentation.main.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,7 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.MentionEntry
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.main.MainEvent
+import io.rudione.chatone.presentation.main.MainState
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime

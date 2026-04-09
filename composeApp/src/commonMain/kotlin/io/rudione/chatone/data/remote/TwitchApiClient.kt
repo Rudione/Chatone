@@ -10,6 +10,7 @@ import io.ktor.client.request.delete
 import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
@@ -484,6 +485,121 @@ class TwitchApiClient(
             Result.Success(response)
         } catch (e: Exception) {
             Napier.e("Failed to get follower info: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /** Check if a specific user is a moderator in a channel */
+    suspend fun getChannelModerators(
+        accessToken: String,
+        broadcasterId: String,
+        userId: String? = null
+    ): Result<ModeratorsResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/moderation/moderators") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                userId?.let { parameter("user_id", it) }
+            }.body<ModeratorsResponse>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Napier.e("Failed to get moderators: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /** Get chatters (viewers currently in chat) */
+    suspend fun getChatters(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        first: Int = 100,
+        after: String? = null
+    ): Result<ChattersResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/chat/chatters") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("moderator_id", moderatorId)
+                parameter("first", first)
+                after?.let { parameter("after", it) }
+            }.body<ChattersResponse>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Napier.e("Failed to get chatters: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /** Block a user */
+    suspend fun blockUser(accessToken: String, targetUserId: String): Result<Unit> {
+        return try {
+            httpClient.put("$baseUrl/users/blocks") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("target_user_id", targetUserId)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to block user: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /** Unblock a user */
+    suspend fun unblockUser(accessToken: String, targetUserId: String): Result<Unit> {
+        return try {
+            httpClient.delete("$baseUrl/users/blocks") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("target_user_id", targetUserId)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to unblock user: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /** Get blocked users list */
+    suspend fun getBlockedUsers(accessToken: String, broadcasterId: String, first: Int = 100): Result<BlockedUsersResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/users/blocks") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("first", first)
+            }.body<BlockedUsersResponse>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Napier.e("Failed to get blocked users: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /** Manage AutoMod held message — allow or deny */
+    suspend fun manageAutoModMessage(
+        accessToken: String,
+        userId: String,
+        msgId: String,
+        action: String  // "ALLOW" or "DENY"
+    ): Result<Unit> {
+        return try {
+            httpClient.post("$baseUrl/moderation/automod/message") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(kotlinx.serialization.json.buildJsonObject {
+                    put("user_id", kotlinx.serialization.json.JsonPrimitive(userId))
+                    put("msg_id", kotlinx.serialization.json.JsonPrimitive(msgId))
+                    put("action", kotlinx.serialization.json.JsonPrimitive(action))
+                })
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to manage automod message: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
     }

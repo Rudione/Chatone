@@ -152,3 +152,52 @@ data class TwitchErrorResponse(
     val status: Int,
     val message: String
 )
+
+// Moderators Response
+@Serializable
+data class ModeratorsResponse(
+    val data: List<ModeratorData>,
+    val pagination: PaginationData? = null
+)
+
+@Serializable
+data class ModeratorData(
+    @SerialName("user_id") val userId: String,
+    @SerialName("user_login") val userLogin: String,
+    @SerialName("user_name") val userName: String
+)
+
+// Chatters Response
+@Serializable
+data class ChattersResponse(
+    val data: List<ChatterData>,
+    val pagination: PaginationData? = null,
+    val total: Int = 0
+)
+
+@Serializable
+data class ChatterData(
+    @SerialName("user_id") val userId: String,
+    @SerialName("user_login") val userLogin: String,
+    @SerialName("user_name") val userName: String
+)
+
+// Blocked Users Response
+@Serializable
+data class BlockedUsersResponse(
+    val data: List<BlockedUserData>,
+    val pagination: PaginationData? = null
+)
+
+@Serializable
+data class BlockedUserData(
+    @SerialName("user_id") val userId: String,
+    @SerialName("user_login") val userLogin: String,
+    @SerialName("display_name") val displayName: String,
+    @SerialName("profile_image_url") val profileImageUrl: String = ""
+)
+
+@Serializable
+data class PaginationData(
+    val cursor: String? = null
+)

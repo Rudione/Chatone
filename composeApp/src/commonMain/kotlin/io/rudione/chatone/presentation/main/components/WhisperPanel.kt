@@ -122,9 +122,20 @@ fun WhisperPanel(
                         Spacer(Modifier.width(6.dp))
                     }
                 }
-                IconButton(onClick = { onEvent(MainEvent.HideWhisperPanel) }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Filled.Close, null, modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                IconButton(
+                    onClick = {
+                        // ▼▼▼ ИСПРАВЛЕНИЕ: явно закрываем панель ▼▼▼
+                        onEvent(MainEvent.HideWhisperPanel)
+                        // ▲▲▲ ▲▲▲
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

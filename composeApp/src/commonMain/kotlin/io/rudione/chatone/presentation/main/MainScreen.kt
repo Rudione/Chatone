@@ -15,9 +15,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.outlined.*
@@ -38,11 +38,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -72,8 +70,8 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.hypot
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import io.rudione.chatone.presentation.chat.components.ChattersPanel
+import io.rudione.chatone.presentation.main.components.MentionsFeed
 
 // ─── Data classes для отслеживания границ ────────────────────────────────
 private data class ItemBounds(val id: String, val rect: Rect)
@@ -205,6 +203,12 @@ fun MainScreen(
                                     onMentionReceived = { entry ->
                                         viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
                                     },
+                                    onOpenWhisper = { userId, username, displayName, avatarUrl, color ->
+                                        viewModel.sendEvent(MainEvent.OpenWhisperWith(userId, username, displayName, avatarUrl, color))
+                                    },
+                                    onChannelIdResolved = { channelId ->
+                                        viewModel.sendEvent(MainEvent.SetActiveChatChannelId(channelId))
+                                    },
                                     isWideScreen = true,
                                     wallpaper = wallpaper
                                 )
@@ -264,6 +268,12 @@ fun MainScreen(
                                 },
                                 onMentionReceived = { entry ->
                                     viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
+                                },
+                                onOpenWhisper = { userId, username, displayName, avatarUrl, color ->
+                                    viewModel.sendEvent(MainEvent.OpenWhisperWith(userId, username, displayName, avatarUrl, color))
+                                },
+                                onChannelIdResolved = { channelId ->
+                                    viewModel.sendEvent(MainEvent.SetActiveChatChannelId(channelId))
                                 },
                                 isWideScreen = false,
                                 wallpaper = wallpaper
@@ -379,6 +389,35 @@ fun MainScreen(
                 onChannelClick = { login -> viewModel.sendEvent(MainEvent.SelectChannel(login)) },
                 modifier = Modifier.padding(end = 16.dp, bottom = 72.dp)
             )
+        }
+    }
+
+    // ── Chatters Panel overlay ──────────────────────────────────────────
+    if (state.showChattersPanel && state.activeChannelLogin != null) {
+        val account = state.selectedAccount
+        if (account != null) {
+            Box(modifier = Modifier.fillMaxSize().zIndex(50f), contentAlignment = Alignment.TopEnd) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
+                            viewModel.sendEvent(MainEvent.HideChattersPanel)
+                        }
+                )
+                ChattersPanel(
+                    channelLogin = state.activeChannelLogin!!,
+                    channelId = state.activeChatChannelId,
+                    accessToken = account.accessToken,
+                    currentUserId = account.userId,
+                    onUserClick = { userId, username, displayName ->
+                        viewModel.sendEvent(MainEvent.HideChattersPanel)
+                        // Open whisper or profile by triggering chat screen user popup
+                        // For now open whisper panel as an action
+                    },
+                    onDismiss = { viewModel.sendEvent(MainEvent.HideChattersPanel) },
+                    modifier = Modifier.padding(top = 60.dp, end = 16.dp)
+                )
+            }
         }
     }
 
@@ -555,7 +594,28 @@ private fun ChannelSidebar(
                     AsyncImage(model = account.profileImageUrl, contentDescription = null, modifier = Modifier.size(24.dp).clip(CircleShape))
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(text = account.displayName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = account.displayName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    if (state.activeChannelLogin != null) {
+                        Text(text = "#${state.activeChannelLogin}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                    }
+                }
+                // Three-dot menu for active channel (viewers list)
+                if (state.activeChannelLogin != null) {
+                    Box {
+                        var showChannelMenu by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showChannelMenu = true }, modifier = Modifier.size(26.dp)) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Channel options", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        DropdownMenu(expanded = showChannelMenu, onDismissRequest = { showChannelMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Viewers list") },
+                                leadingIcon = { Icon(Icons.Filled.Person, null, modifier = Modifier.size(16.dp)) },
+                                onClick = { showChannelMenu = false; onEvent(MainEvent.ShowChattersPanel) }
+                            )
+                        }
+                    }
+                }
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(if (state.isConnected) ChatoneTheme.extraColors.connected else MaterialTheme.colorScheme.error))
             }
         } ?: run {

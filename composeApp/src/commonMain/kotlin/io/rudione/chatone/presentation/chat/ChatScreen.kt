@@ -107,6 +107,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
@@ -177,6 +179,8 @@ fun ChatScreen(
     isWideScreen: Boolean = false,
     onMentionDetected: (String) -> Unit = {},
     onMentionReceived: (MentionEntry) -> Unit = {},
+    onOpenWhisper: (userId: String, username: String, displayName: String, avatarUrl: String, color: String?) -> Unit = { _, _, _, _, _ -> },
+    onChannelIdResolved: (String) -> Unit = {},
     wallpaper: WallpaperState,
     viewModel: ChatViewModel = koinViewModel()
 ) {
@@ -227,6 +231,14 @@ fun ChatScreen(
         }
     }
 
+    // Fix: when effectivelyPaused becomes false (e.g. hover ends), scroll to bottom
+    LaunchedEffect(effectivelyPaused) {
+        if (!effectivelyPaused && state.messages.isNotEmpty()) {
+            listState.animateScrollToItem(state.messages.size - 1)
+            hasNewMessagesWhilePaused = false
+        }
+    }
+
     val messageCount = state.messages.size
     LaunchedEffect(messageCount) {
         if (!effectivelyPaused && messageCount > 0) {
@@ -247,6 +259,12 @@ fun ChatScreen(
                 currentDisplayName
             )
         )
+    }
+
+    // Report channelId back when resolved
+    val channelId = state.channelId
+    LaunchedEffect(channelId) {
+        if (channelId.isNotEmpty()) onChannelIdResolved(channelId)
     }
 
     LaunchedEffect(Unit) {
@@ -386,9 +404,18 @@ fun ChatScreen(
                                         isMod = state.isMod || message.isBroadcaster,
                                         emoteSize = settingsState.emoteSize,
                                         customModButtons = settingsState.customModButtons,
+                                        chatFontSizeSp = when(settingsState.fontSize) {
+                                            io.rudione.chatone.presentation.settings.SettingsState.FontSize.SMALL -> 12f
+                                            io.rudione.chatone.presentation.settings.SettingsState.FontSize.MEDIUM -> 15f
+                                            io.rudione.chatone.presentation.settings.SettingsState.FontSize.LARGE -> 18f
+                                        },
                                         onUsernameClick = {
                                             profilePopupMessage = message
                                             profilePopupUserId = message.userId
+                                        },
+                                        onRightClickUsername = { displayName ->
+                                            // Use OnInsertMention so autocomplete doesn't pop up
+                                            viewModel.sendEvent(ChatEvent.OnInsertMention(displayName))
                                         },
                                         onMentionClick = { mentionedUsername ->
                                             // Ищем юзера по нику в текущих сообщениях
@@ -441,7 +468,7 @@ fun ChatScreen(
                         }
                     }
 
-                    if (hasNewMessagesWhilePaused && state.messages.isNotEmpty()) {
+                    if ((hasNewMessagesWhilePaused || !isAtBottom.value) && state.messages.isNotEmpty()) {
                         SmallFloatingActionButton(
                             onClick = {
                                 coroutineScope.launch {
@@ -505,8 +532,8 @@ fun ChatScreen(
                 },
                 onSend = { viewModel.sendEvent(ChatEvent.OnSendMessage) },
                 onSendKeepText = { viewModel.sendEvent(ChatEvent.OnSendMessageKeepText) },
-                onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },  // ← Важно!
-                onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },  // ← Важно!
+                onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },
+                onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },
                 onEmotePickerClick = { showEmotePicker = true },
                 enabled = state.isConnected,
                 pauseHotkey = settingsState.pauseHotkey,
@@ -614,7 +641,12 @@ fun ChatScreen(
             onUnmod = { viewModel.sendEvent(ChatEvent.OnUnmodUser(msg.userId)) },
             onVip = { viewModel.sendEvent(ChatEvent.OnVipUser(msg.userId)) },
             onUnvip = { viewModel.sendEvent(ChatEvent.OnUnvipUser(msg.userId)) },
-            onWhisper = { viewModel.sendEvent(ChatEvent.OnWhisper(msg.username)) },
+            onWhisper = {
+                // Open whisper panel directly instead of putting /w in chat input
+                onOpenWhisper(msg.userId, msg.username, msg.displayName, "", msg.color)
+                profilePopupMessage = null
+                profilePopupUserId = null
+            },
             onDismiss = { profilePopupMessage = null; profilePopupUserId = null }
         )
     }
@@ -801,7 +833,9 @@ private fun PrivMsgItem(
     isMod: Boolean = false,
     emoteSize: SettingsState.EmoteSize = SettingsState.EmoteSize.SMALL,
     customModButtons: List<ModActionButton> = emptyList(),
+    chatFontSizeSp: Float = 13f,
     onUsernameClick: () -> Unit = {},
+    onRightClickUsername: (String) -> Unit = {},
     onMentionClick: (String) -> Unit = {},
     onReply: () -> Unit = {},
     onCopyText: () -> Unit = {},
@@ -1119,38 +1153,68 @@ private fun PrivMsgItem(
             Text(
                 text = annotatedString,
                 inlineContent = inlineContent,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = when (chatFontSizeSp) {
+                        in 0f..11f -> 11.sp
+                        in 11f..16f -> chatFontSizeSp.sp
+                        else -> 16.sp
+                    }
+                ),
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.fillMaxWidth().pointerInput(annotatedString) {
-                    detectTapGestures(
-                        onTap = { offset ->
-                            textLayoutResult?.let { layoutResult ->
-                                val charOffset = layoutResult.getOffsetForPosition(offset)
-                                // URL click
-                                annotatedString.getStringAnnotations("url", charOffset, charOffset)
-                                    .firstOrNull()?.let { annotation ->
-                                        try { uriHandler.openUri(annotation.item) } catch (_: Exception) {}
-                                        return@detectTapGestures
-                                    }
-                                // Nickname (display name) click
-                                annotatedString.getStringAnnotations("username", charOffset, charOffset)
-                                    .firstOrNull()?.let {
-                                        onUsernameClick(); return@detectTapGestures
-                                    }
-                                // @Mention tag click — find the user in messages by username
-                                annotatedString.getStringAnnotations("mention", charOffset, charOffset)
-                                    .firstOrNull()?.let { annotation ->
-                                        onMentionClick(annotation.item)
-                                        return@detectTapGestures
-                                    }
+                modifier = Modifier.fillMaxWidth()
+                    .pointerInput(annotatedString) {
+                        detectTapGestures(
+                            onTap = { offset ->
+                                textLayoutResult?.let { layoutResult ->
+                                    val charOffset = layoutResult.getOffsetForPosition(offset)
+                                    // URL click
+                                    annotatedString.getStringAnnotations("url", charOffset, charOffset)
+                                        .firstOrNull()?.let { annotation ->
+                                            try { uriHandler.openUri(annotation.item) } catch (_: Exception) {}
+                                            return@detectTapGestures
+                                        }
+                                    // Nickname (display name) left-click → open profile
+                                    annotatedString.getStringAnnotations("username", charOffset, charOffset)
+                                        .firstOrNull()?.let {
+                                            onUsernameClick(); return@detectTapGestures
+                                        }
+                                    // @Mention tag click
+                                    annotatedString.getStringAnnotations("mention", charOffset, charOffset)
+                                        .firstOrNull()?.let { annotation ->
+                                            onMentionClick(annotation.item)
+                                            return@detectTapGestures
+                                        }
+                                }
+                            },
+                            onLongPress = { offset ->
+                                contextMenuOffset = IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
+                                showContextMenu = true
                             }
-                        },
-                        onLongPress = { offset ->
-                            contextMenuOffset = IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
-                            showContextMenu = true
+                        )
+                    }
+                    .pointerInput(message.displayName) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Press &&
+                                    event.buttons.isSecondaryPressed) {
+                                    // Right-click — check if on username annotation
+                                    val pos = event.changes.firstOrNull()?.position ?: continue
+                                    val layoutResult = textLayoutResult ?: continue
+                                    val charOffset = layoutResult.getOffsetForPosition(pos)
+                                    val onUsername = annotatedString.getStringAnnotations("username", charOffset, charOffset).isNotEmpty()
+                                    if (onUsername) {
+                                        // Right-click on username → insert @displayName into input
+                                        onRightClickUsername(message.displayName)
+                                    } else {
+                                        // Right-click on message text → show context menu
+                                        contextMenuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                                        showContextMenu = true
+                                    }
+                                }
+                            }
                         }
-                    )
-                },
+                    },
                 onTextLayout = { textLayoutResult = it }
             )
         }
@@ -1405,89 +1469,61 @@ private fun MessageInput(
                 modifier = Modifier
                     .weight(1f)
                     .focusRequester(focusRequester)
-                    // ▼▼▼ КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: onPreviewKeyEvent ▼▼▼
                     .onPreviewKeyEvent { event ->
                         if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
 
                         val isCtrl = event.isCtrlPressed || event.isMetaPressed
 
-                        // 🖥️ Отладочный лог
-                        println("🎹 Key: ${event.key} | EmoteTab: $emoteTabIndex | MentionTab: $mentionTabIndex | Cursor: ${tfv.selection.start}/${tfv.text.length}")
-
                         when {
-                            // ── TAB: Цикл по автодополнению ──
+                            // ── Tab: цикл по autocomplete ──────────────────────────
                             event.key == Key.Tab && !isCtrl && !event.isAltPressed -> {
                                 when {
                                     showEmoteCompletions && emoteCount > 0 -> {
-                                        val next = if (emoteTabIndex < 0) 0 else (emoteTabIndex + 1) % emoteCount
-                                        println("🔄 Tab: emote index -> $next")
+                                        val next = if (emoteTabIndex < 0) 0
+                                        else (emoteTabIndex + 1) % emoteCount
                                         onTabEmote(next)
                                     }
                                     showMentionCompletions && mentionCount > 0 -> {
-                                        val next = if (mentionTabIndex < 0) 0 else (mentionTabIndex + 1) % mentionCount
-                                        println("🔄 Tab: mention index -> $next")
+                                        val next = if (mentionTabIndex < 0) 0
+                                        else (mentionTabIndex + 1) % mentionCount
                                         onTabMention(next)
                                     }
                                 }
-                                true // Потребляем событие
+                                true
                             }
 
-                            // ── ENTER: Подтвердить автодополнение ИЛИ отправить сообщение ──
+                            // ── Enter при активном Tab-выборе ─────────────────────
                             event.key == Key.Enter && !isCtrl && !event.isShiftPressed -> {
                                 when {
-                                    // Если выбран смайлик (индекс >= 0) — вставляем его
                                     showEmoteCompletions && emoteTabIndex >= 0 -> {
-                                        println("✅ Confirming emote at index $emoteTabIndex")
-                                        onConfirmEmoteTab()
-                                        true // Потребляем, чтобы не отправилось
+                                        onConfirmEmoteTab(); true
                                     }
-                                    // Если выбран никнейм — вставляем его
                                     showMentionCompletions && mentionTabIndex >= 0 -> {
-                                        println("✅ Confirming mention at index $mentionTabIndex")
-                                        onConfirmMentionTab()
-                                        true // Потребляем
+                                        onConfirmMentionTab(); true
                                     }
-                                    // Иначе — отправляем сообщение
-                                    else -> {
-                                        println("📤 Sending message")
-                                        onSend()
-                                        true
-                                    }
+                                    else -> { onSend(); true }
                                 }
                             }
 
-                            // ── CTRL+ENTER: Отправить, не очищая поле ──
-                            isCtrl && event.key == Key.Enter -> {
-                                onSendKeepText()
-                                true
-                            }
+                            // ── Ctrl+Enter ─────────────────────────────────────────
+                            isCtrl && event.key == Key.Enter -> { onSendKeepText(); true }
 
-                            // ── UP: История (только если курсор в начале или поле пустое) ──
+                            // ── History Up ─────────────────────────────────────────
                             event.key == Key.DirectionUp && !isCtrl && !event.isShiftPressed && !event.isAltPressed
                                     && (tfv.text.isEmpty() || tfv.selection.start == 0) -> {
-                                println("⬆️ History UP triggered")
-                                onHistoryUp()
-                                true
+                                onHistoryUp(); true
                             }
 
-                            // ── DOWN: История (только если курсор в конце или поле пустое) ──
+                            // ── History Down ───────────────────────────────────────
                             event.key == Key.DirectionDown && !isCtrl && !event.isShiftPressed && !event.isAltPressed
                                     && (tfv.text.isEmpty() || tfv.selection.end == tfv.text.length) -> {
-                                println("⬇️ History DOWN triggered")
-                                onHistoryDown()
-                                true
+                                onHistoryDown(); true
                             }
 
-                            // ── Shift+Backspace: Отдаём TextField'у ──
                             event.key == Key.Backspace && event.isShiftPressed -> false
 
-                            // ── Pause Hotkey ──
-                            pauseHotkeyMatches(event, pauseHotkey) -> {
-                                onTogglePause()
-                                true
-                            }
+                            pauseHotkeyMatches(event, pauseHotkey) -> { onTogglePause(); true }
 
-                            // ── Всё остальное: пусть обрабатывает TextField ──
                             else -> false
                         }
                     },
@@ -1546,6 +1582,17 @@ private fun pauseHotkeyMatches(event: KeyEvent, hotkey: String): Boolean {
     val needsShift = parts.contains("shift")
 
     val isCtrl = event.isCtrlPressed || event.isMetaPressed
+
+    // Handle modifier-only hotkeys (e.g. just "alt", "ctrl", "ctrl+alt")
+    if (mainKey == "alt") {
+        return event.isAltPressed && !event.isShiftPressed && isCtrl == needsCtrl
+    }
+    if (mainKey == "ctrl") {
+        return isCtrl && !event.isAltPressed && !event.isShiftPressed
+    }
+    if (mainKey == "shift") {
+        return event.isShiftPressed && !event.isAltPressed && !isCtrl
+    }
 
     return keyNameMatches(event.key, mainKey) &&
             isCtrl == needsCtrl &&

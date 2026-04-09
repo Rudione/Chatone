@@ -37,6 +37,7 @@ data class SettingsState(
     val mentionSoundVolume: Float = 0.8f,
     val customMentionSoundPath: String = "",
     val alwaysOnTop: Boolean = true,
+    val uiScale: Float = 1.0f,
     val pauseOnHover: Boolean = false,
     val pauseHotkey: String = "",
     val wallpaperPath: String = "",
@@ -62,6 +63,7 @@ sealed class SettingsEvent : UiEvent {
     data class OnEmoteSizeChanged(val size: SettingsState.EmoteSize) : SettingsEvent()
     data class OnShowBadgesChanged(val show: Boolean) : SettingsEvent()
     data class OnFontSizeChanged(val size: SettingsState.FontSize) : SettingsEvent()
+    data class OnUiScaleChanged(val scale: Float) : SettingsEvent()
     data class OnDefaultTimeoutChanged(val duration: Int) : SettingsEvent()
     data class OnConfirmModActionsChanged(val confirm: Boolean) : SettingsEvent()
     data class OnChannelNavigationChanged(val navigation: SettingsState.ChannelNavigation) :
@@ -121,6 +123,7 @@ class SettingsViewModel(
         private const val KEY_MENTION_VOLUME = "mention_volume"
         private const val KEY_CUSTOM_SOUND_PATH = "custom_sound_path"
         private const val KEY_ALWAYS_ON_TOP = "always_on_top"
+        private const val KEY_UI_SCALE = "ui_scale"
         private const val KEY_PAUSE_ON_HOVER = "pause_on_hover"
         private const val KEY_PAUSE_HOTKEY = "pause_hotkey"
         private const val KEY_WALLPAPER_PATH = "wallpaper_path"
@@ -188,6 +191,7 @@ class SettingsViewModel(
                 mentionSoundVolume = settings.getFloat(KEY_MENTION_VOLUME, 0.8f),
                 customMentionSoundPath = settings.getStringOrNull(KEY_CUSTOM_SOUND_PATH) ?: "",
                 alwaysOnTop = settings.getBoolean(KEY_ALWAYS_ON_TOP, true),
+                uiScale = settings.getFloat(KEY_UI_SCALE, 1.0f),
                 pauseOnHover = settings.getBoolean(KEY_PAUSE_ON_HOVER, false),
                 pauseHotkey = settings.getStringOrNull(KEY_PAUSE_HOTKEY) ?: "",
                 wallpaperPath = settings.getStringOrNull(KEY_WALLPAPER_PATH) ?: "",
@@ -252,6 +256,10 @@ class SettingsViewModel(
                 ); update { it.copy(showBadges = event.show) }
             }
 
+            is SettingsEvent.OnUiScaleChanged -> {
+                settings.putFloat(KEY_UI_SCALE, event.scale.coerceIn(0.7f, 2.0f))
+                update { it.copy(uiScale = event.scale.coerceIn(0.7f, 2.0f)) }
+            }
             is SettingsEvent.OnFontSizeChanged -> {
                 settings.putInt(
                     KEY_FONT_SIZE,

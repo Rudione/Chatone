@@ -451,6 +451,8 @@ private fun LazyListScope.appearanceLazyItems(
         ListRow("Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
             SettingsState.FontSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
         ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
+        UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
+        UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
         RowDivider()
         ListRow("Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
             SettingsState.EmoteSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
@@ -613,6 +615,7 @@ private fun AppearanceContent(state: SettingsState, onThemeChanged: (Boolean) ->
         ListRow("Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
             SettingsState.FontSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
         ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
+        UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
         RowDivider()
         ListRow("Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
             SettingsState.EmoteSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
@@ -1039,7 +1042,24 @@ private fun HotkeyRow(title: String, subtitle: String, currentHotkey: String, on
                     .onKeyEvent { event ->
                         if (!isRecording) return@onKeyEvent false
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent true
-                        if (event.key in listOf(Key.CtrlLeft, Key.CtrlRight, Key.AltLeft, Key.AltRight, Key.ShiftLeft, Key.ShiftRight, Key.MetaLeft, Key.MetaRight)) return@onKeyEvent true
+                        // Allow modifier-only hotkeys (just Alt, just Ctrl, etc.)
+                        if (event.key in listOf(Key.CtrlLeft, Key.CtrlRight, Key.MetaLeft, Key.MetaRight)) {
+                            if (!event.isAltPressed && !event.isShiftPressed) {
+                                onHotkeyChanged("ctrl"); isRecording = false; return@onKeyEvent true
+                            }
+                        }
+                        if (event.key in listOf(Key.AltLeft, Key.AltRight)) {
+                            val parts2 = mutableListOf<String>()
+                            if (event.isCtrlPressed || event.isMetaPressed) parts2.add("ctrl")
+                            parts2.add("alt")
+                            if (event.isShiftPressed) parts2.add("shift")
+                            onHotkeyChanged(parts2.joinToString("+")); isRecording = false; return@onKeyEvent true
+                        }
+                        if (event.key in listOf(Key.ShiftLeft, Key.ShiftRight)) {
+                            if (!event.isAltPressed && !(event.isCtrlPressed || event.isMetaPressed)) {
+                                onHotkeyChanged("shift"); isRecording = false; return@onKeyEvent true
+                            }
+                        }
                         if (event.key == Key.Escape) { onHotkeyChanged(""); isRecording = false; return@onKeyEvent true }
                         val parts = mutableListOf<String>()
                         if (event.isCtrlPressed || event.isMetaPressed) parts.add("ctrl")
@@ -1087,6 +1107,28 @@ private fun hotkeyKeyToName(key: Key): String = when (key) {
             code in 48L..57L -> (code - 48).toString()
             else -> ""
         }
+    }
+}
+
+
+@Composable
+private fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text("UI Scale", style = MaterialTheme.typography.bodyLarge)
+            Text("${(currentScale * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        Slider(
+            value = currentScale,
+            onValueChange = onScaleChanged,
+            valueRange = 0.7f..2.0f,
+            steps = 12,
+            modifier = Modifier.width(180.dp)
+        )
     }
 }
 
