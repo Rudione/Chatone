@@ -76,7 +76,11 @@ private enum class SettingsSection(
     HIGHLIGHTS("Highlights", Res.drawable.images, Res.drawable.images_outline),
     BACKGROUND("Background", Res.drawable.images, Res.drawable.images_outline),
     HOTKEYS("Hotkeys", Res.drawable.keyboard_24_filled, Res.drawable.keyboard_24_regular),
-    MODERATION("Moderation", Res.drawable.shield_checkmark_sharp, Res.drawable.shield_checkmark_outline),
+    MODERATION(
+        "Moderation",
+        Res.drawable.shield_checkmark_sharp,
+        Res.drawable.shield_checkmark_outline
+    ),
     ABOUT("About", Res.drawable.panel_left_key_16_regular, null),
 }
 
@@ -141,7 +145,7 @@ private fun SettingsDialogContent(
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
 
-           
+
             Column(
                 modifier = Modifier
                     .width(216.dp)
@@ -205,8 +209,8 @@ private fun SettingsDialogContent(
                 }
             }
 
-           
-           
+
+
             SectionContentLazy(
                 section = selectedSection,
                 state = state,
@@ -243,7 +247,7 @@ private fun SettingsFullScreen(
         },
         modifier = modifier
     ) { padding ->
-       
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -253,7 +257,7 @@ private fun SettingsFullScreen(
             SettingsSection.entries.forEach { section ->
                 val isExpanded = section in expandedSections
 
-               
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -298,7 +302,7 @@ private fun SettingsFullScreen(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
 
-               
+
                 AnimatedVisibility(
                     visible = isExpanded,
                     enter = expandVertically(tween(200)) + fadeIn(tween(150)),
@@ -435,82 +439,128 @@ private fun LazyListScope.appearanceLazyItems(
     onThemeChanged: (Boolean) -> Unit,
     vm: SettingsViewModel
 ) {
-    item { SettingsGroup("Theme") {
-        SwitchRow("Dark Theme", "Use dark color scheme", state.darkTheme) {
-            vm.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it)
+    item {
+        SettingsGroup("Theme") {
+            SwitchRow("Dark Theme", "Use dark color scheme", state.darkTheme) {
+                vm.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it)
+            }
         }
-    } }
-    item { SettingsGroup("Display") {
-        ListRow("Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
-            SettingsState.FontSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
-        ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
-        UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
-        UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
-        RowDivider()
-        ListRow("Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
-            SettingsState.EmoteSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
-        ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
-        RowDivider()
-        ListRow("Channel Navigation",
-            when (state.channelNavigation) {
-                SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
-                SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
-                SettingsState.ChannelNavigation.BOTH -> "Both"
-            },
-            listOf("Tab Bar", "Mini Rail", "Both")
-        ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
-    } }
-    item { SettingsGroup("Window") {
-        SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
-            vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
+    }
+    item {
+        SettingsGroup("Display") {
+            ListRow(
+                "Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
+                SettingsState.FontSize.entries.map {
+                    it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
+                }
+            ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
+            UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
+            UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
+            RowDivider()
+            ListRow(
+                "Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
+                SettingsState.EmoteSize.entries.map {
+                    it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
+                }
+            ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
+            RowDivider()
+            ListRow(
+                "Channel Navigation",
+                when (state.channelNavigation) {
+                    SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
+                    SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
+                    SettingsState.ChannelNavigation.BOTH -> "Both"
+                },
+                listOf("Tab Bar", "Mini Rail", "Both")
+            ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
         }
-    } }
+    }
+    item {
+        SettingsGroup("Window") {
+            SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
+                vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
+            }
+        }
+    }
 }
 
 private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewModel) {
-    item { SettingsGroup("Messages") {
-        SwitchRow("Show Timestamps", "Display message time in chat",
-            state.timestampFormat != SettingsState.TimestampFormat.OFF) { enabled ->
-            vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(
-                if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF))
-        }
-        if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
+    item {
+        SettingsGroup("Messages") {
+            SwitchRow(
+                "Show Timestamps", "Display message time in chat",
+                state.timestampFormat != SettingsState.TimestampFormat.OFF
+            ) { enabled ->
+                vm.sendEvent(
+                    SettingsEvent.OnTimestampFormatChanged(
+                        if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
+                    )
+                )
+            }
+            if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
+                RowDivider()
+                ListRow(
+                    "Timestamp Format",
+                    when (state.timestampFormat) {
+                        SettingsState.TimestampFormat.H12 -> "12-hour"
+                        SettingsState.TimestampFormat.H24 -> "24-hour"
+                        else -> "Off"
+                    },
+                    listOf("12-hour", "24-hour")
+                ) {
+                    vm.sendEvent(
+                        SettingsEvent.OnTimestampFormatChanged(
+                            if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
+                        )
+                    )
+                }
+            }
             RowDivider()
-            ListRow("Timestamp Format",
-                when (state.timestampFormat) {
-                    SettingsState.TimestampFormat.H12 -> "12-hour"
-                    SettingsState.TimestampFormat.H24 -> "24-hour"
-                    else -> "Off"
-                },
-                listOf("12-hour", "24-hour")
-            ) { vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(
-                if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24)) }
+            SwitchRow("Show Badges", "Display user badges in chat", state.showBadges) {
+                vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
+            }
+            RowDivider()
+            SwitchRow(
+                "Show Deleted Messages",
+                "Show deleted messages as grayed out",
+                state.showDeletedMessages
+            ) {
+                vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
+            }
         }
-        RowDivider()
-        SwitchRow("Show Badges", "Display user badges in chat", state.showBadges) {
-            vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
+    }
+    item {
+        SettingsGroup("Auto-scroll") {
+            SwitchRow(
+                "Pause on Hover",
+                "Stop auto-scrolling when mouse is over chat",
+                state.pauseOnHover
+            ) {
+                vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
+            }
         }
-        RowDivider()
-        SwitchRow("Show Deleted Messages", "Show deleted messages as grayed out", state.showDeletedMessages) {
-            vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
+    }
+    item {
+        SettingsGroup("Emote Picker") {
+            SwitchRow(
+                "Close on Mouse Leave",
+                "Hide emote picker when cursor leaves it",
+                state.closeEmotePickerOnMouseLeave
+            ) {
+                vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
+            }
         }
-    } }
-    item { SettingsGroup("Auto-scroll") {
-        SwitchRow("Pause on Hover", "Stop auto-scrolling when mouse is over chat", state.pauseOnHover) {
-            vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
+    }
+    item {
+        SettingsGroup("History") {
+            SliderRow(
+                "Message History Limit", state.scrollbackLimit, 100f..2000f, 18,
+                "${state.scrollbackLimit} messages"
+            ) {
+                vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
+            }
         }
-    } }
-    item { SettingsGroup("Emote Picker") {
-        SwitchRow("Close on Mouse Leave", "Hide emote picker when cursor leaves it", state.closeEmotePickerOnMouseLeave) {
-            vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
-        }
-    } }
-    item { SettingsGroup("History") {
-        SliderRow("Message History Limit", state.scrollbackLimit, 100f..2000f, 18,
-            "${state.scrollbackLimit} messages") {
-            vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
-        }
-    } }
+    }
 }
 
 private fun LazyListScope.notificationLazyItems(state: SettingsState, vm: SettingsViewModel) {
@@ -533,7 +583,14 @@ private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsV
         HightlightRuleCard(
             rule = rule,
             onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-            onSoundToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
+            onSoundToggle = {
+                vm.sendEvent(
+                    SettingsEvent.OnHighlightRuleSoundToggled(
+                        rule.id,
+                        it
+                    )
+                )
+            },
             onRemove = if (!rule.id.startsWith("custom_")) null else {
                 { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
             }
@@ -575,38 +632,42 @@ private fun LazyListScope.backgroundLazyItems(state: SettingsState, vm: Settings
 }
 
 private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsViewModel) {
-    item { SettingsGroup("Chat Controls") {
-        HotkeyRow("Pause Auto-scroll", "Hotkey to pause chat scrolling", state.pauseHotkey) {
-            vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
+    item {
+        SettingsGroup("Chat Controls") {
+            HotkeyRow("Pause Auto-scroll", "Hotkey to pause chat scrolling", state.pauseHotkey) {
+                vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
+            }
+            DropdownRow(
+                label = "Pause Mode",
+                description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) "Hold key to pause, release to resume" else "Press to toggle pause on/off",
+                options = PauseHotkeyMode.entries.map { it.name },
+                selected = state.pauseHotkeyMode.ordinal
+            ) { idx ->
+                vm.sendEvent(SettingsEvent.OnPauseHotkeyModeChanged(PauseHotkeyMode.entries[idx]))
+            }
         }
-        DropdownRow(
-            label = "Pause Mode",
-            description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) "Hold key to pause, release to resume" else "Press to toggle pause on/off",
-            options = PauseHotkeyMode.entries.map { it.name },
-            selected = state.pauseHotkeyMode.ordinal
-        ) { idx ->
-            vm.sendEvent(SettingsEvent.OnPauseHotkeyModeChanged(PauseHotkeyMode.entries[idx]))
+    }
+    item {
+        SettingsGroup("Image Links") {
+            DropdownRow(
+                label = "Show inline images",
+                description = "Preview image links (imgur, kappa, etc.) in chat",
+                options = listOf("On", "Off", "Blur"),
+                selected = state.showInlineImages.ordinal
+            ) { idx ->
+                vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
+            }
+            if (state.showInlineImages != InlineImageMode.OFF) {
+                SliderRow(
+                    label = "Image max height",
+                    value = state.inlineImageMaxHeight.toFloat(),
+                    valueRange = 50f..500f,
+                    steps = 8,
+                    valueLabel = "${state.inlineImageMaxHeight}px"
+                ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
+            }
         }
-    } }
-    item { SettingsGroup("Image Links") {
-        DropdownRow(
-            label = "Show inline images",
-            description = "Preview image links (imgur, kappa, etc.) in chat",
-            options = listOf("On", "Off", "Blur"),
-            selected = state.showInlineImages.ordinal
-        ) { idx ->
-            vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
-        }
-        if (state.showInlineImages != InlineImageMode.OFF) {
-            SliderRow(
-                label = "Image max height",
-                value = state.inlineImageMaxHeight.toFloat(),
-                valueRange = 50f..500f,
-                steps = 8,
-                valueLabel = "${state.inlineImageMaxHeight}px"
-            ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
-        }
-    } }
+    }
 }
 
 private fun LazyListScope.moderationLazyItems(state: SettingsState, vm: SettingsViewModel) {
@@ -624,23 +685,34 @@ private fun LazyListScope.aboutLazyItems() {
 
 
 @Composable
-private fun AppearanceContent(state: SettingsState, onThemeChanged: (Boolean) -> Unit, vm: SettingsViewModel) {
+private fun AppearanceContent(
+    state: SettingsState,
+    onThemeChanged: (Boolean) -> Unit,
+    vm: SettingsViewModel
+) {
     SettingsGroup("Theme") {
         SwitchRow("Dark Theme", "Use dark color scheme", state.darkTheme) {
             vm.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it)
         }
     }
     SettingsGroup("Display") {
-        ListRow("Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
-            SettingsState.FontSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+        ListRow(
+            "Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
+            SettingsState.FontSize.entries.map {
+                it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
+            }
         ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
         UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
         RowDivider()
-        ListRow("Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
-            SettingsState.EmoteSize.entries.map { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }
+        ListRow(
+            "Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
+            SettingsState.EmoteSize.entries.map {
+                it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
+            }
         ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
         RowDivider()
-        ListRow("Channel Navigation",
+        ListRow(
+            "Channel Navigation",
             when (state.channelNavigation) {
                 SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
                 SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
@@ -659,45 +731,70 @@ private fun AppearanceContent(state: SettingsState, onThemeChanged: (Boolean) ->
 @Composable
 private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
     SettingsGroup("Messages") {
-        SwitchRow("Show Timestamps", "Display message time in chat",
-            state.timestampFormat != SettingsState.TimestampFormat.OFF) { enabled ->
-            vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(
-                if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF))
+        SwitchRow(
+            "Show Timestamps", "Display message time in chat",
+            state.timestampFormat != SettingsState.TimestampFormat.OFF
+        ) { enabled ->
+            vm.sendEvent(
+                SettingsEvent.OnTimestampFormatChanged(
+                    if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
+                )
+            )
         }
         if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
             RowDivider()
-            ListRow("Timestamp Format",
+            ListRow(
+                "Timestamp Format",
                 when (state.timestampFormat) {
                     SettingsState.TimestampFormat.H12 -> "12-hour"
                     SettingsState.TimestampFormat.H24 -> "24-hour"
                     else -> "Off"
                 },
                 listOf("12-hour", "24-hour")
-            ) { vm.sendEvent(SettingsEvent.OnTimestampFormatChanged(
-                if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24)) }
+            ) {
+                vm.sendEvent(
+                    SettingsEvent.OnTimestampFormatChanged(
+                        if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
+                    )
+                )
+            }
         }
         RowDivider()
         SwitchRow("Show Badges", "Display user badges in chat", state.showBadges) {
             vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
         }
         RowDivider()
-        SwitchRow("Show Deleted Messages", "Show deleted messages as grayed out", state.showDeletedMessages) {
+        SwitchRow(
+            "Show Deleted Messages",
+            "Show deleted messages as grayed out",
+            state.showDeletedMessages
+        ) {
             vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
         }
     }
     SettingsGroup("Auto-scroll") {
-        SwitchRow("Pause on Hover", "Stop auto-scrolling when mouse is over chat", state.pauseOnHover) {
+        SwitchRow(
+            "Pause on Hover",
+            "Stop auto-scrolling when mouse is over chat",
+            state.pauseOnHover
+        ) {
             vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
         }
     }
     SettingsGroup("Emote Picker") {
-        SwitchRow("Close on Mouse Leave", "Hide emote picker when cursor leaves it", state.closeEmotePickerOnMouseLeave) {
+        SwitchRow(
+            "Close on Mouse Leave",
+            "Hide emote picker when cursor leaves it",
+            state.closeEmotePickerOnMouseLeave
+        ) {
             vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
         }
     }
     SettingsGroup("History") {
-        SliderRow("Message History Limit", state.scrollbackLimit, 100f..2000f, 18,
-            "${state.scrollbackLimit} messages") {
+        SliderRow(
+            "Message History Limit", state.scrollbackLimit, 100f..2000f, 18,
+            "${state.scrollbackLimit} messages"
+        ) {
             vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
         }
     }
@@ -724,7 +821,14 @@ private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
         HightlightRuleCard(
             rule = rule,
             onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-            onSoundToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
+            onSoundToggle = {
+                vm.sendEvent(
+                    SettingsEvent.OnHighlightRuleSoundToggled(
+                        rule.id,
+                        it
+                    )
+                )
+            },
             onRemove = if (!rule.id.startsWith("custom_")) null else {
                 { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
             }
@@ -826,21 +930,50 @@ private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
         borderAlphaLow = 0f
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Mention Sound", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Mention Sound",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Enable Mention Sound", style = MaterialTheme.typography.bodyMedium)
-                    Text("Play sound when you are mentioned", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Play sound when you are mentioned",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                Switch(checked = state.mentionSoundEnabled, onCheckedChange = { vm.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) })
+                Switch(
+                    checked = state.mentionSoundEnabled,
+                    onCheckedChange = { vm.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) })
             }
             if (state.mentionSoundEnabled) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Volume", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${(state.mentionSoundVolume * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Volume",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            "${(state.mentionSoundVolume * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
-                    Slider(value = state.mentionSoundVolume, onValueChange = { vm.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it)) }, valueRange = 0f..1f)
+                    Slider(
+                        value = state.mentionSoundVolume,
+                        onValueChange = { vm.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it)) },
+                        valueRange = 0f..1f
+                    )
                 }
             }
         }
@@ -859,29 +992,86 @@ private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
         borderAlphaLow = 0f
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Custom Sound", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                "Custom Sound",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
             if (state.customMentionSoundPath.isNotBlank()) {
-                Surface(color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f), shape = RoundedCornerShape(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(painterResource(Res.drawable.musical_notes_outline), null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-                        Text(state.customMentionSoundPath.substringAfterLast('/').substringAfterLast('\\'),
-                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        IconButton(onClick = { vm.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged("")) }, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Filled.Close, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            painterResource(Res.drawable.musical_notes_outline),
+                            null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            state.customMentionSoundPath.substringAfterLast('/')
+                                .substringAfterLast('\\'),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        IconButton(onClick = {
+                            vm.sendEvent(
+                                SettingsEvent.OnCustomMentionSoundPathChanged(
+                                    ""
+                                )
+                            )
+                        }, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                Icons.Filled.Close,
+                                null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 FilledIconButton(
-                    onClick = { val picked = pickAudioFile(); if (picked != null) vm.sendEvent(SettingsEvent.OnCustomMentionSoundPathChanged(picked)) },
+                    onClick = {
+                        val picked = pickAudioFile(); if (picked != null) vm.sendEvent(
+                        SettingsEvent.OnCustomMentionSoundPathChanged(picked)
+                    )
+                    },
                     modifier = Modifier.weight(1f).height(40.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary)
-                ) { Text(if (state.customMentionSoundPath.isBlank()) "Browse..." else "Change...", style = MaterialTheme.typography.labelMedium) }
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text(
+                        if (state.customMentionSoundPath.isBlank()) "Browse..." else "Change...",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
                 FilledIconButton(
-                    onClick = { NotificationSoundPlayer.playMentionSound(volume = state.mentionSoundVolume, customSoundPath = state.customMentionSoundPath) },
+                    onClick = {
+                        NotificationSoundPlayer.playMentionSound(
+                            volume = state.mentionSoundVolume,
+                            customSoundPath = state.customMentionSoundPath
+                        )
+                    },
                     modifier = Modifier.size(40.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = MaterialTheme.colorScheme.secondary, contentColor = MaterialTheme.colorScheme.onSecondary)
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = MaterialTheme.colorScheme.onSecondary
+                    )
                 ) { Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp)) }
             }
             Text(
@@ -899,51 +1089,126 @@ private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
         Column(modifier = Modifier.padding(16.dp)) {
             val scope = rememberCoroutineScope()
             if (state.wallpaperPath.isNotBlank()) {
-                Box(modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(12.dp))) {
-                    AsyncImage(model = state.wallpaperPath, contentDescription = "Background preview",
-                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = state.wallpaperBlur / 40f)))
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(150.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    AsyncImage(
+                        model = state.wallpaperPath, contentDescription = "Background preview",
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize()
+                            .background(Color.Black.copy(alpha = state.wallpaperBlur / 40f))
+                    )
                 }
                 Spacer(Modifier.height(12.dp))
             }
             if (state.wallpaperPath.isNotBlank()) {
-                Surface(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f), shape = RoundedCornerShape(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(Res.drawable.images), null, modifier = Modifier.size(15.dp), tint = MaterialTheme.colorScheme.primary)
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painterResource(Res.drawable.images),
+                            null,
+                            modifier = Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text(state.wallpaperPath.substringAfterLast("/").substringAfterLast("\\"),
-                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        IconButton(onClick = { vm.sendEvent(SettingsEvent.OnWallpaperPathChanged("")) }, modifier = Modifier.size(26.dp)) {
-                            Icon(Icons.Filled.Close, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                        Text(
+                            state.wallpaperPath.substringAfterLast("/").substringAfterLast("\\"),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        IconButton(
+                            onClick = { vm.sendEvent(SettingsEvent.OnWallpaperPathChanged("")) },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                null,
+                                modifier = Modifier.size(13.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
                 Spacer(Modifier.height(14.dp))
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text("Overlay Opacity", style = MaterialTheme.typography.bodyMedium)
-                Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(4.dp)) {
-                    Text("${state.wallpaperBlur.toInt()}", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        "${state.wallpaperBlur.toInt()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
             }
-            Slider(value = state.wallpaperBlur, onValueChange = { vm.sendEvent(SettingsEvent.OnWallpaperBlurChanged(it)) }, valueRange = 0f..40f, modifier = Modifier.fillMaxWidth())
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Transparent", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Opaque", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Slider(
+                value = state.wallpaperBlur,
+                onValueChange = { vm.sendEvent(SettingsEvent.OnWallpaperBlurChanged(it)) },
+                valueRange = 0f..40f,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Transparent",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Opaque",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             Spacer(Modifier.height(10.dp))
             OutlinedButton(
-                onClick = { scope.launch { val picked = pickImageFile(); if (picked != null) vm.sendEvent(SettingsEvent.OnWallpaperPathChanged(picked)) } },
+                onClick = {
+                    scope.launch {
+                        val picked = pickImageFile(); if (picked != null) vm.sendEvent(
+                        SettingsEvent.OnWallpaperPathChanged(
+                            picked
+                        )
+                    )
+                    }
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(painterResource(Res.drawable.images_outline), null, modifier = Modifier.size(14.dp))
+                Icon(
+                    painterResource(Res.drawable.images_outline),
+                    null,
+                    modifier = Modifier.size(14.dp)
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(if (state.wallpaperPath.isBlank()) "Choose background image..." else "Change image...")
             }
             if (state.wallpaperPath.isBlank()) {
                 Spacer(Modifier.height(6.dp))
-                Text("Supports JPG, PNG, WebP.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Supports JPG, PNG, WebP.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -954,19 +1219,44 @@ private fun AboutCard() {
     SettingsGroup("App Info") {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
-                    Text("C", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Box(
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "C",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("Chatone", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("Version 1.0.7", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "Chatone",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Version 1.0.8",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Text("TG", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "TG",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(Modifier.height(8.dp))
-            Text("https://t.me/rudionee", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(
+                "https://t.me/rudionee",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
@@ -976,13 +1266,21 @@ private fun AboutCard() {
 private fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         if (title != null) {
-            Text(title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
-                letterSpacing = 0.6.sp, modifier = Modifier.padding(bottom = 6.dp, start = 2.dp))
+            Text(
+                title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 0.6.sp,
+                modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
+            )
         }
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+            ),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(content = content)
@@ -993,102 +1291,225 @@ private fun SettingsGroup(title: String? = null, content: @Composable ColumnScop
 
 @Composable
 private fun RowDivider() {
-    HorizontalDivider(modifier = Modifier.padding(start = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 16.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    )
 }
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String? = null, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun SwitchRow(
+    title: String,
+    subtitle: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (subtitle != null) Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
 @Composable
-private fun ListRow(title: String, value: String, options: List<String>, onSelected: (Int) -> Unit) {
+private fun ListRow(
+    title: String,
+    value: String,
+    options: List<String>,
+    onSelected: (Int) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Row(modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
+                .padding(horizontal = 16.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.bodyLarge)
-                Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    value,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            Icon(painterResource(Res.drawable.unfold_more), null, modifier = Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(
+                painterResource(Res.drawable.unfold_more),
+                null,
+                modifier = Modifier.size(17.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { i, opt -> DropdownMenuItem(text = { Text(opt) }, onClick = { onSelected(i); expanded = false }) }
+            options.forEachIndexed { i, opt ->
+                DropdownMenuItem(
+                    text = { Text(opt) },
+                    onClick = { onSelected(i); expanded = false })
+            }
         }
     }
 }
 
 @Composable
-private fun DropdownRow(label: String, description: String, options: List<String>, selected: Int, onSelected: (Int) -> Unit) {
+private fun DropdownRow(
+    label: String,
+    description: String,
+    options: List<String>,
+    selected: Int,
+    onSelected: (Int) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Row(modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
+                .padding(horizontal = 16.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(label, style = MaterialTheme.typography.bodyLarge)
-                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            Text(options.getOrElse(selected) { "" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(
+                options.getOrElse(selected) { "" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { i, opt -> DropdownMenuItem(text = { Text(opt) }, onClick = { onSelected(i); expanded = false }) }
+            options.forEachIndexed { i, opt ->
+                DropdownMenuItem(
+                    text = { Text(opt) },
+                    onClick = { onSelected(i); expanded = false })
+            }
         }
     }
 }
 
 @Composable
-private fun SliderRow(label: String, value: Float, valueRange: ClosedFloatingPointRange<Float>, steps: Int, valueLabel: String, onValueChange: (Float) -> Unit) {
+private fun SliderRow(
+    label: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    valueLabel: String,
+    onValueChange: (Float) -> Unit
+) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, style = MaterialTheme.typography.bodyLarge)
-            Text(valueLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(
+                valueLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
         Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
     }
 }
 
 @Composable
-private fun SliderRow(title: String, value: Int, valueRange: ClosedFloatingPointRange<Float>, steps: Int, valueLabel: String,
-                      isFloat: Boolean = false, onFloatChange: ((Float) -> Unit)? = null, onValueChange: ((Float) -> Unit)? = null) {
+private fun SliderRow(
+    title: String,
+    value: Int,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    valueLabel: String,
+    isFloat: Boolean = false,
+    onFloatChange: ((Float) -> Unit)? = null,
+    onValueChange: ((Float) -> Unit)? = null
+) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(valueLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(
+                valueLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
         if (isFloat && onFloatChange != null) {
-            Slider(value = value / 100f, onValueChange = onFloatChange, valueRange = valueRange, steps = steps)
+            Slider(
+                value = value / 100f,
+                onValueChange = onFloatChange,
+                valueRange = valueRange,
+                steps = steps
+            )
         } else if (onValueChange != null) {
-            Slider(value = value.toFloat(), onValueChange = onValueChange, valueRange = valueRange, steps = steps)
+            Slider(
+                value = value.toFloat(),
+                onValueChange = onValueChange,
+                valueRange = valueRange,
+                steps = steps
+            )
         }
     }
 }
 
 @Composable
-private fun HightlightRuleCard(rule: HighlightRule, onToggle: (Boolean) -> Unit, onSoundToggle: (Boolean) -> Unit, onRemove: (() -> Unit)?) {
-    Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun HightlightRuleCard(
+    rule: HighlightRule,
+    onToggle: (Boolean) -> Unit,
+    onSoundToggle: (Boolean) -> Unit,
+    onRemove: (() -> Unit)?
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(rule.color)))
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(rule.pattern.ifEmpty { rule.id.replace("_", " ").replaceFirstChar { it.uppercase() } },
-                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                if (rule.isRegex) Text("Regex", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    rule.pattern.ifEmpty {
+                        rule.id.replace("_", " ").replaceFirstChar { it.uppercase() }
+                    },
+                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium
+                )
+                if (rule.isRegex) Text(
+                    "Regex",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            IconButton(onClick = { onSoundToggle(!rule.playSound) }, modifier = Modifier.size(32.dp)) {
-                Icon(if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications, null,
+            IconButton(
+                onClick = { onSoundToggle(!rule.playSound) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications,
+                    null,
                     modifier = Modifier.size(16.dp),
-                    tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             Switch(checked = rule.enabled, onCheckedChange = onToggle)
             if (onRemove != null) {
                 IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Filled.Close, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                    Icon(
+                        Icons.Filled.Close,
+                        null,
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
@@ -1097,25 +1518,49 @@ private fun HightlightRuleCard(rule: HighlightRule, onToggle: (Boolean) -> Unit,
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun HotkeyRow(title: String, subtitle: String, currentHotkey: String, onHotkeyChanged: (String) -> Unit) {
+private fun HotkeyRow(
+    title: String,
+    subtitle: String,
+    currentHotkey: String,
+    onHotkeyChanged: (String) -> Unit
+) {
     var isRecording by remember { mutableStateOf(false) }
-    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Spacer(Modifier.width(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Surface(
                 color = if (isRecording) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.dp, if (isRecording) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
+                border = BorderStroke(
+                    1.dp,
+                    if (isRecording) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                ),
                 modifier = Modifier.widthIn(min = 110.dp)
                     .onKeyEvent { event ->
                         if (!isRecording) return@onKeyEvent false
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent true
-                       
-                        if (event.key in listOf(Key.CtrlLeft, Key.CtrlRight, Key.MetaLeft, Key.MetaRight)) {
+
+                        if (event.key in listOf(
+                                Key.CtrlLeft,
+                                Key.CtrlRight,
+                                Key.MetaLeft,
+                                Key.MetaRight
+                            )
+                        ) {
                             if (!event.isAltPressed && !event.isShiftPressed) {
                                 onHotkeyChanged("ctrl"); isRecording = false; return@onKeyEvent true
                             }
@@ -1125,14 +1570,18 @@ private fun HotkeyRow(title: String, subtitle: String, currentHotkey: String, on
                             if (event.isCtrlPressed || event.isMetaPressed) parts2.add("ctrl")
                             parts2.add("alt")
                             if (event.isShiftPressed) parts2.add("shift")
-                            onHotkeyChanged(parts2.joinToString("+")); isRecording = false; return@onKeyEvent true
+                            onHotkeyChanged(parts2.joinToString("+")); isRecording =
+                                false; return@onKeyEvent true
                         }
                         if (event.key in listOf(Key.ShiftLeft, Key.ShiftRight)) {
                             if (!event.isAltPressed && !(event.isCtrlPressed || event.isMetaPressed)) {
-                                onHotkeyChanged("shift"); isRecording = false; return@onKeyEvent true
+                                onHotkeyChanged("shift"); isRecording =
+                                    false; return@onKeyEvent true
                             }
                         }
-                        if (event.key == Key.Escape) { onHotkeyChanged(""); isRecording = false; return@onKeyEvent true }
+                        if (event.key == Key.Escape) {
+                            onHotkeyChanged(""); isRecording = false; return@onKeyEvent true
+                        }
                         val parts = mutableListOf<String>()
                         if (event.isCtrlPressed || event.isMetaPressed) parts.add("ctrl")
                         if (event.isAltPressed) parts.add("alt")
@@ -1145,15 +1594,30 @@ private fun HotkeyRow(title: String, subtitle: String, currentHotkey: String, on
                     .clickable { isRecording = true }
             ) {
                 Text(
-                    when { isRecording -> "Recording..."; currentHotkey.isBlank() -> "Not set"; else -> currentHotkey.uppercase().replace("+", " + ") },
+                    when {
+                        isRecording -> "Recording..."; currentHotkey.isBlank() -> "Not set"; else -> currentHotkey.uppercase()
+                        .replace("+", " + ")
+                    },
                     style = MaterialTheme.typography.labelMedium,
-                    color = when { isRecording -> MaterialTheme.colorScheme.onPrimaryContainer; currentHotkey.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f); else -> MaterialTheme.colorScheme.onSurface },
+                    color = when {
+                        isRecording -> MaterialTheme.colorScheme.onPrimaryContainer; currentHotkey.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            alpha = 0.45f
+                        ); else -> MaterialTheme.colorScheme.onSurface
+                    },
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
                 )
             }
             if (currentHotkey.isNotBlank() || isRecording) {
-                IconButton(onClick = { onHotkeyChanged(""); isRecording = false }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Filled.Close, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                IconButton(
+                    onClick = { onHotkeyChanged(""); isRecording = false },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        null,
+                        modifier = Modifier.size(13.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         }
@@ -1190,7 +1654,11 @@ private fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text("UI Scale", style = MaterialTheme.typography.bodyLarge)
-            Text("${(currentScale * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "${(currentScale * 100).toInt()}%",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
         Spacer(Modifier.width(12.dp))
         Slider(
