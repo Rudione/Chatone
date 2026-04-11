@@ -123,6 +123,10 @@ compose.desktop {
     application {
         mainClass = "io.rudione.chatone.MainKt"
 
+        buildTypes.release.proguard {
+            isEnabled = false
+        }
+
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
 
