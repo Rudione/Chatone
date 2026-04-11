@@ -103,8 +103,8 @@ android {
         applicationId = "io.rudione.chatone"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.8"
+        versionCode = 3
+        versionName = "1.0.9"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     packaging {
@@ -131,7 +131,7 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
 
             packageName = "Chatone"
-            packageVersion = "1.0.8"
+            packageVersion = "1.0.9"
 
             modules(
                 "java.base",
