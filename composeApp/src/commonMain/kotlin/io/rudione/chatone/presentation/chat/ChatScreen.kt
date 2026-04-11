@@ -206,7 +206,7 @@ fun ChatScreen(
     var mentionTabIndex by remember { mutableStateOf(-1) }
     var isHoveredOverEmoteTooltip by remember { mutableStateOf(false) }
     var hasNewMessagesWhilePaused by remember { mutableStateOf(false) }
-   
+
     var isAutoScrolling by remember { mutableStateOf(false) }
     var unreadCount by remember { mutableStateOf(0) }
     val chatBoxFocusRequester = remember { FocusRequester() }
@@ -223,7 +223,7 @@ fun ChatScreen(
         }
     }
 
-   
+
     val isScrolledAway = remember {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
@@ -238,14 +238,14 @@ fun ChatScreen(
             (settingsState.pauseOnHover && isHoveredOverChat && !isHoveredOverEmoteTooltip) ||
             isScrolledAway.value
 
-   
+
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress && !isAtBottom.value && !isAutoScrolling) {
             hasNewMessagesWhilePaused = true
         }
     }
 
-   
+
     LaunchedEffect(isAtBottom.value) {
         if (isAtBottom.value && !isPausedByHotkey) {
             hasNewMessagesWhilePaused = false
@@ -253,7 +253,7 @@ fun ChatScreen(
         }
     }
 
-   
+
     LaunchedEffect(effectivelyPaused) {
         if (!effectivelyPaused && state.messages.isNotEmpty()) {
             isAutoScrolling = true
@@ -264,12 +264,12 @@ fun ChatScreen(
         }
     }
 
-   
-   
-   
-   
-   
-   
+
+
+
+
+
+
     val messagesSeq = state.messagesSeq
     LaunchedEffect(messagesSeq) {
         if (messagesSeq == 0L) return@LaunchedEffect
@@ -277,8 +277,8 @@ fun ChatScreen(
         if (size == 0) return@LaunchedEffect
         if (!effectivelyPaused) {
             isAutoScrolling = true
-           
-           
+
+
             listState.scrollToItem(size - 1)
             isAutoScrolling = false
             unreadCount = 0
@@ -301,7 +301,7 @@ fun ChatScreen(
         )
     }
 
-   
+
     val channelId = state.channelId
     LaunchedEffect(channelId) {
         if (channelId.isNotEmpty()) onChannelIdResolved(channelId)
@@ -317,25 +317,9 @@ fun ChatScreen(
                     }
                 }
                 is ChatEffect.MentionDetected -> {
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
-                   
                     val mentionChannel = effect.channelLogin
-                    val isActiveChannel = mentionChannel.equals(channelLogin, ignoreCase = true)
+                    val currentActiveChannel = viewModel.state.value.channelLogin
+                    val isActiveChannel = mentionChannel.equals(currentActiveChannel, ignoreCase = true)
 
                     if (!isActiveChannel) {
                         if (settingsState.mentionSoundEnabled) {
@@ -346,10 +330,7 @@ fun ChatScreen(
                         }
                         onMentionDetected(mentionChannel)
                     }
-                   
-                   
-                   
-                   
+
                     val mentionMsg = effect.message
                     if (mentionMsg != null) {
                         val entry = MentionEntry(
@@ -376,22 +357,22 @@ fun ChatScreen(
         }
     }
 
-   
-   
+
+
     LaunchedEffect(Unit) {
         chatBoxFocusRequester.requestFocus()
     }
 
-   
-   
-   
-   
-   
-   
-   
-   
-   
-   
+
+
+
+
+
+
+
+
+
+
     val currentSettings by rememberUpdatedState(settingsState)
     val currentIsPausedByHotkey by rememberUpdatedState(isPausedByHotkey)
     val hotkeyHandler = remember<(androidx.compose.ui.input.key.KeyEvent) -> Boolean> {
@@ -399,7 +380,7 @@ fun ChatScreen(
             val hotkey = currentSettings.pauseHotkey
             if (hotkey.isBlank()) return@handler false
             val isHoldMode = currentSettings.pauseHotkeyMode ==
-                io.rudione.chatone.presentation.settings.PauseHotkeyMode.HOLD
+                    io.rudione.chatone.presentation.settings.PauseHotkeyMode.HOLD
 
             if (isHoldMode) {
                 if (event.type == KeyEventType.KeyDown && pauseHotkeyMatches(event, hotkey)) {
@@ -411,9 +392,9 @@ fun ChatScreen(
                     pauseHotkeyMatchesRelease(event, hotkey)
                 ) {
                     isPausedByHotkey = false
-                   
-                   
-                   
+
+
+
                     coroutineScope.launch {
                         val size = state.messages.size
                         if (size > 0) {
@@ -430,7 +411,7 @@ fun ChatScreen(
                 if (event.type == KeyEventType.KeyDown && pauseHotkeyMatches(event, hotkey)) {
                     val wasPaused = currentIsPausedByHotkey
                     isPausedByHotkey = !wasPaused
-                   
+
                     if (wasPaused) {
                         coroutineScope.launch {
                             val size = state.messages.size
@@ -455,8 +436,8 @@ fun ChatScreen(
         onDispose { unregister() }
     }
 
-   
-   
+
+
     Box(modifier = modifier.fillMaxSize()
         .focusRequester(chatBoxFocusRequester)
         .focusable()
@@ -562,11 +543,11 @@ fun ChatScreen(
                                             profilePopupUserId = message.userId
                                         },
                                         onRightClickUsername = { displayName ->
-                                           
+
                                             viewModel.sendEvent(ChatEvent.OnInsertMention(displayName))
                                         },
                                         onMentionClick = { mentionedUsername ->
-                                           
+
                                             val mentionedMsg = state.messages
                                                 .filterIsInstance<DisplayMessage.PrivMsg>()
                                                 .lastOrNull { it.username.equals(mentionedUsername.removePrefix("@"), ignoreCase = true) }
@@ -741,7 +722,7 @@ fun ChatScreen(
             )
         }
 
-       
+
 
         if (state.showMentionCompletions && state.mentionCompletions.isNotEmpty()) {
             MentionAutocompleteRow(
@@ -785,7 +766,7 @@ fun ChatScreen(
                 val current = state.messageInput
                 val newInput = if (current.isEmpty() || current.endsWith(" ")) "$current${emote.code} " else "$current ${emote.code} "
                 viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
-               
+
             },
             onEmojiSelected = { emoji ->
                 val current = state.messageInput
@@ -822,7 +803,7 @@ fun ChatScreen(
                 onVip = { viewModel.sendEvent(ChatEvent.OnVipUser(msg.userId)) },
                 onUnvip = { viewModel.sendEvent(ChatEvent.OnUnvipUser(msg.userId)) },
                 onWhisper = {
-                   
+
                     onOpenWhisper(msg.userId, msg.username, msg.displayName, "", msg.color)
                     profilePopupMessage = null
                     profilePopupUserId = null
@@ -927,7 +908,7 @@ private fun ChatTopBar(
                     }
                 }
                 if (isMod) {
-                   
+
                     if (pinnedMacros.isNotEmpty()) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -1059,11 +1040,11 @@ private fun PrivMsgItem(
     }
     val hasAccentBar = message.isMention || message.isFirstMessage
 
-   
+
     val imageLinks = remember(message.tokens) {
         message.tokens.filterIsInstance<MessageToken.Link>().filter { isImageUrl(it.url) }
     }
-   
+
     val inlineSettings = remember { SettingsViewModel.loadInitialState() }
 
     Column(
@@ -1075,437 +1056,437 @@ private fun PrivMsgItem(
                 bottom = 3.dp
             )
     ) {
-    val uriHandler = LocalUriHandler.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        if (showModActions) {
-           
-            Row(
-                modifier = Modifier.padding(end = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(0.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-               
-                ModActionIconBtn(icon = Icons.Outlined.Delete, label = "Del",
-                    tint = extraColors.modDelete, onClick = onDelete)
+        val uriHandler = LocalUriHandler.current
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
+        ) {
+            if (showModActions) {
 
-               
-                customModButtons.filter { it.enabled }.take(8).forEach { btn ->
-                    ModActionIconBtn(
-                        icon = Icons.Outlined.Refresh,
-                        label = btn.displayLabel,
-                        tint = extraColors.modTimeout,
-                        onClick = { onCustomTimeout(btn.durationSeconds) }
-                    )
-                }
-
-               
-                ModActionIconBtn(icon = Icons.Outlined.Refresh, label = "10m",
-                    tint = extraColors.modTimeout, onClick = onTimeout)
-
-               
-                ModActionIconBtn(icon = Icons.Filled.Close, label = "Ban",
-                    tint = extraColors.modBan, onClick = onBan)
-            }
-        }
-
-        if (timestampFormat != SettingsState.TimestampFormat.OFF) {
-            Text(
-                formatTimestamp(message.timestamp, timestampFormat),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier
-                    .padding(end = 4.dp)
-                    .offset(y = 4.dp)
-            )
-        }
-
-        if (showBadges) {
-           
-           
-            val hasBadges = message.badges.any { it.imageUrl.isNotEmpty() } ||
-                    (message.sevenTvBadge?.let { it.url2x.isNotEmpty() || it.url1x.isNotEmpty() } ?: false)
-            if (hasBadges) {
-                Column(
-                    modifier = Modifier.padding(top = 3.dp, end = 2.dp),
-                    verticalArrangement = Arrangement.Top
+                Row(
+                    modifier = Modifier.padding(end = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(0.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        message.badges.forEach { badge ->
-                            if (badge.imageUrl.isNotEmpty()) AsyncImage(
-                                model = badge.imageUrl,
-                                contentDescription = badge.id,
-                                modifier = Modifier.size(18.dp).padding(end = 2.dp)
-                            )
-                        }
-                        message.sevenTvBadge?.let { stvBadge ->
-                            val badgeUrl = stvBadge.url2x.ifEmpty { stvBadge.url1x }
-                            if (badgeUrl.isNotEmpty()) AsyncImage(
-                                model = badgeUrl,
-                                contentDescription = stvBadge.tooltip,
-                                modifier = Modifier.size(18.dp).padding(end = 2.dp)
-                            )
+
+                    ModActionIconBtn(icon = Icons.Outlined.Delete, label = "Del",
+                        tint = extraColors.modDelete, onClick = onDelete)
+
+
+                    customModButtons.filter { it.enabled }.take(8).forEach { btn ->
+                        ModActionIconBtn(
+                            icon = Icons.Outlined.Refresh,
+                            label = btn.displayLabel,
+                            tint = extraColors.modTimeout,
+                            onClick = { onCustomTimeout(btn.durationSeconds) }
+                        )
+                    }
+
+
+                    ModActionIconBtn(icon = Icons.Outlined.Refresh, label = "10m",
+                        tint = extraColors.modTimeout, onClick = onTimeout)
+
+
+                    ModActionIconBtn(icon = Icons.Filled.Close, label = "Ban",
+                        tint = extraColors.modBan, onClick = onBan)
+                }
+            }
+
+            if (timestampFormat != SettingsState.TimestampFormat.OFF) {
+                Text(
+                    formatTimestamp(message.timestamp, timestampFormat),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .offset(y = 4.dp)
+                )
+            }
+
+            if (showBadges) {
+
+
+                val hasBadges = message.badges.any { it.imageUrl.isNotEmpty() } ||
+                        (message.sevenTvBadge?.let { it.url2x.isNotEmpty() || it.url1x.isNotEmpty() } ?: false)
+                if (hasBadges) {
+                    Column(
+                        modifier = Modifier.padding(top = 3.dp, end = 2.dp),
+                        verticalArrangement = Arrangement.Top
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            message.badges.forEach { badge ->
+                                if (badge.imageUrl.isNotEmpty()) AsyncImage(
+                                    model = badge.imageUrl,
+                                    contentDescription = badge.id,
+                                    modifier = Modifier.size(18.dp).padding(end = 2.dp)
+                                )
+                            }
+                            message.sevenTvBadge?.let { stvBadge ->
+                                val badgeUrl = stvBadge.url2x.ifEmpty { stvBadge.url1x }
+                                if (badgeUrl.isNotEmpty()) AsyncImage(
+                                    model = badgeUrl,
+                                    contentDescription = stvBadge.tooltip,
+                                    modifier = Modifier.size(18.dp).padding(end = 2.dp)
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        var showContextMenu by remember { mutableStateOf(false) }
-        val emoteSizeSp = when (emoteSize) {
-            SettingsState.EmoteSize.SMALL -> 20.sp; SettingsState.EmoteSize.MEDIUM -> 28.sp; SettingsState.EmoteSize.LARGE -> 36.sp
-        }
-        val userColor = parseColor(message.color) ?: MaterialTheme.colorScheme.primary
-        val paintBrush = null
-        val inlineContent = mutableMapOf<String, InlineTextContent>()
-        var emoteCounter = 0
+            var showContextMenu by remember { mutableStateOf(false) }
+            val emoteSizeSp = when (emoteSize) {
+                SettingsState.EmoteSize.SMALL -> 20.sp; SettingsState.EmoteSize.MEDIUM -> 28.sp; SettingsState.EmoteSize.LARGE -> 36.sp
+            }
+            val userColor = parseColor(message.color) ?: MaterialTheme.colorScheme.primary
+            val paintBrush = null
+            val inlineContent = mutableMapOf<String, InlineTextContent>()
+            var emoteCounter = 0
 
-        val annotatedString = buildAnnotatedString {
-            if (message.isDeleted) {
-                pushStringAnnotation("username", message.userId)
-                if (paintBrush != null) withStyle(
-                    SpanStyle(
-                        brush = paintBrush,
-                        fontWeight = FontWeight.Bold
-                    )
-                ) { append(message.displayName) }
-                else withStyle(SpanStyle(color = userColor, fontWeight = FontWeight.Bold)) {
-                    append(
-                        message.displayName
-                    )
-                }
-                pop()
-                append(": ")
-                val originalText = message.tokens.joinToString("") { token ->
-                    when (token) {
-                        is MessageToken.Text -> token.text; is MessageToken.TwitchEmoteToken -> token.name
-                        is MessageToken.ThirdPartyEmoteToken -> token.emote.code; is MessageToken.Link -> token.displayText
-                        is MessageToken.Mention -> token.username
+            val annotatedString = buildAnnotatedString {
+                if (message.isDeleted) {
+                    pushStringAnnotation("username", message.userId)
+                    if (paintBrush != null) withStyle(
+                        SpanStyle(
+                            brush = paintBrush,
+                            fontWeight = FontWeight.Bold
+                        )
+                    ) { append(message.displayName) }
+                    else withStyle(SpanStyle(color = userColor, fontWeight = FontWeight.Bold)) {
+                        append(
+                            message.displayName
+                        )
                     }
-                }
-                withStyle(
-                    SpanStyle(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
-                        textDecoration = TextDecoration.LineThrough
-                    )
-                ) {
-                    append(originalText.ifEmpty { "message deleted" })
-                }
-            } else {
-                if (message.isFirstMessage) {
+                    pop()
+                    append(": ")
+                    val originalText = message.tokens.joinToString("") { token ->
+                        when (token) {
+                            is MessageToken.Text -> token.text; is MessageToken.TwitchEmoteToken -> token.name
+                            is MessageToken.ThirdPartyEmoteToken -> token.emote.code; is MessageToken.Link -> token.displayText
+                            is MessageToken.Mention -> token.username
+                        }
+                    }
                     withStyle(
                         SpanStyle(
-                            color = FirstMessageColor,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            background = FirstMessageColor.copy(alpha = 0.18f)
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
+                            textDecoration = TextDecoration.LineThrough
                         )
-                    ) { append(" FIRST ") }
-                    append(" ")
-                }
-                pushStringAnnotation("username", message.userId)
-                if (message.isAction) {
-                    if (paintBrush != null) withStyle(
-                        SpanStyle(
-                            brush = paintBrush,
-                            fontStyle = FontStyle.Italic,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    ) { append(message.displayName); append(" ") }
-                    else withStyle(
-                        SpanStyle(
-                            color = userColor,
-                            fontStyle = FontStyle.Italic,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    ) { append(message.displayName); append(" ") }
-                } else {
-                    if (paintBrush != null) withStyle(
-                        SpanStyle(
-                            brush = paintBrush,
-                            fontWeight = FontWeight.Bold
-                        )
-                    ) { append(message.displayName) }
-                    else withStyle(
-                        SpanStyle(
-                            color = userColor,
-                            fontWeight = FontWeight.Bold
-                        )
-                    ) { append(message.displayName) }
-                    append(": ")
-                }
-                pop()
-                val messageColor = if (message.isAction) userColor else Color.Unspecified
-                message.tokens.forEach { token ->
-                    when (token) {
-                        is MessageToken.Text -> {
-                            if (message.isAction) withStyle(
-                                SpanStyle(
-                                    color = messageColor,
-                                    fontStyle = FontStyle.Italic
-                                )
-                            ) { append(token.text) }
-                            else append(token.text)
-                        }
-
-                        is MessageToken.TwitchEmoteToken -> {
-                            val key = "emote_${emoteCounter++}"; appendInlineContent(
-                                key,
-                                token.name
-                            )
-                            inlineContent[key] = InlineTextContent(
-                                Placeholder(
-                                    emoteSizeSp,
-                                    emoteSizeSp,
-                                    PlaceholderVerticalAlign.TextCenter
-                                )
-                            ) {
-                                AnimatedEmoteImage(
-                                    url = token.url,
-                                    contentDescription = token.name,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-
-                        is MessageToken.ThirdPartyEmoteToken -> {
-                            val key = "emote_${emoteCounter++}"; appendInlineContent(
-                                key,
-                                token.emote.code
-                            )
-                            val (emoteW, emoteH) = computeEmoteDisplaySize(
-                                token.emote.width,
-                                token.emote.height,
-                                emoteSizeSp
-                            )
-                            inlineContent[key] = InlineTextContent(
-                                Placeholder(
-                                    emoteW,
-                                    emoteH,
-                                    PlaceholderVerticalAlign.TextCenter
-                                )
-                            ) {
-                                Box {
-                                    EmoteImageWithTooltip(
-                                        emote = token.emote,
-                                        modifier = Modifier.fillMaxSize(),
-                                        onShowContextMenu = { showContextMenu = true })
-                                    token.overlays.forEach { overlay ->
-                                        EmoteImageWithTooltip(
-                                            emote = overlay,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        is MessageToken.Link -> {
-                            pushStringAnnotation("url", token.url)
-                            withStyle(
-                                SpanStyle(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textDecoration = TextDecoration.Underline
-                                )
-                            ) { append(token.displayText) }
-                            pop()
-                        }
-
-                        is MessageToken.Mention -> {
-                           
-                            pushStringAnnotation("mention", token.username)
-                            withStyle(
-                                SpanStyle(
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            ) { append(token.username) }
-                            pop()
-                        }
-                    }
-                }
-            }
-        }
-
-        val clipboardManager = LocalClipboardManager.current
-        var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
-        val uriHandler = LocalUriHandler.current
-        var textLayoutResult by remember {
-            mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(
-                null
-            )
-        }
-
-       
-        Box(modifier = Modifier.weight(1f)) {
-            Text(
-                text = annotatedString,
-                inlineContent = inlineContent,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = when (chatFontSizeSp) {
-                        in 0f..11f -> 11.sp
-                        in 11f..16f -> chatFontSizeSp.sp
-                        else -> 16.sp
-                    }
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.fillMaxWidth()
-                    .pointerInput(annotatedString) {
-                        detectTapGestures(
-                            onTap = { offset ->
-                                textLayoutResult?.let { layoutResult ->
-                                    val charOffset = layoutResult.getOffsetForPosition(offset)
-                                   
-                                    annotatedString.getStringAnnotations("url", charOffset, charOffset)
-                                        .firstOrNull()?.let { annotation ->
-                                            try { uriHandler.openUri(annotation.item) } catch (_: Exception) {}
-                                            return@detectTapGestures
-                                        }
-                                   
-                                    annotatedString.getStringAnnotations("username", charOffset, charOffset)
-                                        .firstOrNull()?.let {
-                                            onUsernameClick(); return@detectTapGestures
-                                        }
-                                   
-                                    annotatedString.getStringAnnotations("mention", charOffset, charOffset)
-                                        .firstOrNull()?.let { annotation ->
-                                            onMentionClick(annotation.item)
-                                            return@detectTapGestures
-                                        }
-                                }
-                            },
-                            onLongPress = { offset ->
-                                contextMenuOffset = IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
-                                showContextMenu = true
-                            }
-                        )
-                    }
-                    .pointerInput(message.displayName) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Press &&
-                                    event.buttons.isSecondaryPressed) {
-                                   
-                                    val pos = event.changes.firstOrNull()?.position ?: continue
-                                    val layoutResult = textLayoutResult ?: continue
-                                    val charOffset = layoutResult.getOffsetForPosition(pos)
-                                    val onUsername = annotatedString.getStringAnnotations("username", charOffset, charOffset).isNotEmpty()
-                                    if (onUsername) {
-                                       
-                                        onRightClickUsername(message.displayName)
-                                    } else {
-                                       
-                                        contextMenuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
-                                        showContextMenu = true
-                                    }
-                                }
-                            }
-                        }
-                    },
-                onTextLayout = { textLayoutResult = it }
-            )
-        }
-
-        if (showContextMenu) {
-            Popup(
-                alignment = Alignment.TopStart,
-                offset = contextMenuOffset + IntOffset(8, 8),
-                properties = PopupProperties(
-                    focusable = true,
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = true
-                ),
-                onDismissRequest = { showContextMenu = false }
-            ) {
-                LiquidGlassSurface(
-                    modifier = Modifier.widthIn(min = 160.dp, max = 240.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    backgroundAlphaHigh = 0.94f,
-                    backgroundAlphaLow = 0.85f,
-                    borderAlphaHigh = 0f,
-                    borderAlphaLow = 0f
-                ) {
-                    Column {
-                        if (isMod) {
-                            LiquidGlassDropdownItem(
-                                text = "Pin",
-                                icon = Icons.Filled.Place,
-                                iconTint = MaterialTheme.colorScheme.primary,
-                                onClick = { showContextMenu = false; onPin() }
-                            )
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 4.dp),
-                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                            )
-                        }
-                        LiquidGlassDropdownItem(
-                            text = "Reply",
-                            icon = Icons.AutoMirrored.Filled.Send,
-                            iconTint = MaterialTheme.colorScheme.primary,
-                            onClick = { showContextMenu = false; onReply() }
-                        )
-                        LiquidGlassDropdownItem(
-                            text = "Copy Text",
-                            icon = Icons.Outlined.Info,
-                            iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            onClick = {
-                                showContextMenu = false
-                                val rawText = message.tokens.joinToString("") { token ->
-                                    when (token) {
-                                        is MessageToken.Text -> token.text
-                                        is MessageToken.TwitchEmoteToken -> token.name
-                                        is MessageToken.ThirdPartyEmoteToken -> token.emote.code
-                                        is MessageToken.Link -> token.displayText
-                                        is MessageToken.Mention -> token.username
-                                    }
-                                }
-                                clipboardManager.setText(AnnotatedString(rawText))
-                            }
-                        )
-                    }
-                }
-            }
-        }
-       
-    }
-   
-    if (imageLinks.isNotEmpty() && inlineSettings.showInlineImages != InlineImageMode.OFF && !message.isDeleted) {
-        imageLinks.forEach { link ->
-            var isRevealed by remember { mutableStateOf(inlineSettings.showInlineImages == InlineImageMode.ON) }
-            Box(
-                modifier = Modifier
-                    .padding(start = 4.dp, top = 4.dp)
-                    .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        if (!isRevealed) isRevealed = true
-                        else try { uriHandler.openUri(link.url) } catch (_: Exception) {}
-                    }
-            ) {
-                AsyncImage(
-                    model = link.url,
-                    contentDescription = "Image preview",
-                    modifier = Modifier
-                        .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
-                        .widthIn(max = 400.dp)
-                        .then(if (!isRevealed) Modifier.blur(20.dp) else Modifier),
-                    contentScale = ContentScale.Fit
-                )
-                if (!isRevealed) {
-                    Box(
-                        modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
                     ) {
-                        Text("Click to reveal", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                        append(originalText.ifEmpty { "message deleted" })
+                    }
+                } else {
+                    if (message.isFirstMessage) {
+                        withStyle(
+                            SpanStyle(
+                                color = FirstMessageColor,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                background = FirstMessageColor.copy(alpha = 0.18f)
+                            )
+                        ) { append(" FIRST ") }
+                        append(" ")
+                    }
+                    pushStringAnnotation("username", message.userId)
+                    if (message.isAction) {
+                        if (paintBrush != null) withStyle(
+                            SpanStyle(
+                                brush = paintBrush,
+                                fontStyle = FontStyle.Italic,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        ) { append(message.displayName); append(" ") }
+                        else withStyle(
+                            SpanStyle(
+                                color = userColor,
+                                fontStyle = FontStyle.Italic,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        ) { append(message.displayName); append(" ") }
+                    } else {
+                        if (paintBrush != null) withStyle(
+                            SpanStyle(
+                                brush = paintBrush,
+                                fontWeight = FontWeight.Bold
+                            )
+                        ) { append(message.displayName) }
+                        else withStyle(
+                            SpanStyle(
+                                color = userColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                        ) { append(message.displayName) }
+                        append(": ")
+                    }
+                    pop()
+                    val messageColor = if (message.isAction) userColor else Color.Unspecified
+                    message.tokens.forEach { token ->
+                        when (token) {
+                            is MessageToken.Text -> {
+                                if (message.isAction) withStyle(
+                                    SpanStyle(
+                                        color = messageColor,
+                                        fontStyle = FontStyle.Italic
+                                    )
+                                ) { append(token.text) }
+                                else append(token.text)
+                            }
+
+                            is MessageToken.TwitchEmoteToken -> {
+                                val key = "emote_${emoteCounter++}"; appendInlineContent(
+                                    key,
+                                    token.name
+                                )
+                                inlineContent[key] = InlineTextContent(
+                                    Placeholder(
+                                        emoteSizeSp,
+                                        emoteSizeSp,
+                                        PlaceholderVerticalAlign.TextCenter
+                                    )
+                                ) {
+                                    AnimatedEmoteImage(
+                                        url = token.url,
+                                        contentDescription = token.name,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+
+                            is MessageToken.ThirdPartyEmoteToken -> {
+                                val key = "emote_${emoteCounter++}"; appendInlineContent(
+                                    key,
+                                    token.emote.code
+                                )
+                                val (emoteW, emoteH) = computeEmoteDisplaySize(
+                                    token.emote.width,
+                                    token.emote.height,
+                                    emoteSizeSp
+                                )
+                                inlineContent[key] = InlineTextContent(
+                                    Placeholder(
+                                        emoteW,
+                                        emoteH,
+                                        PlaceholderVerticalAlign.TextCenter
+                                    )
+                                ) {
+                                    Box {
+                                        EmoteImageWithTooltip(
+                                            emote = token.emote,
+                                            modifier = Modifier.fillMaxSize(),
+                                            onShowContextMenu = { showContextMenu = true })
+                                        token.overlays.forEach { overlay ->
+                                            EmoteImageWithTooltip(
+                                                emote = overlay,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            is MessageToken.Link -> {
+                                pushStringAnnotation("url", token.url)
+                                withStyle(
+                                    SpanStyle(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textDecoration = TextDecoration.Underline
+                                    )
+                                ) { append(token.displayText) }
+                                pop()
+                            }
+
+                            is MessageToken.Mention -> {
+
+                                pushStringAnnotation("mention", token.username)
+                                withStyle(
+                                    SpanStyle(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                ) { append(token.username) }
+                                pop()
+                            }
+                        }
+                    }
+                }
+            }
+
+            val clipboardManager = LocalClipboardManager.current
+            var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
+            val uriHandler = LocalUriHandler.current
+            var textLayoutResult by remember {
+                mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(
+                    null
+                )
+            }
+
+
+            Box(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = annotatedString,
+                    inlineContent = inlineContent,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = when (chatFontSizeSp) {
+                            in 0f..11f -> 11.sp
+                            in 11f..16f -> chatFontSizeSp.sp
+                            else -> 16.sp
+                        }
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.fillMaxWidth()
+                        .pointerInput(annotatedString) {
+                            detectTapGestures(
+                                onTap = { offset ->
+                                    textLayoutResult?.let { layoutResult ->
+                                        val charOffset = layoutResult.getOffsetForPosition(offset)
+
+                                        annotatedString.getStringAnnotations("url", charOffset, charOffset)
+                                            .firstOrNull()?.let { annotation ->
+                                                try { uriHandler.openUri(annotation.item) } catch (_: Exception) {}
+                                                return@detectTapGestures
+                                            }
+
+                                        annotatedString.getStringAnnotations("username", charOffset, charOffset)
+                                            .firstOrNull()?.let {
+                                                onUsernameClick(); return@detectTapGestures
+                                            }
+
+                                        annotatedString.getStringAnnotations("mention", charOffset, charOffset)
+                                            .firstOrNull()?.let { annotation ->
+                                                onMentionClick(annotation.item)
+                                                return@detectTapGestures
+                                            }
+                                    }
+                                },
+                                onLongPress = { offset ->
+                                    contextMenuOffset = IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
+                                    showContextMenu = true
+                                }
+                            )
+                        }
+                        .pointerInput(message.displayName) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Press &&
+                                        event.buttons.isSecondaryPressed) {
+
+                                        val pos = event.changes.firstOrNull()?.position ?: continue
+                                        val layoutResult = textLayoutResult ?: continue
+                                        val charOffset = layoutResult.getOffsetForPosition(pos)
+                                        val onUsername = annotatedString.getStringAnnotations("username", charOffset, charOffset).isNotEmpty()
+                                        if (onUsername) {
+
+                                            onRightClickUsername(message.displayName)
+                                        } else {
+
+                                            contextMenuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                                            showContextMenu = true
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    onTextLayout = { textLayoutResult = it }
+                )
+            }
+
+            if (showContextMenu) {
+                Popup(
+                    alignment = Alignment.TopStart,
+                    offset = contextMenuOffset + IntOffset(8, 8),
+                    properties = PopupProperties(
+                        focusable = true,
+                        dismissOnBackPress = true,
+                        dismissOnClickOutside = true
+                    ),
+                    onDismissRequest = { showContextMenu = false }
+                ) {
+                    LiquidGlassSurface(
+                        modifier = Modifier.widthIn(min = 160.dp, max = 240.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp),
+                        backgroundAlphaHigh = 0.94f,
+                        backgroundAlphaLow = 0.85f,
+                        borderAlphaHigh = 0f,
+                        borderAlphaLow = 0f
+                    ) {
+                        Column {
+                            if (isMod) {
+                                LiquidGlassDropdownItem(
+                                    text = "Pin",
+                                    icon = Icons.Filled.Place,
+                                    iconTint = MaterialTheme.colorScheme.primary,
+                                    onClick = { showContextMenu = false; onPin() }
+                                )
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                )
+                            }
+                            LiquidGlassDropdownItem(
+                                text = "Reply",
+                                icon = Icons.AutoMirrored.Filled.Send,
+                                iconTint = MaterialTheme.colorScheme.primary,
+                                onClick = { showContextMenu = false; onReply() }
+                            )
+                            LiquidGlassDropdownItem(
+                                text = "Copy Text",
+                                icon = Icons.Outlined.Info,
+                                iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                onClick = {
+                                    showContextMenu = false
+                                    val rawText = message.tokens.joinToString("") { token ->
+                                        when (token) {
+                                            is MessageToken.Text -> token.text
+                                            is MessageToken.TwitchEmoteToken -> token.name
+                                            is MessageToken.ThirdPartyEmoteToken -> token.emote.code
+                                            is MessageToken.Link -> token.displayText
+                                            is MessageToken.Mention -> token.username
+                                        }
+                                    }
+                                    clipboardManager.setText(AnnotatedString(rawText))
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+        }
+
+        if (imageLinks.isNotEmpty() && inlineSettings.showInlineImages != InlineImageMode.OFF && !message.isDeleted) {
+            imageLinks.forEach { link ->
+                var isRevealed by remember { mutableStateOf(inlineSettings.showInlineImages == InlineImageMode.ON) }
+                Box(
+                    modifier = Modifier
+                        .padding(start = 4.dp, top = 4.dp)
+                        .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            if (!isRevealed) isRevealed = true
+                            else try { uriHandler.openUri(link.url) } catch (_: Exception) {}
+                        }
+                ) {
+                    AsyncImage(
+                        model = link.url,
+                        contentDescription = "Image preview",
+                        modifier = Modifier
+                            .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
+                            .widthIn(max = 400.dp)
+                            .then(if (!isRevealed) Modifier.blur(20.dp) else Modifier),
+                        contentScale = ContentScale.Fit
+                    )
+                    if (!isRevealed) {
+                        Box(
+                            modifier = Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.3f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Click to reveal", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                        }
                     }
                 }
             }
         }
-    }
     }
 }
 
@@ -1523,7 +1504,7 @@ private fun ModActionIconBtn(
             .clickable(onClick = onClick)
             .clip(RoundedCornerShape(4.dp))
             .background(tint.copy(alpha = 0.08f))
-           
+
             .widthIn(min = 0.dp)
             .heightIn(min = 0.dp)
             .wrapContentWidth()
@@ -1531,10 +1512,10 @@ private fun ModActionIconBtn(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-           
+
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp)
         ) {
-           
+
             Icon(
                 icon,
                 contentDescription = label,
@@ -1544,12 +1525,12 @@ private fun ModActionIconBtn(
                 ,
                 tint = tint
             )
-           
+
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 6.sp,
-                    lineHeight = 6.sp 
+                    lineHeight = 6.sp
                 ),
                 color = tint,
                 modifier = Modifier.wrapContentHeight()
@@ -1723,7 +1704,7 @@ private fun MessageInput(
     enabled: Boolean,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester = remember { FocusRequester() },
-   
+
     showEmoteCompletions: Boolean = false,
     showMentionCompletions: Boolean = false,
     emoteCount: Int = 0,
@@ -1777,7 +1758,7 @@ private fun MessageInput(
                         val isCtrl = event.isCtrlPressed || event.isMetaPressed
 
                         when {
-                           
+
                             event.key == Key.Tab && !isCtrl && !event.isAltPressed -> {
                                 when {
                                     showEmoteCompletions && emoteCount > 0 -> {
@@ -1794,7 +1775,7 @@ private fun MessageInput(
                                 true
                             }
 
-                           
+
                             event.key == Key.Enter && !isCtrl && !event.isShiftPressed -> {
                                 when {
                                     showEmoteCompletions && emoteTabIndex >= 0 -> {
@@ -1807,16 +1788,16 @@ private fun MessageInput(
                                 }
                             }
 
-                           
+
                             isCtrl && event.key == Key.Enter -> { onSendKeepText(); true }
 
-                           
+
                             event.key == Key.DirectionUp && !isCtrl && !event.isShiftPressed && !event.isAltPressed
                                     && (tfv.text.isEmpty() || tfv.selection.start == 0) -> {
                                 onHistoryUp(); true
                             }
 
-                           
+
                             event.key == Key.DirectionDown && !isCtrl && !event.isShiftPressed && !event.isAltPressed
                                     && (tfv.text.isEmpty() || tfv.selection.end == tfv.text.length) -> {
                                 onHistoryDown(); true
@@ -1885,7 +1866,7 @@ private fun pauseHotkeyMatches(event: KeyEvent, hotkey: String): Boolean {
 
     val isCtrl = event.isCtrlPressed || event.isMetaPressed
 
-   
+
     if (mainKey == "alt") {
         return event.isAltPressed && !event.isShiftPressed && isCtrl == needsCtrl
     }
@@ -1905,9 +1886,9 @@ private fun pauseHotkeyMatches(event: KeyEvent, hotkey: String): Boolean {
 
 private fun isImageUrl(url: String): Boolean {
     val lower = url.lowercase()
-   
+
     if (lower.matches(Regex(""".*\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$"""))) return true
-   
+
     if (lower.contains("i.imgur.com/")) return true
     if (lower.contains("imgur.com/") && !lower.contains("/a/") && !lower.contains("/gallery/")) return true
     if (lower.contains("kappa.lol/")) return true
@@ -1927,7 +1908,7 @@ private fun isImageUrl(url: String): Boolean {
 private fun pauseHotkeyMatchesRelease(event: KeyEvent, hotkey: String): Boolean {
     if (hotkey.isBlank()) return false
     val mainKey = hotkey.lowercase().split("+").map { it.trim() }.last()
-   
+
     return when (mainKey) {
         "alt" -> !event.isAltPressed
         "ctrl" -> !(event.isCtrlPressed || event.isMetaPressed)
@@ -1967,7 +1948,7 @@ private fun EmoteAutocompleteRow(
 ) {
     val listState = rememberLazyListState()
 
-   
+
     LaunchedEffect(selectedIndex) {
         if (selectedIndex >= 0) {
             listState.animateScrollToItem(selectedIndex)
@@ -2263,7 +2244,7 @@ private fun argbToColor(argb: Int): Color {
     val r = ((argb shr 16) and 0xFF) / 255f
     val g = ((argb shr 8) and 0xFF) / 255f;
     val b = (argb and 0xFF) / 255f
-   
+
     return Color(r, g, b, a)
 }
 

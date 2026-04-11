@@ -324,6 +324,12 @@ class TwitchIrcClient(
         Napier.d("Sent message to #$channel: $message", tag = TAG)
     }
 
+    suspend fun sendRawCommand(command: String) {
+        if (isAnonymous) return
+        session?.send(Frame.Text(command))
+        Napier.v("Sent raw IRC command: $command", tag = TAG)
+    }
+
     suspend fun disconnect() {
         reconnectJob?.cancelAndJoin()
         connectionJob?.cancelAndJoin()

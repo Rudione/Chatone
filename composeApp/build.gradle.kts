@@ -129,7 +129,12 @@ compose.desktop {
             packageName = "Chatone"
             packageVersion = "1.0.7"
 
-           
+            buildTypes.release.proguard {
+                configurationFiles.from("proguard-rules.pro")
+                isEnabled = true
+                optimize = true
+                obfuscate = false
+            }
            
             modules(
                 "java.sql", "java.naming", "java.management",

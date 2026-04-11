@@ -26,6 +26,7 @@ import io.rudione.chatone.domain.model.MacroStep
 import io.rudione.chatone.domain.usecase.JoinChannelUseCase
 import io.rudione.chatone.domain.usecase.SendMessageUseCase
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import com.russhwolf.settings.Settings
 import io.rudione.chatone.util.MessageTokenizer
 import io.rudione.chatone.util.NotificationSoundPlayer
 import kotlinx.coroutines.delay
@@ -37,7 +38,7 @@ data class ChatState(
     val channelLogin: String = "",
     val channelId: String = "",
     val messages: List<DisplayMessage> = emptyList(),
-    
+
     val messagesSeq: Long = 0L,
     val messageInput: String = "",
     val isConnected: Boolean = false,
@@ -151,7 +152,7 @@ class ChatViewModel(
         private const val MAX_HISTORY = 50
     }
 
-    
+
     private val maxMessages: Int
         get() = SettingsViewModel.loadInitialState().scrollbackLimit.coerceIn(100, 5000)
 
@@ -160,6 +161,18 @@ class ChatViewModel(
     private val channelIdCache = mutableMapOf<String, String>()
     private val channelModCache = mutableMapOf<String, Boolean>()
     private var currentUserBadgeRaw: String = ""
+
+    private val persistentSettings = Settings()
+
+    private fun persistModStatus(channelLogin: String, isMod: Boolean) {
+        channelModCache[channelLogin.lowercase()] = isMod
+        persistentSettings.putBoolean("mod_status_${channelLogin.lowercase()}", isMod)
+    }
+
+    private fun loadPersistedModStatus(channelLogin: String): Boolean {
+        channelModCache[channelLogin.lowercase()]?.let { return it }
+        return persistentSettings.getBoolean("mod_status_${channelLogin.lowercase()}", false)
+    }
 
     private data class HighlightMatch(val color: Long, val playSound: Boolean)
 
@@ -343,7 +356,7 @@ class ChatViewModel(
             channelMessageCache[oldChannel] = oldState.messages
             channelRoomStateCache[oldChannel] = oldState.roomState
             if (oldState.channelId.isNotEmpty()) channelIdCache[oldChannel] = oldState.channelId
-            channelModCache[oldChannel] = oldState.isMod
+            persistModStatus(oldChannel, oldState.isMod)
             if (channelMessageCache.size > MAX_CACHED_CHANNELS) {
                 val oldest = channelMessageCache.keys.first()
                 channelMessageCache.remove(oldest)
@@ -356,7 +369,7 @@ class ChatViewModel(
         val cachedMessages = channelMessageCache[channelLogin] ?: emptyList()
         val cachedRoomState = channelRoomStateCache[channelLogin] ?: RoomState()
         val cachedChannelId = channelIdCache[channelLogin] ?: ""
-        val cachedIsMod = channelModCache[channelLogin] ?: false
+        val cachedIsMod = loadPersistedModStatus(channelLogin)
 
         update {
             it.copy(
@@ -424,7 +437,6 @@ class ChatViewModel(
         }
     }
 
-    
     private suspend fun checkAndSetModStatus(channelId: String) {
         val s = state.value
         val token = s.currentAccessToken
@@ -432,9 +444,8 @@ class ChatViewModel(
         val channelLogin = s.channelLogin
         if (token.isEmpty() || userId.isEmpty() || channelId.isEmpty() || channelLogin.isEmpty()) return
         try {
-
             if (channelId == userId) {
-                channelModCache[channelLogin.lowercase()] = true
+                persistModStatus(channelLogin.lowercase(), true)
                 update { if (it.channelLogin == channelLogin) it.copy(isMod = true) else it }
                 retokenizeMessages()
                 return
@@ -442,7 +453,7 @@ class ChatViewModel(
             val modResult = apiClient.getChannelModerators(token, channelId, userId)
             if (modResult is io.rudione.chatone.util.Result.Success) {
                 val isMod = modResult.data.data.any { it.userId == userId }
-                channelModCache[channelLogin.lowercase()] = isMod
+                persistModStatus(channelLogin.lowercase(), isMod)
                 update { if (it.channelLogin == channelLogin) it.copy(isMod = isMod) else it }
                 if (isMod) retokenizeMessages()
             }
@@ -747,14 +758,13 @@ class ChatViewModel(
                     is IrcEvent.RoomState -> {
                         if (event.channel.equals(channelLogin, ignoreCase = true)) {
                             val roomId = event.roomId
-                            if (!roomId.isNullOrEmpty() && state.value.channelId.isEmpty()) {
+                            if (!roomId.isNullOrEmpty()) {
+                                val hadChannelId = state.value.channelId.isNotEmpty()
                                 update { it.copy(channelId = roomId) }
                                 channelIdCache[channelLogin.lowercase()] = roomId
-                                loadChannelEmotesAndBadges(roomId)
-
-
-
-
+                                if (!hadChannelId) {
+                                    loadChannelEmotesAndBadges(roomId)
+                                }
                                 viewModelScope.launch { checkAndSetModStatus(roomId) }
                             }
                             update { state ->
@@ -772,7 +782,7 @@ class ChatViewModel(
                     }
                     is IrcEvent.UserState -> {
                         if (event.channel.equals(channelLogin, ignoreCase = true)) {
-                            channelModCache[channelLogin.lowercase()] = event.isMod
+                            persistModStatus(channelLogin.lowercase(), event.isMod)
                             if (event.badges.isNotEmpty()) currentUserBadgeRaw = event.badges
 
 
