@@ -1,15 +1,38 @@
 package io.rudione.chatone
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import io.rudione.chatone.auth.AuthTokenBridge
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Collect AuthTokenBridge for opening browser on auth requests
+        lifecycleScope.launch {
+            AuthTokenBridge.tokenFlow.collect { token ->
+                if (token.startsWith("__open_url__:")) {
+                    val url = token.removePrefix("__open_url__:")
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        io.github.aakira.napier.Napier.e("Failed to open auth URL: ${e.message}", tag = "MainActivity")
+                    }
+                }
+            }
+        }
+
+        // Handle OAuth callback if app was launched via deep link
+        handleOAuthCallback(intent)
+
         setContent {
             App()
         }

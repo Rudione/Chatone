@@ -583,8 +583,35 @@ private fun LazyListScope.backgroundLazyItems(state: SettingsState, vm: Settings
 
 private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsViewModel) {
     item { SettingsGroup("Chat Controls") {
-        HotkeyRow("Pause Auto-scroll", "Toggle chat pause while reading", state.pauseHotkey) {
+        HotkeyRow("Pause Auto-scroll", "Hotkey to pause chat scrolling", state.pauseHotkey) {
             vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
+        }
+        DropdownRow(
+            label = "Pause Mode",
+            description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) "Hold key to pause, release to resume" else "Press to toggle pause on/off",
+            options = PauseHotkeyMode.entries.map { it.name },
+            selected = state.pauseHotkeyMode.ordinal
+        ) { idx ->
+            vm.sendEvent(SettingsEvent.OnPauseHotkeyModeChanged(PauseHotkeyMode.entries[idx]))
+        }
+    } }
+    item { SettingsGroup("Image Links") {
+        DropdownRow(
+            label = "Show inline images",
+            description = "Preview image links (imgur, kappa, etc.) in chat",
+            options = listOf("On", "Off", "Blur"),
+            selected = state.showInlineImages.ordinal
+        ) { idx ->
+            vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
+        }
+        if (state.showInlineImages != InlineImageMode.OFF) {
+            SliderRow(
+                label = "Image max height",
+                value = state.inlineImageMaxHeight.toFloat(),
+                valueRange = 50f..500f,
+                steps = 8,
+                valueLabel = "${state.inlineImageMaxHeight}px"
+            ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
         }
     } }
 }
@@ -748,8 +775,35 @@ private fun BackgroundContent(state: SettingsState, vm: SettingsViewModel) {
 @Composable
 private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
     SettingsGroup("Chat Controls") {
-        HotkeyRow("Pause Auto-scroll", "Toggle chat pause while reading", state.pauseHotkey) {
+        HotkeyRow("Pause Auto-scroll", "Hotkey to pause chat scrolling", state.pauseHotkey) {
             vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
+        }
+        DropdownRow(
+            label = "Pause Mode",
+            description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) "Hold key to pause, release to resume" else "Press to toggle pause on/off",
+            options = PauseHotkeyMode.entries.map { it.name },
+            selected = state.pauseHotkeyMode.ordinal
+        ) { idx ->
+            vm.sendEvent(SettingsEvent.OnPauseHotkeyModeChanged(PauseHotkeyMode.entries[idx]))
+        }
+    }
+    SettingsGroup("Image Links") {
+        DropdownRow(
+            label = "Show inline images",
+            description = "Preview image links in chat",
+            options = listOf("On", "Off", "Blur"),
+            selected = state.showInlineImages.ordinal
+        ) { idx ->
+            vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
+        }
+        if (state.showInlineImages != InlineImageMode.OFF) {
+            SliderRow(
+                label = "Image max height",
+                value = state.inlineImageMaxHeight.toFloat(),
+                valueRange = 50f..500f,
+                steps = 8,
+                valueLabel = "${state.inlineImageMaxHeight}px"
+            ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
         }
     }
 }
@@ -977,6 +1031,34 @@ private fun ListRow(title: String, value: String, options: List<String>, onSelec
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEachIndexed { i, opt -> DropdownMenuItem(text = { Text(opt) }, onClick = { onSelected(i); expanded = false }) }
         }
+    }
+}
+
+@Composable
+private fun DropdownRow(label: String, description: String, options: List<String>, selected: Int, onSelected: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(label, style = MaterialTheme.typography.bodyLarge)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(options.getOrElse(selected) { "" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEachIndexed { i, opt -> DropdownMenuItem(text = { Text(opt) }, onClick = { onSelected(i); expanded = false }) }
+        }
+    }
+}
+
+@Composable
+private fun SliderRow(label: String, value: Float, valueRange: ClosedFloatingPointRange<Float>, steps: Int, valueLabel: String, onValueChange: (Float) -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            Text(valueLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
     }
 }
 

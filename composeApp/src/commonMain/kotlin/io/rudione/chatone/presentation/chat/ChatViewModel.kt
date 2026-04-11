@@ -121,6 +121,8 @@ sealed class ChatEvent : UiEvent {
     data class OnSendShoutout(val targetUserId: String) : ChatEvent()
     data class OnSendMessageText(val text: String) : ChatEvent()
     data class OnExecuteMacro(val macro: Macro) : ChatEvent()
+    data class OnAllowAutoModMessage(val msgId: String) : ChatEvent()
+    data class OnDenyAutoModMessage(val msgId: String) : ChatEvent()
 }
 
 sealed class ChatEffect : UIEffect {
@@ -143,10 +145,13 @@ class ChatViewModel(
 
     companion object {
         private const val TAG = "ChatViewModel"
-        private const val MAX_MESSAGES = 500
         private const val MAX_CACHED_CHANNELS = 10
         private const val MAX_HISTORY = 50
     }
+
+    /** Read scrollbackLimit from Settings; falls back to 500 */
+    private val maxMessages: Int
+        get() = SettingsViewModel.loadInitialState().scrollbackLimit.coerceIn(100, 5000)
 
     private val channelMessageCache = mutableMapOf<String, List<DisplayMessage>>()
     private val channelRoomStateCache = mutableMapOf<String, RoomState>()
@@ -265,6 +270,25 @@ class ChatViewModel(
             is ChatEvent.OnSendShoutout -> sendShoutout(event.targetUserId)
             is ChatEvent.OnSendMessageText -> sendRawMessage(event.text)
             is ChatEvent.OnExecuteMacro -> executeMacro(event.macro)
+            is ChatEvent.OnAllowAutoModMessage -> handleAutoMod(event.msgId, "ALLOW")
+            is ChatEvent.OnDenyAutoModMessage -> handleAutoMod(event.msgId, "DENY")
+        }
+    }
+
+    private fun handleAutoMod(msgId: String, action: String) {
+        val s = state.value
+        if (s.currentAccessToken.isEmpty() || s.currentUserId.isEmpty()) return
+        viewModelScope.launch {
+            val result = apiClient.manageAutoModMessage(s.currentAccessToken, s.currentUserId, msgId, action)
+            val newStatus = if (action == "ALLOW") DisplayMessage.AutoModMsg.AutoModStatus.ALLOWED else DisplayMessage.AutoModMsg.AutoModStatus.DENIED
+            update { state ->
+                state.copy(messages = state.messages.map { dm ->
+                    if (dm is DisplayMessage.AutoModMsg && dm.msgId == msgId) dm.copy(status = newStatus) else dm
+                })
+            }
+            if (result is io.rudione.chatone.util.Result.Error) {
+                sendEffect(ChatEffect.ShowError("AutoMod action failed: ${result.exception.message}"))
+            }
         }
     }
 
@@ -445,11 +469,11 @@ class ChatViewModel(
 
     private suspend fun loadRecentMessages(channelLogin: String) {
         try {
-            val recent = recentMessagesClient.getRecentMessages(channelLogin)
+            val recent = recentMessagesClient.getRecentMessages(channelLogin, limit = maxMessages)
             if (recent.isNotEmpty()) {
                 val displayMessages = recent.map { msg -> chatMessageToDisplay(msg) }
                 update { state ->
-                    if (state.channelLogin == channelLogin) state.copy(messages = displayMessages.takeLast(MAX_MESSAGES))
+                    if (state.channelLogin == channelLogin) state.copy(messages = displayMessages.takeLast(maxMessages))
                     else state
                 }
                 sendEffect(ChatEffect.ScrollToBottom)
@@ -567,7 +591,7 @@ class ChatViewModel(
 
     private fun observeMessages() {
         viewModelScope.launch {
-            chatRepository.messages.collectLatest { message ->
+            chatRepository.messages.collect { message ->
                 if (message.channelName.equals(state.value.channelLogin, ignoreCase = true)) {
                     if (state.value.channelId.isEmpty() && message.channelId.isNotEmpty()) {
                         update { it.copy(channelId = message.channelId) }
@@ -601,7 +625,7 @@ class ChatViewModel(
                     val finalMsg = if (matchResult != null) displayMsg.copy(isMention = true, highlightColor = matchResult.color) else displayMsg
                     update { state ->
                         if (!state.channelLogin.equals(message.channelName, ignoreCase = true)) return@update state
-                        val newMessages = (state.messages + finalMsg).takeLast(MAX_MESSAGES)
+                        val newMessages = (state.messages + finalMsg).takeLast(maxMessages)
                         state.copy(messages = newMessages, mentionCount = if (matchResult != null) state.mentionCount + 1 else state.mentionCount)
                     }
                     sendEffect(ChatEffect.ScrollToBottom)
@@ -653,7 +677,7 @@ class ChatViewModel(
 
     private fun observeIrcEvents() {
         viewModelScope.launch {
-            chatRepository.events.collectLatest { event ->
+            chatRepository.events.collect { event ->
                 val channelLogin = state.value.channelLogin
                 when (event) {
                     is IrcEvent.Notice -> {
@@ -785,6 +809,21 @@ class ChatViewModel(
                             currentUserLogin = if (event.displayName.isNotEmpty()) event.displayName.lowercase() else it.currentUserLogin
                         ) }
                     }
+                    is IrcEvent.AutoModHeld -> {
+                        if (event.channel.equals(channelLogin, ignoreCase = true) && (state.value.isMod || state.value.channelLogin == state.value.currentUserLogin)) {
+                            addMessage(DisplayMessage.AutoModMsg(
+                                id = "automod_${event.msgId}",
+                                timestamp = Clock.System.now().toEpochMilliseconds(),
+                                channel = event.channel,
+                                msgId = event.msgId,
+                                userId = event.userId,
+                                username = event.username,
+                                displayName = event.displayName,
+                                text = event.message,
+                                color = event.color
+                            ))
+                        }
+                    }
                     else -> {}
                 }
             }
@@ -815,7 +854,7 @@ class ChatViewModel(
 
     private fun addMessage(msg: DisplayMessage) {
         update { state ->
-            state.copy(messages = (state.messages + msg).takeLast(MAX_MESSAGES))
+            state.copy(messages = (state.messages + msg).takeLast(maxMessages))
         }
         sendEffect(ChatEffect.ScrollToBottom)
     }
@@ -962,7 +1001,7 @@ class ChatViewModel(
                 val newHistory = (listOf(message) + s.sentMessageHistory).take(MAX_HISTORY)
 
                 update { state ->
-                    val newMessages = (state.messages + displayMsg).takeLast(MAX_MESSAGES)
+                    val newMessages = (state.messages + displayMsg).takeLast(maxMessages)
                     state.copy(
                         messageInput = if (keepText) state.messageInput else "",
                         showEmoteCompletions = false,

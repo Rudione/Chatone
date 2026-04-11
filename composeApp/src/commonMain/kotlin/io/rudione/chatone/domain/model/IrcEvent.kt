@@ -72,6 +72,17 @@ sealed class IrcEvent {
         val userId: String
     ) : IrcEvent()
 
+    /** AutoMod held message — only moderators/broadcasters receive this */
+    data class AutoModHeld(
+        val channel: String,
+        val msgId: String,
+        val userId: String,
+        val username: String,
+        val displayName: String,
+        val message: String,
+        val color: String? = null
+    ) : IrcEvent()
+
     data class Connected(val channel: String) : IrcEvent()
     data class Reconnect(val reason: String = "Server requested reconnect") : IrcEvent()
     data class Error(val message: String) : IrcEvent()

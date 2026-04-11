@@ -87,7 +87,6 @@ class TwitchApiClient(
     suspend fun revokeToken(accessToken: String): Result<Unit> {
         return try {
             httpClient.post("https://id.twitch.tv/oauth2/revoke") {
-                // ▼▼▼ Правильное кодирование form-urlencoded ▼▼▼
                 setBody(
                     FormDataContent(
                         Parameters.build {
@@ -104,13 +103,18 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getUsers(accessToken: String, logins: List<String> = emptyList()): Result<UsersResponse> {
+    suspend fun getUsers(accessToken: String, logins: List<String> = emptyList(), ids: List<String> = emptyList()): Result<UsersResponse> {
         return try {
             val response = httpClient.get("$baseUrl/users") {
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
                 header("Client-ID", clientId)
                 header(HttpHeaders.Accept, "application/json")
 
+                if (ids.isNotEmpty()) {
+                    ids.take(100).forEach { id ->
+                        url { parameters.append("id", id) }
+                    }
+                }
                 if (logins.isNotEmpty()) {
                     logins.take(100).forEach { login ->
                         url { parameters.append("login", login) }

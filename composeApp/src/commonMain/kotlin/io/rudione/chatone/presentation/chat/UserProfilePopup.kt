@@ -80,9 +80,9 @@ fun UserProfilePopup(
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
 
-    var fetchedAvatarUrl by remember { mutableStateOf(profileImageUrl) }
-    var fetchedCreatedAt by remember { mutableStateOf(createdAt) }
-    var followedAt by remember { mutableStateOf<String?>(null) }
+    var fetchedAvatarUrl by remember(userId) { mutableStateOf(profileImageUrl) }
+    var fetchedCreatedAt by remember(userId) { mutableStateOf(createdAt) }
+    var followedAt by remember(userId) { mutableStateOf<String?>(null) }
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -95,16 +95,20 @@ fun UserProfilePopup(
     }
 
     LaunchedEffect(userId) {
+        fetchedAvatarUrl = profileImageUrl
+        fetchedCreatedAt = createdAt
+        followedAt = null
+
         val existing = noteRepository.getNote(userId)
         noteText = existing ?: ""
         isNoteLoaded = true
 
         if (accessToken.isNotEmpty() && userId.isNotEmpty()) {
-            val result = twitchApiClient.getUsers(accessToken)
+            val result = twitchApiClient.getUsers(accessToken, ids = listOf(userId))
             if (result is Result.Success) {
                 result.data.data.firstOrNull()?.let { userData ->
-                    if (fetchedAvatarUrl.isEmpty()) fetchedAvatarUrl = userData.profileImageUrl
-                    if (fetchedCreatedAt.isEmpty()) fetchedCreatedAt = userData.createdAt.take(10)
+                    fetchedAvatarUrl = userData.profileImageUrl
+                    fetchedCreatedAt = userData.createdAt.take(10)
                 }
             }
             if (channelId.isNotEmpty()) {

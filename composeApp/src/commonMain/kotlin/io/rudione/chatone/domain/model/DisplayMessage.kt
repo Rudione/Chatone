@@ -63,4 +63,20 @@ sealed class DisplayMessage {
             BAN, TIMEOUT, DELETE, CLEAR, UNBAN
         }
     }
+
+    /** AutoMod held message — shown only to moderators/broadcasters */
+    data class AutoModMsg(
+        override val id: String,
+        override val timestamp: Long,
+        override val channel: String,
+        val msgId: String,
+        val userId: String,
+        val username: String,
+        val displayName: String,
+        val text: String,
+        val color: String? = null,
+        val status: AutoModStatus = AutoModStatus.PENDING
+    ) : DisplayMessage() {
+        enum class AutoModStatus { PENDING, ALLOWED, DENIED }
+    }
 }

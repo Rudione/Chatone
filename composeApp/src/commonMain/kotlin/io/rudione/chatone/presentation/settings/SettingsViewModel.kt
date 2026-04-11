@@ -16,6 +16,9 @@ import kotlinx.datetime.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+enum class PauseHotkeyMode { TOGGLE, HOLD }
+enum class InlineImageMode { ON, OFF, BLUR }
+
 data class SettingsState(
     val darkTheme: Boolean = true,
     val timestampFormat: TimestampFormat = TimestampFormat.H24,
@@ -40,6 +43,9 @@ data class SettingsState(
     val uiScale: Float = 1.0f,
     val pauseOnHover: Boolean = false,
     val pauseHotkey: String = "",
+    val pauseHotkeyMode: PauseHotkeyMode = PauseHotkeyMode.TOGGLE,
+    val showInlineImages: InlineImageMode = InlineImageMode.ON,
+    val inlineImageMaxHeight: Int = 200,
     val wallpaperPath: String = "",
     val wallpaperBlur: Float = 12f,
     val closeEmotePickerOnMouseLeave: Boolean = false,
@@ -82,6 +88,9 @@ sealed class SettingsEvent : UiEvent {
     data class OnAlwaysOnTopChanged(val enabled: Boolean) : SettingsEvent()
     data class OnPauseOnHoverChanged(val enabled: Boolean) : SettingsEvent()
     data class OnPauseHotkeyChanged(val hotkey: String) : SettingsEvent()
+    data class OnPauseHotkeyModeChanged(val mode: PauseHotkeyMode) : SettingsEvent()
+    data class OnShowInlineImagesChanged(val mode: InlineImageMode) : SettingsEvent()
+    data class OnInlineImageMaxHeightChanged(val height: Int) : SettingsEvent()
     data class OnWallpaperPathChanged(val path: String) : SettingsEvent()
     data class OnWallpaperBlurChanged(val blur: Float) : SettingsEvent()
     data class OnCloseEmotePickerOnMouseLeaveChanged(val enabled: Boolean) : SettingsEvent()
@@ -126,6 +135,9 @@ class SettingsViewModel(
         private const val KEY_UI_SCALE = "ui_scale"
         private const val KEY_PAUSE_ON_HOVER = "pause_on_hover"
         private const val KEY_PAUSE_HOTKEY = "pause_hotkey"
+        private const val KEY_PAUSE_HOTKEY_MODE = "pause_hotkey_mode"
+        private const val KEY_SHOW_INLINE_IMAGES = "show_inline_images"
+        private const val KEY_INLINE_IMAGE_MAX_HEIGHT = "inline_image_max_height"
         private const val KEY_WALLPAPER_PATH = "wallpaper_path"
         private const val KEY_WALLPAPER_BLUR = "wallpaper_blur"
         private const val KEY_EMOTE_PICKER_MOUSE_LEAVE = "emote_picker_mouse_leave"
@@ -194,6 +206,13 @@ class SettingsViewModel(
                 uiScale = settings.getFloat(KEY_UI_SCALE, 1.0f),
                 pauseOnHover = settings.getBoolean(KEY_PAUSE_ON_HOVER, false),
                 pauseHotkey = settings.getStringOrNull(KEY_PAUSE_HOTKEY) ?: "",
+                pauseHotkeyMode = PauseHotkeyMode.entries.getOrNull(
+                    settings.getInt(KEY_PAUSE_HOTKEY_MODE, 0)
+                ) ?: PauseHotkeyMode.TOGGLE,
+                showInlineImages = InlineImageMode.entries.getOrNull(
+                    settings.getInt(KEY_SHOW_INLINE_IMAGES, 0)
+                ) ?: InlineImageMode.ON,
+                inlineImageMaxHeight = settings.getInt(KEY_INLINE_IMAGE_MAX_HEIGHT, 200),
                 wallpaperPath = settings.getStringOrNull(KEY_WALLPAPER_PATH) ?: "",
                 wallpaperBlur = settings.getFloat(KEY_WALLPAPER_BLUR, 12f),
                 closeEmotePickerOnMouseLeave = settings.getBoolean(
@@ -373,6 +392,21 @@ class SettingsViewModel(
                     KEY_PAUSE_HOTKEY,
                     event.hotkey
                 ); update { it.copy(pauseHotkey = event.hotkey) }
+            }
+
+            is SettingsEvent.OnPauseHotkeyModeChanged -> {
+                settings.putInt(KEY_PAUSE_HOTKEY_MODE, event.mode.ordinal)
+                update { it.copy(pauseHotkeyMode = event.mode) }
+            }
+
+            is SettingsEvent.OnShowInlineImagesChanged -> {
+                settings.putInt(KEY_SHOW_INLINE_IMAGES, event.mode.ordinal)
+                update { it.copy(showInlineImages = event.mode) }
+            }
+
+            is SettingsEvent.OnInlineImageMaxHeightChanged -> {
+                settings.putInt(KEY_INLINE_IMAGE_MAX_HEIGHT, event.height.coerceIn(50, 500))
+                update { it.copy(inlineImageMaxHeight = event.height.coerceIn(50, 500)) }
             }
 
             is SettingsEvent.OnWallpaperPathChanged -> {
