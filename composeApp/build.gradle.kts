@@ -129,19 +129,22 @@ compose.desktop {
             packageName = "Chatone"
             packageVersion = "1.0.7"
 
-            buildTypes.release.proguard {
-                configurationFiles.from("proguard-rules.pro")
-                isEnabled = true
-                optimize = true
-                obfuscate = false
-            }
-
             modules(
-                "java.sql",
-                "java.naming",
-                "java.management",
+                "java.base",
                 "java.desktop",
-                "java.logging"
+                "java.logging",
+                "java.management",
+                "java.naming",
+                "java.net.http",
+                "java.prefs",
+                "java.sql",
+                "java.security.jgss",
+                "java.security.sasl",
+                "jdk.crypto.ec",
+                "jdk.crypto.cryptoki",
+                "jdk.unsupported",
+                "jdk.naming.dns",
+                "jdk.net"
             )
 
             macOS {
@@ -169,7 +172,6 @@ tasks.register<Zip>("createPortableZip") {
     archiveFileName.set("Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-portable.zip")
     destinationDirectory.set(file("build/distributions"))
 
-   
     entryCompression = org.gradle.api.tasks.bundling.ZipEntryCompression.DEFLATED
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
