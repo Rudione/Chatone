@@ -37,11 +37,7 @@ data class ChatState(
     val channelLogin: String = "",
     val channelId: String = "",
     val messages: List<DisplayMessage> = emptyList(),
-    /**
-     * Monotonic sequence that increments on every *append* to [messages].
-     * UI auto-scroll keys on this instead of list size, so trimming to
-     * scrollbackLimit does not freeze the trigger.
-     */
+    
     val messagesSeq: Long = 0L,
     val messageInput: String = "",
     val isConnected: Boolean = false,
@@ -55,20 +51,20 @@ data class ChatState(
     val currentDisplayName: String = "",
     val currentUserColor: String = "",
     val currentAccessToken: String = "",
-    // Emote autocomplete
+
     val emoteCompletions: List<GenericEmote> = emptyList(),
     val showEmoteCompletions: Boolean = false,
-    // Username @mention autocomplete
+
     val mentionCompletions: List<String> = emptyList(),
     val showMentionCompletions: Boolean = false,
     val mentionCount: Int = 0,
-    // Reply
+
     val replyingTo: DisplayMessage.PrivMsg? = null,
-    // Pinned message
+
     val pinnedMessage: DisplayMessage.PrivMsg? = null,
-    // Message history (own sent messages for arrow up/down navigation)
+
     val sentMessageHistory: List<String> = emptyList(),
-    val historyIndex: Int = -1  // -1 = not navigating
+    val historyIndex: Int = -1
 ) : UiState
 
 data class RoomState(
@@ -89,9 +85,9 @@ sealed class ChatEvent : UiEvent {
     ) : ChatEvent()
     data class OnMessageInputChanged(val input: String) : ChatEvent()
     object OnSendMessage : ChatEvent()
-    // Ctrl+Enter — sends but keeps text in input field
+
     object OnSendMessageKeepText : ChatEvent()
-    // Arrow up/down in input — navigate sent message history
+
     object OnHistoryUp : ChatEvent()
     object OnHistoryDown : ChatEvent()
     object OnReconnect : ChatEvent()
@@ -106,21 +102,21 @@ sealed class ChatEvent : UiEvent {
     data class OnUnmodUser(val userId: String) : ChatEvent()
     data class OnVipUser(val userId: String) : ChatEvent()
     data class OnUnvipUser(val userId: String) : ChatEvent()
-    // Emote completion
+
     data class OnSelectEmoteCompletion(val emote: GenericEmote) : ChatEvent()
     object OnDismissCompletions : ChatEvent()
     data class OnSelectMentionCompletion(val username: String) : ChatEvent()
     object OnDismissMentionCompletions : ChatEvent()
-    // Chat settings (mod panel)
+
     data class OnUpdateChatSettings(val settings: Map<String, Any>) : ChatEvent()
     object OnClearChat : ChatEvent()
-    // Reply
+
     data class OnReplyToMessage(val message: DisplayMessage.PrivMsg) : ChatEvent()
     object OnCancelReply : ChatEvent()
-    // Pin message
+
     data class OnPinMessage(val messageId: String) : ChatEvent()
     object OnUnpinMessage : ChatEvent()
-    // Mod panel actions
+
     data class OnSendAnnouncement(val message: String, val color: String = "primary") : ChatEvent()
     data class OnStartRaid(val targetLogin: String) : ChatEvent()
     object OnCancelRaid : ChatEvent()
@@ -155,7 +151,7 @@ class ChatViewModel(
         private const val MAX_HISTORY = 50
     }
 
-    /** Read scrollbackLimit from Settings; falls back to 500 */
+    
     private val maxMessages: Int
         get() = SettingsViewModel.loadInitialState().scrollbackLimit.coerceIn(100, 5000)
 
@@ -171,7 +167,7 @@ class ChatViewModel(
         val settings = SettingsViewModel.loadInitialState()
         val rules = settings.highlightRules.filter { it.enabled }
 
-        // Resolve effective login — also use displayName (Twitch uses it in @mentions)
+
         val stateLogin = state.value.currentUserLogin
         val stateDisplay = state.value.currentDisplayName
         val effectiveLogin = when {
@@ -180,7 +176,7 @@ class ChatViewModel(
             stateDisplay.isNotEmpty() -> stateDisplay.lowercase()
             else -> ""
         }
-        // Also collect display name variations for matching
+
         val effectiveDisplay = when {
             stateDisplay.isNotEmpty() -> stateDisplay.lowercase()
             stateLogin.isNotEmpty() -> stateLogin.lowercase()
@@ -188,7 +184,7 @@ class ChatViewModel(
             else -> ""
         }
 
-        // Always check @mention in text: try both login and display name
+
         if (effectiveLogin.isNotEmpty() || effectiveDisplay.isNotEmpty()) {
             val loginMatch = effectiveLogin.isNotEmpty() && messageText.contains("@$effectiveLogin", ignoreCase = true)
             val displayMatch = effectiveDisplay.isNotEmpty() && effectiveDisplay != effectiveLogin &&
@@ -201,7 +197,7 @@ class ChatViewModel(
             }
         }
 
-        // If no login resolved, skip rule-based check to avoid false positives
+
         if (effectiveLogin.isEmpty() && effectiveDisplay.isEmpty()) return null
 
         for (rule in rules) {
@@ -298,7 +294,7 @@ class ChatViewModel(
         }
     }
 
-    // ── Message history navigation (Arrow Up/Down) ──────────────────
+
 
     private fun navigateHistory(up: Boolean) {
         val s = state.value
@@ -324,7 +320,7 @@ class ChatViewModel(
         if (text.isBlank() || s.channelLogin.isEmpty()) return
         viewModelScope.launch {
             try {
-                // /pin is not supported in Twitch IRC — send as announcement instead
+
                 if (text.startsWith("/pin ", ignoreCase = true)) {
                     val pinMsg = text.removePrefix("/pin ").removePrefix("/PIN ").trim()
                     if (pinMsg.isNotBlank() && s.currentAccessToken.isNotEmpty() && s.channelId.isNotEmpty()) {
@@ -367,8 +363,8 @@ class ChatViewModel(
                 channelLogin = channelLogin,
                 channelId = cachedChannelId,
                 messages = cachedMessages,
-                // Bump so that ChatScreen auto-scroll fires once for the
-                // freshly-loaded cached list (Bug 1 fix continuity).
+
+
                 messagesSeq = it.messagesSeq + if (cachedMessages.isNotEmpty()) 1 else 0,
                 roomState = cachedRoomState,
                 isMod = cachedIsMod,
@@ -415,7 +411,7 @@ class ChatViewModel(
                 launch { loadBadgesWithToken(); retokenizeMessages() }
                 if (resolvedChannelId.isNotEmpty()) {
                     launch { loadChannelEmotesAndBadges(resolvedChannelId) }
-                    // FIX: Check mod status via API immediately so buttons appear without sending a message
+
                     launch { checkAndSetModStatus(resolvedChannelId) }
                 }
                 launch { loadRecentMessages(channelLogin) }
@@ -428,17 +424,7 @@ class ChatViewModel(
         }
     }
 
-    /**
-     * Resolve moderator / broadcaster status via Helix the moment we have
-     * both channelId and userId. Runs eagerly on chat init so the mod /
-     * broadcaster action buttons appear immediately instead of waiting for
-     * the user's first PRIVMSG (which is what used to gate USERSTATE).
-     *
-     * The path is: self == broadcasterId → isMod=true (broadcaster gets
-     * every mod capability), otherwise query /moderation/moderators. If
-     * the query fails (no scope, network, etc.) we leave isMod alone so
-     * the eventual USERSTATE path can still correct it.
-     */
+    
     private suspend fun checkAndSetModStatus(channelId: String) {
         val s = state.value
         val token = s.currentAccessToken
@@ -446,7 +432,7 @@ class ChatViewModel(
         val channelLogin = s.channelLogin
         if (token.isEmpty() || userId.isEmpty() || channelId.isEmpty() || channelLogin.isEmpty()) return
         try {
-            // Fast path: broadcaster of own channel
+
             if (channelId == userId) {
                 channelModCache[channelLogin.lowercase()] = true
                 update { if (it.channelLogin == channelLogin) it.copy(isMod = true) else it }
@@ -465,20 +451,20 @@ class ChatViewModel(
         }
     }
 
-    // ▼▼▼ Добавление сообщения в историю ▼▼▼
+
     private fun addToHistory(state: ChatState, message: String): ChatState {
         val trimmed = message.trim()
         if (trimmed.isBlank()) return state
 
-        // Не добавляем дубликаты подряд
+
         if (state.sentMessageHistory.firstOrNull() == trimmed) return state
 
         return state.copy(
             sentMessageHistory = listOf(trimmed) + state.sentMessageHistory.take(MAX_HISTORY - 1),
-            historyIndex = -1  // Сбрасываем позицию при новом сообщении
+            historyIndex = -1
         )
     }
-    // ▲▲▲ ▲▲▲
+
 
     private suspend fun loadRecentMessages(channelLogin: String) {
         try {
@@ -503,7 +489,7 @@ class ChatViewModel(
                             if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
                                 if (state.value.channelLogin == channelLogin) {
                                     update { state ->
-                                        // FIX Bug 2: always apply latest 7TV cosmetics, not just when both are null
+
                                         state.copy(messages = state.messages.map { dm ->
                                             if (dm is DisplayMessage.PrivMsg && dm.userId == userId)
                                                 dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
@@ -622,7 +608,7 @@ class ChatViewModel(
                             val cosmetics = sevenTvCosmeticsClient.getUserCosmetics(message.userId)
                             if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
                                 update { state ->
-                                    // FIX Bug 2: always apply latest 7TV cosmetics unconditionally
+
                                     state.copy(messages = state.messages.map { dm ->
                                         if (dm is DisplayMessage.PrivMsg && dm.id == msgId)
                                             dm.copy(sevenTvPaint = cosmetics.paint, sevenTvBadge = cosmetics.badge)
@@ -653,7 +639,7 @@ class ChatViewModel(
                     sendEffect(ChatEffect.ScrollToBottom)
 
                     if (matchResult != null) {
-                        // Always fire MentionDetected so MentionsFeed gets it regardless of sound setting
+
                         sendEffect(ChatEffect.MentionDetected(s.channelLogin, finalMsg as? DisplayMessage.PrivMsg))
                         if (matchResult.playSound) {
                             val settings = SettingsViewModel.loadInitialState()
@@ -675,7 +661,7 @@ class ChatViewModel(
                     if (!isOwnMessage) {
                         val matchResult = checkHighlightRules(message.message, s.currentUserLogin)
                         if (matchResult != null) {
-                            // Build display message for the mention entry
+
                             val otherDisplayMsg = chatMessageToDisplay(message)
                             val otherFinalMsg = otherDisplayMsg.copy(isMention = true, highlightColor = matchResult.color)
                             sendEffect(ChatEffect.MentionDetected(message.channelName, otherFinalMsg))
@@ -765,10 +751,10 @@ class ChatViewModel(
                                 update { it.copy(channelId = roomId) }
                                 channelIdCache[channelLogin.lowercase()] = roomId
                                 loadChannelEmotesAndBadges(roomId)
-                                // FIX Bug 3: if initChannel raced past the mod check
-                                // because channelId wasn't resolved yet via getUsers,
-                                // do it now — ROOMSTATE is guaranteed to deliver the
-                                // room id on JOIN so this is the fallback path.
+
+
+
+
                                 viewModelScope.launch { checkAndSetModStatus(roomId) }
                             }
                             update { state ->
@@ -789,11 +775,11 @@ class ChatViewModel(
                             channelModCache[channelLogin.lowercase()] = event.isMod
                             if (event.badges.isNotEmpty()) currentUserBadgeRaw = event.badges
 
-                            // FIX Bug 3: parse the freshly received badges and retroactively patch
-                            // the most recent local-echo message (id starts with "local_") that
-                            // was sent by the current user and still has an empty badge list.
-                            // This happens when the user sends their first message and USERSTATE
-                            // arrives after the local echo was already added.
+
+
+
+
+
                             if (event.badges.isNotEmpty()) {
                                 val freshBadges = event.badges.split(",").mapNotNull { pair ->
                                     val parts = pair.split("/", limit = 2)
@@ -805,7 +791,7 @@ class ChatViewModel(
                                 )
                                 val currentUserId = state.value.currentUserId
                                 update { st ->
-                                    // Find the last local-echo message for the current user that has no badges
+
                                     val targetIndex = st.messages.indexOfLast { dm ->
                                         dm is DisplayMessage.PrivMsg &&
                                                 dm.id.startsWith("local_") &&
@@ -903,7 +889,7 @@ class ChatViewModel(
         }
     }
 
-    // ── Autocomplete ────────────────────────────────────────────────
+
 
     private fun updateMessageInput(input: String) {
         update { it.copy(messageInput = input, historyIndex = -1) }
@@ -962,7 +948,7 @@ class ChatViewModel(
         update { it.copy(messageInput = newInput, showEmoteCompletions = false, emoteCompletions = emptyList()) }
     }
 
-    // ── Send Message ────────────────────────────────────────────────
+
 
     private fun sendMessage(keepText: Boolean = false) {
         val s = state.value
@@ -1003,9 +989,9 @@ class ChatViewModel(
                 sendMessageUseCase(channelLogin, message)
 
                 val now = Clock.System.now().toEpochMilliseconds()
-                // Use currentUserBadgeRaw if available (for non-first messages).
-                // For the very first message, this may be empty — the badges will be
-                // retroactively patched when USERSTATE arrives (see observeIrcEvents).
+
+
+
                 val ownBadges = if (currentUserBadgeRaw.isNotEmpty()) {
                     currentUserBadgeRaw.split(",").mapNotNull { pair ->
                         val parts = pair.split("/", limit = 2)
@@ -1148,7 +1134,7 @@ class ChatViewModel(
                 current.endsWith(" ") -> "$current$tag"
                 else -> "$current $tag"
             }
-            // showMentionCompletions = false so autocomplete does NOT appear
+
             st.copy(messageInput = newInput, showMentionCompletions = false, mentionCompletions = emptyList())
         }
     }

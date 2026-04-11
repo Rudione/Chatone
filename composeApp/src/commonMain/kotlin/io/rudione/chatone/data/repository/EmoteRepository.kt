@@ -26,7 +26,7 @@ class EmoteRepository(
     }
 
     private val channelEmotesMap = mutableMapOf<String, MutableStateFlow<ChannelEmotes>>()
-    private val channelEmoteSetIds = mutableMapOf<String, String>() // channelName -> 7TV emote set ID
+    private val channelEmoteSetIds = mutableMapOf<String, String>()
 
     private val _globalEmotes = MutableStateFlow(ChannelEmotes())
     val globalEmotes: StateFlow<ChannelEmotes> = _globalEmotes
@@ -94,7 +94,7 @@ class EmoteRepository(
             val bttvEmotes = bttv.await()
             val ffzEmotes = ffz.await()
 
-            // Store the 7TV emote set ID for EventAPI subscription
+
             sevenTvResult.emoteSetId?.let { setId ->
                 channelEmoteSetIds[channelName.lowercase()] = setId
             }

@@ -31,7 +31,7 @@ actual class DatabaseDriverFactory {
             }
         }
 
-        // Ensure tables added after initial schema exist (handles stale DBs without migration files)
+
         ensureTablesExist(driver)
 
         return driver

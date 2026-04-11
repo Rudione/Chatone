@@ -2,13 +2,12 @@ package io.rudione.chatone.domain.model
 
 import kotlinx.serialization.Serializable
 
-// ─── Кастомная кнопка мода ───────────────────────────────────────────────────
 
 @Serializable
 data class ModActionButton(
     val id: String,
-    val durationSeconds: Int,   // > 0 = timeout N сек
-    val label: String = "",     // если пусто — авто: "1s", "1m" и т.д.
+    val durationSeconds: Int,  
+    val label: String = "",    
     val enabled: Boolean = true
 ) {
     val displayLabel: String get() = label.ifEmpty { formatDuration(durationSeconds) }
@@ -28,7 +27,6 @@ data class ModActionButton(
     }
 }
 
-// ─── Макрос ──────────────────────────────────────────────────────────────────
 
 @Serializable
 data class Macro(
@@ -36,7 +34,7 @@ data class Macro(
     val name: String,
     val icon: String = "⚡",
     val steps: List<MacroStep> = emptyList(),
-    val pinnedIndex: Int = -1   // 0-4 → слот в быстрой панели, -1 = не закреплён
+    val pinnedIndex: Int = -1  
 )
 
 @Serializable

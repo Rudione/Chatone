@@ -79,7 +79,6 @@ abstract class BaseViewModel<State : UiState, Event : UiEvent, Effect : UIEffect
 ### Example: ChatViewModel
 
 ```kotlin
-// State
 data class ChatState(
     val channelLogin: String = "",
     val messages: List<ChatMessage> = emptyList(),
@@ -87,14 +86,12 @@ data class ChatState(
     val isConnected: Boolean = false
 ) : UiState
 
-// Events
 sealed class ChatEvent : UiEvent {
     data class OnInit(val channelLogin: String) : ChatEvent()
     data class OnMessageInputChanged(val input: String) : ChatEvent()
     object OnSendMessage : ChatEvent()
 }
 
-// Effects
 sealed class ChatEffect : UIEffect {
     data class ShowError(val message: String) : ChatEffect()
     object ScrollToBottom : ChatEffect()
@@ -304,19 +301,19 @@ PRIVMSG #channel :message_text
 
 ```kotlin
 class TwitchIrcClient {
-    // Separate read/write connections (recommended by Twitch)
+   
     private var session: WebSocketSession? = null
     
-    // Auto-reconnect with exponential backoff
+   
     private var reconnectAttempts = 0
     private val maxReconnectAttempts = 5
     private val baseReconnectDelay = 2000L
     
-    // Keep-alive mechanism
+   
     private fun startPingJob() {
         pingJob = scope.launch {
             while (isActive) {
-                delay(60000) // Ping every 60 seconds
+                delay(60000)
                 session?.send(Frame.Text("PING"))
             }
         }
@@ -329,9 +326,9 @@ class TwitchIrcClient {
 ```kotlin
 object IrcMessageParser {
     fun parseMessage(rawMessage: String): ChatMessage {
-        // Example:
-        // @badge-info=;badges=moderator/1;color=#FF0000;display-name=User
-        // :user!user@user.tmi.twitch.tv PRIVMSG #channel :Hello!
+       
+       
+       
         
         1. Extract tags (@key=value;...)
         2. Parse prefix (user!user@user.tmi.twitch.tv)
@@ -347,7 +344,6 @@ object IrcMessageParser {
 ### Material 3 Theme
 
 ```kotlin
-// Twitch Purple color scheme
 private val TwitchPurple = Color(0xFF9146FF)
 
 private val DarkColorScheme = darkColorScheme(

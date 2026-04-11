@@ -27,9 +27,9 @@ object AutoUpdater {
 
     private const val GITHUB_API = "https://api.github.com"
     private const val REPO = "Rudione/Chatone"
-    // ▼▼▼ Версия берётся из build.gradle.kts (не BuildConfig!) ▼▼▼
+
     private const val CURRENT_VERSION = "1.0.7"
-    // ▲▲▲ ▲▲▲
+
 
     private val httpClient = HttpClient(OkHttp) {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -51,10 +51,7 @@ object AutoUpdater {
         )
     }
 
-    /**
-     * Проверяет наличие обновления.
-     * Запускать из coroutine scope: viewModelScope.launch { AutoUpdater.checkForUpdates() }
-     */
+    
     suspend fun checkForUpdates(showDialog: Boolean = true): UpdateResult {
         return withContext(Dispatchers.IO) {
             try {
@@ -111,7 +108,7 @@ object AutoUpdater {
                         installMsi(updateFile)
                     }
                     asset.name.endsWith(".zip", ignoreCase = true) -> {
-                        // ▼▼▼ Для ZIP: распаковываем и перезапускаем ▼▼▼
+
                         extractZip(updateFile, tempDir)
                         restartFromZip(tempDir)
                         true
@@ -129,7 +126,7 @@ object AutoUpdater {
         }
     }
 
-    // ─── Вспомогательные методы ─────────────────────────────────────────
+
 
     private fun isVersionNewer(latest: String, current: String): Boolean {
         return latest.split(".").map { it.toIntOrNull() ?: 0 }
@@ -149,7 +146,7 @@ object AutoUpdater {
             val name = asset.name.lowercase()
             when {
                 os.contains("win") && name.endsWith(".msi") -> true
-                os.contains("win") && name.endsWith(".zip") -> true  // Portable version
+                os.contains("win") && name.endsWith(".zip") -> true
                 os.contains("mac") && (name.endsWith(".dmg") || name.endsWith(".zip")) -> true
                 os.contains("linux") && name.endsWith(".deb") -> true
                 else -> false
@@ -157,14 +154,14 @@ object AutoUpdater {
         }
     }
 
-    // ▼▼▼ ИСПРАВЛЕНИЕ: ByteBuffer вместо ByteArray ▼▼▼
+
     private suspend fun downloadFile(url: String, destination: File, onProgress: (Int) -> Unit = {}) {
         withContext(Dispatchers.IO) {
             httpClient.prepareGet(url).execute { response ->
                 val totalBytes = response.headers["Content-Length"]?.toLong() ?: 0
                 var downloadedBytes = 0L
 
-                // Используем FileChannel для корректной работы с ByteBuffer
+
                 FileOutputStream(destination).use { output ->
                     val fileChannel: FileChannel = output.channel
                     val byteBuffer = ByteBuffer.allocate(8192)
@@ -188,7 +185,7 @@ object AutoUpdater {
             }
         }
     }
-    // ▲▲▲ ▲▲▲
+
 
     private fun installMsi(file: File): Boolean {
         return try {
@@ -213,7 +210,7 @@ object AutoUpdater {
         }
     }
 
-    // ▼▼▼ Распаковка ZIP для портативной версии ▼▼▼
+
     private fun extractZip(zipFile: File, destDir: File) {
         java.util.zip.ZipFile(zipFile).use { zip ->
             zip.entries().asSequence().forEach { entry ->
@@ -234,16 +231,16 @@ object AutoUpdater {
 
     private fun restartFromZip(extractDir: File) {
         try {
-            // Ищем главный JAR или скрипт запуска в распакованной папке
-            val launcher = File(extractDir, "Chatone.exe")  // Для Windows
+
+            val launcher = File(extractDir, "Chatone.exe")
                 .takeIf { it.exists() }
-                ?: File(extractDir, "Chatone")  // Для Linux/Mac
+                ?: File(extractDir, "Chatone")
                     .takeIf { it.exists() }
                 ?: throw IllegalStateException("Launcher not found in extracted update")
 
             Napier.d("Restarting from: ${launcher.absolutePath}")
 
-            // Запускаем новую версию и закрываем текущую
+
             ProcessBuilder(launcher.absolutePath).start()
             System.exit(0)
 
@@ -251,12 +248,12 @@ object AutoUpdater {
             Napier.e("Failed to restart from ZIP: ${e.message}", e)
         }
     }
-    // ▲▲▲ ▲▲▲
+
 
     private fun restartApp() {
         try {
-            // Для MSI: новая версия запускается сама, просто закрываем текущую
-            // Для портативной: перезапускаем из той же папки
+
+
             val javaHome = System.getProperty("java.home")
             val javaBin = "$javaHome/bin/java"
             val classpath = System.getProperty("java.class.path")
@@ -295,7 +292,7 @@ object AutoUpdater {
             )
 
             when (choice) {
-                0 -> {  // Update Now
+                0 -> {
                     kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
                         val success = downloadAndUpdate(release, latestVersion)
                         if (!success) {

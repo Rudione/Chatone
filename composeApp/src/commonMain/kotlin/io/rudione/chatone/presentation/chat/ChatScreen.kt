@@ -206,7 +206,7 @@ fun ChatScreen(
     var mentionTabIndex by remember { mutableStateOf(-1) }
     var isHoveredOverEmoteTooltip by remember { mutableStateOf(false) }
     var hasNewMessagesWhilePaused by remember { mutableStateOf(false) }
-    // Guard flag: prevents programmatic scrolls from triggering user-pause
+   
     var isAutoScrolling by remember { mutableStateOf(false) }
     var unreadCount by remember { mutableStateOf(0) }
     val chatBoxFocusRequester = remember { FocusRequester() }
@@ -223,7 +223,7 @@ fun ChatScreen(
         }
     }
 
-    // Effective pause: hotkey OR hover-pause OR user scrolled away from bottom (5+ items)
+   
     val isScrolledAway = remember {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
@@ -238,14 +238,14 @@ fun ChatScreen(
             (settingsState.pauseOnHover && isHoveredOverChat && !isHoveredOverEmoteTooltip) ||
             isScrolledAway.value
 
-    // FIX Bug 2: Only detect user-initiated scrolls (not programmatic ones)
+   
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress && !isAtBottom.value && !isAutoScrolling) {
             hasNewMessagesWhilePaused = true
         }
     }
 
-    // When user scrolls back to bottom, clear everything
+   
     LaunchedEffect(isAtBottom.value) {
         if (isAtBottom.value && !isPausedByHotkey) {
             hasNewMessagesWhilePaused = false
@@ -253,7 +253,7 @@ fun ChatScreen(
         }
     }
 
-    // When effectivelyPaused becomes false (e.g. hover ends, hotkey released), scroll to bottom
+   
     LaunchedEffect(effectivelyPaused) {
         if (!effectivelyPaused && state.messages.isNotEmpty()) {
             isAutoScrolling = true
@@ -264,12 +264,12 @@ fun ChatScreen(
         }
     }
 
-    // FIX Bug 1: key on monotonic messagesSeq, NOT list size.
-    // When scrollbackLimit is reached, the list size freezes while new
-    // messages keep arriving. Keying on size made LaunchedEffect never
-    // re-trigger → auto-scroll silently died. messagesSeq strictly
-    // increases on every append in the ViewModel, so we always re-run
-    // while preserving all three pause paths (hotkey / hover / scrolled-up).
+   
+   
+   
+   
+   
+   
     val messagesSeq = state.messagesSeq
     LaunchedEffect(messagesSeq) {
         if (messagesSeq == 0L) return@LaunchedEffect
@@ -277,8 +277,8 @@ fun ChatScreen(
         if (size == 0) return@LaunchedEffect
         if (!effectivelyPaused) {
             isAutoScrolling = true
-            // scrollToItem (not animate) ensures we never lose the bottom
-            // anchor when bursts of messages arrive faster than animation.
+           
+           
             listState.scrollToItem(size - 1)
             isAutoScrolling = false
             unreadCount = 0
@@ -301,7 +301,7 @@ fun ChatScreen(
         )
     }
 
-    // Report channelId back when resolved
+   
     val channelId = state.channelId
     LaunchedEffect(channelId) {
         if (channelId.isNotEmpty()) onChannelIdResolved(channelId)
@@ -317,23 +317,23 @@ fun ChatScreen(
                     }
                 }
                 is ChatEffect.MentionDetected -> {
-                    // FIX Bug 4: properly distinguish mentions on the CURRENTLY-
-                    // VIEWED channel from mentions on any other open channel.
-                    //
-                    // Rules:
-                    //  - Mentions on the active channel (what the user is looking
-                    //    at RIGHT NOW) are silent for the red dot / feed — the
-                    //    user already sees the message highlighted inline.
-                    //  - Mentions on *other* open channels always light up the
-                    //    red dot and append to the mentions feed, regardless of
-                    //    whether those channels' IRC sockets have been touched
-                    //    recently (the app is not allowed to decide that "I was
-                    //    there recently so it counts").
-                    //
-                    // We also make sure MentionEntry carries the *mention's* own
-                    // channelLogin — previously it was using the outer composable
-                    // parameter which meant cross-channel mentions landed in the
-                    // feed under the wrong channel header.
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
+                   
                     val mentionChannel = effect.channelLogin
                     val isActiveChannel = mentionChannel.equals(channelLogin, ignoreCase = true)
 
@@ -346,10 +346,10 @@ fun ChatScreen(
                         }
                         onMentionDetected(mentionChannel)
                     }
-                    // Always populate the feed entry — the feed shows mentions
-                    // across ALL channels including the active one when the user
-                    // opens the mentions panel manually. The red dot is what we
-                    // suppress for the active channel, not the historical feed.
+                   
+                   
+                   
+                   
                     val mentionMsg = effect.message
                     if (mentionMsg != null) {
                         val entry = MentionEntry(
@@ -376,22 +376,22 @@ fun ChatScreen(
         }
     }
 
-    // Request focus on the chat Box (Android fallback — desktop uses
-    // GlobalKeyDispatcher so focus is irrelevant there).
+   
+   
     LaunchedEffect(Unit) {
         chatBoxFocusRequester.requestFocus()
     }
 
-    // FIX Bug 2a: the pause hotkey used to only fire when the chat Box
-    // subtree had focus (i.e. when the text input was active). We now
-    // route key events through a Window-level dispatcher so the bind
-    // works regardless of what's focused.
-    //
-    // FIX Bug 2b: when HOLD mode is released, forcibly scroll to the
-    // very bottom — during pause the list usually grew beyond the
-    // viewport, which left `isScrolledAway` stuck at true, so the
-    // existing effectivelyPaused → false branch alone was never enough
-    // to bring the user back to the live edge.
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
     val currentSettings by rememberUpdatedState(settingsState)
     val currentIsPausedByHotkey by rememberUpdatedState(isPausedByHotkey)
     val hotkeyHandler = remember<(androidx.compose.ui.input.key.KeyEvent) -> Boolean> {
@@ -411,9 +411,9 @@ fun ChatScreen(
                     pauseHotkeyMatchesRelease(event, hotkey)
                 ) {
                     isPausedByHotkey = false
-                    // Force-snap to the bottom. The regular effectivelyPaused
-                    // side-effect can't help here because isScrolledAway will
-                    // still be true until after the next measurement pass.
+                   
+                   
+                   
                     coroutineScope.launch {
                         val size = state.messages.size
                         if (size > 0) {
@@ -430,7 +430,7 @@ fun ChatScreen(
                 if (event.type == KeyEventType.KeyDown && pauseHotkeyMatches(event, hotkey)) {
                     val wasPaused = currentIsPausedByHotkey
                     isPausedByHotkey = !wasPaused
-                    // If toggling OFF, snap to bottom just like HOLD release.
+                   
                     if (wasPaused) {
                         coroutineScope.launch {
                             val size = state.messages.size
@@ -455,8 +455,8 @@ fun ChatScreen(
         onDispose { unregister() }
     }
 
-    // ▼▼▼ Box-контейнер для оверлеев (local key-handler kept as
-    //    Android fallback — on desktop GlobalKeyDispatcher already ran) ▼▼▼
+   
+   
     Box(modifier = modifier.fillMaxSize()
         .focusRequester(chatBoxFocusRequester)
         .focusable()
@@ -562,11 +562,11 @@ fun ChatScreen(
                                             profilePopupUserId = message.userId
                                         },
                                         onRightClickUsername = { displayName ->
-                                            // Use OnInsertMention so autocomplete doesn't pop up
+                                           
                                             viewModel.sendEvent(ChatEvent.OnInsertMention(displayName))
                                         },
                                         onMentionClick = { mentionedUsername ->
-                                            // Ищем юзера по нику в текущих сообщениях
+                                           
                                             val mentionedMsg = state.messages
                                                 .filterIsInstance<DisplayMessage.PrivMsg>()
                                                 .lastOrNull { it.username.equals(mentionedUsername.removePrefix("@"), ignoreCase = true) }
@@ -741,7 +741,7 @@ fun ChatScreen(
             )
         }
 
-        // ▲▲▲ Оверлеи поверх чата ▲▲▲
+       
 
         if (state.showMentionCompletions && state.mentionCompletions.isNotEmpty()) {
             MentionAutocompleteRow(
@@ -785,7 +785,7 @@ fun ChatScreen(
                 val current = state.messageInput
                 val newInput = if (current.isEmpty() || current.endsWith(" ")) "$current${emote.code} " else "$current ${emote.code} "
                 viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
-                // НЕ закрываем плашку после выбора — можно добавить несколько смайликов
+               
             },
             onEmojiSelected = { emoji ->
                 val current = state.messageInput
@@ -822,7 +822,7 @@ fun ChatScreen(
                 onVip = { viewModel.sendEvent(ChatEvent.OnVipUser(msg.userId)) },
                 onUnvip = { viewModel.sendEvent(ChatEvent.OnUnvipUser(msg.userId)) },
                 onWhisper = {
-                    // Open whisper panel directly instead of putting /w in chat input
+                   
                     onOpenWhisper(msg.userId, msg.username, msg.displayName, "", msg.color)
                     profilePopupMessage = null
                     profilePopupUserId = null
@@ -849,7 +849,6 @@ fun ChatScreen(
     }
 }
 
-// ─── Mod Action Confirmation ────────────────────────────────────────────
 
 private sealed class PendingModAction {
     data class Timeout(val userId: String, val displayName: String, val duration: Int) :
@@ -888,7 +887,6 @@ private fun ModActionConfirmDialog(
     )
 }
 
-// ─── Top Bar ────────────────────────────────────────────────────────────
 
 @Composable
 private fun ChatTopBar(
@@ -929,7 +927,7 @@ private fun ChatTopBar(
                     }
                 }
                 if (isMod) {
-                    // ── Pinned macros (up to 5, drag to this area from settings) ──
+                   
                     if (pinnedMacros.isNotEmpty()) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -1061,11 +1059,11 @@ private fun PrivMsgItem(
     }
     val hasAccentBar = message.isMention || message.isFirstMessage
 
-    // Extract image links from tokens for inline preview
+   
     val imageLinks = remember(message.tokens) {
         message.tokens.filterIsInstance<MessageToken.Link>().filter { isImageUrl(it.url) }
     }
-    // Read inline image settings from Settings
+   
     val inlineSettings = remember { SettingsViewModel.loadInitialState() }
 
     Column(
@@ -1083,17 +1081,17 @@ private fun PrivMsgItem(
         verticalAlignment = Alignment.Top
     ) {
         if (showModActions) {
-            // ▼▼▼ ИСПРАВЛЕНО: Arrangement.spacedBy(0.dp) для плотного расположения ▼▼▼
+           
             Row(
                 modifier = Modifier.padding(end = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // ── Delete (always first) ───────────────────────────────────
+               
                 ModActionIconBtn(icon = Icons.Outlined.Delete, label = "Del",
                     tint = extraColors.modDelete, onClick = onDelete)
 
-                // ── Custom timeout buttons ──────────────────────────────────
+               
                 customModButtons.filter { it.enabled }.take(8).forEach { btn ->
                     ModActionIconBtn(
                         icon = Icons.Outlined.Refresh,
@@ -1103,11 +1101,11 @@ private fun PrivMsgItem(
                     )
                 }
 
-                // ── Default timeout ─────────────────────────────────────────
+               
                 ModActionIconBtn(icon = Icons.Outlined.Refresh, label = "10m",
                     tint = extraColors.modTimeout, onClick = onTimeout)
 
-                // ── Ban (always last) ───────────────────────────────────────
+               
                 ModActionIconBtn(icon = Icons.Filled.Close, label = "Ban",
                     tint = extraColors.modBan, onClick = onBan)
             }
@@ -1125,8 +1123,8 @@ private fun PrivMsgItem(
         }
 
         if (showBadges) {
-            // Бейджи выровнены напротив никнейма, а не по верхнему краю сообщения
-            // (когда эмоты выше строки, бейджи не уходят в самый верх)
+           
+           
             val hasBadges = message.badges.any { it.imageUrl.isNotEmpty() } ||
                     (message.sevenTvBadge?.let { it.url2x.isNotEmpty() || it.url1x.isNotEmpty() } ?: false)
             if (hasBadges) {
@@ -1160,7 +1158,7 @@ private fun PrivMsgItem(
             SettingsState.EmoteSize.SMALL -> 20.sp; SettingsState.EmoteSize.MEDIUM -> 28.sp; SettingsState.EmoteSize.LARGE -> 36.sp
         }
         val userColor = parseColor(message.color) ?: MaterialTheme.colorScheme.primary
-        val paintBrush = null //message.sevenTvPaint?.let { createPaintBrush(it) }
+        val paintBrush = null
         val inlineContent = mutableMapOf<String, InlineTextContent>()
         var emoteCounter = 0
 
@@ -1316,7 +1314,7 @@ private fun PrivMsgItem(
                         }
 
                         is MessageToken.Mention -> {
-                            // Добавляем аннотацию с именем — при клике откроем профиль
+                           
                             pushStringAnnotation("mention", token.username)
                             withStyle(
                                 SpanStyle(
@@ -1340,7 +1338,7 @@ private fun PrivMsgItem(
             )
         }
 
-        // ▼▼▼ Контейнер для текста + триггер контекстного меню ▼▼▼
+       
         Box(modifier = Modifier.weight(1f)) {
             Text(
                 text = annotatedString,
@@ -1359,18 +1357,18 @@ private fun PrivMsgItem(
                             onTap = { offset ->
                                 textLayoutResult?.let { layoutResult ->
                                     val charOffset = layoutResult.getOffsetForPosition(offset)
-                                    // URL click
+                                   
                                     annotatedString.getStringAnnotations("url", charOffset, charOffset)
                                         .firstOrNull()?.let { annotation ->
                                             try { uriHandler.openUri(annotation.item) } catch (_: Exception) {}
                                             return@detectTapGestures
                                         }
-                                    // Nickname (display name) left-click → open profile
+                                   
                                     annotatedString.getStringAnnotations("username", charOffset, charOffset)
                                         .firstOrNull()?.let {
                                             onUsernameClick(); return@detectTapGestures
                                         }
-                                    // @Mention tag click
+                                   
                                     annotatedString.getStringAnnotations("mention", charOffset, charOffset)
                                         .firstOrNull()?.let { annotation ->
                                             onMentionClick(annotation.item)
@@ -1390,16 +1388,16 @@ private fun PrivMsgItem(
                                 val event = awaitPointerEvent()
                                 if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Press &&
                                     event.buttons.isSecondaryPressed) {
-                                    // Right-click — check if on username annotation
+                                   
                                     val pos = event.changes.firstOrNull()?.position ?: continue
                                     val layoutResult = textLayoutResult ?: continue
                                     val charOffset = layoutResult.getOffsetForPosition(pos)
                                     val onUsername = annotatedString.getStringAnnotations("username", charOffset, charOffset).isNotEmpty()
                                     if (onUsername) {
-                                        // Right-click on username → insert @displayName into input
+                                       
                                         onRightClickUsername(message.displayName)
                                     } else {
-                                        // Right-click on message text → show context menu
+                                       
                                         contextMenuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
                                         showContextMenu = true
                                     }
@@ -1472,9 +1470,9 @@ private fun PrivMsgItem(
                 }
             }
         }
-        // ▲▲▲ Конец Popup-меню ▲▲▲
+       
     }
-    // ── Inline Image Previews ──
+   
     if (imageLinks.isNotEmpty() && inlineSettings.showInlineImages != InlineImageMode.OFF && !message.isDeleted) {
         imageLinks.forEach { link ->
             var isRevealed by remember { mutableStateOf(inlineSettings.showInlineImages == InlineImageMode.ON) }
@@ -1508,12 +1506,10 @@ private fun PrivMsgItem(
             }
         }
     }
-    } // Column end
+    }
 }
 
-// ─── Mod Action Icon Button with label below — ИСПРАВЛЕННЫЙ ▼▼▼
 
-// ─── Mod Action Icon Button — ПОЛНОСТЬЮ ИСПРАВЛЕННЫЙ ▼▼▼
 
 @Composable
 private fun ModActionIconBtn(
@@ -1527,7 +1523,7 @@ private fun ModActionIconBtn(
             .clickable(onClick = onClick)
             .clip(RoundedCornerShape(4.dp))
             .background(tint.copy(alpha = 0.08f))
-            // ▼▼▼ Явно задаём минимальные размеры ▼▼▼
+           
             .widthIn(min = 0.dp)
             .heightIn(min = 0.dp)
             .wrapContentWidth()
@@ -1535,10 +1531,10 @@ private fun ModActionIconBtn(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            // ▼▼▼ Минимальные отступы ▼▼▼
+           
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp)
         ) {
-            // ▼▼▼ Иконка без лишних отступов ▼▼▼
+           
             Icon(
                 icon,
                 contentDescription = label,
@@ -1548,12 +1544,12 @@ private fun ModActionIconBtn(
                 ,
                 tint = tint
             )
-            // ▼▼▼ Текст с отключённой мин. высотой строки ▼▼▼
+           
             Text(
                 label,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 6.sp,
-                    lineHeight = 6.sp  // ← Важно: равен fontSize
+                    lineHeight = 6.sp 
                 ),
                 color = tint,
                 modifier = Modifier.wrapContentHeight()
@@ -1561,9 +1557,7 @@ private fun ModActionIconBtn(
         }
     }
 }
-// ▲▲▲ ▲▲▲
 
-// ─── System / moderation message items ──────────────────────────────────────
 
 @Composable
 private fun SystemMsgItem(message: DisplayMessage.SystemMsg) {
@@ -1729,7 +1723,7 @@ private fun MessageInput(
     enabled: Boolean,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester = remember { FocusRequester() },
-    // Tab autocomplete
+   
     showEmoteCompletions: Boolean = false,
     showMentionCompletions: Boolean = false,
     emoteCount: Int = 0,
@@ -1783,7 +1777,7 @@ private fun MessageInput(
                         val isCtrl = event.isCtrlPressed || event.isMetaPressed
 
                         when {
-                            // ── Tab: цикл по autocomplete ──────────────────────────
+                           
                             event.key == Key.Tab && !isCtrl && !event.isAltPressed -> {
                                 when {
                                     showEmoteCompletions && emoteCount > 0 -> {
@@ -1800,7 +1794,7 @@ private fun MessageInput(
                                 true
                             }
 
-                            // ── Enter при активном Tab-выборе ─────────────────────
+                           
                             event.key == Key.Enter && !isCtrl && !event.isShiftPressed -> {
                                 when {
                                     showEmoteCompletions && emoteTabIndex >= 0 -> {
@@ -1813,16 +1807,16 @@ private fun MessageInput(
                                 }
                             }
 
-                            // ── Ctrl+Enter ─────────────────────────────────────────
+                           
                             isCtrl && event.key == Key.Enter -> { onSendKeepText(); true }
 
-                            // ── History Up ─────────────────────────────────────────
+                           
                             event.key == Key.DirectionUp && !isCtrl && !event.isShiftPressed && !event.isAltPressed
                                     && (tfv.text.isEmpty() || tfv.selection.start == 0) -> {
                                 onHistoryUp(); true
                             }
 
-                            // ── History Down ───────────────────────────────────────
+                           
                             event.key == Key.DirectionDown && !isCtrl && !event.isShiftPressed && !event.isAltPressed
                                     && (tfv.text.isEmpty() || tfv.selection.end == tfv.text.length) -> {
                                 onHistoryDown(); true
@@ -1891,7 +1885,7 @@ private fun pauseHotkeyMatches(event: KeyEvent, hotkey: String): Boolean {
 
     val isCtrl = event.isCtrlPressed || event.isMetaPressed
 
-    // Handle modifier-only hotkeys (e.g. just "alt", "ctrl", "ctrl+alt")
+   
     if (mainKey == "alt") {
         return event.isAltPressed && !event.isShiftPressed && isCtrl == needsCtrl
     }
@@ -1908,12 +1902,12 @@ private fun pauseHotkeyMatches(event: KeyEvent, hotkey: String): Boolean {
             event.isShiftPressed == needsShift
 }
 
-/** Check if URL points to an image (imgur, kappa, etc.) */
+
 private fun isImageUrl(url: String): Boolean {
     val lower = url.lowercase()
-    // Direct image extensions
+   
     if (lower.matches(Regex(""".*\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$"""))) return true
-    // Known image hosting services
+   
     if (lower.contains("i.imgur.com/")) return true
     if (lower.contains("imgur.com/") && !lower.contains("/a/") && !lower.contains("/gallery/")) return true
     if (lower.contains("kappa.lol/")) return true
@@ -1929,11 +1923,11 @@ private fun isImageUrl(url: String): Boolean {
     return false
 }
 
-/** Match hotkey release for HOLD mode — detects when modifier is released */
+
 private fun pauseHotkeyMatchesRelease(event: KeyEvent, hotkey: String): Boolean {
     if (hotkey.isBlank()) return false
     val mainKey = hotkey.lowercase().split("+").map { it.trim() }.last()
-    // For modifier-only hotkeys, detect the modifier release
+   
     return when (mainKey) {
         "alt" -> !event.isAltPressed
         "ctrl" -> !(event.isCtrlPressed || event.isMetaPressed)
@@ -1942,7 +1936,7 @@ private fun pauseHotkeyMatchesRelease(event: KeyEvent, hotkey: String): Boolean 
     }
 }
 
-/** Simple hotkey key name matching helper */
+
 private fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
     "space" -> key == Key.Spacebar
     "enter" -> key == Key.Enter
@@ -1973,7 +1967,7 @@ private fun EmoteAutocompleteRow(
 ) {
     val listState = rememberLazyListState()
 
-    // Автоскролл к выбранному элементу
+   
     LaunchedEffect(selectedIndex) {
         if (selectedIndex >= 0) {
             listState.animateScrollToItem(selectedIndex)
@@ -2129,7 +2123,6 @@ private fun MentionAutocompleteRow(
     }
 }
 
-// ─── Pinned Message Bar ──────────────────────────────────────────────────
 
 @Composable
 private fun PinnedMessageBar(
@@ -2204,7 +2197,6 @@ private fun PinnedMessageBar(
     }
 }
 
-// ─── Reply Bar ───────────────────────────────────────────────────────────
 
 @Composable
 private fun ReplyBar(displayName: String, messagePreview: String, onCancel: () -> Unit) {
@@ -2252,7 +2244,6 @@ private fun ReplyBar(displayName: String, messagePreview: String, onCancel: () -
     }
 }
 
-// ─── 7TV Paint ──────────────────────────────────────────────────────────
 
 private fun createPaintBrush(paint: SevenTvCosmetics.Paint): Brush? {
     if (paint.stops.isEmpty()) {
@@ -2272,11 +2263,10 @@ private fun argbToColor(argb: Int): Color {
     val r = ((argb shr 16) and 0xFF) / 255f
     val g = ((argb shr 8) and 0xFF) / 255f;
     val b = (argb and 0xFF) / 255f
-    //return Color(r, g, b, if (a == 0f) 1f else a)
+   
     return Color(r, g, b, a)
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────
 
 private fun formatTimestamp(
     timestamp: Long,

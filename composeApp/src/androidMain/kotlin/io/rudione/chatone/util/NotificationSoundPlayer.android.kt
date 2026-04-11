@@ -25,7 +25,7 @@ actual object NotificationSoundPlayer {
                 toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
             }
         } catch (_: Exception) {
-            // Silent fail
+           
         }
     }
 }

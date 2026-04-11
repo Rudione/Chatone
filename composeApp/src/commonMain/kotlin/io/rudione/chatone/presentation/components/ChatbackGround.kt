@@ -17,12 +17,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/**
- * Draws the wallpaper image behind chat content.
- * The image is centered and fills the area (ContentScale.Crop).
- * A semi-transparent overlay is applied to keep text readable,
- * adapting automatically to dark/light theme.
- */
+
 @Composable
 fun ChatBackgroundLayer(
     wallpaper: WallpaperState,
@@ -64,30 +59,22 @@ fun ChatBackgroundLayer(
     }
 }
 
-/**
- * Sidebar/tab-bar glow effect.
- * Draws a gradient that bleeds the dominant wallpaper color
- * from the chat side (right edge) toward the sidebar (left/center).
- * Intensity fades with distance — the "aurora" effect.
- *
- * @param fromRight if true, gradient comes from the right (sidebar on left of chat)
- *                  if false, gradient comes from the bottom (tab bar above chat)
- */
+
 @Composable
 fun WallpaperGlowEdge(
     dominantColor: Color,
-    fromRight: Boolean = false,  // true = sidebar left, false = tab bar top
+    fromRight: Boolean = false,
     glowWidth: Dp = 120.dp,
     modifier: Modifier = Modifier
 ) {
     val glowColors = remember(dominantColor) {
         listOf(
-            dominantColor.copy(alpha = 0.0f),  // far from chat — transparent
+            dominantColor.copy(alpha = 0.0f),
             dominantColor.copy(alpha = 0.06f),
             dominantColor.copy(alpha = 0.18f),
             dominantColor.copy(alpha = 0.30f),
-            dominantColor.copy(alpha = 0.22f), // slight fade right at the edge
-            dominantColor.copy(alpha = 0.12f)  // border glow
+            dominantColor.copy(alpha = 0.22f),
+            dominantColor.copy(alpha = 0.12f)
         )
     }
 
@@ -95,14 +82,14 @@ fun WallpaperGlowEdge(
         modifier = modifier.drawWithContent {
             drawContent()
             val brush = if (fromRight) {
-                // Sidebar: glow bleeds from right edge (chat boundary) leftward
+
                 Brush.horizontalGradient(
                     colors = glowColors.reversed(),
                     startX = size.width,
                     endX = size.width - glowWidth.toPx()
                 )
             } else {
-                // Tab bar: glow bleeds from bottom edge (chat boundary) upward
+
                 Brush.verticalGradient(
                     colors = glowColors.reversed(),
                     startY = size.height,
@@ -118,7 +105,7 @@ fun Modifier.radialAura(
     color: Color,
     radiusFactor: Float = 1.2f,
     centerX: Float = 0.5f,
-    centerY: Float = 0f // сверху по дефолту (для топбара)
+    centerY: Float = 0f
 ): Modifier = this.then(
     Modifier.drawWithContent {
         drawContent()
@@ -127,11 +114,11 @@ fun Modifier.radialAura(
 
         val brush = Brush.radialGradient(
             colors = listOf(
-                color.copy(alpha = 0.35f), // центр
+                color.copy(alpha = 0.35f),
                 color.copy(alpha = 0.25f),
                 color.copy(alpha = 0.15f),
                 color.copy(alpha = 0.08f),
-                Color.Transparent // край
+                Color.Transparent
             ),
             center = Offset(size.width * centerX, size.height * centerY),
             radius = radius

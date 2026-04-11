@@ -56,7 +56,7 @@ fun ModerationPanel(
     var showPin by remember { mutableStateOf(false) }
     var pinText by remember { mutableStateOf("") }
 
-    // ▼▼▼ Liquid Glass контейнер для всей панели ▼▼▼
+   
     LiquidGlassSurface(
         modifier = modifier
             .fillMaxWidth()
@@ -75,7 +75,7 @@ fun ModerationPanel(
                 .verticalScroll(rememberScrollState())
                 .padding(vertical = 8.dp)
         ) {
-            // Заголовок панели
+           
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -99,7 +99,7 @@ fun ModerationPanel(
                 }
             }
 
-            // Macros
+           
             if (pinnedMacros.isNotEmpty()) {
                 PanelSectionLabel("Macros")
                 Row(
@@ -121,7 +121,7 @@ fun ModerationPanel(
                 PanelDivider()
             }
 
-            // Chat Modes
+           
             PanelSectionLabel("Chat Modes")
             Row(
                 modifier = Modifier
@@ -161,7 +161,7 @@ fun ModerationPanel(
                 }
             }
 
-            // Slow Mode
+           
             PanelDivider()
             PanelSectionLabel("Slow Mode")
             Row(
@@ -188,7 +188,7 @@ fun ModerationPanel(
                     }
             }
 
-            // Follower Duration
+           
             AnimatedVisibility(
                 visible = roomState.followersOnly >= 0,
                 enter = expandVertically(tween(200)) + fadeIn(tween(150)),
@@ -218,7 +218,7 @@ fun ModerationPanel(
                 }
             }
 
-            // Quick Actions
+           
             PanelDivider()
             PanelSectionLabel("Quick Actions")
             Row(
@@ -262,7 +262,7 @@ fun ModerationPanel(
                 ) { onCancelRaid() }
             }
 
-            // Pin expanded
+           
             AnimatedVisibility(
                 visible = showPin,
                 enter = expandVertically(tween(200)) + fadeIn(tween(150)),
@@ -284,14 +284,14 @@ fun ModerationPanel(
                 )
             }
 
-            // Announcement expanded
+           
             AnimatedVisibility(
                 visible = showAnnouncement,
                 enter = expandVertically(tween(200)) + fadeIn(tween(150)),
                 exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    // Color picker
+                   
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -324,7 +324,7 @@ fun ModerationPanel(
                         }
                     }
                     Spacer(Modifier.height(6.dp))
-                    // Text input
+                   
                     LiquidGlassInputRow(
                         value = announcementText,
                         onValueChange = { announcementText = it },
@@ -343,7 +343,7 @@ fun ModerationPanel(
                 }
             }
 
-            // Raid expanded
+           
             AnimatedVisibility(
                 visible = showRaid,
                 enter = expandVertically(tween(200)) + fadeIn(tween(150)),
@@ -371,7 +371,6 @@ fun ModerationPanel(
     }
 }
 
-// ─── Liquid Glass Components ──────────────────────────────────────────────
 
 @Composable
 private fun LiquidGlassChip(
@@ -598,7 +597,7 @@ private fun LiquidGlassInputRow(
         }
         Spacer(Modifier.width(6.dp))
 
-        // Send button
+       
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -623,7 +622,7 @@ private fun LiquidGlassInputRow(
         }
         Spacer(Modifier.width(4.dp))
 
-        // Cancel button (only for expanded inputs)
+       
         if (maxLines > 1) {
             Box(
                 modifier = Modifier
@@ -648,7 +647,6 @@ private fun LiquidGlassInputRow(
     }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────
 
 @Composable
 private fun PanelSectionLabel(text: String) {

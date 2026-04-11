@@ -130,7 +130,7 @@ object IrcMessageParser {
         val isVip = badges.any { it.id == "vip" }
         val isBroadcaster = badges.any { it.id == "broadcaster" }
 
-        // ← first-msg tag: "1" = first time this user has chatted in this channel
+
         val isFirstMessage = tags["first-msg"] == "1"
 
         val isAction = messageText.startsWith("\u0001ACTION ") && messageText.endsWith("\u0001")

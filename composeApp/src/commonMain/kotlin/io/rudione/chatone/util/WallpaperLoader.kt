@@ -4,19 +4,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import io.rudione.chatone.presentation.theme.WallpaperState
 
-/**
- * Platform-agnostic interface for loading wallpaper images.
- * Actual implementations live in platform source sets.
- */
+
 interface WallpaperLoader {
     fun load(path: String, blurRadius: Float): WallpaperState?
 }
 
 
-/**
- * Samples a grid of pixels from the bitmap and returns the average color.
- * Uses a 20x20 grid to keep it fast even on large images.
- */
+
 private fun extractDominantColor(bitmap: ImageBitmap): Color {
     val width = bitmap.width
     val height = bitmap.height
@@ -37,7 +31,7 @@ private fun extractDominantColor(bitmap: ImageBitmap): Color {
         while (x < width) {
             val pixel = pixels[y * width + x]
             val a = (pixel shr 24) and 0xFF
-            if (a > 10) { // Skip near-transparent pixels
+            if (a > 10) {
                 rSum += (pixel shr 16) and 0xFF
                 gSum += (pixel shr 8) and 0xFF
                 bSum += pixel and 0xFF

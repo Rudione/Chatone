@@ -59,7 +59,7 @@ class TwitchIrcClient(
         private const val TAG = "TwitchIrcClient"
         private const val JOIN_CHUNK_SIZE = 5
         private const val JOIN_CHUNK_DELAY = 600L
-        private const val PING_INTERVAL = 300_000L // 5 minutes
+        private const val PING_INTERVAL = 300_000L
     }
 
     sealed class ConnectionState {
@@ -93,7 +93,7 @@ class TwitchIrcClient(
                 session = this
                 Napier.d("WebSocket connected", tag = TAG)
 
-                // Send authentication
+
                 send(Frame.Text("CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership"))
 
                 if (isAnonymous) {
@@ -109,13 +109,13 @@ class TwitchIrcClient(
 
                 startPingJob()
 
-                // Rejoin channels after reconnection
+
                 if (joinedChannels.isNotEmpty()) {
                     val channels = joinedChannels.toList()
                     rejoinChannels(channels)
                 }
 
-                // Listen for incoming messages
+
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         val text = frame.readText()
@@ -140,7 +140,7 @@ class TwitchIrcClient(
         text.split("\r\n").filter { it.isNotBlank() }.forEach { line ->
             Napier.v("IRC: $line", tag = TAG)
 
-            // Handle PING at raw level (before parsing)
+
             if (line.startsWith("PING")) {
                 val server = line.substringAfter("PING ")
                 session?.send(Frame.Text("PONG $server"))
@@ -276,7 +276,7 @@ class TwitchIrcClient(
                 }
 
                 "001", "002", "003", "004", "353", "366", "372", "375", "376", "CAP" -> {
-                    // Connection/capability acknowledgment messages - ignore
+
                 }
 
                 else -> {

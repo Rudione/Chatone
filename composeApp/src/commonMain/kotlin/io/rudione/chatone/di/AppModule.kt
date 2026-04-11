@@ -85,12 +85,12 @@ val networkModule = module {
     single { PlatformAuthHandler() }
     single { RecentMessagesClient(httpClient = get()) }
 
-    // Emote API clients
+   
     single { SevenTvApiClient(httpClient = get()) }
     single { BttvApiClient(httpClient = get()) }
     single { FfzApiClient(httpClient = get()) }
 
-    // 7TV Cosmetics & EventAPI
+   
     single { SevenTvCosmeticsClient(httpClient = get()) }
     single { SevenTvEventApi(httpClient = get(), scope = get()) }
 }

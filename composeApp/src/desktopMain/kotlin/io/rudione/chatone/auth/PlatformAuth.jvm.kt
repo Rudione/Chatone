@@ -20,10 +20,10 @@ actual class PlatformAuthHandler actual constructor() {
     actual fun getRedirectUri(): String = AppConfig.REDIRECT_URI_DESKTOP
 
     actual fun startAuth(authUrl: String) {
-        // Reset deferred so retries work (CompletableDeferred can only be completed once)
+
         tokenDeferred = CompletableDeferred()
 
-        // Stop any previous server and wait for port release
+
         server?.stop(500, 1000)
         server = null
 
@@ -42,9 +42,9 @@ actual class PlatformAuthHandler actual constructor() {
     private fun startCallbackServer() {
         server = embeddedServer(CIO, port = AppConfig.OAUTH_CALLBACK_PORT) {
             routing {
-                // The implicit grant redirects with token in URL fragment (#access_token=...)
-                // Browsers don't send fragments to servers, so we serve an HTML page
-                // that extracts the fragment via JavaScript and posts it back.
+
+
+
                 get("/auth/callback") {
                     Napier.d("Callback page requested — serving token extractor HTML", tag = "PlatformAuth")
                     call.respondText(
@@ -98,7 +98,7 @@ actual class PlatformAuthHandler actual constructor() {
                                     dbg.textContent += '\nError: ' + (error || 'none') + '\nDescription: ' + (desc || 'none');
                                 }
                             } else {
-                                // Check query params too (some flows use query instead of fragment)
+                               
                                 var qtoken = new URLSearchParams(window.location.search).get('access_token');
                                 if (qtoken) {
                                     fetch('/auth/token?access_token=' + encodeURIComponent(qtoken))
@@ -130,7 +130,7 @@ actual class PlatformAuthHandler actual constructor() {
                     }
                 }
 
-                // Catch-all for debugging unexpected routes
+
                 get("{...}") {
                     val path = call.request.local.uri
                     Napier.w("Unexpected request to callback server: $path", tag = "PlatformAuth")

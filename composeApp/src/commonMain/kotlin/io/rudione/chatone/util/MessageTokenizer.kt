@@ -25,7 +25,7 @@ object MessageTokenizer {
         RegexOption.IGNORE_CASE
     )
 
-    // Common TLDs for detecting bare domain links like t.me/user or discord.gg/invite
+
     private val BARE_LINK_REGEX = Regex(
         """(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:me|gg|tv|com|org|net|io|co|ru|de|fr|uk|us|info|dev|app|xyz|pro|live|stream|chat|link|ly|be)/[^\s<>"{}|\\^`\[\]]+""",
         RegexOption.IGNORE_CASE
@@ -44,7 +44,7 @@ object MessageTokenizer {
         val text = message.message
         if (text.isEmpty()) return emptyList()
 
-        // First, apply Twitch emote positions from IRC tags
+
         val twitchEmoteRanges = mutableMapOf<IntRange, MessageToken.TwitchEmoteToken>()
         message.emotes.forEach { emote ->
             emote.positions.forEach { pos ->
@@ -57,12 +57,12 @@ object MessageTokenizer {
             }
         }
 
-        // Build tokens by processing the text character by character
+
         val tokens = mutableListOf<MessageToken>()
         var i = 0
 
         while (i < text.length) {
-            // Check if current position starts a Twitch emote
+
             val twitchEntry = twitchEmoteRanges.entries.find { it.key.first == i }
             if (twitchEntry != null) {
                 tokens.add(twitchEntry.value)
@@ -70,7 +70,7 @@ object MessageTokenizer {
                 continue
             }
 
-            // Collect remaining text until next Twitch emote
+
             val nextTwitchStart = twitchEmoteRanges.keys
                 .filter { it.first > i }
                 .minByOrNull { it.first }?.first ?: text.length
@@ -134,14 +134,14 @@ object MessageTokenizer {
             if (token is MessageToken.ThirdPartyEmoteToken &&
                 (token.emote.isZeroWidth || token.emote.code in OVERLAY_EMOTES)
             ) {
-                // Find the last non-text, non-space token to overlay on
+
                 val lastEmoteIndex = result.indexOfLast {
                     it is MessageToken.ThirdPartyEmoteToken || it is MessageToken.TwitchEmoteToken
                 }
                 if (lastEmoteIndex >= 0 && result[lastEmoteIndex] is MessageToken.ThirdPartyEmoteToken) {
                     val base = result[lastEmoteIndex] as MessageToken.ThirdPartyEmoteToken
                     result[lastEmoteIndex] = base.copy(overlays = base.overlays + token.emote)
-                    // Remove the space before overlay if present
+
                     if (result.lastIndex > lastEmoteIndex && result.last() is MessageToken.Text &&
                         (result.last() as MessageToken.Text).text == " "
                     ) {

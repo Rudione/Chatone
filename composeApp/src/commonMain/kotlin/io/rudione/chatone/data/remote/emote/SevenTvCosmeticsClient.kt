@@ -19,7 +19,7 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
         private const val TAG = "7TV-Cosmetics"
         private const val BASE_URL = "https://7tv.io/v3"
 
-        // GQL запрос — самый надёжный способ получить полные объекты пейнта и бейджа
+       
         private val GQL_USER_COSMETICS = """
             query GetUserCosmetics(${'$'}id: String!) {
               user(id: ${'$'}id) {
@@ -55,13 +55,13 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
     suspend fun getUserCosmetics(twitchUserId: String): SevenTvUserCosmetic? {
         cacheMutex.withLock {
             userCosmeticsCache[twitchUserId]?.let { cached ->
-                // sevenTvId == "" означает "нет 7TV аккаунта", возвращаем null
+               
                 return if (cached.sevenTvId.isEmpty()) null else cached
             }
         }
 
         return try {
-            // Шаг 1: REST — получаем 7TV user id и inline style
+           
             val response = httpClient.get("$BASE_URL/users/twitch/$twitchUserId")
                 .body<SevenTvUserResponse>()
 
@@ -86,7 +86,7 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
                 return null
             }
 
-            // Шаг 2: Если объекты уже пришли inline — отлично
+           
             val inlineBadge = inlineStyle.badge?.toCosmetic()
             val inlinePaint = inlineStyle.paint?.toCosmetic()
 
@@ -97,12 +97,12 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
                 Napier.d("7TV: inline cosmetics for $twitchUserId badge=${inlineBadge?.name} paint=${inlinePaint?.name}", tag = TAG)
                 SevenTvUserCosmetic(sevenTvId = sevenTvId, paint = inlinePaint, badge = inlineBadge, nameColor = inlineStyle.color)
             } else {
-                // Шаг 3: Объекты не пришли inline, пробуем GQL
+               
                 Napier.d("7TV: requesting GQL for $twitchUserId (7tv=$sevenTvId) badge_id=${inlineStyle.badgeId} paint_id=${inlineStyle.paintId}", tag = TAG)
                 val gqlResult = fetchViaGql(sevenTvId, inlineStyle.color)
 
                 gqlResult ?: run {
-                    // GQL не сработал — пробуем отдельные REST запросы
+                   
                     val badge = inlineBadge ?: inlineStyle.badgeId?.let { loadBadgeById(it) }
                     val paint = inlinePaint ?: inlineStyle.paintId?.let { loadPaintById(it) }
                     SevenTvUserCosmetic(sevenTvId = sevenTvId, paint = paint, badge = badge, nameColor = inlineStyle.color)
@@ -170,7 +170,7 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
 
     fun clearCache() { userCosmeticsCache.clear() }
 
-    // ─── Converters ───────────────────────────────────────────────────────
+   
 
     private fun SevenTvPaint.toCosmetic() = SevenTvCosmetics.Paint(
         id = id, name = name, function = function, color = color,

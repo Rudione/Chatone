@@ -71,7 +71,7 @@ class ChatRepositoryImpl(
         Napier.d("Joining channel: $channelName", tag = TAG)
         ircClient.joinChannel(channelName)
 
-        // Update last joined timestamp
+       
         val channel = database.channelQueries.getChannelById(channelName).executeAsOneOrNull()
         if (channel != null) {
             database.channelQueries.updateLastJoined(
@@ -267,6 +267,6 @@ class ChatRepositoryImpl(
                     isAction = entity.isAction == 1L
                 )
             }
-        emit(messages.reversed()) // Reverse to show oldest first
+        emit(messages.reversed())
     }
 }

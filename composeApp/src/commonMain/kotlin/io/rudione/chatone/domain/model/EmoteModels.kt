@@ -12,12 +12,12 @@ data class GenericEmote(
     val url3x: String,
     val provider: EmoteProvider,
     val isZeroWidth: Boolean = false,
-    // Original dimensions from API — used to compute aspect-aware display size
+
     val width: Int = 0,
     val height: Int = 0,
-    // Extra info for tooltip (7TV specific)
-    val originalName: String = "",  // original emote name (may differ from alias)
-    val authorName: String = ""     // uploader/author name
+
+    val originalName: String = "",
+    val authorName: String = ""
 )
 
 data class ChannelEmotes(

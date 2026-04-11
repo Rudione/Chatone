@@ -11,34 +11,33 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// ─── Brand Colors ───────────────────────────────────────────────────────
 object ChatoneColors {
-    // Primary — Rich indigo-violet
+
     val Violet50 = Color(0xFFF5F0FF)
     val Violet100 = Color(0xFFE8DEFF)
     val Violet200 = Color(0xFFD0BAFF)
     val Violet300 = Color(0xFFB391FF)
     val Violet400 = Color(0xFF9B6DFF)
-    val Violet500 = Color(0xFF7C4DFF) // Primary
+    val Violet500 = Color(0xFF7C4DFF)
     val Violet600 = Color(0xFF6B3DE8)
     val Violet700 = Color(0xFF5A2DC8)
     val Violet800 = Color(0xFF4520A0)
     val Violet900 = Color(0xFF2E1570)
 
-    // Accent — Electric cyan
+
     val Cyan50 = Color(0xFFE0FEFF)
     val Cyan100 = Color(0xFFB3FCFF)
     val Cyan200 = Color(0xFF7AF7FF)
     val Cyan300 = Color(0xFF3EF0FF)
-    val Cyan400 = Color(0xFF00E5FF) // Accent
+    val Cyan400 = Color(0xFF00E5FF)
     val Cyan500 = Color(0xFF00C8E0)
     val Cyan600 = Color(0xFF009DB3)
 
-    // Warm accent — Coral/rose for notifications
+
     val Rose400 = Color(0xFFFF6B8A)
     val Rose500 = Color(0xFFFF4571)
 
-    // Semantic
+
     val Success = Color(0xFF34D399)
     val SuccessDark = Color(0xFF059669)
     val Warning = Color(0xFFFBBF24)
@@ -47,7 +46,7 @@ object ChatoneColors {
     val ErrorDark = Color(0xFFDC2626)
     val Live = Color(0xFFEB0400)
 
-    // Surface — Deep dark palette with blue undertone
+
     val DarkBg = Color(0xFF0A0A0F)
     val DarkSurface = Color(0xFF121218)
     val DarkSurfaceElevated = Color(0xFF1A1A22)
@@ -58,13 +57,13 @@ object ChatoneColors {
     val DarkTextSecondary = Color(0xFFA0A0B8)
     val DarkTextTertiary = Color(0xFF6B6B82)
 
-    // Glass overlay
-    val GlassDark = Color(0x1AFFFFFF)     // 10% white
-    val GlassBorderDark = Color(0x26FFFFFF) // 15% white
-    val GlassLight = Color(0x33FFFFFF)     // 20% white
-    val GlassBorderLight = Color(0x40FFFFFF) // 25% white
 
-    // Surface — Light palette with warm tint
+    val GlassDark = Color(0x1AFFFFFF)
+    val GlassBorderDark = Color(0x26FFFFFF)
+    val GlassLight = Color(0x33FFFFFF)
+    val GlassBorderLight = Color(0x40FFFFFF)
+
+
     val LightBg = Color(0xFFF8F8FC)
     val LightSurface = Color(0xFFFFFFFF)
     val LightSurfaceElevated = Color(0xFFF2F2F8)
@@ -75,18 +74,17 @@ object ChatoneColors {
     val LightTextSecondary = Color(0xFF4A4A60)
     val LightTextTertiary = Color(0xFF8888A0)
 
-    // Chat-specific
+
     val MentionHighlightDark = Color(0x269B6DFF)
     val MentionHighlightLight = Color(0x1A7C4DFF)
 
-    // Mod action colors
+
     val ModTimeout = Color(0xFFFBBF24)
     val ModBan = Color(0xFFF87171)
     val ModDelete = Color(0xFFFF8C42)
     val ModUnban = Color(0xFF34D399)
 }
 
-// ─── Color Schemes ──────────────────────────────────────────────────────
 
 private val ChatoneDarkScheme = darkColorScheme(
     primary = ChatoneColors.Violet500,
@@ -160,7 +158,6 @@ private val ChatoneLightScheme = lightColorScheme(
     scrim = Color(0x66000000)
 )
 
-// ─── Chat-specific theme extras ─────────────────────────────────────────
 
 data class ChatoneExtraColors(
     val mentionHighlight: Color,
@@ -175,10 +172,10 @@ data class ChatoneExtraColors(
     val sidebarSurface: Color,
     val sidebarSelected: Color,
     val chatInputSurface: Color,
-    // Glass
+
     val glassOverlay: Color,
     val glassBorder: Color,
-    // Shadows / elevation
+
     val shadowColor: Color,
     val cardBorder: Color,
     val elevatedShadow: Color
@@ -246,7 +243,6 @@ private val LightExtraColors = ChatoneExtraColors(
     elevatedShadow = Color(0x14000000)
 )
 
-// ─── Theme Composable ───────────────────────────────────────────────────
 
 object ChatoneTheme {
     val extraColors: ChatoneExtraColors
@@ -273,7 +269,6 @@ fun ChatoneTheme(
     }
 }
 
-// ─── Typography ─────────────────────────────────────────────────────────
 
 val ChatoneTypography = Typography(
     displayLarge = TextStyle(
@@ -352,7 +347,6 @@ val ChatoneTypography = Typography(
     )
 )
 
-// ─── Shapes ─────────────────────────────────────────────────────────────
 
 val ChatoneShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),

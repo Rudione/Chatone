@@ -50,14 +50,14 @@ fun App(
         val getFirstValidAccount: GetFirstValidAccountUseCase = koinInject()
         val settingsViewModel: SettingsViewModel = koinViewModel()
         val settingsState by settingsViewModel.state.collectAsState()
-        // WallpaperLoader comes from Koin — DesktopWallpaperLoader on JVM
+
         val wallpaperLoader: WallpaperLoader = koinInject()
 
         LaunchedEffect(settingsState.alwaysOnTop) {
             onAlwaysOnTopChanged(settingsState.alwaysOnTop)
         }
 
-        // Reactively load/clear wallpaper whenever path or blur changes
+
         LaunchedEffect(settingsState.wallpaperPath, settingsState.wallpaperBlur) {
             if (settingsState.wallpaperPath.isBlank()) {
                 wallpaperController.clear()
@@ -69,7 +69,7 @@ fun App(
                 if (loaded != null) {
                     wallpaperController.update(loaded)
                 } else {
-                    // File gone/unreadable — clear stored path too
+
                     wallpaperController.clear()
                     settingsViewModel.sendEvent(SettingsEvent.OnWallpaperPathChanged(""))
                 }

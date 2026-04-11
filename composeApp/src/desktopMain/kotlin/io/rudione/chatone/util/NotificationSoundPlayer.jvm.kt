@@ -1,4 +1,4 @@
-// io/rudione/chatone/util/NotificationSoundPlayer.desktop.kt
+
 package io.rudione.chatone.util
 
 import java.io.File
@@ -48,7 +48,7 @@ actual object NotificationSoundPlayer {
             clip = AudioSystem.getClip()
             clip.open(audioInputStream)
 
-            // Apply volume
+
             try {
                 val gainControl = clip.getControl(FloatControl.Type.MASTER_GAIN) as FloatControl
                 val dB = (20.0 * log10(volume.toDouble())).toFloat()

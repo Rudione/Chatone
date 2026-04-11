@@ -10,13 +10,13 @@ data class HighlightRule(
     val caseSensitive: Boolean = false,
     val playSound: Boolean = true,
     val showInMentions: Boolean = true,
-    val color: Long = 0xFFFF6B6B, // default red-ish
+    val color: Long = 0xFFFF6B6B,
     val enabled: Boolean = true
 ) {
     companion object {
         val USERNAME_RULE = HighlightRule(
             id = "username",
-            pattern = "", // filled dynamically with current username
+            pattern = "",
             playSound = true,
             showInMentions = true,
             color = 0xFFFF6B6B

@@ -1,8 +1,6 @@
 package io.rudione.chatone.domain.model
 
-/**
- * Sealed class representing all IRC events the client can emit.
- */
+
 sealed class IrcEvent {
     data class PrivMsg(val message: ChatMessage) : IrcEvent()
 
@@ -72,7 +70,7 @@ sealed class IrcEvent {
         val userId: String
     ) : IrcEvent()
 
-    /** AutoMod held message — only moderators/broadcasters receive this */
+    
     data class AutoModHeld(
         val channel: String,
         val msgId: String,

@@ -61,7 +61,7 @@ fun UserProfilePopup(
     sevenTvBadge: SevenTvCosmetics.Badge? = null,
     channelMessages: List<DisplayMessage> = emptyList(),
     showModActions: Boolean = false,
-    // currentUserIsBroadcaster — смотрящий является бродкастером?
+   
     currentUserIsBroadcaster: Boolean = false,
     onTimeout: (Int) -> Unit = {},
     onBan: () -> Unit = {},
@@ -147,7 +147,7 @@ fun UserProfilePopup(
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             Column {
-                // ── Header ────────────────────────────────────────────────
+               
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (fetchedAvatarUrl.isNotEmpty()) {
@@ -202,7 +202,7 @@ fun UserProfilePopup(
                     }
                 }
 
-                // ── Tabs ─────────────────────────────────────────────────
+               
                 TabRow(selectedTabIndex = selectedTab, containerColor = Color.Transparent,
                     contentColor = MaterialTheme.colorScheme.primary,
                     divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)) }) {
@@ -243,7 +243,6 @@ fun UserProfilePopup(
     }
 }
 
-// ─── Usercard Tab ──────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -355,7 +354,7 @@ private fun UsercardTab(
                 letterSpacing = 1.sp,
                 modifier = Modifier.padding(bottom = 8.dp))
 
-            // ── Timeout buttons — FlowRow ────────────────────────────
+           
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -368,7 +367,7 @@ private fun UsercardTab(
 
             Spacer(Modifier.height(8.dp))
 
-            // ── Ban / Unban ──────────────────────────────────────────
+           
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(
                     onClick = { onBan(); onDismiss() },
@@ -398,7 +397,7 @@ private fun UsercardTab(
                 }
             }
 
-            // ── VIP / Mod — только если смотрящий является бродкастером ──
+           
             if (currentUserIsBroadcaster) {
                 Spacer(Modifier.height(6.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -422,7 +421,6 @@ private fun UsercardTab(
     }
 }
 
-// ─── Messages Tab ──────────────────────────────────────────────────────────
 
 @Composable
 private fun MessagesTab(messages: List<DisplayMessage.PrivMsg>, displayName: String, userColor: String?) {
@@ -481,7 +479,6 @@ private fun formatMessageTime(timestamp: Long): String {
     return "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
 
 @Composable
 private fun RoleBadge(label: String, color: Color) {

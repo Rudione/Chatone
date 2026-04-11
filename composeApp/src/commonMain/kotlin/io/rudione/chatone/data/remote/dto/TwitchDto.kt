@@ -3,7 +3,6 @@ package io.rudione.chatone.data.remote.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// OAuth Token Response
 @Serializable
 data class TokenResponse(
     @SerialName("access_token") val accessToken: String,
@@ -13,7 +12,6 @@ data class TokenResponse(
     @SerialName("token_type") val tokenType: String
 )
 
-// Validate Token Response
 @Serializable
 data class ValidateTokenResponse(
     @SerialName("client_id") val clientId: String,
@@ -23,7 +21,6 @@ data class ValidateTokenResponse(
     @SerialName("expires_in") val expiresIn: Int
 )
 
-// User Data Response
 @Serializable
 data class UsersResponse(
     val data: List<UserData>
@@ -43,7 +40,6 @@ data class UserData(
     @SerialName("created_at") val createdAt: String
 )
 
-// Channels Response
 @Serializable
 data class ChannelsResponse(
     val data: List<ChannelData>
@@ -67,7 +63,6 @@ data class ChannelData(
     @SerialName("is_mature") val isMature: Boolean = false
 )
 
-// Search Channels Response
 @Serializable
 data class SearchChannelsResponse(
     val data: List<SearchChannelData>
@@ -89,7 +84,6 @@ data class SearchChannelData(
     @SerialName("started_at") val startedAt: String = ""
 )
 
-// Chat Settings Response
 @Serializable
 data class ChatSettingsResponse(
     val data: List<ChatSettingsData>
@@ -108,7 +102,6 @@ data class ChatSettingsData(
     @SerialName("unique_chat_mode") val uniqueChatMode: Boolean = false
 )
 
-// Badge Responses
 @Serializable
 data class BadgesResponse(
     val data: List<BadgeSetDto>
@@ -130,7 +123,6 @@ data class BadgeVersionDto(
     val description: String = ""
 )
 
-// Followers Response
 @Serializable
 data class FollowersResponse(
     val data: List<FollowerData>,
@@ -145,7 +137,6 @@ data class FollowerData(
     @SerialName("followed_at") val followedAt: String
 )
 
-// Error Response
 @Serializable
 data class TwitchErrorResponse(
     val error: String,
@@ -153,7 +144,6 @@ data class TwitchErrorResponse(
     val message: String
 )
 
-// Moderators Response
 @Serializable
 data class ModeratorsResponse(
     val data: List<ModeratorData>,
@@ -167,7 +157,6 @@ data class ModeratorData(
     @SerialName("user_name") val userName: String
 )
 
-// Chatters Response
 @Serializable
 data class ChattersResponse(
     val data: List<ChatterData>,
@@ -182,7 +171,6 @@ data class ChatterData(
     @SerialName("user_name") val userName: String
 )
 
-// Blocked Users Response
 @Serializable
 data class BlockedUsersResponse(
     val data: List<BlockedUserData>,

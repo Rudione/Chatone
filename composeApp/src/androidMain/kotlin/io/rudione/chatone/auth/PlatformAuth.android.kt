@@ -17,7 +17,7 @@ actual class PlatformAuthHandler actual constructor() {
             Napier.d("OAuth token received via deep link", tag = "PlatformAuth")
             tokenDeferred.complete(token)
         }
-        // Open browser - will be handled by the activity that calls this
+       
         AuthTokenBridge.emitToken("__open_url__:$authUrl")
     }
 
@@ -31,6 +31,6 @@ actual class PlatformAuthHandler actual constructor() {
     }
 
     actual fun cleanup() {
-        // No cleanup needed on Android
+       
     }
 }

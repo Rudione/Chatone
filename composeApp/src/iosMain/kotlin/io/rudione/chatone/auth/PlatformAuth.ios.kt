@@ -32,6 +32,6 @@ actual class PlatformAuthHandler actual constructor() {
     }
 
     actual fun cleanup() {
-        // No cleanup needed on iOS
+       
     }
 }

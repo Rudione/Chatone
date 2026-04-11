@@ -35,7 +35,7 @@ class AuthRepositoryImpl(
 
     override suspend fun authenticateWithToken(accessToken: String): Result<TwitchAccount> {
         return try {
-            // Validate the token first
+
             val validateResult = apiClient.validateToken(accessToken)
             if (validateResult !is Result.Success) {
                 return Result.Error(Exception("Token validation failed"))
@@ -44,7 +44,7 @@ class AuthRepositoryImpl(
             val validateData = validateResult.data
             val expiresAt = Clock.System.now().toEpochMilliseconds() + (validateData.expiresIn * 1000L)
 
-            // Get user info
+
             val userResult = apiClient.getUsers(accessToken = accessToken)
             if (userResult !is Result.Success || userResult.data.data.isEmpty()) {
                 return Result.Error(Exception("Failed to get user info"))
@@ -58,7 +58,7 @@ class AuthRepositoryImpl(
                 displayName = userData.displayName,
                 profileImageUrl = userData.profileImageUrl,
                 accessToken = accessToken,
-                refreshToken = "", // Implicit grant has no refresh token
+                refreshToken = "",
                 expiresAt = expiresAt,
                 scopes = validateData.scopes
             )

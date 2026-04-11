@@ -15,7 +15,7 @@ class BadgeRepository(
         private const val TAG = "BadgeRepository"
     }
 
-    // badge set id -> version -> image url
+   
     private val globalBadges = mutableMapOf<String, Map<String, String>>()
     private val channelBadges = mutableMapOf<String, Map<String, Map<String, String>>>()
 
@@ -51,7 +51,7 @@ class BadgeRepository(
     }
 
     fun resolveBadge(badgeId: String, version: String, channelId: String?): String {
-        // Channel badges override global
+       
         if (channelId != null) {
             val channelUrl = channelBadges[channelId]?.get(badgeId)?.get(version)
             if (channelUrl != null) return channelUrl

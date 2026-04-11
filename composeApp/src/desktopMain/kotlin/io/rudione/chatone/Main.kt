@@ -22,8 +22,8 @@ fun main() {
         modules(appModules())
     }
 
-    // Non-blocking update probe. Delay lets the UI render first so the
-    // JOptionPane update dialog (if any) appears over an already-visible window.
+
+
     CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
         delay(3000)
         runCatching { AutoUpdater.checkForUpdates(showDialog = true) }
@@ -35,7 +35,7 @@ fun main() {
             height = 900.dp
         )
 
-        // Reactive alwaysOnTop — reads initial value, App() provides SettingsViewModel reactively
+
         var alwaysOnTop by remember { mutableStateOf(SettingsViewModel.loadInitialState().alwaysOnTop) }
 
         Window(
@@ -43,10 +43,10 @@ fun main() {
             title = "Chatone - Twitch Chat Client",
             state = windowState,
             alwaysOnTop = alwaysOnTop,
-            // Global key routing: ChatScreen (and future screens) register
-            // handlers via GlobalKeyDispatcher. Window-level onPreviewKeyEvent
-            // fires regardless of inner focus — so pause hotkeys work whether
-            // the chat input is focused or not.
+
+
+
+
             onPreviewKeyEvent = { GlobalKeyDispatcher.dispatch(it) }
         ) {
             App(onAlwaysOnTopChanged = { alwaysOnTop = it })

@@ -36,7 +36,6 @@ import org.jetbrains.skia.Codec
 import org.jetbrains.skia.Data
 import java.net.URI
 
-// ─── Frame cache ─────────────────────────────────────────────────────────
 
 private val animatedCache = mutableMapOf<String, AnimatedFrames>()
 
@@ -45,12 +44,8 @@ private data class AnimatedFrames(
     val durations: IntArray
 )
 
-// ─── Public API ──────────────────────────────────────────────────────────
 
-/**
- * Simple animated image without tooltip or interaction.
- * Used for badges, emote picker, reply bar, etc.
- */
+
 @Composable
 actual fun AnimatedEmoteImage(
     url: String,
@@ -60,11 +55,7 @@ actual fun AnimatedEmoteImage(
     AnimatedEmoteImageCore(url = url, contentDescription = contentDescription, modifier = modifier)
 }
 
-/**
- * Third-party emote in chat messages.
- * - Hover: shows tooltip with preview, name, original name, author, provider
- * - Right-click: opens 7TV page in browser (for 7TV emotes) + triggers context menu
- */
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun EmoteImageWithTooltip(
@@ -96,7 +87,6 @@ fun EmoteImageWithTooltip(
     }
 }
 
-// ─── Tooltip — liquid glass Material 3 style ─────────────────────────────
 
 @Composable
 fun EmoteTooltip(emote: GenericEmote) {
@@ -129,7 +119,7 @@ fun EmoteTooltip(emote: GenericEmote) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            // Large emote preview (3x for crispness)
+           
             AnimatedEmoteImageCore(
                 url = emote.url3x.ifEmpty { emote.url2x.ifEmpty { emote.url1x } },
                 contentDescription = emote.code,
@@ -141,7 +131,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 )
             )
 
-            // Channel alias — how user types it
+           
             Text(
                 text = emote.code,
                 style = MaterialTheme.typography.titleSmall,
@@ -149,7 +139,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            // Original name row — only if different from alias
+           
             if (emote.originalName.isNotEmpty() && emote.originalName != emote.code) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
@@ -175,7 +165,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 }
             }
 
-            // Author row
+           
             if (emote.authorName.isNotEmpty()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -195,7 +185,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 }
             }
 
-            // Provider chip
+           
             val (providerLabel, providerColor) = when (emote.provider) {
                 EmoteProvider.SEVEN_TV -> "7TV" to Color(0xFF0288D1)
                 EmoteProvider.BTTV -> "BTTV" to Color(0xFF43A047)
@@ -215,7 +205,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 )
             }
 
-            // Right-click hint for 7TV
+           
             if (emote.provider == EmoteProvider.SEVEN_TV) {
                 Text(
                     text = "Right-click to open on 7TV",
@@ -227,7 +217,6 @@ fun EmoteTooltip(emote: GenericEmote) {
     }
 }
 
-// ─── Core renderer ───────────────────────────────────────────────────────
 
 @Composable
 fun AnimatedEmoteImageCore(

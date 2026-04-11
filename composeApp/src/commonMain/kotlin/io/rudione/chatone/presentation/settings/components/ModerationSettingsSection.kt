@@ -32,7 +32,6 @@ import io.rudione.chatone.domain.model.MacroStep
 import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 
-// ─── Секция Moderation в настройках ─────────────────────────────────────────
 
 @Composable
 fun ModerationSettingsSection(
@@ -43,7 +42,7 @@ fun ModerationSettingsSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
 
-        // ── Timeout duration ─────────────────────────────────────────────────
+
         SettingsCard(title = "Default Timeout Duration") {
             val options = listOf(
                 60 to "1m", 300 to "5m", 600 to "10m",
@@ -61,7 +60,7 @@ fun ModerationSettingsSection(
             }
         }
 
-        // ── Confirm mod actions ──────────────────────────────────────────────
+
         SettingsCard(title = "Safety") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -81,15 +80,14 @@ fun ModerationSettingsSection(
             }
         }
 
-        // ── Mod Action Buttons ───────────────────────────────────────────────
+
         ModActionButtonsSection(state = state, onEvent = onEvent)
 
-        // ── Macros ───────────────────────────────────────────────────────────
+
         MacrosSection(state = state, onEvent = onEvent)
     }
 }
 
-// ─── Кастомные кнопки мод-действий ──────────────────────────────────────────
 
 @Composable
 private fun ModActionButtonsSection(
@@ -108,7 +106,7 @@ private fun ModActionButtonsSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Preview strip
+
             Text("Preview:", style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
 
@@ -116,14 +114,14 @@ private fun ModActionButtonsSection(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Delete
+
                 item {
                     ModButtonPreviewChip(
                         icon = "🗑️", label = "Del",
                         color = ChatoneTheme.extraColors.modDelete, isFixed = true
                     )
                 }
-                // Custom
+
                 items(state.customModButtons.filter { it.enabled }, key = { it.id }) { btn ->
                     ModButtonPreviewChip(
                         icon = "⏱", label = btn.displayLabel,
@@ -131,14 +129,14 @@ private fun ModActionButtonsSection(
                         onClick = { editingButton = btn }
                     )
                 }
-                // Default timeout
+
                 item {
                     ModButtonPreviewChip(
                         icon = "⏱", label = "10m",
                         color = ChatoneTheme.extraColors.modTimeout, isFixed = true
                     )
                 }
-                // Ban
+
                 item {
                     ModButtonPreviewChip(
                         icon = "🔨", label = "Ban",
@@ -149,7 +147,7 @@ private fun ModActionButtonsSection(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
-            // List of custom buttons
+
             if (state.customModButtons.isEmpty()) {
                 Text(
                     "No custom buttons yet. Add timeout durations below.",
@@ -291,7 +289,7 @@ private fun AddModButtonDialog(
                     if (initial == null) "Add Timeout Button" else "Edit Timeout Button",
                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
                 )
-                // Quick presets
+
                 val presets = listOf(1 to "1s", 10 to "10s", 60 to "1m", 300 to "5m",
                     600 to "10m", 3600 to "1h", 86400 to "1d")
                 Text("Quick presets:", style = MaterialTheme.typography.labelSmall,
@@ -342,7 +340,6 @@ private fun AddModButtonDialog(
     }
 }
 
-// ─── Секция Макросов ──────────────────────────────────────────────────────────
 
 @Composable
 fun MacrosSection(
@@ -361,7 +358,7 @@ fun MacrosSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Pinned slots preview
+
             if (state.macros.any { it.pinnedIndex >= 0 }) {
                 Text("Quick bar (drag & drop in chat):", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -511,7 +508,6 @@ private fun MacroRow(
     }
 }
 
-// ─── Диалог создания макроса ─────────────────────────────────────────────────
 
 @Composable
 private fun MacroNameDialog(
@@ -557,7 +553,6 @@ private fun MacroNameDialog(
     }
 }
 
-// ─── Редактор шагов макроса ──────────────────────────────────────────────────
 
 @Composable
 fun MacroEditorDialog(
@@ -579,7 +574,7 @@ fun MacroEditorDialog(
                 .fillMaxHeight(0.88f)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Header
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -595,7 +590,7 @@ fun MacroEditorDialog(
                 }
                 HorizontalDivider()
 
-                // Steps list
+
                 LazyColumn(
                     modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -642,7 +637,7 @@ fun MacroEditorDialog(
                 }
 
                 HorizontalDivider()
-                // Actions
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -731,7 +726,6 @@ private fun stepDescription(step: MacroStep): Pair<String, String> = when (step)
     is MacroStep.ClearChat -> "🗑️" to "Clear chat"
 }
 
-// ─── Диалог добавления шага макроса ─────────────────────────────────────────
 
 @Composable
 private fun AddMacroStepDialog(
@@ -739,7 +733,7 @@ private fun AddMacroStepDialog(
     onDismiss: () -> Unit
 ) {
     var selected by remember { mutableStateOf<String?>(null) }
-    // State for each step type
+
     var messageText by remember { mutableStateOf("") }
     var delaySeconds by remember { mutableStateOf("5") }
     var slowSeconds by remember { mutableStateOf("30") }
@@ -767,7 +761,7 @@ private fun AddMacroStepDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Add Step", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
-                // Step type selector
+
                 LazyColumn(modifier = Modifier.heightIn(max = 240.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     items(stepTypes) { (key, label) ->
                         val isSelected = selected == key
@@ -790,7 +784,7 @@ private fun AddMacroStepDialog(
                     }
                 }
 
-                // Parameters for selected type
+
                 when (selected) {
                     "send" -> OutlinedTextField(value = messageText, onValueChange = { messageText = it },
                         label = { Text("Message text") }, singleLine = true,
@@ -881,7 +875,6 @@ private fun buildStep(
     else -> null
 }
 
-// ─── Вспомогательный компонент карточки ─────────────────────────────────────
 
 @Composable
 fun SettingsCard(

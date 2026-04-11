@@ -10,7 +10,6 @@ expect class PlatformAuthHandler() {
     fun cleanup()
 }
 
-// Global token flow for cross-layer communication
 object AuthTokenBridge {
     private val _tokenFlow = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val tokenFlow: Flow<String> = _tokenFlow

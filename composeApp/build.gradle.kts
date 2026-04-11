@@ -129,8 +129,8 @@ compose.desktop {
             packageName = "Chatone"
             packageVersion = "1.0.7"
 
-            // Minimal jlink module set — smaller runtime than includeAllModules.
-            // Add modules here only if runtime ClassNotFoundException appears.
+           
+           
             modules(
                 "java.sql", "java.naming", "java.management",
                 "java.desktop", "java.logging", "java.net.http",
@@ -153,9 +153,6 @@ compose.desktop {
     }
 }
 
-// Portable ZIP: zips the unpackaged app image produced by `createReleaseDistributable`.
-// That folder already contains a bundled JRE + native launcher, so the user can just
-// unzip and click Chatone.exe / Chatone — no install needed.
 tasks.register<Zip>("createPortableZip") {
     dependsOn("createReleaseDistributable")
 
@@ -165,7 +162,7 @@ tasks.register<Zip>("createPortableZip") {
     archiveFileName.set("Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-portable.zip")
     destinationDirectory.set(file("build/distributions"))
 
-    // Best compression — portable downloads are shipped once per release.
+   
     entryCompression = org.gradle.api.tasks.bundling.ZipEntryCompression.DEFLATED
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true

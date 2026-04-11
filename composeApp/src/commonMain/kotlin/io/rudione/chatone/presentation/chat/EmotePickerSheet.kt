@@ -28,7 +28,6 @@ import io.rudione.chatone.domain.model.EmoteProvider
 import io.rudione.chatone.domain.model.GenericEmote
 import io.rudione.chatone.util.handleHover
 
-// ── Native emoji data ────────────────────────────────────────────────────────
 
 private data class EmojiCategory(val icon: String, val label: String, val emojis: List<String>)
 
@@ -113,7 +112,6 @@ private val EMOJI_CATEGORIES = listOf(
     ))
 )
 
-// ── Sheet ─────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -122,10 +120,10 @@ fun EmotePickerSheet(
     onEmoteSelected: (GenericEmote) -> Unit,
     onEmojiSelected: (String) -> Unit = {},
     onDismiss: () -> Unit,
-    // Закрывать при уходе мышки (управляется настройкой)
+   
     closeOnMouseLeave: Boolean = false
 ) {
-    // Избранные смайлики — хранятся в Settings
+   
     val settings = remember { Settings() }
     var favoriteIds by remember {
         mutableStateOf(
@@ -145,7 +143,7 @@ fun EmotePickerSheet(
     }
 
     var searchQuery by remember { mutableStateOf("") }
-    // Tab 0 = Emotes, Tab 1 = Emoji
+   
     var mainTab by remember { mutableIntStateOf(0) }
 
     ModalBottomSheet(
@@ -167,7 +165,7 @@ fun EmotePickerSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 480.dp)
-                // Если включено в настройках — закрываем при уходе мышки
+               
                 .then(
                     if (closeOnMouseLeave)
                         Modifier.handleHover(onEnter = {}, onExit = { onDismiss() })
@@ -175,7 +173,7 @@ fun EmotePickerSheet(
                         Modifier
                 )
         ) {
-            // ── Main tabs: Emotes / Emoji ────────────────────────
+           
             TabRow(
                 selectedTabIndex = mainTab,
                 modifier = Modifier.fillMaxWidth(),
@@ -216,7 +214,7 @@ fun EmotePickerSheet(
                     favoriteIds = favoriteIds,
                     searchQuery = searchQuery,
                     onSearchQueryChange = { searchQuery = it },
-                    // НЕ закрываем плашку после выбора смайлика
+                   
                     onEmoteSelected = onEmoteSelected,
                     onToggleFavorite = { toggleFavorite(it) }
                 )
@@ -225,7 +223,7 @@ fun EmotePickerSheet(
                     onSearchQueryChange = { searchQuery = it },
                     onEmojiSelected = { emoji ->
                         onEmojiSelected(emoji)
-                        onDismiss() // Эмодзи всё равно закрываем
+                        onDismiss()
                     }
                 )
             }
@@ -235,7 +233,6 @@ fun EmotePickerSheet(
     }
 }
 
-// ── Emote tab ─────────────────────────────────────────────────────────────────
 
 @Composable
 private fun EmoteTab(
@@ -256,7 +253,7 @@ private fun EmoteTab(
 
     val tabs = remember(emotes, favoriteEmotes) {
         buildList {
-            // Избранные — первым табом если есть
+           
             if (favoriteEmotes.isNotEmpty()) {
                 add(ProviderTab("★ (${favoriteEmotes.size})", null, isFav = true, count = favoriteEmotes.size))
             }
@@ -275,7 +272,7 @@ private fun EmoteTab(
 
     var selectedProviderTab by remember { mutableIntStateOf(0) }
 
-    // Если список tabs изменился (появились/исчезли фавориты), clamp индекс
+   
     val safeTab = selectedProviderTab.coerceAtMost(tabs.lastIndex)
 
     val filteredEmotes = remember(emotes, favoriteEmotes, searchQuery, safeTab, tabs) {
@@ -292,7 +289,7 @@ private fun EmoteTab(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Search bar
+       
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
@@ -329,7 +326,7 @@ private fun EmoteTab(
             textStyle = MaterialTheme.typography.bodyMedium
         )
 
-        // Provider sub-tabs
+       
         ScrollableTabRow(
             selectedTabIndex = safeTab,
             modifier = Modifier.fillMaxWidth(),
@@ -347,7 +344,7 @@ private fun EmoteTab(
                             text = tab.label,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = if (safeTab == index) FontWeight.SemiBold else FontWeight.Normal,
-                            // Золотой цвет для таба избранных
+                           
                             color = if (tab.isFav) Color(0xFFFFD700)
                             else Color.Unspecified
                         )
@@ -405,7 +402,6 @@ private fun EmoteTab(
     }
 }
 
-// ── Emoji tab ─────────────────────────────────────────────────────────────────
 
 @Composable
 private fun EmojiTab(
@@ -533,7 +529,6 @@ private fun EmojiTab(
     }
 }
 
-// ── Grid items ────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -546,7 +541,7 @@ private fun EmoteGridItem(
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            // Длинное нажатие = добавить/убрать из избранных
+           
             .combinedClickable(onClick = onClick, onLongClick = onToggleFavorite)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -557,7 +552,7 @@ private fun EmoteGridItem(
                 contentDescription = emote.code,
                 modifier = Modifier.size(36.dp)
             )
-            // Звёздочка избранного
+           
             if (isFavorite) {
                 Text(
                     "★",

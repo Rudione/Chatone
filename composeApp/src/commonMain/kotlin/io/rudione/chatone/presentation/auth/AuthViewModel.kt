@@ -98,11 +98,11 @@ class AuthViewModel(
             Napier.d("═══════════════════════════════════════", tag = TAG)
 
             try {
-                // platformAuthHandler.startAuth() opens the browser itself —
-                // do NOT also send OpenAuthUrl effect (causes double-open on Desktop)
+               
+               
                 platformAuthHandler.startAuth(authUrl)
 
-                // Wait for token asynchronously
+               
                 val token = platformAuthHandler.awaitToken()
                 if (token != null) {
                     Napier.d("Token received, authenticating...", tag = TAG)

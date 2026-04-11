@@ -32,7 +32,6 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.Result
 import org.koin.compose.koinInject
 
-// ─── Список зрителей (chatters) в канале ─────────────────────────────────────
 
 @Composable
 fun ChattersPanel(
@@ -81,7 +80,7 @@ fun ChattersPanel(
         borderAlphaLow = 0.08f
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Header
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -112,7 +111,7 @@ fun ChattersPanel(
                 }
             }
 
-            // Search
+
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },

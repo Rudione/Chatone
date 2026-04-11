@@ -7,11 +7,7 @@ import io.rudione.chatone.presentation.theme.WallpaperState
 import org.jetbrains.skia.Image
 import java.io.File
 
-/**
- * Desktop (JVM) implementation of WallpaperLoader.
- * Uses Skia (bundled with Compose Desktop) and java.io.File.
- * Registered in Koin via databaseModule in AppModule.jvm.kt.
- */
+
 class DesktopWallpaperLoader : WallpaperLoader {
 
     override fun load(path: String, blurRadius: Float): WallpaperState? {

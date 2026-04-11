@@ -3,7 +3,6 @@ package io.rudione.chatone.data.remote.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// ─── 7TV Paint ───────────────────────────────────────────────────────────
 
 @Serializable
 data class SevenTvPaint(
@@ -34,7 +33,6 @@ data class SevenTvPaintShadow(
     val color: Int = 0
 )
 
-// ─── 7TV Badge ───────────────────────────────────────────────────────────
 
 @Serializable
 data class SevenTvBadge(
@@ -45,8 +43,6 @@ data class SevenTvBadge(
     val host: SevenTvHost = SevenTvHost()
 )
 
-// ─── GQL запрос для получения полного стиля пользователя ────────────────
-// POST /v3/gql — единственный надёжный способ получить объекты пейнта/бейджа
 
 @Serializable
 data class SevenTvGqlRequest(
@@ -83,7 +79,6 @@ data class SevenTvGqlError(
     val message: String = ""
 )
 
-// ─── Остальные DTO для EventAPI ──────────────────────────────────────────
 
 @Serializable
 data class SevenTvUserConnection(
@@ -127,7 +122,6 @@ data class SevenTvUserStyle(
     @SerialName("badge_id") val badgeId: String? = null
 )
 
-// ─── 7TV Cosmetics Response (старый эндпоинт) ───────────────────────────
 
 @Serializable
 data class SevenTvCosmeticsResponse(
@@ -135,7 +129,6 @@ data class SevenTvCosmeticsResponse(
     val badges: List<SevenTvBadge> = emptyList()
 )
 
-// ─── 7TV EventAPI Messages ──────────────────────────────────────────────
 
 @Serializable
 data class SevenTvEventMessage(

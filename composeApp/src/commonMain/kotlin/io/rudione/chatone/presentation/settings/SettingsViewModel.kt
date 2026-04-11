@@ -95,13 +95,13 @@ sealed class SettingsEvent : UiEvent {
     data class OnWallpaperBlurChanged(val blur: Float) : SettingsEvent()
     data class OnCloseEmotePickerOnMouseLeaveChanged(val enabled: Boolean) : SettingsEvent()
 
-    // Mod buttons
+   
     data class OnAddModButton(val durationSeconds: Int, val label: String) : SettingsEvent()
     data class OnRemoveModButton(val id: String) : SettingsEvent()
     data class OnUpdateModButton(val button: ModActionButton) : SettingsEvent()
     data class OnReorderModButtons(val from: Int, val to: Int) : SettingsEvent()
 
-    // Macros
+   
     data class OnAddMacro(val name: String, val icon: String) : SettingsEvent()
     data class OnRemoveMacro(val id: String) : SettingsEvent()
     data class OnUpdateMacro(val macro: Macro) : SettingsEvent()

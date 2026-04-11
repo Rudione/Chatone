@@ -14,11 +14,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-/**
- * 7TV EventAPI v3 WebSocket client for real-time emote set updates.
- * Subscribes to emote_set.update events for channels to get live
- * notifications when emotes are added/removed/renamed.
- */
+
 class SevenTvEventApi(
     private val httpClient: HttpClient,
     private val scope: CoroutineScope
@@ -42,7 +38,7 @@ class SevenTvEventApi(
     private var receiveJob: Job? = null
     private val subscribedSets = mutableSetOf<String>()
 
-    // Events flow
+
     private val _emoteSetUpdates = MutableSharedFlow<EmoteSetUpdateEvent>(extraBufferCapacity = 64)
     val emoteSetUpdates: SharedFlow<EmoteSetUpdateEvent> = _emoteSetUpdates
 
@@ -126,7 +122,7 @@ class SevenTvEventApi(
                     val interval = message.d?.heartbeatInterval ?: 30000
                     startHeartbeat(interval)
                     Napier.d("7TV EventAPI hello, heartbeat interval: ${interval}ms", tag = TAG)
-                    // Re-subscribe to all sets after reconnect
+
                     subscribedSets.toList().forEach { setId ->
                         scope.launch { subscribeToEmoteSet(setId) }
                     }
@@ -145,7 +141,7 @@ class SevenTvEventApi(
         val emoteSetId = data.condition["object_id"] ?: body.id
         val actorName = body.actor?.displayName ?: body.actor?.username ?: "Unknown"
 
-        // Handle pushed emotes (added)
+
         body.pushed.forEach { pushed ->
             val emote = pushed.value ?: return@forEach
             scope.launch {
@@ -160,7 +156,7 @@ class SevenTvEventApi(
             }
         }
 
-        // Handle pulled emotes (removed)
+
         body.pulled.forEach { pulled ->
             val emote = pulled.old_value ?: return@forEach
             scope.launch {
@@ -175,7 +171,7 @@ class SevenTvEventApi(
             }
         }
 
-        // Handle updated emotes (renamed)
+
         body.updated.forEach { updated ->
             val oldEmote = updated.old_value
             val newEmote = updated.value

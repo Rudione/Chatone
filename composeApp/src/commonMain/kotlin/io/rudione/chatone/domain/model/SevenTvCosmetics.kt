@@ -1,14 +1,12 @@
 package io.rudione.chatone.domain.model
 
-/**
- * 7TV cosmetics models - paints (custom name gradients) and badges.
- */
+
 object SevenTvCosmetics {
 
     data class Paint(
         val id: String,
         val name: String,
-        val function: String,  // LINEAR_GRADIENT, RADIAL_GRADIENT, URL
+        val function: String,
         val color: Int?,
         val stops: List<PaintStop>,
         val repeat: Boolean,
@@ -19,7 +17,7 @@ object SevenTvCosmetics {
 
     data class PaintStop(
         val at: Float,
-        val color: Int   // ARGB integer
+        val color: Int
     )
 
     data class PaintShadow(
@@ -39,9 +37,7 @@ object SevenTvCosmetics {
     )
 }
 
-/**
- * Per-user 7TV cosmetics data.
- */
+
 data class SevenTvUserCosmetic(
     val sevenTvId: String,
     val paint: SevenTvCosmetics.Paint? = null,

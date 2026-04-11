@@ -199,10 +199,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Ban or timeout a user.
-     * FIX: duration=null (permanent ban) must be omitted from body, not sent as null.
-     */
+    
     suspend fun banUser(
         accessToken: String,
         broadcasterId: String,
@@ -214,7 +211,7 @@ class TwitchApiClient(
         return try {
             val dataBody = buildJsonObject {
                 put("user_id", JsonPrimitive(userId))
-                // Only include duration for timeouts — permanent bans must NOT have duration field
+               
                 if (duration != null && duration > 0) {
                     put("duration", JsonPrimitive(duration))
                 }
@@ -283,9 +280,7 @@ class TwitchApiClient(
         }
     }
 
-    /**
-     * Update chat settings. Uses buildJsonObject so Boolean/Int serialize correctly.
-     */
+    
     suspend fun updateChatSettings(
         accessToken: String,
         broadcasterId: String,
@@ -493,7 +488,7 @@ class TwitchApiClient(
         }
     }
 
-    /** Check if a specific user is a moderator in a channel */
+    
     suspend fun getChannelModerators(
         accessToken: String,
         broadcasterId: String,
@@ -513,7 +508,7 @@ class TwitchApiClient(
         }
     }
 
-    /** Get chatters (viewers currently in chat) */
+    
     suspend fun getChatters(
         accessToken: String,
         broadcasterId: String,
@@ -537,7 +532,7 @@ class TwitchApiClient(
         }
     }
 
-    /** Block a user */
+    
     suspend fun blockUser(accessToken: String, targetUserId: String): Result<Unit> {
         return try {
             httpClient.put("$baseUrl/users/blocks") {
@@ -552,7 +547,7 @@ class TwitchApiClient(
         }
     }
 
-    /** Unblock a user */
+    
     suspend fun unblockUser(accessToken: String, targetUserId: String): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/users/blocks") {
@@ -567,7 +562,7 @@ class TwitchApiClient(
         }
     }
 
-    /** Get blocked users list */
+    
     suspend fun getBlockedUsers(accessToken: String, broadcasterId: String, first: Int = 100): Result<BlockedUsersResponse> {
         return try {
             val response = httpClient.get("$baseUrl/users/blocks") {
@@ -583,12 +578,12 @@ class TwitchApiClient(
         }
     }
 
-    /** Manage AutoMod held message — allow or deny */
+    
     suspend fun manageAutoModMessage(
         accessToken: String,
         userId: String,
         msgId: String,
-        action: String  // "ALLOW" or "DENY"
+        action: String 
     ): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/moderation/automod/message") {

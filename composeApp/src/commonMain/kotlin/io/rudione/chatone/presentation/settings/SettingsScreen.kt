@@ -80,7 +80,6 @@ private enum class SettingsSection(
     ABOUT("About", Res.drawable.panel_left_key_16_regular, null),
 }
 
-// ─── Entry point ─────────────────────────────────────────────────────────
 
 @Composable
 fun SettingsScreen(
@@ -120,7 +119,6 @@ fun SettingsScreen(
     }
 }
 
-// ─── Desktop dialog ───────────────────────────────────────────────────────
 
 @Composable
 private fun SettingsDialogContent(
@@ -143,7 +141,7 @@ private fun SettingsDialogContent(
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
 
-            // ── Left sidebar ──────────────────────────────────────────
+           
             Column(
                 modifier = Modifier
                     .width(216.dp)
@@ -207,8 +205,8 @@ private fun SettingsDialogContent(
                 }
             }
 
-            // ── Right content ─────────────────────────────────────────
-            // Десктоп: используем LazyColumn (у него есть фиксированная высота из Dialog)
+           
+           
             SectionContentLazy(
                 section = selectedSection,
                 state = state,
@@ -220,7 +218,6 @@ private fun SettingsDialogContent(
     }
 }
 
-// ─── Mobile: accordion (НЕТ вложенных LazyColumn!) ───────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -246,7 +243,7 @@ private fun SettingsFullScreen(
         },
         modifier = modifier
     ) { padding ->
-        // Один Column с вертикальным скроллом — никаких вложенных LazyColumn!
+       
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -256,7 +253,7 @@ private fun SettingsFullScreen(
             SettingsSection.entries.forEach { section ->
                 val isExpanded = section in expandedSections
 
-                // Заголовок секции (аккордеон)
+               
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -301,7 +298,7 @@ private fun SettingsFullScreen(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
 
-                // Контент секции — обычный Column (НЕ LazyColumn!)
+               
                 AnimatedVisibility(
                     visible = isExpanded,
                     enter = expandVertically(tween(200)) + fadeIn(tween(150)),
@@ -326,7 +323,6 @@ private fun SettingsFullScreen(
     }
 }
 
-// ─── Sidebar nav item ─────────────────────────────────────────────────────
 
 @Composable
 private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClick: () -> Unit) {
@@ -371,7 +367,6 @@ private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClic
     }
 }
 
-// ─── Section content — LazyColumn версия (для десктопного диалога) ────────
 
 @Composable
 private fun SectionContentLazy(
@@ -408,7 +403,6 @@ private fun SectionContentLazy(
     }
 }
 
-// ─── Section content — Column версия (для мобильного аккордеона) ─────────
 
 @Composable
 private fun SectionContentColumn(
@@ -435,7 +429,6 @@ private fun SectionContentColumn(
     }
 }
 
-// ─── LazyListScope builders (для десктопного диалога) ────────────────────
 
 private fun LazyListScope.appearanceLazyItems(
     state: SettingsState,
@@ -629,7 +622,6 @@ private fun LazyListScope.aboutLazyItems() {
     item { AboutCard() }
 }
 
-// ─── Column composables (для мобильного аккордеона) ──────────────────────
 
 @Composable
 private fun AppearanceContent(state: SettingsState, onThemeChanged: (Boolean) -> Unit, vm: SettingsViewModel) {
@@ -821,7 +813,6 @@ private fun AboutContent() {
     AboutCard()
 }
 
-// ─── Shared card composables ──────────────────────────────────────────────
 
 @Composable
 private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
@@ -980,7 +971,6 @@ private fun AboutCard() {
     }
 }
 
-// ─── Reusable group + row composables ────────────────────────────────────
 
 @Composable
 private fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
@@ -1124,7 +1114,7 @@ private fun HotkeyRow(title: String, subtitle: String, currentHotkey: String, on
                     .onKeyEvent { event ->
                         if (!isRecording) return@onKeyEvent false
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent true
-                        // Allow modifier-only hotkeys (just Alt, just Ctrl, etc.)
+                       
                         if (event.key in listOf(Key.CtrlLeft, Key.CtrlRight, Key.MetaLeft, Key.MetaRight)) {
                             if (!event.isAltPressed && !event.isShiftPressed) {
                                 onHotkeyChanged("ctrl"); isRecording = false; return@onKeyEvent true
@@ -1170,7 +1160,6 @@ private fun HotkeyRow(title: String, subtitle: String, currentHotkey: String, on
     }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────
 
 private fun hotkeyKeyToName(key: Key): String = when (key) {
     Key.Spacebar -> "space"; Key.Enter -> "enter"; Key.Tab -> "tab"

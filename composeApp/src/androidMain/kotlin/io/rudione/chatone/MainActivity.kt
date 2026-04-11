@@ -15,7 +15,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Collect AuthTokenBridge for opening browser on auth requests
+       
         lifecycleScope.launch {
             AuthTokenBridge.tokenFlow.collect { token ->
                 if (token.startsWith("__open_url__:")) {
@@ -30,7 +30,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Handle OAuth callback if app was launched via deep link
+       
         handleOAuthCallback(intent)
 
         setContent {

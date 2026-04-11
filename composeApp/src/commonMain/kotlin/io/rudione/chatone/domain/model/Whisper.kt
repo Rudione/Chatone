@@ -2,7 +2,7 @@ package io.rudione.chatone.domain.model
 
 import kotlinx.datetime.Clock
 
-/** Одно ЛС-сообщение */
+
 data class WhisperMessage(
     val id: String = "whisper_${Clock.System.now().toEpochMilliseconds()}",
     val fromUserId: String,
@@ -12,10 +12,10 @@ data class WhisperMessage(
     val fromAvatarUrl: String = "",
     val text: String,
     val timestamp: Long = Clock.System.now().toEpochMilliseconds(),
-    val isOwn: Boolean = false          // true = мы отправили
+    val isOwn: Boolean = false
 )
 
-/** Диалог с конкретным юзером */
+
 data class WhisperConversation(
     val userId: String,
     val username: String,
@@ -28,7 +28,7 @@ data class WhisperConversation(
     val lastMessage: WhisperMessage? get() = messages.lastOrNull()
 }
 
-/** Упоминание: сообщение в котором нас тегнули */
+
 data class MentionEntry(
     val messageId: String,
     val channelLogin: String,
