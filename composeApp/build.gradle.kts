@@ -135,11 +135,13 @@ compose.desktop {
                 optimize = true
                 obfuscate = false
             }
-           
+
             modules(
-                "java.sql", "java.naming", "java.management",
-                "java.desktop", "java.logging", "java.net.http",
-                "jdk.unsupported", "jdk.crypto.ec"
+                "java.sql",
+                "java.naming",
+                "java.management",
+                "java.desktop",
+                "java.logging"
             )
 
             macOS {
