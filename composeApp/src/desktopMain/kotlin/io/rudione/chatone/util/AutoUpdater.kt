@@ -26,7 +26,7 @@ import javax.swing.SwingUtilities
 object AutoUpdater {
 
     private const val GITHUB_API = "https://api.github.com"
-    private const val REPO = "rudione/Chatone"
+    private const val REPO = "Rudione/Chatone"
     // ▼▼▼ Версия берётся из build.gradle.kts (не BuildConfig!) ▼▼▼
     private const val CURRENT_VERSION = "1.0.7"
     // ▲▲▲ ▲▲▲

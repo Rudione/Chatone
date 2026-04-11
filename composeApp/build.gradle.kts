@@ -124,20 +124,18 @@ compose.desktop {
         mainClass = "io.rudione.chatone.MainKt"
 
         nativeDistributions {
-            // ▼▼▼ Если Zip не работает — оставляем только Dmg и Msi ▼▼▼
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi)
-            // ▲▲▲ ▲▲▲
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
 
             packageName = "Chatone"
             packageVersion = "1.0.7"
 
-            // ▼▼▼ Настройки для портативного запуска ▼▼▼
-            includeAllModules = true
+            // Minimal jlink module set — smaller runtime than includeAllModules.
+            // Add modules here only if runtime ClassNotFoundException appears.
             modules(
                 "java.sql", "java.naming", "java.management",
-                "java.desktop", "java.logging"
+                "java.desktop", "java.logging", "java.net.http",
+                "jdk.unsupported", "jdk.crypto.ec"
             )
-            // ▲▲▲ ▲▲▲
 
             macOS {
                 iconFile.set(project.file("src/desktopMain/resources/icon.icns"))
@@ -155,28 +153,28 @@ compose.desktop {
     }
 }
 
-// ▼▼▼ Задача для создания портативного архива ▼▼▼
+// Portable ZIP: zips the unpackaged app image produced by `createReleaseDistributable`.
+// That folder already contains a bundled JRE + native launcher, so the user can just
+// unzip and click Chatone.exe / Chatone — no install needed.
 tasks.register<Zip>("createPortableZip") {
-    dependsOn("packageReleaseDistributionForCurrentOS")
+    dependsOn("createReleaseDistributable")
 
-    // Путь зависит от ОС: ms i для Windows, dmg для Mac, deb/rpm для Linux
-    val os = org.gradle.internal.os.OperatingSystem.current()
-    val distDir = when {
-        os.isWindows -> file("build/compose/binaries/main-release/msi")
-        os.isMacOsX -> file("build/compose/binaries/main-release/dmg")
-        else -> file("build/compose/binaries/main-release/deb")
-    }
+    val appImageRoot = file("build/compose/binaries/main-release/app")
+    from(appImageRoot)
 
-    from(distDir)
     archiveFileName.set("Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-portable.zip")
     destinationDirectory.set(file("build/distributions"))
 
+    // Best compression — portable downloads are shipped once per release.
+    entryCompression = org.gradle.api.tasks.bundling.ZipEntryCompression.DEFLATED
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+
     doLast {
-        println("✅ Portable ZIP created: ${archiveFileName.get()}")
-        println("📁 Location: ${destinationDirectory.get()}")
+        println("Portable ZIP created: ${archiveFileName.get()}")
+        println("Location: ${destinationDirectory.get()}")
     }
 }
-// ▲▲▲ ▲▲▲
 
 sqldelight {
     databases {

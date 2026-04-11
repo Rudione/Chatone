@@ -28,7 +28,6 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-// ─── Models ─────────────────────────────────────────────────────────────
 
 data class ChannelFolder(
     val id: String,
@@ -63,21 +62,20 @@ data class MainState(
     val showSettings: Boolean = false,
     val isCreateFolderDialogVisible: Boolean = false,
     val newFolderName: String = "",
-    // ── Whispers ───────────────────────────────────────────────────────────
+   
     val whisperConversations: List<WhisperConversation> = emptyList(),
     val activeWhisperUserId: String? = null,
     val showWhisperPanel: Boolean = false,
     val totalUnreadWhispers: Int = 0,
-    // ── Mentions feed ──────────────────────────────────────────────────────
+   
     val mentions: List<MentionEntry> = emptyList(),
     val showMentionsFeed: Boolean = false,
     val unreadMentionsCount: Int = 0,
-    // ── Chatters panel ─────────────────────────────────────────────────────
+   
     val showChattersPanel: Boolean = false,
     val activeChatChannelId: String = ""
 ) : UiState
 
-// ─── Events ─────────────────────────────────────────────────────────────
 
 sealed class MainEvent : UiEvent {
     object ToggleSidebar : MainEvent()
@@ -90,6 +88,13 @@ sealed class MainEvent : UiEvent {
         val login: String,
         val profileImageUrl: String = "",
         val displayName: String = ""
+    ) : MainEvent()
+
+    data class ReorderUnfolderedChannels(val fromIndex: Int, val toIndex: Int) : MainEvent()
+    data class ReorderFolderChannels(
+        val folderId: String,
+        val fromIndex: Int,
+        val toIndex: Int
     ) : MainEvent()
 
     object ShowAddChannelDialog : MainEvent()
@@ -112,7 +117,7 @@ sealed class MainEvent : UiEvent {
     data class ResetMentionCount(val channelLogin: String) : MainEvent()
     object NavigateToAuth : MainEvent()
 
-    // ── Whispers ─────────────────────────────────────────────────────────
+   
     object ToggleWhisperPanel : MainEvent()
     object HideWhisperPanel : MainEvent()
     data class OpenWhisperWith(
@@ -136,18 +141,18 @@ sealed class MainEvent : UiEvent {
 
     data class MarkWhisperRead(val userId: String) : MainEvent()
 
-    // ── Mentions feed ────────────────────────────────────────────────────
+   
     object ToggleMentionsFeed : MainEvent()
     object HideMentionsFeed : MainEvent()
     object MarkAllMentionsRead : MainEvent()
     data class AddMentionEntry(val entry: MentionEntry) : MainEvent()
-    // ── Chatters ──────────────────────────────────────────────────────────
+
+   
     object ShowChattersPanel : MainEvent()
     object HideChattersPanel : MainEvent()
     data class SetActiveChatChannelId(val channelId: String) : MainEvent()
 }
 
-// ─── Effects ────────────────────────────────────────────────────────────
 
 sealed class MainEffect : UIEffect {
     object NavigateToAuth : MainEffect()
@@ -156,7 +161,6 @@ sealed class MainEffect : UIEffect {
     data class IncomingWhisper(val fromDisplayName: String, val text: String) : MainEffect()
 }
 
-// ─── ViewModel ──────────────────────────────────────────────────────────
 
 class MainViewModel(
     private val getAccountsUseCase: GetAccountsUseCase,
@@ -236,6 +240,33 @@ class MainViewModel(
                 saveChannelState()
             }
 
+            is MainEvent.ReorderUnfolderedChannels -> {
+                update { state ->
+                    val list = state.unfolderedChannels.toMutableList()
+                    if (event.fromIndex in list.indices && event.toIndex in list.indices) {
+                        val item = list.removeAt(event.fromIndex)
+                        list.add(event.toIndex, item)
+                        state.copy(unfolderedChannels = list)
+                    } else state
+                }
+            }
+
+            is MainEvent.ReorderFolderChannels -> {
+                update { state ->
+                    val folders = state.folders.map { folder ->
+                        if (folder.id == event.folderId) {
+                            val list = folder.channels.toMutableList()
+                            if (event.fromIndex in list.indices && event.toIndex in list.indices) {
+                                val item = list.removeAt(event.fromIndex)
+                                list.add(event.toIndex, item)
+                            }
+                            folder.copy(channels = list)
+                        } else folder
+                    }
+                    state.copy(folders = folders)
+                }
+            }
+
             is MainEvent.DropChannelOnFolder -> moveChannelToFolder(
                 event.channelLogin,
                 event.folderId
@@ -254,18 +285,18 @@ class MainViewModel(
             MainEvent.ShowSettings -> update { it.copy(showSettings = true) }
             MainEvent.HideSettings -> update { it.copy(showSettings = false) }
 
-            // ▼▼▼ ИСПРАВЛЕНИЕ 1: Mention count + глобальный счётчик ▼▼▼
+           
             is MainEvent.IncrementMentionCount -> {
                 incrementMentionCount(event.channelLogin)
-                // Инкрементим глобальный счётчик для бейджа в сайдбаре
+               
                 update { it.copy(unreadMentionsCount = it.unreadMentionsCount + 1) }
             }
-            // ▲▲▲ ▲▲▲
+           
 
             is MainEvent.ResetMentionCount -> resetMentionCount(event.channelLogin)
             MainEvent.NavigateToAuth -> sendEffect(MainEffect.NavigateToAuth)
 
-            // ── Whispers ────────────────────────────────────────────────
+           
             MainEvent.ToggleWhisperPanel -> update {
                 it.copy(
                     showWhisperPanel = !it.showWhisperPanel,
@@ -275,24 +306,31 @@ class MainViewModel(
 
             MainEvent.HideWhisperPanel -> update { it.copy(showWhisperPanel = false) }
 
-            // ▼▼▼ ИСПРАВЛЕНИЕ 2: Корректное открытие/закрытие ЛС ▼▼▼
+           
             is MainEvent.OpenWhisperWith -> {
-                // Если userId пустой — закрываем панель (кнопка "назад")
+               
                 if (event.userId.isEmpty()) {
                     update { it.copy(activeWhisperUserId = null, showWhisperPanel = false) }
                     return
                 }
 
-                // Открываем чат с пользователем
+               
                 update { state ->
                     val existing = state.whisperConversations.find { it.userId == event.userId }
                     val conversations = if (existing == null) {
                         state.whisperConversations + WhisperConversation(
-                            userId = event.userId, username = event.username, displayName = event.displayName,
-                            avatarUrl = event.avatarUrl, color = event.color
+                            userId = event.userId,
+                            username = event.username,
+                            displayName = event.displayName,
+                            avatarUrl = event.avatarUrl,
+                            color = event.color
                         )
                     } else {
-                        state.whisperConversations.map { if (it.userId == event.userId) it.copy(unreadCount = 0) else it }
+                        state.whisperConversations.map {
+                            if (it.userId == event.userId) it.copy(
+                                unreadCount = 0
+                            ) else it
+                        }
                     }
                     state.copy(
                         whisperConversations = conversations,
@@ -303,7 +341,7 @@ class MainViewModel(
                     )
                 }
             }
-            // ▲▲▲ ▲▲▲
+           
 
             is MainEvent.SendWhisper -> sendWhisperMessage(
                 event.toUserId,
@@ -321,7 +359,7 @@ class MainViewModel(
 
             is MainEvent.MarkWhisperRead -> markWhisperRead(event.userId)
 
-            // ── Mentions ────────────────────────────────────────────────
+           
             MainEvent.ToggleMentionsFeed -> update {
                 it.copy(
                     showMentionsFeed = !it.showMentionsFeed,
@@ -331,7 +369,10 @@ class MainViewModel(
 
             MainEvent.HideMentionsFeed -> update { it.copy(showMentionsFeed = false) }
             MainEvent.MarkAllMentionsRead -> update {
-                it.copy(mentions = it.mentions.map { m -> m.copy(isRead = true) }, unreadMentionsCount = 0)
+                it.copy(
+                    mentions = it.mentions.map { m -> m.copy(isRead = true) },
+                    unreadMentionsCount = 0
+                )
             }
 
             is MainEvent.AddMentionEntry -> update {
@@ -340,13 +381,14 @@ class MainViewModel(
                     unreadMentionsCount = it.unreadMentionsCount + 1
                 )
             }
+
             MainEvent.ShowChattersPanel -> update { it.copy(showChattersPanel = true) }
             MainEvent.HideChattersPanel -> update { it.copy(showChattersPanel = false) }
             is MainEvent.SetActiveChatChannelId -> update { it.copy(activeChatChannelId = event.channelId) }
         }
     }
 
-    // ── Whisper logic ───────────────────────────────────────────────────
+   
 
     private fun observeWhispers() {
         viewModelScope.launch {
@@ -403,7 +445,8 @@ class MainViewModel(
             val conversations = state.whisperConversations.toMutableList()
             val idx = conversations.indexOfFirst { it.userId == toUserId }
             if (idx >= 0) {
-                conversations[idx] = conversations[idx].copy(messages = conversations[idx].messages + msg)
+                conversations[idx] =
+                    conversations[idx].copy(messages = conversations[idx].messages + msg)
             } else {
                 conversations.add(
                     WhisperConversation(
@@ -446,7 +489,8 @@ class MainViewModel(
             text = text,
             isOwn = false
         )
-        val isActiveConvo = state.value.activeWhisperUserId == fromUserId && state.value.showWhisperPanel
+        val isActiveConvo =
+            state.value.activeWhisperUserId == fromUserId && state.value.showWhisperPanel
         update { state ->
             val conversations = state.whisperConversations.toMutableList()
             val idx = conversations.indexOfFirst { it.userId == fromUserId }
@@ -487,7 +531,7 @@ class MainViewModel(
         }
     }
 
-    // ── Channel logic ───────────────────────────────────────────────────
+   
 
     private fun loadAccounts() {
         viewModelScope.launch {
@@ -605,7 +649,8 @@ class MainViewModel(
     private fun closeChannel(login: String) {
         update { state ->
             val newOpen = state.openChannels.filter { it.login != login }
-            val newActive = if (state.activeChannelLogin == login) newOpen.lastOrNull()?.login else state.activeChannelLogin
+            val newActive =
+                if (state.activeChannelLogin == login) newOpen.lastOrNull()?.login else state.activeChannelLogin
             state.copy(
                 openChannels = newOpen,
                 activeChannelLogin = newActive,
@@ -632,8 +677,17 @@ class MainViewModel(
         viewModelScope.launch {
             update { it.copy(isSearching = true) }
             when (val result = searchChannelsUseCase(query, account.accessToken)) {
-                is Result.Success -> update { it.copy(searchResults = result.data, isSearching = false) }
-                is Result.Error -> { update { it.copy(isSearching = false) }; sendEffect(MainEffect.ShowError("Search failed")) }
+                is Result.Success -> update {
+                    it.copy(
+                        searchResults = result.data,
+                        isSearching = false
+                    )
+                }
+
+                is Result.Error -> {
+                    update { it.copy(isSearching = false) }; sendEffect(MainEffect.ShowError("Search failed"))
+                }
+
                 is Result.Loading -> {}
             }
         }
@@ -645,10 +699,16 @@ class MainViewModel(
             if (folders.isNotEmpty()) {
                 val foldersWithChannels = folders.map { folder ->
                     val channelLogins = channelFolderRepository.getChannelLoginsInFolder(folder.id)
-                    val channelTabs = channelLogins.map { login -> ChannelTab(login = login, displayName = login) }
+                    val channelTabs = channelLogins.map { login ->
+                        ChannelTab(
+                            login = login,
+                            displayName = login
+                        )
+                    }
                     folder.copy(channels = channelTabs)
                 }
-                val folderedLogins = foldersWithChannels.flatMap { it.channels }.map { it.login }.toSet()
+                val folderedLogins =
+                    foldersWithChannels.flatMap { it.channels }.map { it.login }.toSet()
                 update { state ->
                     state.copy(
                         folders = foldersWithChannels,
@@ -714,14 +774,16 @@ class MainViewModel(
     }
 
     private fun moveChannelToFolder(channelLogin: String, folderId: String?) {
-        val currentFolderId = state.value.folders.find { folder -> folder.channels.any { it.login == channelLogin } }?.id
+        val currentFolderId =
+            state.value.folders.find { folder -> folder.channels.any { it.login == channelLogin } }?.id
         update { state ->
             val channel = state.openChannels.find { it.login == channelLogin }
                 ?: state.unfolderedChannels.find { it.login == channelLogin }
                 ?: state.folders.flatMap { it.channels }.find { it.login == channelLogin }
                 ?: return@update state
             if (folderId == null) {
-                val updatedFolders = state.folders.map { folder -> folder.copy(channels = folder.channels.filter { it.login != channelLogin }) }
+                val updatedFolders =
+                    state.folders.map { folder -> folder.copy(channels = folder.channels.filter { it.login != channelLogin }) }
                 state.copy(
                     folders = updatedFolders,
                     unfolderedChannels = if (state.unfolderedChannels.none { it.login == channelLogin }) state.unfolderedChannels + channel else state.unfolderedChannels
@@ -741,7 +803,10 @@ class MainViewModel(
             }
         }
         try {
-            if (currentFolderId != null) channelFolderRepository.removeChannelFromFolder(channelLogin, currentFolderId)
+            if (currentFolderId != null) channelFolderRepository.removeChannelFromFolder(
+                channelLogin,
+                currentFolderId
+            )
             if (folderId != null) channelFolderRepository.addChannelToFolder(channelLogin, folderId)
         } catch (e: Exception) {
             Napier.w("Failed to persist channel-folder mapping: ${e.message}", tag = TAG)
@@ -833,7 +898,8 @@ class MainViewModel(
     private fun saveChannelState() {
         val channels = state.value.openChannels.joinToString(",") { it.login }
         settings.putString(KEY_OPEN_CHANNELS, channels)
-        state.value.activeChannelLogin?.let { settings.putString(KEY_ACTIVE_CHANNEL, it) } ?: settings.remove(KEY_ACTIVE_CHANNEL)
+        state.value.activeChannelLogin?.let { settings.putString(KEY_ACTIVE_CHANNEL, it) }
+            ?: settings.remove(KEY_ACTIVE_CHANNEL)
     }
 
     private fun observeEmoteUpdates() {
@@ -873,6 +939,7 @@ class MainViewModel(
                     updateLiveStatus(result.data.data.map { it.userLogin.lowercase() }.toSet())
                     fetchAndUpdateProfileImages()
                 }
+
                 else -> {}
             }
         } catch (e: Exception) {
@@ -911,13 +978,32 @@ class MainViewModel(
                 logins = channelsToUpdate.map { it.login }.take(100)
             )
             if (result is Result.Success) {
-                val imageMap = result.data.data.associateBy({ it.login.lowercase() }, { it.profileImageUrl })
+                val imageMap =
+                    result.data.data.associateBy({ it.login.lowercase() }, { it.profileImageUrl })
                 update { state ->
                     state.copy(
-                        openChannels = state.openChannels.map { ch -> imageMap[ch.login]?.let { url -> ch.copy(profileImageUrl = url) } ?: ch },
-                        unfolderedChannels = state.unfolderedChannels.map { ch -> imageMap[ch.login]?.let { url -> ch.copy(profileImageUrl = url) } ?: ch },
+                        openChannels = state.openChannels.map { ch ->
+                            imageMap[ch.login]?.let { url ->
+                                ch.copy(
+                                    profileImageUrl = url
+                                )
+                            } ?: ch
+                        },
+                        unfolderedChannels = state.unfolderedChannels.map { ch ->
+                            imageMap[ch.login]?.let { url ->
+                                ch.copy(
+                                    profileImageUrl = url
+                                )
+                            } ?: ch
+                        },
                         folders = state.folders.map { folder ->
-                            folder.copy(channels = folder.channels.map { ch -> imageMap[ch.login]?.let { url -> ch.copy(profileImageUrl = url) } ?: ch })
+                            folder.copy(channels = folder.channels.map { ch ->
+                                imageMap[ch.login]?.let { url ->
+                                    ch.copy(
+                                        profileImageUrl = url
+                                    )
+                                } ?: ch
+                            })
                         }
                     )
                 }
@@ -927,7 +1013,7 @@ class MainViewModel(
         }
     }
 
-    // ▼▼▼ Вспомогательные функции для форматирования времени ▼▼▼
+   
     private fun formatWhisperTime(timestamp: Long): String {
         val instant = Instant.fromEpochMilliseconds(timestamp)
         val dt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
@@ -936,17 +1022,23 @@ class MainViewModel(
 
     private fun formatMentionTime(ts: Long): String {
         val dt = Instant.fromEpochMilliseconds(ts).toLocalDateTime(TimeZone.currentSystemDefault())
-        return "${dt.hour.toString().padStart(2,'0')}:${dt.minute.toString().padStart(2,'0')}"
+        return "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
     }
 
     private fun parseHexColor(hex: String?): Color? {
         if (hex == null || !hex.startsWith("#")) return null
         return try {
             val v = hex.substring(1).toLong(16)
-            Color(red = ((v shr 16) and 0xFF) / 255f, green = ((v shr 8) and 0xFF) / 255f, blue = (v and 0xFF) / 255f)
-        } catch (_: Exception) { null }
+            Color(
+                red = ((v shr 16) and 0xFF) / 255f,
+                green = ((v shr 8) and 0xFF) / 255f,
+                blue = (v and 0xFF) / 255f
+            )
+        } catch (_: Exception) {
+            null
+        }
     }
-    // ▲▲▲ ▲▲▲
+   
 
     override fun onCleared() {
         viewModelScope.launch { sevenTvEventApi.disconnect() }

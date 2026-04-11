@@ -22,18 +22,18 @@ fun LiquidGlassDropdown(
     content: @Composable ColumnScope.() -> Unit
 ) {
     if (expanded) {
-        // 1. Оверлей на весь экран — ловит клики «мимо»
+       
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     detectTapGestures(
-                        // Любой тап вне контента закрывает меню
+                       
                         onPress = { onDismissRequest() }
                     )
                 }
         ) {
-            // 2. Сам контент меню — позиционируешь его через modifier при вызове
+           
             LiquidGlassSurface(
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(vertical = 4.dp),
@@ -41,8 +41,8 @@ fun LiquidGlassDropdown(
                 backgroundAlphaLow = 0.85f,
                 modifier = modifier
                     .widthIn(min = 160.dp, max = 240.dp)
-                    // Важно: чтобы клики по меню не закрывали его,
-                    // останавливаем распространение события
+                   
+                   
                     .pointerInput(Unit) {
                         detectTapGestures(onTap = { /* consume tap */ })
                     }

@@ -37,6 +37,12 @@ data class ChatState(
     val channelLogin: String = "",
     val channelId: String = "",
     val messages: List<DisplayMessage> = emptyList(),
+    /**
+     * Monotonic sequence that increments on every *append* to [messages].
+     * UI auto-scroll keys on this instead of list size, so trimming to
+     * scrollbackLimit does not freeze the trigger.
+     */
+    val messagesSeq: Long = 0L,
     val messageInput: String = "",
     val isConnected: Boolean = false,
     val connectionStatus: String = "Disconnected",
@@ -361,6 +367,9 @@ class ChatViewModel(
                 channelLogin = channelLogin,
                 channelId = cachedChannelId,
                 messages = cachedMessages,
+                // Bump so that ChatScreen auto-scroll fires once for the
+                // freshly-loaded cached list (Bug 1 fix continuity).
+                messagesSeq = it.messagesSeq + if (cachedMessages.isNotEmpty()) 1 else 0,
                 roomState = cachedRoomState,
                 isMod = cachedIsMod,
                 isLoading = cachedMessages.isEmpty(),
@@ -419,33 +428,37 @@ class ChatViewModel(
         }
     }
 
-    /** Check moderator status via API right after joining a channel */
+    /**
+     * Resolve moderator / broadcaster status via Helix the moment we have
+     * both channelId and userId. Runs eagerly on chat init so the mod /
+     * broadcaster action buttons appear immediately instead of waiting for
+     * the user's first PRIVMSG (which is what used to gate USERSTATE).
+     *
+     * The path is: self == broadcasterId → isMod=true (broadcaster gets
+     * every mod capability), otherwise query /moderation/moderators. If
+     * the query fails (no scope, network, etc.) we leave isMod alone so
+     * the eventual USERSTATE path can still correct it.
+     */
     private suspend fun checkAndSetModStatus(channelId: String) {
         val s = state.value
         val token = s.currentAccessToken
         val userId = s.currentUserId
-        if (token.isEmpty() || userId.isEmpty()) return
+        val channelLogin = s.channelLogin
+        if (token.isEmpty() || userId.isEmpty() || channelId.isEmpty() || channelLogin.isEmpty()) return
         try {
-            // Check if viewer count of channel equals userId → broadcaster
-            val channelLogin = s.channelLogin
-            val streamerResult = apiClient.getUsers(token, logins = listOf(channelLogin))
-            if (streamerResult is io.rudione.chatone.util.Result.Success) {
-                val streamerId = streamerResult.data.data.firstOrNull()?.id
-                if (streamerId != null && streamerId == userId) {
-                    // We ARE the broadcaster
-                    channelModCache[channelLogin.lowercase()] = true
-                    update { it.copy(isMod = true) }
-                    return
-                }
-                // Check moderators list
-                if (streamerId != null) {
-                    val modResult = apiClient.getChannelModerators(token, streamerId, userId)
-                    if (modResult is io.rudione.chatone.util.Result.Success) {
-                        val isMod = modResult.data.data.any { it.userId == userId }
-                        channelModCache[channelLogin.lowercase()] = isMod
-                        update { it.copy(isMod = isMod) }
-                    }
-                }
+            // Fast path: broadcaster of own channel
+            if (channelId == userId) {
+                channelModCache[channelLogin.lowercase()] = true
+                update { if (it.channelLogin == channelLogin) it.copy(isMod = true) else it }
+                retokenizeMessages()
+                return
+            }
+            val modResult = apiClient.getChannelModerators(token, channelId, userId)
+            if (modResult is io.rudione.chatone.util.Result.Success) {
+                val isMod = modResult.data.data.any { it.userId == userId }
+                channelModCache[channelLogin.lowercase()] = isMod
+                update { if (it.channelLogin == channelLogin) it.copy(isMod = isMod) else it }
+                if (isMod) retokenizeMessages()
             }
         } catch (e: Exception) {
             Napier.w("Failed to check mod status: ${e.message}", tag = TAG)
@@ -473,8 +486,13 @@ class ChatViewModel(
             if (recent.isNotEmpty()) {
                 val displayMessages = recent.map { msg -> chatMessageToDisplay(msg) }
                 update { state ->
-                    if (state.channelLogin == channelLogin) state.copy(messages = displayMessages.takeLast(maxMessages))
-                    else state
+                    if (state.channelLogin == channelLogin) {
+                        val trimmed = displayMessages.takeLast(maxMessages)
+                        state.copy(
+                            messages = trimmed,
+                            messagesSeq = state.messagesSeq + trimmed.size
+                        )
+                    } else state
                 }
                 sendEffect(ChatEffect.ScrollToBottom)
                 val uniqueUserIds = recent.map { it.userId }.distinct().take(50)
@@ -626,7 +644,11 @@ class ChatViewModel(
                     update { state ->
                         if (!state.channelLogin.equals(message.channelName, ignoreCase = true)) return@update state
                         val newMessages = (state.messages + finalMsg).takeLast(maxMessages)
-                        state.copy(messages = newMessages, mentionCount = if (matchResult != null) state.mentionCount + 1 else state.mentionCount)
+                        state.copy(
+                            messages = newMessages,
+                            messagesSeq = state.messagesSeq + 1,
+                            mentionCount = if (matchResult != null) state.mentionCount + 1 else state.mentionCount
+                        )
                     }
                     sendEffect(ChatEffect.ScrollToBottom)
 
@@ -743,6 +765,11 @@ class ChatViewModel(
                                 update { it.copy(channelId = roomId) }
                                 channelIdCache[channelLogin.lowercase()] = roomId
                                 loadChannelEmotesAndBadges(roomId)
+                                // FIX Bug 3: if initChannel raced past the mod check
+                                // because channelId wasn't resolved yet via getUsers,
+                                // do it now — ROOMSTATE is guaranteed to deliver the
+                                // room id on JOIN so this is the fallback path.
+                                viewModelScope.launch { checkAndSetModStatus(roomId) }
                             }
                             update { state ->
                                 val newRoomState = RoomState(
@@ -854,7 +881,10 @@ class ChatViewModel(
 
     private fun addMessage(msg: DisplayMessage) {
         update { state ->
-            state.copy(messages = (state.messages + msg).takeLast(maxMessages))
+            state.copy(
+                messages = (state.messages + msg).takeLast(maxMessages),
+                messagesSeq = state.messagesSeq + 1
+            )
         }
         sendEffect(ChatEffect.ScrollToBottom)
     }
@@ -1007,6 +1037,7 @@ class ChatViewModel(
                         showEmoteCompletions = false,
                         emoteCompletions = emptyList(),
                         messages = newMessages,
+                        messagesSeq = state.messagesSeq + 1,
                         replyingTo = if (keepText) state.replyingTo else null,
                         sentMessageHistory = newHistory,
                         historyIndex = -1

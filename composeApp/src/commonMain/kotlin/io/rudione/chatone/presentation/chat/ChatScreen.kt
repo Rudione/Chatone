@@ -156,9 +156,12 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaper
 import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.util.EmoteImageWithTooltip
+import io.rudione.chatone.util.GlobalKeyDispatcher
 import io.rudione.chatone.util.MessageToken
 import io.rudione.chatone.util.NotificationSoundPlayer
 import io.rudione.chatone.util.handleHover
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -261,14 +264,26 @@ fun ChatScreen(
         }
     }
 
-    val messageCount = state.messages.size
-    LaunchedEffect(messageCount) {
-        if (!effectivelyPaused && messageCount > 0) {
+    // FIX Bug 1: key on monotonic messagesSeq, NOT list size.
+    // When scrollbackLimit is reached, the list size freezes while new
+    // messages keep arriving. Keying on size made LaunchedEffect never
+    // re-trigger → auto-scroll silently died. messagesSeq strictly
+    // increases on every append in the ViewModel, so we always re-run
+    // while preserving all three pause paths (hotkey / hover / scrolled-up).
+    val messagesSeq = state.messagesSeq
+    LaunchedEffect(messagesSeq) {
+        if (messagesSeq == 0L) return@LaunchedEffect
+        val size = state.messages.size
+        if (size == 0) return@LaunchedEffect
+        if (!effectivelyPaused) {
             isAutoScrolling = true
-            listState.animateScrollToItem(messageCount - 1)
+            // scrollToItem (not animate) ensures we never lose the bottom
+            // anchor when bursts of messages arrive faster than animation.
+            listState.scrollToItem(size - 1)
             isAutoScrolling = false
             unreadCount = 0
-        } else if (effectivelyPaused && messageCount > 0) {
+            hasNewMessagesWhilePaused = false
+        } else {
             hasNewMessagesWhilePaused = true
             unreadCount++
         }
@@ -302,19 +317,44 @@ fun ChatScreen(
                     }
                 }
                 is ChatEffect.MentionDetected -> {
-                    if (settingsState.mentionSoundEnabled) {
-                        NotificationSoundPlayer.playMentionSound(
-                            volume = settingsState.mentionSoundVolume,
-                            customSoundPath = settingsState.customMentionSoundPath
-                        )
+                    // FIX Bug 4: properly distinguish mentions on the CURRENTLY-
+                    // VIEWED channel from mentions on any other open channel.
+                    //
+                    // Rules:
+                    //  - Mentions on the active channel (what the user is looking
+                    //    at RIGHT NOW) are silent for the red dot / feed — the
+                    //    user already sees the message highlighted inline.
+                    //  - Mentions on *other* open channels always light up the
+                    //    red dot and append to the mentions feed, regardless of
+                    //    whether those channels' IRC sockets have been touched
+                    //    recently (the app is not allowed to decide that "I was
+                    //    there recently so it counts").
+                    //
+                    // We also make sure MentionEntry carries the *mention's* own
+                    // channelLogin — previously it was using the outer composable
+                    // parameter which meant cross-channel mentions landed in the
+                    // feed under the wrong channel header.
+                    val mentionChannel = effect.channelLogin
+                    val isActiveChannel = mentionChannel.equals(channelLogin, ignoreCase = true)
+
+                    if (!isActiveChannel) {
+                        if (settingsState.mentionSoundEnabled) {
+                            NotificationSoundPlayer.playMentionSound(
+                                volume = settingsState.mentionSoundVolume,
+                                customSoundPath = settingsState.customMentionSoundPath
+                            )
+                        }
+                        onMentionDetected(mentionChannel)
                     }
-                    onMentionDetected(effect.channelLogin)
-                    // Build MentionEntry for the feed
+                    // Always populate the feed entry — the feed shows mentions
+                    // across ALL channels including the active one when the user
+                    // opens the mentions panel manually. The red dot is what we
+                    // suppress for the active channel, not the historical feed.
                     val mentionMsg = effect.message
                     if (mentionMsg != null) {
                         val entry = MentionEntry(
                             messageId = mentionMsg.id,
-                            channelLogin = channelLogin,
+                            channelLogin = mentionChannel,
                             fromUsername = mentionMsg.username,
                             fromDisplayName = mentionMsg.displayName,
                             fromColor = mentionMsg.color,
@@ -336,39 +376,91 @@ fun ChatScreen(
         }
     }
 
-    // Request focus on the chat Box so hotkey works even without input focus
+    // Request focus on the chat Box (Android fallback — desktop uses
+    // GlobalKeyDispatcher so focus is irrelevant there).
     LaunchedEffect(Unit) {
         chatBoxFocusRequester.requestFocus()
     }
 
-    // ▼▼▼ Box-контейнер для оверлеев + глобальный обработчик хоткея паузы ▼▼▼
+    // FIX Bug 2a: the pause hotkey used to only fire when the chat Box
+    // subtree had focus (i.e. when the text input was active). We now
+    // route key events through a Window-level dispatcher so the bind
+    // works regardless of what's focused.
+    //
+    // FIX Bug 2b: when HOLD mode is released, forcibly scroll to the
+    // very bottom — during pause the list usually grew beyond the
+    // viewport, which left `isScrolledAway` stuck at true, so the
+    // existing effectivelyPaused → false branch alone was never enough
+    // to bring the user back to the live edge.
+    val currentSettings by rememberUpdatedState(settingsState)
+    val currentIsPausedByHotkey by rememberUpdatedState(isPausedByHotkey)
+    val hotkeyHandler = remember<(androidx.compose.ui.input.key.KeyEvent) -> Boolean> {
+        handler@{ event ->
+            val hotkey = currentSettings.pauseHotkey
+            if (hotkey.isBlank()) return@handler false
+            val isHoldMode = currentSettings.pauseHotkeyMode ==
+                io.rudione.chatone.presentation.settings.PauseHotkeyMode.HOLD
+
+            if (isHoldMode) {
+                if (event.type == KeyEventType.KeyDown && pauseHotkeyMatches(event, hotkey)) {
+                    if (!currentIsPausedByHotkey) isPausedByHotkey = true
+                    return@handler true
+                }
+                if (event.type == KeyEventType.KeyUp &&
+                    currentIsPausedByHotkey &&
+                    pauseHotkeyMatchesRelease(event, hotkey)
+                ) {
+                    isPausedByHotkey = false
+                    // Force-snap to the bottom. The regular effectivelyPaused
+                    // side-effect can't help here because isScrolledAway will
+                    // still be true until after the next measurement pass.
+                    coroutineScope.launch {
+                        val size = state.messages.size
+                        if (size > 0) {
+                            isAutoScrolling = true
+                            listState.scrollToItem(size - 1)
+                            isAutoScrolling = false
+                            hasNewMessagesWhilePaused = false
+                            unreadCount = 0
+                        }
+                    }
+                    return@handler true
+                }
+            } else {
+                if (event.type == KeyEventType.KeyDown && pauseHotkeyMatches(event, hotkey)) {
+                    val wasPaused = currentIsPausedByHotkey
+                    isPausedByHotkey = !wasPaused
+                    // If toggling OFF, snap to bottom just like HOLD release.
+                    if (wasPaused) {
+                        coroutineScope.launch {
+                            val size = state.messages.size
+                            if (size > 0) {
+                                isAutoScrolling = true
+                                listState.scrollToItem(size - 1)
+                                isAutoScrolling = false
+                                hasNewMessagesWhilePaused = false
+                                unreadCount = 0
+                            }
+                        }
+                    }
+                    return@handler true
+                }
+            }
+            false
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val unregister = GlobalKeyDispatcher.register(hotkeyHandler)
+        onDispose { unregister() }
+    }
+
+    // ▼▼▼ Box-контейнер для оверлеев (local key-handler kept as
+    //    Android fallback — on desktop GlobalKeyDispatcher already ran) ▼▼▼
     Box(modifier = modifier.fillMaxSize()
         .focusRequester(chatBoxFocusRequester)
         .focusable()
-        .onPreviewKeyEvent { event ->
-        val hotkey = settingsState.pauseHotkey
-        if (hotkey.isBlank()) return@onPreviewKeyEvent false
-        val isHoldMode = settingsState.pauseHotkeyMode == io.rudione.chatone.presentation.settings.PauseHotkeyMode.HOLD
-
-        if (isHoldMode) {
-            // HOLD mode: KeyDown → pause, KeyUp → unpause + scroll to bottom
-            if (event.type == KeyEventType.KeyDown && pauseHotkeyMatches(event, hotkey)) {
-                if (!isPausedByHotkey) isPausedByHotkey = true
-                return@onPreviewKeyEvent true
-            }
-            if (event.type == KeyEventType.KeyUp && isPausedByHotkey && pauseHotkeyMatchesRelease(event, hotkey)) {
-                isPausedByHotkey = false
-                return@onPreviewKeyEvent true
-            }
-        } else {
-            // TOGGLE mode: KeyDown → toggle
-            if (event.type == KeyEventType.KeyDown && pauseHotkeyMatches(event, hotkey)) {
-                isPausedByHotkey = !isPausedByHotkey
-                return@onPreviewKeyEvent true
-            }
-        }
-        false
-    }) {
+        .onPreviewKeyEvent { event -> hotkeyHandler(event) }) {
 
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
 

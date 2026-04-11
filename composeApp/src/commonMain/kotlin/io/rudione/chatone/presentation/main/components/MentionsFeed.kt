@@ -29,7 +29,6 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-// ─── Панель упоминаний (/mentions) ────────────────────────────────────────────
 
 @Composable
 fun MentionsFeed(
@@ -48,7 +47,7 @@ fun MentionsFeed(
         borderAlphaLow = 0.08f
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // ── Header ────────────────────────────────────────────────
+           
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -138,7 +137,7 @@ private fun MentionRow(entry: MentionEntry, onClick: () -> Unit) {
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Top
     ) {
-        // Unread dot
+       
         Box(
             modifier = Modifier.padding(top = 5.dp).size(7.dp).clip(CircleShape)
                 .background(if (isUnread) MaterialTheme.colorScheme.primary else Color.Transparent)
@@ -150,7 +149,7 @@ private fun MentionRow(entry: MentionEntry, onClick: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Username coloured
+               
                 val nameColor = parseHexColorMentions(entry.fromColor) ?: MaterialTheme.colorScheme.primary
                 Text(
                     entry.fromDisplayName,

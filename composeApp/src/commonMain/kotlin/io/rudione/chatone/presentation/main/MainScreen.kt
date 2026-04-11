@@ -38,6 +38,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -73,7 +74,6 @@ import kotlin.math.hypot
 import io.rudione.chatone.presentation.chat.components.ChattersPanel
 import io.rudione.chatone.presentation.main.components.MentionsFeed
 
-// ─── Data classes для отслеживания границ ────────────────────────────────
 private data class ItemBounds(val id: String, val rect: Rect)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,7 +100,12 @@ fun MainScreen(
             when (effect) {
                 MainEffect.NavigateToAuth -> onNavigateToAuth()
                 is MainEffect.ShowError -> scope.launch { snackbarHostState.showSnackbar(effect.message) }
-                is MainEffect.ShowEmoteUpdate -> scope.launch { snackbarHostState.showSnackbar(effect.text) }
+                is MainEffect.ShowEmoteUpdate -> scope.launch {
+                    snackbarHostState.showSnackbar(
+                        effect.text
+                    )
+                }
+
                 is MainEffect.IncomingWhisper -> scope.launch { snackbarHostState.showSnackbar("💬 ${effect.fromDisplayName}: ${effect.text}") }
             }
         }
@@ -160,14 +165,27 @@ fun MainScreen(
                         }
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        val showTabBar = settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
+                        val showTabBar =
+                            settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
                         if (showTabBar && state.openChannels.size > 1) {
                             Box {
                                 ChannelTabBar(
                                     channels = state.openChannels,
                                     activeLogin = state.activeChannelLogin,
-                                    onSelect = { login: String -> viewModel.sendEvent(MainEvent.SelectChannel(login)) },
-                                    onClose = { login: String -> viewModel.sendEvent(MainEvent.CloseChannel(login)) },
+                                    onSelect = { login: String ->
+                                        viewModel.sendEvent(
+                                            MainEvent.SelectChannel(
+                                                login
+                                            )
+                                        )
+                                    },
+                                    onClose = { login: String ->
+                                        viewModel.sendEvent(
+                                            MainEvent.CloseChannel(
+                                                login
+                                            )
+                                        )
+                                    },
                                     onReorder = { from: Int, to: Int ->
                                         viewModel.sendEvent(MainEvent.ReorderChannels(from, to))
                                     }
@@ -204,10 +222,22 @@ fun MainScreen(
                                         viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
                                     },
                                     onOpenWhisper = { userId, username, displayName, avatarUrl, color ->
-                                        viewModel.sendEvent(MainEvent.OpenWhisperWith(userId, username, displayName, avatarUrl, color))
+                                        viewModel.sendEvent(
+                                            MainEvent.OpenWhisperWith(
+                                                userId,
+                                                username,
+                                                displayName,
+                                                avatarUrl,
+                                                color
+                                            )
+                                        )
                                     },
                                     onChannelIdResolved = { channelId ->
-                                        viewModel.sendEvent(MainEvent.SetActiveChatChannelId(channelId))
+                                        viewModel.sendEvent(
+                                            MainEvent.SetActiveChatChannelId(
+                                                channelId
+                                            )
+                                        )
                                     },
                                     isWideScreen = true,
                                     wallpaper = wallpaper
@@ -226,14 +256,27 @@ fun MainScreen(
                 }
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    val showTabBar = settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
+                    val showTabBar =
+                        settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
                     if (showTabBar && state.openChannels.size > 1) {
                         Box {
                             ChannelTabBar(
                                 channels = state.openChannels,
                                 activeLogin = state.activeChannelLogin,
-                                onSelect = { login: String -> viewModel.sendEvent(MainEvent.SelectChannel(login)) },
-                                onClose = { login: String -> viewModel.sendEvent(MainEvent.CloseChannel(login)) },
+                                onSelect = { login: String ->
+                                    viewModel.sendEvent(
+                                        MainEvent.SelectChannel(
+                                            login
+                                        )
+                                    )
+                                },
+                                onClose = { login: String ->
+                                    viewModel.sendEvent(
+                                        MainEvent.CloseChannel(
+                                            login
+                                        )
+                                    )
+                                },
                                 onReorder = { from: Int, to: Int ->
                                     viewModel.sendEvent(MainEvent.ReorderChannels(from, to))
                                 }
@@ -270,7 +313,15 @@ fun MainScreen(
                                     viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
                                 },
                                 onOpenWhisper = { userId, username, displayName, avatarUrl, color ->
-                                    viewModel.sendEvent(MainEvent.OpenWhisperWith(userId, username, displayName, avatarUrl, color))
+                                    viewModel.sendEvent(
+                                        MainEvent.OpenWhisperWith(
+                                            userId,
+                                            username,
+                                            displayName,
+                                            avatarUrl,
+                                            color
+                                        )
+                                    )
                                 },
                                 onChannelIdResolved = { channelId ->
                                     viewModel.sendEvent(MainEvent.SetActiveChatChannelId(channelId))
@@ -290,7 +341,8 @@ fun MainScreen(
                     }
                 }
 
-                val showMiniRail = settingsState.channelNavigation != SettingsState.ChannelNavigation.TAB_BAR
+                val showMiniRail =
+                    settingsState.channelNavigation != SettingsState.ChannelNavigation.TAB_BAR
                 if (showMiniRail && !state.sidebarExpanded) {
                     Box {
                         MiniRail(
@@ -359,13 +411,18 @@ fun MainScreen(
         }
     }
 
-    // ── Whisper Panel overlay ──────────────────────────────────────────
     if (state.showWhisperPanel) {
         Box(modifier = Modifier.fillMaxSize().zIndex(50f), contentAlignment = Alignment.BottomEnd) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { viewModel.sendEvent(MainEvent.HideWhisperPanel) }
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
+                        viewModel.sendEvent(
+                            MainEvent.HideWhisperPanel
+                        )
+                    }
             )
             WhisperPanel(
                 state = state,
@@ -375,13 +432,18 @@ fun MainScreen(
         }
     }
 
-    // ── Mentions Feed overlay ───────────────────────────────────────
     if (state.showMentionsFeed) {
         Box(modifier = Modifier.fillMaxSize().zIndex(50f), contentAlignment = Alignment.BottomEnd) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { viewModel.sendEvent(MainEvent.HideMentionsFeed) }
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
+                        viewModel.sendEvent(
+                            MainEvent.HideMentionsFeed
+                        )
+                    }
             )
             MentionsFeed(
                 state = state,
@@ -392,15 +454,19 @@ fun MainScreen(
         }
     }
 
-    // ── Chatters Panel overlay ──────────────────────────────────────────
     if (state.showChattersPanel && state.activeChannelLogin != null) {
         val account = state.selectedAccount
         if (account != null) {
-            Box(modifier = Modifier.fillMaxSize().zIndex(50f), contentAlignment = Alignment.TopEnd) {
+            Box(
+                modifier = Modifier.fillMaxSize().zIndex(50f),
+                contentAlignment = Alignment.TopEnd
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
                             viewModel.sendEvent(MainEvent.HideChattersPanel)
                         }
                 )
@@ -411,8 +477,7 @@ fun MainScreen(
                     currentUserId = account.userId,
                     onUserClick = { userId, username, displayName ->
                         viewModel.sendEvent(MainEvent.HideChattersPanel)
-                        // Open whisper or profile by triggering chat screen user popup
-                        // For now open whisper panel as an action
+
                     },
                     onDismiss = { viewModel.sendEvent(MainEvent.HideChattersPanel) },
                     modifier = Modifier.padding(top = 60.dp, end = 16.dp)
@@ -426,7 +491,13 @@ fun MainScreen(
             query = state.addChannelQuery,
             searchResults = state.searchResults,
             isSearching = state.isSearching,
-            onQueryChange = { query: String -> viewModel.sendEvent(MainEvent.UpdateAddChannelQuery(query)) },
+            onQueryChange = { query: String ->
+                viewModel.sendEvent(
+                    MainEvent.UpdateAddChannelQuery(
+                        query
+                    )
+                )
+            },
             onSearch = { viewModel.sendEvent(MainEvent.SearchChannels) },
             onChannelSelected = { login: String, profileImageUrl: String, displayName: String ->
                 viewModel.sendEvent(MainEvent.AddChannel(login, profileImageUrl, displayName))
@@ -445,8 +516,6 @@ fun MainScreen(
     }
 }
 
-// ─── Mini Rail (без D&D, только отображение) ────────────────────────────
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MiniRail(
@@ -458,17 +527,40 @@ private fun MiniRail(
     val uriHandler = LocalUriHandler.current
 
     LiquidGlassSurface(
-        modifier = modifier.padding(8.dp).shadow(8.dp, RoundedCornerShape(16.dp), ambientColor = extra.shadowColor, spotColor = extra.elevatedShadow),
+        modifier = modifier.padding(8.dp).shadow(
+            8.dp,
+            RoundedCornerShape(16.dp),
+            ambientColor = extra.shadowColor,
+            spotColor = extra.elevatedShadow
+        ),
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
         backgroundAlphaHigh = 0.95f,
         backgroundAlphaLow = 0.88f
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
-            IconButton(onClick = { onEvent(MainEvent.ToggleSidebar) }, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Filled.Menu, contentDescription = "Open sidebar", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+        ) {
+            IconButton(
+                onClick = { onEvent(MainEvent.ToggleSidebar) },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Menu,
+                    contentDescription = "Open sidebar",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(20.dp)
+                )
             }
-            LazyRow(contentPadding = PaddingValues(horizontal = 2.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                items(state.openChannels, key = { channel: ChannelTab -> channel.login }) { channel ->
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                items(
+                    state.openChannels,
+                    key = { channel: ChannelTab -> channel.login }) { channel ->
                     val isActive = channel.login == state.activeChannelLogin
                     var showTooltip by remember { mutableStateOf(false) }
                     Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
@@ -476,9 +568,19 @@ private fun MiniRail(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent)
+                                .background(
+                                    if (isActive) MaterialTheme.colorScheme.primary.copy(
+                                        alpha = 0.2f
+                                    ) else Color.Transparent
+                                )
                                 .clickable { onEvent(MainEvent.SelectChannel(channel.login)) }
-                                .then(if (isActive) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape) else Modifier)
+                                .then(
+                                    if (isActive) Modifier.border(
+                                        2.dp,
+                                        MaterialTheme.colorScheme.primary,
+                                        CircleShape
+                                    ) else Modifier
+                                )
                                 .pointerInput(channel.login) {
                                     awaitPointerEventScope {
                                         while (true) {
@@ -487,7 +589,10 @@ private fun MiniRail(
                                                 PointerEventType.Enter -> showTooltip = true
                                                 PointerEventType.Exit -> showTooltip = false
                                                 PointerEventType.Press -> if (event.buttons.isSecondaryPressed) {
-                                                    try { uriHandler.openUri("https://www.twitch.tv/${channel.login}") } catch (_: Exception) {}
+                                                    try {
+                                                        uriHandler.openUri("https://www.twitch.tv/${channel.login}")
+                                                    } catch (_: Exception) {
+                                                    }
                                                 }
                                             }
                                         }
@@ -496,59 +601,147 @@ private fun MiniRail(
                             contentAlignment = Alignment.Center
                         ) {
                             if (channel.profileImageUrl.isNotEmpty()) {
-                                AsyncImage(model = channel.profileImageUrl, contentDescription = channel.displayName, contentScale = ContentScale.Crop, modifier = Modifier.size(26.dp).clip(CircleShape))
+                                AsyncImage(
+                                    model = channel.profileImageUrl,
+                                    contentDescription = channel.displayName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(26.dp).clip(CircleShape)
+                                )
                             } else {
-                                Text(text = channel.displayName.take(2).uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = channel.displayName.take(2).uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         if (channel.isLive) {
-                            Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).size(10.dp).clip(CircleShape).background(ChatoneTheme.extraColors.live).border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape).zIndex(2f))
+                            Box(
+                                modifier = Modifier.align(Alignment.TopEnd)
+                                    .offset(x = 2.dp, y = (-2).dp).size(10.dp).clip(CircleShape)
+                                    .background(ChatoneTheme.extraColors.live)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                    .zIndex(2f)
+                            )
                         }
                         if (channel.unreadCount > 0) {
-                            Box(modifier = Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(12.dp).clip(CircleShape).background(Color.Red).border(1.dp, MaterialTheme.colorScheme.surface, CircleShape).zIndex(2f), contentAlignment = Alignment.Center) {
-                                Text(text = if (channel.unreadCount > 9) "9+" else "${channel.unreadCount}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp), color = Color.White)
+                            Box(
+                                modifier = Modifier.align(Alignment.BottomEnd)
+                                    .offset(x = 2.dp, y = 2.dp).size(12.dp).clip(CircleShape)
+                                    .background(Color.Red)
+                                    .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                    .zIndex(2f), contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (channel.unreadCount > 9) "9+" else "${channel.unreadCount}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                                    color = Color.White
+                                )
                             }
                         }
                     }
                     if (showTooltip) {
-                        Popup(alignment = Alignment.BottomCenter, offset = IntOffset(0, 12), properties = androidx.compose.ui.window.PopupProperties(focusable = false)) {
-                            Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f)).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 5.dp).shadow(4.dp, RoundedCornerShape(6.dp))) {
-                                Text(text = channel.displayName.ifBlank { channel.login.replaceFirstChar { char -> char.uppercaseChar() } }, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                        Popup(
+                            alignment = Alignment.BottomCenter,
+                            offset = IntOffset(0, 12),
+                            properties = androidx.compose.ui.window.PopupProperties(focusable = false)
+                        ) {
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
+                                    .border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                        RoundedCornerShape(6.dp)
+                                    ).padding(horizontal = 10.dp, vertical = 5.dp)
+                                    .shadow(4.dp, RoundedCornerShape(6.dp))
+                            ) {
+                                Text(
+                                    text = channel.displayName.ifBlank { channel.login.replaceFirstChar { char -> char.uppercaseChar() } },
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1
+                                )
                             }
                         }
                     }
                 }
             }
-            // Mentions button
+           
             Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                IconButton(onClick = { onEvent(MainEvent.ToggleMentionsFeed) }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Notifications, contentDescription = "Mentions", tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                IconButton(
+                    onClick = { onEvent(MainEvent.ToggleMentionsFeed) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Notifications,
+                        contentDescription = "Mentions",
+                        tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
                 if (state.unreadMentionsCount > 0) {
-                    Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp).size(14.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error).border(1.dp, MaterialTheme.colorScheme.surface, CircleShape).zIndex(2f), contentAlignment = Alignment.Center) {
-                        Text(text = if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp), color = Color.White)
+                    Box(
+                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
+                            .size(14.dp).clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                            .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                            .zIndex(2f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                            color = Color.White
+                        )
                     }
                 }
             }
-            // Whisper button
+           
             Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
-                IconButton(onClick = { onEvent(MainEvent.ToggleWhisperPanel) }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.MailOutline, contentDescription = "Whispers", tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                IconButton(
+                    onClick = { onEvent(MainEvent.ToggleWhisperPanel) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.MailOutline,
+                        contentDescription = "Whispers",
+                        tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
                 if (state.totalUnreadWhispers > 0) {
-                    Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp).size(14.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error).border(1.dp, MaterialTheme.colorScheme.surface, CircleShape).zIndex(2f), contentAlignment = Alignment.Center) {
-                        Text(text = if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp), color = Color.White)
+                    Box(
+                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
+                            .size(14.dp).clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                            .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                            .zIndex(2f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                            color = Color.White
+                        )
                     }
                 }
             }
-            IconButton(onClick = { onEvent(MainEvent.ShowAddChannelDialog) }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Add, contentDescription = "Add channel", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            IconButton(
+                onClick = { onEvent(MainEvent.ShowAddChannelDialog) },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = "Add channel",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }
 }
-
-// ─── ChannelSidebar с Drag & Drop в папки ──────────────────────────────
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -558,106 +751,191 @@ private fun ChannelSidebar(
     isWideScreen: Boolean = false
 ) {
     val extra = ChatoneTheme.extraColors
+    val density = LocalDensity.current
 
-    // ▼▼▼ Состояние для D&D ▼▼▼
     var draggedChannelLogin by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableStateOf(Offset.Zero) }
     var dragStartOffsetPx by remember { mutableStateOf(Offset.Zero) }
     var isDragging by remember { mutableStateOf(false) }
     var dropTargetFolderId by remember { mutableStateOf<String?>(null) }
+    var dragStartIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOverIndex by remember { mutableStateOf<Int?>(null) }
 
-    // Храним границы папок в корневых координатах
     val folderBounds = remember { mutableStateListOf<ItemBounds>() }
-    // ▲▲▲ ▲▲▲
+    val channelBounds = remember { mutableStateListOf<ItemBounds>() }
+
+    val folderedLogins = state.folders.flatMap { it.channels }.map { it.login }.toSet()
+    val filteredUnfoldered = state.unfolderedChannels.filter { it.login !in folderedLogins }
 
     Column(
         modifier = Modifier
             .width(280.dp)
             .fillMaxHeight()
-            .shadow(12.dp, RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp), ambientColor = extra.shadowColor, spotColor = extra.elevatedShadow)
+            .shadow(
+                12.dp,
+                RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp),
+                ambientColor = extra.shadowColor,
+                spotColor = extra.elevatedShadow
+            )
             .clip(RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp))
             .background(extra.sidebarSurface)
             .border(1.dp, extra.glassBorder, RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp))
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Chatone", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Chatone",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
             if (!isWideScreen) {
-                IconButton(onClick = { onEvent(MainEvent.CloseSidebar) }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                IconButton(
+                    onClick = { onEvent(MainEvent.CloseSidebar) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
 
         state.selectedAccount?.let { account ->
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 if (account.profileImageUrl.isNotEmpty()) {
-                    AsyncImage(model = account.profileImageUrl, contentDescription = null, modifier = Modifier.size(24.dp).clip(CircleShape))
+                    AsyncImage(
+                        model = account.profileImageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp).clip(CircleShape)
+                    )
                     Spacer(Modifier.width(8.dp))
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = account.displayName, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = account.displayName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     if (state.activeChannelLogin != null) {
-                        Text(text = "#${state.activeChannelLogin}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        Text(
+                            text = "#${state.activeChannelLogin}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     }
                 }
-                // Three-dot menu for active channel (viewers list)
                 if (state.activeChannelLogin != null) {
                     Box {
                         var showChannelMenu by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showChannelMenu = true }, modifier = Modifier.size(26.dp)) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "Channel options", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        IconButton(
+                            onClick = { showChannelMenu = true },
+                            modifier = Modifier.size(26.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.MoreVert,
+                                contentDescription = "Channel options",
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        DropdownMenu(expanded = showChannelMenu, onDismissRequest = { showChannelMenu = false }) {
+                        DropdownMenu(
+                            expanded = showChannelMenu,
+                            onDismissRequest = { showChannelMenu = false }) {
                             DropdownMenuItem(
                                 text = { Text("Viewers list") },
-                                leadingIcon = { Icon(Icons.Filled.Person, null, modifier = Modifier.size(16.dp)) },
-                                onClick = { showChannelMenu = false; onEvent(MainEvent.ShowChattersPanel) }
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Filled.Person,
+                                        null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showChannelMenu = false; onEvent(MainEvent.ShowChattersPanel)
+                                }
                             )
                         }
                     }
                 }
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(if (state.isConnected) ChatoneTheme.extraColors.connected else MaterialTheme.colorScheme.error))
+                Box(
+                    modifier = Modifier.size(8.dp).clip(CircleShape)
+                        .background(if (state.isConnected) ChatoneTheme.extraColors.connected else MaterialTheme.colorScheme.error)
+                )
             }
         } ?: run {
             if (state.isGuest) {
-                TextButton(onClick = { onEvent(MainEvent.NavigateToAuth) }, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(16.dp))
+                TextButton(
+                    onClick = { onEvent(MainEvent.NavigateToAuth) },
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
                     Spacer(Modifier.width(4.dp))
                     Text("Login to Twitch")
                 }
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 8.dp),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        )
 
-        // ▼▼▼ LazyColumn с обработкой границ ▼▼▼
-        LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 4.dp)) {
-            itemsIndexed(state.folders, key = { _: Int, f: ChannelFolder -> "folder_${f.id}" }) { _: Int, folder: ChannelFolder ->
-                val folderRect = remember { mutableStateOf<Rect?>(null) }
-
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .pointerInput(isDragging) {
+                    if (isDragging) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                },
+            contentPadding = PaddingValues(horizontal = 4.dp)
+        ) {
+            itemsIndexed(
+                state.folders,
+                key = { _: Int, f: ChannelFolder -> "folder_${f.id}" }
+            ) { folderIndex: Int, folder: ChannelFolder ->
                 FolderItem(
                     folder = folder,
                     activeChannelLogin = state.activeChannelLogin,
                     allFolders = state.folders,
-                    unfolderedChannels = state.unfolderedChannels,
+                    unfolderedChannels = filteredUnfoldered,
                     onToggle = { onEvent(MainEvent.ToggleFolder(folder.id)) },
-                    onChannelSelect = { login: String -> onEvent(MainEvent.SelectChannel(login)) },
-                    onChannelClose = { login: String -> onEvent(MainEvent.CloseChannel(login)) },
-                    onMoveChannel = { login: String, targetFolderId: String? -> onEvent(MainEvent.MoveChannelToFolder(login, targetFolderId)) },
-                    onDelete = { onEvent(MainEvent.DeleteFolder(folder.id)) },
-                    // Обновляем границы при каждой перерисовке
-                    modifier = Modifier.onGloballyPositioned { coords ->
-                        folderRect.value = coords.boundsInRoot()
-                        // Обновляем общий список
-                        folderBounds.removeAll { bounds: ItemBounds -> bounds.id == folder.id }
-                        folderRect.value?.let { rect -> folderBounds.add(ItemBounds(folder.id, rect)) }
+                    onChannelSelect = { login -> onEvent(MainEvent.SelectChannel(login)) },
+                    onChannelClose = { login -> onEvent(MainEvent.CloseChannel(login)) },
+                    onMoveChannel = { login, targetFolderId ->
+                        onEvent(MainEvent.MoveChannelToFolder(login, targetFolderId))
                     },
-                    // Подсветка при наведении перетаскиваемого канала
+                    onDelete = { onEvent(MainEvent.DeleteFolder(folder.id)) },
+                    modifier = Modifier
+                        .onGloballyPositioned { coords ->
+                            val rect = coords.boundsInRoot()
+                            folderBounds.removeAll { it.id == folder.id }
+                            folderBounds.add(ItemBounds(folder.id, rect))
+                        },
                     isDropTarget = dropTargetFolderId == folder.id && draggedChannelLogin != null
                 )
 
                 if (folder.isExpanded) {
-                    folder.channels.forEach { channel: ChannelTab ->
+                    folder.channels.forEachIndexed { channelIndex, channel ->
                         ChannelItem(
                             channel = channel,
                             isActive = channel.login == state.activeChannelLogin,
@@ -665,17 +943,31 @@ private fun ChannelSidebar(
                             currentFolderId = folder.id,
                             onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
                             onClose = { onEvent(MainEvent.CloseChannel(channel.login)) },
-                            onMoveToFolder = { folderId: String? -> onEvent(MainEvent.MoveChannelToFolder(channel.login, folderId)) }
+                            onMoveToFolder = { folderId ->
+                                onEvent(MainEvent.MoveChannelToFolder(channel.login, folderId))
+                            }
                         )
                     }
                 }
             }
 
-            if (state.unfolderedChannels.isNotEmpty()) {
-                item { Text("CHANNELS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 1.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) }
+            if (filteredUnfoldered.isNotEmpty()) {
+                item(key = "unfoldered_header") {
+                    Text(
+                        "CHANNELS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
             }
 
-            itemsIndexed(state.unfolderedChannels, key = { _: Int, c: ChannelTab -> "channel_${c.login}" }) { _: Int, channel: ChannelTab ->
+           
+            itemsIndexed(
+                filteredUnfoldered,
+                key = { _: Int, c: ChannelTab -> "channel_${c.login}" }
+            ) { index: Int, channel: ChannelTab ->
                 ChannelItemWithDrag(
                     channel = channel,
                     isActive = channel.login == state.activeChannelLogin,
@@ -683,26 +975,54 @@ private fun ChannelSidebar(
                     currentFolderId = null,
                     onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
                     onClose = { onEvent(MainEvent.CloseChannel(channel.login)) },
-                    onMoveToFolder = { folderId: String? -> onEvent(MainEvent.MoveChannelToFolder(channel.login, folderId)) },
-                    // Drag callbacks
-                    onDragStart = { startPos: Offset ->
+                    onMoveToFolder = { folderId ->
+                        onEvent(MainEvent.MoveChannelToFolder(channel.login, folderId))
+                    },
+                    index = index,
+                    onDragStart = { startPos ->
                         draggedChannelLogin = channel.login
                         dragStartOffsetPx = startPos
                         dragOffsetPx = Offset.Zero
                         isDragging = true
+                        dragStartIndex = index
+                        dragOverIndex = null
                     },
-                    onDrag = { delta: Offset -> dragOffsetPx += delta },
+                    onDrag = { delta ->
+                        dragOffsetPx += delta
+                        val currentPos = dragStartOffsetPx + dragOffsetPx
+
+                       
+                        dropTargetFolderId = folderBounds.find { it.rect.contains(currentPos) }?.id
+
+                       
+                        val targetChannel = channelBounds.find { it.rect.contains(currentPos) }
+                        dragOverIndex = targetChannel?.id?.substringAfterLast("_")?.toIntOrNull()
+                    },
                     onDragEnd = {
-                        isDragging = false
-                        // Проверяем, попали ли мы в папку
-                        val dragPos = dragStartOffsetPx + dragOffsetPx
-                        val hitFolder = folderBounds.find { bounds: ItemBounds -> bounds.rect.contains(dragPos) }
+                        val currentPos = dragStartOffsetPx + dragOffsetPx
+
+                       
+                        val hitFolder = folderBounds.find { it.rect.contains(currentPos) }
                         if (hitFolder != null && draggedChannelLogin != null) {
                             onEvent(MainEvent.DropChannelOnFolder(draggedChannelLogin!!, hitFolder.id))
                         }
+                       
+                        else if (dragOverIndex != null && dragStartIndex != null && dragOverIndex != dragStartIndex) {
+                            onEvent(MainEvent.ReorderUnfolderedChannels(dragStartIndex!!, dragOverIndex!!))
+                        }
+
+                       
                         draggedChannelLogin = null
                         dropTargetFolderId = null
                         dragOffsetPx = Offset.Zero
+                        dragStartIndex = null
+                        dragOverIndex = null
+                        isDragging = false
+                    },
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                        val rect = coords.boundsInRoot()
+                        channelBounds.removeAll { it.id.startsWith("unfoldered_${channel.login}_") }
+                        channelBounds.add(ItemBounds("unfoldered_${channel.login}_$index", rect))
                     }
                 )
             }
@@ -710,27 +1030,57 @@ private fun ChannelSidebar(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
-        Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            FilledTonalButton(onClick = { onEvent(MainEvent.ShowAddChannelDialog) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            FilledTonalButton(
+                onClick = { onEvent(MainEvent.ShowAddChannelDialog) },
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
                 Text("Channel", style = MaterialTheme.typography.labelMedium)
             }
             Spacer(Modifier.width(8.dp))
-            OutlinedButton(onClick = { onEvent(MainEvent.ShowCreateFolderDialog) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
-                Icon(Icons.Outlined.Create, contentDescription = null, modifier = Modifier.size(16.dp))
+            OutlinedButton(
+                onClick = { onEvent(MainEvent.ShowCreateFolderDialog) },
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Create,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
                 Spacer(Modifier.width(4.dp))
                 Text("Folder", style = MaterialTheme.typography.labelMedium)
             }
         }
 
-        // Mentions button
-        TextButton(onClick = { onEvent(MainEvent.ToggleMentionsFeed) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)) {
+        TextButton(
+            onClick = { onEvent(MainEvent.ToggleMentionsFeed) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
             Box {
-                Icon(Icons.Filled.Notifications, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(
+                    Icons.Filled.Notifications,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
                 if (state.unreadMentionsCount > 0) {
-                    Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error), contentAlignment = Alignment.Center) {
-                        Text(if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp), color = Color.White)
+                    Box(
+                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp)
+                            .size(10.dp).clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
+                            color = Color.White
+                        )
                     }
                 }
             }
@@ -739,17 +1089,37 @@ private fun ChannelSidebar(
             Spacer(Modifier.weight(1f))
             if (state.unreadMentionsCount > 0) {
                 Surface(color = MaterialTheme.colorScheme.error, shape = CircleShape) {
-                    Text("${state.unreadMentionsCount}", style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                    Text(
+                        "${state.unreadMentionsCount}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                    )
                 }
             }
         }
-        // Whispers button
-        TextButton(onClick = { onEvent(MainEvent.ToggleWhisperPanel) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)) {
+        TextButton(
+            onClick = { onEvent(MainEvent.ToggleWhisperPanel) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
             Box {
-                Icon(Icons.Filled.MailOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(
+                    Icons.Filled.MailOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
                 if (state.totalUnreadWhispers > 0) {
-                    Box(modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error), contentAlignment = Alignment.Center) {
-                        Text(if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp), color = Color.White)
+                    Box(
+                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp)
+                            .size(10.dp).clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
+                            color = Color.White
+                        )
                     }
                 }
             }
@@ -758,12 +1128,24 @@ private fun ChannelSidebar(
             Spacer(Modifier.weight(1f))
             if (state.totalUnreadWhispers > 0) {
                 Surface(color = MaterialTheme.colorScheme.error, shape = CircleShape) {
-                    Text("${state.totalUnreadWhispers}", style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                    Text(
+                        "${state.totalUnreadWhispers}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                    )
                 }
             }
         }
-        TextButton(onClick = { onEvent(MainEvent.ShowSettings) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
-            Icon(Icons.Outlined.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
+        TextButton(
+            onClick = { onEvent(MainEvent.ShowSettings) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Icon(
+                Icons.Outlined.Settings,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
             Spacer(Modifier.width(8.dp))
             Text("Settings")
             Spacer(Modifier.weight(1f))
@@ -771,25 +1153,46 @@ private fun ChannelSidebar(
         Spacer(Modifier.height(4.dp))
     }
 
-    // ▼▼▼ Визуализация перетаскиваемого элемента (поверх всего сайдбара) ▼▼▼
+   
     if (isDragging && draggedChannelLogin != null) {
         Box(
             modifier = Modifier
-                .offset { IntOffset(dragStartOffsetPx.x.toInt() + dragOffsetPx.x.toInt(), dragStartOffsetPx.y.toInt() + dragOffsetPx.y.toInt()) }
-                .zIndex(100f)
+                .offset {
+                    with(density) {
+                        IntOffset(
+                            (dragStartOffsetPx.x + dragOffsetPx.x).toInt(),
+                            (dragStartOffsetPx.y + dragOffsetPx.y).toInt()
+                        )
+                    }
+                }
+                .zIndex(1000f)
                 .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.primaryContainer)
                 .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                 .padding(horizontal = 12.dp, vertical = 8.dp)
-                .shadow(8.dp, RoundedCornerShape(8.dp))
+                .shadow(16.dp, RoundedCornerShape(8.dp))
         ) {
-            val ch = state.unfolderedChannels.find { item: ChannelTab -> item.login == draggedChannelLogin }
-            Text(text = ch?.displayName ?: draggedChannelLogin!!, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            val ch = filteredUnfoldered.find { it.login == draggedChannelLogin }
+                ?: state.folders.flatMap { it.channels }.find { it.login == draggedChannelLogin }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (ch?.profileImageUrl?.isNotEmpty() == true) {
+                    AsyncImage(
+                        model = ch.profileImageUrl,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp).clip(CircleShape)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    text = ch?.displayName ?: draggedChannelLogin!!,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
-
-// ─── FolderItem с Drop Zone ───────────────────────────────────────────
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -815,43 +1218,106 @@ private fun FolderItem(
                 modifier = modifier
                     .fillMaxWidth()
                     .combinedClickable(onClick = onToggle, onLongClick = { showFolderMenu = true })
-                    .then(if (isDropTarget) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), RoundedCornerShape(8.dp)) else Modifier)
+                    .then(
+                        if (isDropTarget) Modifier.background(
+                            MaterialTheme.colorScheme.primary.copy(
+                                alpha = 0.2f
+                            ), RoundedCornerShape(8.dp)
+                        ) else Modifier
+                    )
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(if (folder.isExpanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Icon(
+                    if (folder.isExpanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(Modifier.width(4.dp))
-                Icon(painterResource(if (folder.isExpanded) Res.drawable.folder_outline else Res.drawable.folder_outline), contentDescription = null, modifier = Modifier.size(16.dp), tint = parseFolderColor(folder.color))
+                Icon(
+                    painterResource(if (folder.isExpanded) Res.drawable.folder_outline else Res.drawable.folder_outline),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = parseFolderColor(folder.color)
+                )
                 Spacer(Modifier.width(8.dp))
-                Text(text = folder.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                Text(text = "${folder.channels.size}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = folder.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "${folder.channels.size}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Box {
-                    IconButton(onClick = { showAddToFolderMenu = true }, modifier = Modifier.size(22.dp)) {
-                        Icon(Icons.Filled.Add, contentDescription = "Add channel to folder", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                    IconButton(
+                        onClick = { showAddToFolderMenu = true },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Add,
+                            contentDescription = "Add channel to folder",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                        )
                     }
-                    DropdownMenu(expanded = showAddToFolderMenu, onDismissRequest = { showAddToFolderMenu = false }) {
+                    DropdownMenu(
+                        expanded = showAddToFolderMenu,
+                        onDismissRequest = { showAddToFolderMenu = false }) {
                         if (unfolderedChannels.isEmpty()) {
-                            DropdownMenuItem(text = { Text("No channels to add", color = MaterialTheme.colorScheme.onSurfaceVariant) }, onClick = { showAddToFolderMenu = false }, enabled = false)
+                            DropdownMenuItem(text = {
+                                Text(
+                                    "No channels to add",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }, onClick = { showAddToFolderMenu = false }, enabled = false)
                         } else {
                             unfolderedChannels.forEach { ch: ChannelTab ->
-                                DropdownMenuItem(text = { Text("#${ch.displayName}") }, onClick = { showAddToFolderMenu = false; onMoveChannel(ch.login, folder.id) }, leadingIcon = { Text("#", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) })
+                                DropdownMenuItem(
+                                    text = { Text("#${ch.displayName}") },
+                                    onClick = {
+                                        showAddToFolderMenu = false; onMoveChannel(
+                                        ch.login,
+                                        folder.id
+                                    )
+                                    },
+                                    leadingIcon = {
+                                        Text(
+                                            "#",
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    })
                             }
                         }
                     }
                 }
             }
             DropdownMenu(expanded = showFolderMenu, onDismissRequest = { showFolderMenu = false }) {
-                DropdownMenuItem(text = { Text("Delete folder") }, onClick = { showFolderMenu = false; onDelete() }, leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp)) })
+                DropdownMenuItem(
+                    text = { Text("Delete folder") },
+                    onClick = { showFolderMenu = false; onDelete() },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Outlined.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    })
             }
         }
     }
 }
 
-// ─── ChannelItem с Drag Gesture ───────────────────────────────────────
-
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 private fun ChannelItemWithDrag(
+    modifier: Modifier,
     channel: ChannelTab,
     isActive: Boolean,
     folders: List<ChannelFolder> = emptyList(),
@@ -861,30 +1327,41 @@ private fun ChannelItemWithDrag(
     onMoveToFolder: (String?) -> Unit = {},
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
-    onDragEnd: () -> Unit
+    onDragEnd: () -> Unit,
+    onReorder: (Int, Int) -> Unit = { _, _ -> },
+    index: Int = -1
 ) {
     val uriHandler = LocalUriHandler.current
     var showContextMenu by remember { mutableStateOf(false) }
+    var itemBounds by remember { mutableStateOf<Rect?>(null) }
 
     Box(
-        modifier = Modifier.pointerInput(channel.login) {
-            detectDragGestures(
-                onDragStart = { offset -> onDragStart(offset) },
-                onDrag = { change, amount ->
-                    change.consumeAllChanges() // Блокируем скролл во время перетаскивания
-                    onDrag(amount)
-                },
-                onDragEnd = { onDragEnd() },
-                onDragCancel = { onDragEnd() }
-            )
-        }
+        modifier = modifier
+            .pointerInput(channel.login) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        onDragStart(offset)
+                    },
+                    onDrag = { change, amount ->
+                        change.consumeAllChanges()
+                        onDrag(amount)
+                    },
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() }
+                )
+            }
+            .onGloballyPositioned { coords ->
+                itemBounds = coords.boundsInRoot()
+            }
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp, vertical = 1.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(if (isActive) ChatoneTheme.extraColors.sidebarSelected else Color.Transparent)
+                .background(
+                    if (isActive) ChatoneTheme.extraColors.sidebarSelected else Color.Transparent
+                )
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = { if (folders.isNotEmpty()) showContextMenu = true }
@@ -894,7 +1371,9 @@ private fun ChannelItemWithDrag(
                         while (true) {
                             val event = awaitPointerEvent()
                             if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
-                                try { uriHandler.openUri("https://www.twitch.tv/${channel.login}") } catch (_: Exception) {}
+                                try {
+                                    uriHandler.openUri("https://www.twitch.tv/${channel.login}")
+                                } catch (_: Exception) {}
                             }
                         }
                     }
@@ -903,54 +1382,137 @@ private fun ChannelItemWithDrag(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (channel.isLive) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(ChatoneTheme.extraColors.live).border(1.dp, MaterialTheme.colorScheme.surface, CircleShape))
+                Box(
+                    modifier = Modifier.size(8.dp).clip(CircleShape)
+                        .background(ChatoneTheme.extraColors.live)
+                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                )
                 Spacer(Modifier.width(6.dp))
             }
             if (channel.profileImageUrl.isNotEmpty()) {
-                AsyncImage(model = channel.profileImageUrl, contentDescription = channel.displayName, modifier = Modifier.size(22.dp).clip(CircleShape))
+                AsyncImage(
+                    model = channel.profileImageUrl,
+                    contentDescription = channel.displayName,
+                    modifier = Modifier.size(22.dp).clip(CircleShape)
+                )
             } else {
-                Text(text = "#", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "#",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold
+                )
             }
             Spacer(Modifier.width(8.dp))
-            Text(text = channel.displayName, style = MaterialTheme.typography.bodyMedium, color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(
+                text = channel.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
             if (channel.unreadCount > 0) {
-                Surface(color = Color.Red, shape = CircleShape, modifier = Modifier.padding(start = 4.dp)) {
-                    Text(text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}", style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                Surface(
+                    color = Color.Red,
+                    shape = CircleShape,
+                    modifier = Modifier.padding(start = 4.dp)
+                ) {
+                    Text(
+                        text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
             }
             if (folders.isNotEmpty()) {
-                IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(20.dp)) {
-                    Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Move to folder", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                Box {
+                    IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(20.dp)) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.List,
+                            contentDescription = "Move to folder",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    if (showContextMenu) {
+                        Popup(
+                            alignment = Alignment.TopEnd,
+                            offset = IntOffset(0, 24),
+                            properties = androidx.compose.ui.window.PopupProperties(
+                                focusable = true,
+                                dismissOnBackPress = true,
+                                dismissOnClickOutside = true
+                            ),
+                            onDismissRequest = { showContextMenu = false }
+                        ) {
+                            LiquidGlassSurface(
+                                modifier = Modifier
+                                    .width(200.dp)
+                                    .zIndex(100f)
+                                    .shadow(16.dp, RoundedCornerShape(12.dp)),
+                                contentPadding = PaddingValues(4.dp),
+                                backgroundAlphaHigh = 0.98f
+                            ) {
+                                Column {
+                                    if (currentFolderId != null) {
+                                        LiquidGlassDropdownItem(
+                                            text = "Remove from folder",
+                                            icon = Icons.Outlined.Close,
+                                            onClick = {
+                                                showContextMenu = false
+                                                onMoveToFolder(null)
+                                            }
+                                        )
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 4.dp),
+                                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                        )
+                                    }
+                                    folders.filter { it.id != currentFolderId }.forEach { folder ->
+                                        LiquidGlassDropdownItem(
+                                            text = folder.name,
+                                            icon = Icons.AutoMirrored.Outlined.List,
+                                            onClick = {
+                                                showContextMenu = false
+                                                onMoveToFolder(folder.id)
+                                            }
+                                        )
+                                    }
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                    )
+                                    LiquidGlassDropdownItem(
+                                        text = "Close channel",
+                                        icon = Icons.Outlined.Close,
+                                        onClick = {
+                                            showContextMenu = false
+                                            onClose()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
                 Spacer(Modifier.width(2.dp))
             }
             if (isActive) {
                 IconButton(onClick = onClose, modifier = Modifier.size(20.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Close",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
-
-        LiquidGlassDropdown(
-            expanded = showContextMenu,
-            onDismissRequest = { showContextMenu = false },
-            modifier = Modifier.align(Alignment.TopEnd)
-        ) {
-            if (currentFolderId != null) {
-                LiquidGlassDropdownItem(text = "Remove from folder", icon = Icons.Outlined.Close, onClick = { showContextMenu = false; onMoveToFolder(null) })
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            }
-            folders.filter { f: ChannelFolder -> f.id != currentFolderId }.forEach { folder: ChannelFolder ->
-                LiquidGlassDropdownItem(text = folder.name, icon = Icons.AutoMirrored.Outlined.List, iconTint = parseFolderColor(folder.color), onClick = { showContextMenu = false; onMoveToFolder(folder.id) })
-            }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            LiquidGlassDropdownItem(text = "Close channel", icon = Icons.Outlined.Close, onClick = { showContextMenu = false; onClose() })
-        }
     }
 }
-
-// ─── Обычный ChannelItem (для папок) ──────────────────────────────────
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelItem(
@@ -981,7 +1543,9 @@ private fun ChannelItem(
                         while (true) {
                             val event = awaitPointerEvent()
                             if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
-                                try { uriHandler.openUri("https://www.twitch.tv/${channel.login}") } catch (_: Exception) {}
+                                try {
+                                    uriHandler.openUri("https://www.twitch.tv/${channel.login}")
+                                } catch (_: Exception) {}
                             }
                         }
                     }
@@ -990,53 +1554,138 @@ private fun ChannelItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (channel.isLive) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(ChatoneTheme.extraColors.live).border(1.dp, MaterialTheme.colorScheme.surface, CircleShape))
+                Box(
+                    modifier = Modifier.size(8.dp).clip(CircleShape)
+                        .background(ChatoneTheme.extraColors.live)
+                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                )
                 Spacer(Modifier.width(6.dp))
             }
             if (channel.profileImageUrl.isNotEmpty()) {
-                AsyncImage(model = channel.profileImageUrl, contentDescription = channel.displayName, modifier = Modifier.size(22.dp).clip(CircleShape))
+                AsyncImage(
+                    model = channel.profileImageUrl,
+                    contentDescription = channel.displayName,
+                    modifier = Modifier.size(22.dp).clip(CircleShape)
+                )
             } else {
-                Text(text = "#", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "#",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold
+                )
             }
             Spacer(Modifier.width(8.dp))
-            Text(text = channel.displayName, style = MaterialTheme.typography.bodyMedium, color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(
+                text = channel.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
             if (channel.unreadCount > 0) {
-                Surface(color = Color.Red, shape = CircleShape, modifier = Modifier.padding(start = 4.dp)) {
-                    Text(text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}", style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                Surface(
+                    color = Color.Red,
+                    shape = CircleShape,
+                    modifier = Modifier.padding(start = 4.dp)
+                ) {
+                    Text(
+                        text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
             }
             if (folders.isNotEmpty()) {
-                IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(20.dp)) {
-                    Icon(Icons.AutoMirrored.Outlined.List, contentDescription = "Move to folder", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                Box {
+                    IconButton(onClick = { showContextMenu = true }, modifier = Modifier.size(20.dp)) {
+                        Icon(
+                            Icons.AutoMirrored.Outlined.List,
+                            contentDescription = "Move to folder",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                   
+                    if (showContextMenu) {
+                        Popup(
+                            alignment = Alignment.TopEnd,
+                            offset = IntOffset(0, 24),
+                            properties = androidx.compose.ui.window.PopupProperties(
+                                focusable = true,
+                                dismissOnBackPress = true,
+                                dismissOnClickOutside = true
+                            ),
+                            onDismissRequest = { showContextMenu = false }
+                        ) {
+                            LiquidGlassSurface(
+                                modifier = Modifier
+                                    .width(200.dp)
+                                    .zIndex(100f)
+                                    .shadow(16.dp, RoundedCornerShape(12.dp)),
+                                contentPadding = PaddingValues(4.dp),
+                                backgroundAlphaHigh = 0.98f
+                            ) {
+                                Column {
+                                    if (currentFolderId != null) {
+                                        LiquidGlassDropdownItem(
+                                            text = "Remove from folder",
+                                            icon = Icons.Outlined.Close,
+                                            onClick = {
+                                                showContextMenu = false
+                                                onMoveToFolder(null)
+                                            }
+                                        )
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 4.dp),
+                                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                        )
+                                    }
+                                    folders.filter { it.id != currentFolderId }.forEach { folder ->
+                                        LiquidGlassDropdownItem(
+                                            text = folder.name,
+                                            icon = Icons.AutoMirrored.Outlined.List,
+                                            onClick = {
+                                                showContextMenu = false
+                                                onMoveToFolder(folder.id)
+                                            }
+                                        )
+                                    }
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                    )
+                                    LiquidGlassDropdownItem(
+                                        text = "Close channel",
+                                        icon = Icons.Outlined.Close,
+                                        onClick = {
+                                            showContextMenu = false
+                                            onClose()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
                 Spacer(Modifier.width(2.dp))
             }
             if (isActive) {
                 IconButton(onClick = onClose, modifier = Modifier.size(20.dp)) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Close",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
-
-        LiquidGlassDropdown(
-            expanded = showContextMenu,
-            onDismissRequest = { showContextMenu = false },
-            modifier = Modifier.align(Alignment.TopEnd)
-        ) {
-            if (currentFolderId != null) {
-                LiquidGlassDropdownItem(text = "Remove from folder", icon = Icons.Outlined.Close, onClick = { showContextMenu = false; onMoveToFolder(null) })
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            }
-            folders.filter { f: ChannelFolder -> f.id != currentFolderId }.forEach { folder: ChannelFolder ->
-                LiquidGlassDropdownItem(text = folder.name, icon = Icons.AutoMirrored.Outlined.List, iconTint = parseFolderColor(folder.color), onClick = { showContextMenu = false; onMoveToFolder(folder.id) })
-            }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            LiquidGlassDropdownItem(text = "Close channel", icon = Icons.Outlined.Close, onClick = { showContextMenu = false; onClose() })
-        }
     }
 }
-
-// ─── ChannelTabBar с Drag & Drop (многострочный) ──────────────────────
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -1053,7 +1702,7 @@ private fun ChannelTabBar(
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
     var dropTargetIndex by remember { mutableStateOf<Int?>(null) }
-    // Храним центры всех табов для точного определения цели перетаскивания
+   
     val tabCenters = remember { mutableStateListOf<Pair<Int, Offset>>() }
 
     Surface(
@@ -1071,20 +1720,29 @@ private fun ChannelTabBar(
                 channels.forEachIndexed { index: Int, channel: ChannelTab ->
                     val isActive = channel.login == activeLogin
 
-                    // Запоминаем центр таба
+                   
                     val tabCenter = remember { mutableStateOf(Offset.Zero) }
 
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(if (isActive) MaterialTheme.colorScheme.surface else Color.Transparent)
-                            .then(if (dropTargetIndex == index && draggedIndex != null) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp)) else Modifier)
+                            .then(
+                                if (dropTargetIndex == index && draggedIndex != null) Modifier.border(
+                                    2.dp,
+                                    MaterialTheme.colorScheme.primary,
+                                    RoundedCornerShape(6.dp)
+                                ) else Modifier
+                            )
                             .clickable { onSelect(channel.login) }
                             .padding(start = 8.dp, end = 2.dp, top = 8.dp, bottom = 8.dp)
                             .onGloballyPositioned { coords ->
                                 val bounds = coords.boundsInRoot()
-                                tabCenter.value = Offset(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2)
-                                // Обновляем список центров
+                                tabCenter.value = Offset(
+                                    bounds.left + bounds.width / 2,
+                                    bounds.top + bounds.height / 2
+                                )
+                               
                                 tabCenters.removeAll { pair: Pair<Int, Offset> -> pair.first == index }
                                 tabCenters.add(index to tabCenter.value)
                             }
@@ -1094,11 +1752,15 @@ private fun ChannelTabBar(
                                     onDrag = { change, delta ->
                                         change.consumeAllChanges()
                                         dragOffset += delta
-                                        // Находим ближайший таб по центру
+                                       
                                         val currentDragPos = tabCenter.value + dragOffset
-                                        dropTargetIndex = tabCenters.minByOrNull { pair: Pair<Int, Offset> ->
-                                            hypot(currentDragPos.x - pair.second.x, currentDragPos.y - pair.second.y)
-                                        }?.first
+                                        dropTargetIndex =
+                                            tabCenters.minByOrNull { pair: Pair<Int, Offset> ->
+                                                hypot(
+                                                    currentDragPos.x - pair.second.x,
+                                                    currentDragPos.y - pair.second.y
+                                                )
+                                            }?.first
                                     },
                                     onDragEnd = {
                                         val from = draggedIndex
@@ -1122,7 +1784,10 @@ private fun ChannelTabBar(
                                     while (true) {
                                         val event = awaitPointerEvent()
                                         if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
-                                            try { uriHandler.openUri("https://www.twitch.tv/${channel.login}") } catch (_: Exception) {}
+                                            try {
+                                                uriHandler.openUri("https://www.twitch.tv/${channel.login}")
+                                            } catch (_: Exception) {
+                                            }
                                         }
                                     }
                                 }
@@ -1131,19 +1796,49 @@ private fun ChannelTabBar(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (channel.isLive) {
-                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(ChatoneTheme.extraColors.live).border(1.dp, MaterialTheme.colorScheme.surface, CircleShape))
+                                Box(
+                                    modifier = Modifier.size(6.dp).clip(CircleShape)
+                                        .background(ChatoneTheme.extraColors.live).border(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.surface,
+                                        CircleShape
+                                    )
+                                )
                                 Spacer(Modifier.width(4.dp))
                             }
-                            Text(text = "#${channel.displayName}", style = MaterialTheme.typography.labelMedium, fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal, color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                            Text(
+                                text = "#${channel.displayName}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
                             if (channel.unreadCount > 0) {
                                 Spacer(Modifier.width(3.dp))
                                 Surface(color = Color.Red, shape = CircleShape) {
-                                    Text(text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = Color.White, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                    Text(
+                                        text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                        color = Color.White,
+                                        modifier = Modifier.padding(
+                                            horizontal = 4.dp,
+                                            vertical = 1.dp
+                                        )
+                                    )
                                 }
                             }
                             Spacer(Modifier.width(2.dp))
-                            Box(modifier = Modifier.size(16.dp).clip(CircleShape).clickable { onClose(channel.login) }, contentAlignment = Alignment.Center) {
-                                Icon(Icons.Filled.Close, contentDescription = "Close ${channel.displayName}", modifier = Modifier.size(10.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                            Box(
+                                modifier = Modifier.size(16.dp).clip(CircleShape)
+                                    .clickable { onClose(channel.login) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Close ${channel.displayName}",
+                                    modifier = Modifier.size(10.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
                             }
                             Spacer(Modifier.width(4.dp))
                         }
@@ -1151,20 +1846,35 @@ private fun ChannelTabBar(
                 }
             }
 
-            // Визуализация перетаскиваемого таба
+           
             draggedIndex?.let { idx: Int ->
                 channels.getOrNull(idx)?.let { ch: ChannelTab ->
                     Box(
                         modifier = Modifier
-                            .offset { IntOffset(tabCenters.getOrNull(idx)?.second?.x?.toInt() ?: 0 + dragOffset.x.toInt(), tabCenters.getOrNull(idx)?.second?.y?.toInt() ?: 0 + dragOffset.y.toInt()) }
+                            .offset {
+                                IntOffset(
+                                    tabCenters.getOrNull(idx)?.second?.x?.toInt()
+                                        ?: 0 + dragOffset.x.toInt(),
+                                    tabCenters.getOrNull(idx)?.second?.y?.toInt()
+                                        ?: 0 + dragOffset.y.toInt()
+                                )
+                            }
                             .zIndex(10f)
                             .clip(RoundedCornerShape(6.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer)
-                            .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                            .border(
+                                2.dp,
+                                MaterialTheme.colorScheme.primary,
+                                RoundedCornerShape(6.dp)
+                            )
                             .padding(horizontal = 12.dp, vertical = 8.dp)
                             .shadow(8.dp, RoundedCornerShape(6.dp))
                     ) {
-                        Text(text = "#${ch.displayName}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(
+                            text = "#${ch.displayName}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
             }
@@ -1172,7 +1882,6 @@ private fun ChannelTabBar(
     }
 }
 
-// ─── EmptyState с LiquidGlass ─────────────────────────────────────────
 
 @Composable
 private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -> Unit) {
@@ -1208,13 +1917,21 @@ private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 FilledTonalButton(onClick = onAddChannel) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
                     Spacer(Modifier.width(8.dp))
                     Text("Add Channel")
                 }
                 if (isGuest) {
                     OutlinedButton(onClick = onLogin) {
-                        Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Filled.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
                         Text("Login to Twitch")
                     }
@@ -1224,7 +1941,6 @@ private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -
     }
 }
 
-// ─── AddChannelDialog с LiquidGlass ───────────────────────────────────
 
 @Composable
 private fun AddChannelDialog(
@@ -1247,15 +1963,24 @@ private fun AddChannelDialog(
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Channel name...") },
                     leadingIcon = {
-                        Text("#", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "#",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     },
                     trailingIcon = {
-                        if (isSearching) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        if (isSearching) CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
                     },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
                     keyboardActions = KeyboardActions(onGo = {
-                        if (query.isNotBlank()) onChannelSelected(query.trim().lowercase().removePrefix("#"), "", "")
+                        if (query.isNotBlank()) onChannelSelected(
+                            query.trim().lowercase().removePrefix("#"), "", ""
+                        )
                     })
                 )
                 if (searchResults.isNotEmpty()) {
@@ -1270,7 +1995,11 @@ private fun AddChannelDialog(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable {
-                                        onChannelSelected(channel.login, channel.profileImageUrl, channel.displayName)
+                                        onChannelSelected(
+                                            channel.login,
+                                            channel.profileImageUrl,
+                                            channel.displayName
+                                        )
                                     }
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -1284,14 +2013,33 @@ private fun AddChannelDialog(
                                     Spacer(Modifier.width(8.dp))
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = channel.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = channel.displayName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
                                     if (channel.gameName.isNotEmpty()) {
-                                        Text(text = channel.gameName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            text = channel.gameName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                                 if (channel.isLive) {
-                                    Surface(color = ChatoneTheme.extraColors.live, shape = RoundedCornerShape(4.dp)) {
-                                        Text(text = "LIVE", style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                    Surface(
+                                        color = ChatoneTheme.extraColors.live,
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "LIVE",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(
+                                                horizontal = 6.dp,
+                                                vertical = 2.dp
+                                            )
+                                        )
                                     }
                                 }
                             }
@@ -1302,7 +2050,11 @@ private fun AddChannelDialog(
         },
         confirmButton = {
             Button(
-                onClick = { if (query.isNotBlank()) onChannelSelected(query.trim().lowercase().removePrefix("#"), "", "") },
+                onClick = {
+                    if (query.isNotBlank()) onChannelSelected(
+                        query.trim().lowercase().removePrefix("#"), "", ""
+                    )
+                },
                 enabled = query.isNotBlank()
             ) { Text("Join") }
         },
@@ -1310,7 +2062,6 @@ private fun AddChannelDialog(
     )
 }
 
-// ─── CreateFolderDialog с LiquidGlass ─────────────────────────────────
 
 @Composable
 private fun CreateFolderDialog(
@@ -1334,12 +2085,16 @@ private fun CreateFolderDialog(
                 keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onCreate() })
             )
         },
-        confirmButton = { Button(onClick = onCreate, enabled = name.isNotBlank()) { Text("Create") } },
+        confirmButton = {
+            Button(
+                onClick = onCreate,
+                enabled = name.isNotBlank()
+            ) { Text("Create") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────
 
 private fun parseFolderColor(hex: String): Color {
     return try {

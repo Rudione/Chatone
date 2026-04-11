@@ -40,7 +40,6 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-// ─── Whisper панель (попап поверх UI) ────────────────────────────────────────
 
 @Composable
 fun WhisperPanel(
@@ -65,7 +64,7 @@ fun WhisperPanel(
         borderAlphaLow = 0.08f
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // ── Header ───────────────────────────────────────────────
+           
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,7 +87,7 @@ fun WhisperPanel(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(Modifier.width(8.dp))
-                    // Avatar
+                   
                     WhisperAvatar(conv = activeConversation, size = 32)
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -124,9 +123,9 @@ fun WhisperPanel(
                 }
                 IconButton(
                     onClick = {
-                        // ▼▼▼ ИСПРАВЛЕНИЕ: явно закрываем панель ▼▼▼
+                       
                         onEvent(MainEvent.HideWhisperPanel)
-                        // ▲▲▲ ▲▲▲
+                       
                     },
                     modifier = Modifier.size(28.dp)
                 ) {
@@ -141,7 +140,7 @@ fun WhisperPanel(
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-            // ── Content: list or chat ────────────────────────────────
+           
             if (activeConversation != null) {
                 WhisperChat(
                     conversation = activeConversation,
@@ -200,7 +199,6 @@ fun WhisperPanel(
     }
 }
 
-// ─── Строка диалога в списке ──────────────────────────────────────────────────
 
 @Composable
 private fun WhisperConversationRow(conv: WhisperConversation, onClick: () -> Unit) {
@@ -253,7 +251,6 @@ private fun WhisperConversationRow(conv: WhisperConversation, onClick: () -> Uni
     )
 }
 
-// ─── Чат с конкретным юзером ─────────────────────────────────────────────────
 
 @Composable
 private fun WhisperChat(
@@ -271,7 +268,7 @@ private fun WhisperChat(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        // Messages
+       
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 360.dp),
@@ -285,7 +282,7 @@ private fun WhisperChat(
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-        // Input
+       
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -334,7 +331,6 @@ private fun WhisperChat(
     }
 }
 
-// ─── Bubble сообщения ─────────────────────────────────────────────────────────
 
 @Composable
 private fun WhisperBubble(msg: WhisperMessage) {
@@ -372,7 +368,6 @@ private fun WhisperBubble(msg: WhisperMessage) {
     }
 }
 
-// ─── Avatar helper ────────────────────────────────────────────────────────────
 
 @Composable
 private fun WhisperAvatar(conv: WhisperConversation, size: Int) {
