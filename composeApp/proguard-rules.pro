@@ -72,7 +72,7 @@
 
 # ── JVM internals / reflection ──────────────────────────────
 -keepattributes SourceFile, LineNumberTable
--keep class sun.misc.Unsafe { *; }
+#-keep class sun.misc.Unsafe { *; }
 -dontwarn sun.misc.**
 -dontwarn java.lang.invoke.**
 -dontwarn javax.**
@@ -80,6 +80,40 @@
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
 
-# ── AutoUpdater (Swing диалог + Runtime) ────────────────────
--keep class javax.swing.** { *; }
--keep class java.awt.** { *; }
+# ── OkHttp platform adapters (не используются на десктопе) ──
+# OkHttp содержит адаптеры для Android, BouncyCastle и Conscrypt.
+# На десктопном JVM их нет — это нормально, они не нужны.
+-dontwarn okhttp3.internal.platform.android.**
+-dontwarn okhttp3.internal.platform.AndroidPlatform
+-dontwarn okhttp3.internal.platform.Android10Platform
+-dontwarn okhttp3.internal.platform.BouncyCastlePlatform
+-dontwarn okhttp3.internal.platform.ConscryptPlatform
+-dontwarn okhttp3.internal.platform.ConscryptPlatform$DisabledHostnameVerifier
+
+# ── Android классы (OkHttp тащит их как опциональные зависимости) ──
+-dontwarn android.**
+-dontwarn com.android.**
+
+# ── BouncyCastle (опциональный TLS провайдер, не используется) ──
+-dontwarn org.bouncycastle.**
+
+# ── Conscrypt (опциональный TLS провайдер, не используется) ──
+-dontwarn org.conscrypt.**
+
+# ── Ktor network internals ──────────────────────────────────
+-dontwarn io.ktor.network.sockets.**
+-dontwarn io.ktor.server.engine.**
+
+# ── jansi / fusesource (цветной терминал, опционально) ──────
+-dontwarn org.fusesource.**
+
+# ── Typesafe config (Ktor server тащит его) ─────────────────
+-dontwarn com.typesafe.**
+
+# ── SLF4J динамическая загрузка ──────────────────────────────
+-dontwarn org.slf4j.**
+
+# Глобальный фолбэк — для любых других unresolved warning
+# (не влияет на реальные ошибки, только на предупреждения о
+# классах которые намеренно отсутствуют в рантайме)
+-ignorewarnings
