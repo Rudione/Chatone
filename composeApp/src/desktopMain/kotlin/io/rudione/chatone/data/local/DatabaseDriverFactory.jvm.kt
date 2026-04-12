@@ -66,5 +66,18 @@ actual class DatabaseDriverFactory {
                 updatedAt INTEGER NOT NULL DEFAULT 0
             )
         """.trimIndent(), 0)
+
+        driver.execute(null, """
+            CREATE TABLE IF NOT EXISTS MentionEntity (
+                id TEXT NOT NULL PRIMARY KEY,
+                channelLogin TEXT NOT NULL,
+                fromUsername TEXT NOT NULL,
+                fromDisplayName TEXT NOT NULL,
+                fromColor TEXT,
+                text TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                isRead INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent(), 0)
     }
 }

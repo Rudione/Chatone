@@ -28,7 +28,7 @@ object AutoUpdater {
     private const val GITHUB_API = "https://api.github.com"
     private const val REPO = "Rudione/Chatone"
 
-    private const val CURRENT_VERSION = "1.0.9"
+    private const val CURRENT_VERSION = "1.0.10"
 
 
     private val httpClient = HttpClient(OkHttp) {
@@ -51,7 +51,7 @@ object AutoUpdater {
         )
     }
 
-    
+
     suspend fun checkForUpdates(showDialog: Boolean = true): UpdateResult {
         return withContext(Dispatchers.IO) {
             try {
@@ -142,15 +142,15 @@ object AutoUpdater {
 
     private fun selectAssetForCurrentOs(assets: List<GitHubRelease.Asset>): GitHubRelease.Asset? {
         val os = System.getProperty("os.name").lowercase()
-        return assets.find { asset ->
-            val name = asset.name.lowercase()
-            when {
-                os.contains("win") && name.endsWith(".msi") -> true
-                os.contains("win") && name.endsWith(".zip") -> true
-                os.contains("mac") && (name.endsWith(".dmg") || name.endsWith(".zip")) -> true
-                os.contains("linux") && name.endsWith(".deb") -> true
-                else -> false
-            }
+        return when {
+            os.contains("win") ->
+                assets.find { it.name.lowercase().endsWith(".msi") }
+                    ?: assets.find { it.name.lowercase().endsWith(".zip") }
+            os.contains("mac") ->
+                assets.find { it.name.lowercase().endsWith(".dmg") }
+                    ?: assets.find { it.name.lowercase().endsWith(".zip") }
+            else ->
+                assets.find { it.name.lowercase().endsWith(".deb") }
         }
     }
 
@@ -231,16 +231,24 @@ object AutoUpdater {
 
     private fun restartFromZip(extractDir: File) {
         try {
+            val os = System.getProperty("os.name").lowercase()
+            val launcher = when {
+                os.contains("win") ->
+                    extractDir.walk().find { it.name == "Chatone.exe" }
+                os.contains("mac") ->
+                    extractDir.walk().find {
+                        it.name == "Chatone" && it.parentFile?.name == "MacOS"
+                    }
+                else ->
+                    extractDir.walk().find {
+                        it.name == "Chatone" && it.parentFile?.name == "bin"
+                    }
+            } ?: throw IllegalStateException(
+                "Launcher not found in extracted update at ${extractDir.absolutePath}"
+            )
 
-            val launcher = File(extractDir, "Chatone.exe")
-                .takeIf { it.exists() }
-                ?: File(extractDir, "Chatone")
-                    .takeIf { it.exists() }
-                ?: throw IllegalStateException("Launcher not found in extracted update")
-
+            launcher.setExecutable(true)
             Napier.d("Restarting from: ${launcher.absolutePath}")
-
-
             ProcessBuilder(launcher.absolutePath).start()
             System.exit(0)
 

@@ -1239,7 +1239,7 @@ private fun AboutCard() {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Version 1.0.8",
+                        "Version 1.0.10",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

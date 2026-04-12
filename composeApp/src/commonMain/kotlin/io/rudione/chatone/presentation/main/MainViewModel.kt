@@ -19,6 +19,9 @@ import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.ChannelFolderRepository
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.EmoteRepository
+import io.rudione.chatone.data.remote.RecentMessagesClient
+import io.rudione.chatone.data.repository.MentionRepository
+import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -62,18 +65,19 @@ data class MainState(
     val showSettings: Boolean = false,
     val isCreateFolderDialogVisible: Boolean = false,
     val newFolderName: String = "",
-   
+
     val whisperConversations: List<WhisperConversation> = emptyList(),
     val activeWhisperUserId: String? = null,
     val showWhisperPanel: Boolean = false,
     val totalUnreadWhispers: Int = 0,
-   
+
     val mentions: List<MentionEntry> = emptyList(),
     val showMentionsFeed: Boolean = false,
     val unreadMentionsCount: Int = 0,
-   
+
     val showChattersPanel: Boolean = false,
-    val activeChatChannelId: String = ""
+    val activeChatChannelId: String = "",
+    val channelIdMap: Map<String, String> = emptyMap()
 ) : UiState
 
 
@@ -117,7 +121,7 @@ sealed class MainEvent : UiEvent {
     data class ResetMentionCount(val channelLogin: String) : MainEvent()
     object NavigateToAuth : MainEvent()
 
-   
+
     object ToggleWhisperPanel : MainEvent()
     object HideWhisperPanel : MainEvent()
     data class OpenWhisperWith(
@@ -141,13 +145,13 @@ sealed class MainEvent : UiEvent {
 
     data class MarkWhisperRead(val userId: String) : MainEvent()
 
-   
+
     object ToggleMentionsFeed : MainEvent()
     object HideMentionsFeed : MainEvent()
     object MarkAllMentionsRead : MainEvent()
     data class AddMentionEntry(val entry: MentionEntry) : MainEvent()
 
-   
+
     object ShowChattersPanel : MainEvent()
     object HideChattersPanel : MainEvent()
     data class SetActiveChatChannelId(val channelId: String) : MainEvent()
@@ -159,6 +163,12 @@ sealed class MainEffect : UIEffect {
     data class ShowError(val message: String) : MainEffect()
     data class ShowEmoteUpdate(val text: String) : MainEffect()
     data class IncomingWhisper(val fromDisplayName: String, val text: String) : MainEffect()
+    /** Fires on every live mention — shows a toast so user knows which channel. */
+    data class MentionToast(
+        val channelLogin: String,
+        val fromDisplayName: String,
+        val text: String
+    ) : MainEffect()
 }
 
 
@@ -172,7 +182,9 @@ class MainViewModel(
     private val emoteRepository: EmoteRepository,
     private val sevenTvEventApi: SevenTvEventApi,
     private val channelFolderRepository: ChannelFolderRepository,
-    private val apiClient: TwitchApiClient
+    private val apiClient: TwitchApiClient,
+    private val mentionRepository: MentionRepository,
+    private val recentMessagesClient: RecentMessagesClient
 ) : BaseViewModel<MainState, MainEvent, MainEffect>(MainState()) {
 
     companion object {
@@ -192,7 +204,9 @@ class MainViewModel(
         restoreFolders()
         observeEmoteUpdates()
         observeWhispers()
+        observeLiveMentions()
         startLiveStatusPolling()
+        loadPersistedMentions()
     }
 
     override suspend fun onEvent(event: MainEvent) {
@@ -285,18 +299,18 @@ class MainViewModel(
             MainEvent.ShowSettings -> update { it.copy(showSettings = true) }
             MainEvent.HideSettings -> update { it.copy(showSettings = false) }
 
-           
+
             is MainEvent.IncrementMentionCount -> {
                 incrementMentionCount(event.channelLogin)
-               
+
                 update { it.copy(unreadMentionsCount = it.unreadMentionsCount + 1) }
             }
-           
+
 
             is MainEvent.ResetMentionCount -> resetMentionCount(event.channelLogin)
             MainEvent.NavigateToAuth -> sendEffect(MainEffect.NavigateToAuth)
 
-           
+
             MainEvent.ToggleWhisperPanel -> update {
                 it.copy(
                     showWhisperPanel = !it.showWhisperPanel,
@@ -306,15 +320,15 @@ class MainViewModel(
 
             MainEvent.HideWhisperPanel -> update { it.copy(showWhisperPanel = false) }
 
-           
+
             is MainEvent.OpenWhisperWith -> {
-               
+
                 if (event.userId.isEmpty()) {
                     update { it.copy(activeWhisperUserId = null, showWhisperPanel = false) }
                     return
                 }
 
-               
+
                 update { state ->
                     val existing = state.whisperConversations.find { it.userId == event.userId }
                     val conversations = if (existing == null) {
@@ -341,7 +355,7 @@ class MainViewModel(
                     )
                 }
             }
-           
+
 
             is MainEvent.SendWhisper -> sendWhisperMessage(
                 event.toUserId,
@@ -359,7 +373,7 @@ class MainViewModel(
 
             is MainEvent.MarkWhisperRead -> markWhisperRead(event.userId)
 
-           
+
             MainEvent.ToggleMentionsFeed -> update {
                 it.copy(
                     showMentionsFeed = !it.showMentionsFeed,
@@ -368,27 +382,43 @@ class MainViewModel(
             }
 
             MainEvent.HideMentionsFeed -> update { it.copy(showMentionsFeed = false) }
-            MainEvent.MarkAllMentionsRead -> update {
-                it.copy(
-                    mentions = it.mentions.map { m -> m.copy(isRead = true) },
-                    unreadMentionsCount = 0
-                )
+            MainEvent.MarkAllMentionsRead -> {
+                update {
+                    it.copy(
+                        mentions = it.mentions.map { m -> m.copy(isRead = true) },
+                        unreadMentionsCount = 0
+                    )
+                }
+                viewModelScope.launch { mentionRepository.markAllAsRead() }
             }
 
-            is MainEvent.AddMentionEntry -> update {
-                it.copy(
-                    mentions = (it.mentions + event.entry).takeLast(200),
-                    unreadMentionsCount = it.unreadMentionsCount + 1
-                )
+            is MainEvent.AddMentionEntry -> {
+                // Deduplicate — startup scan may race with live IRC
+                val alreadyExists = state.value.mentions.any { it.messageId == event.entry.messageId }
+                if (!alreadyExists) {
+                    update {
+                        it.copy(
+                            mentions = (listOf(event.entry) + it.mentions).takeLast(200),
+                            unreadMentionsCount = it.unreadMentionsCount + 1
+                        )
+                    }
+                    viewModelScope.launch { mentionRepository.saveMention(event.entry) }
+                }
             }
 
             MainEvent.ShowChattersPanel -> update { it.copy(showChattersPanel = true) }
             MainEvent.HideChattersPanel -> update { it.copy(showChattersPanel = false) }
-            is MainEvent.SetActiveChatChannelId -> update { it.copy(activeChatChannelId = event.channelId) }
+            is MainEvent.SetActiveChatChannelId -> update { state ->
+                val login = state.activeChannelLogin?.lowercase() ?: ""
+                val newMap = if (login.isNotEmpty() && event.channelId.isNotEmpty())
+                    state.channelIdMap + (login to event.channelId)
+                else state.channelIdMap
+                state.copy(activeChatChannelId = event.channelId, channelIdMap = newMap)
+            }
         }
     }
 
-   
+
 
     private fun observeWhispers() {
         viewModelScope.launch {
@@ -531,7 +561,7 @@ class MainViewModel(
         }
     }
 
-   
+
 
     private fun loadAccounts() {
         viewModelScope.launch {
@@ -585,8 +615,10 @@ class MainViewModel(
             addChannel(normalized); return
         }
         update { state ->
+            val restoredChannelId = state.channelIdMap[normalized] ?: ""
             state.copy(
                 activeChannelLogin = normalized,
+                activeChatChannelId = restoredChannelId,
                 sidebarExpanded = false,
                 showMentionsFeed = false,
                 openChannels = state.openChannels.map {
@@ -891,6 +923,11 @@ class MainViewModel(
                     }
                 }
                 fetchAndUpdateProfileImages()
+                // Scan background channels for missed mentions since last session.
+                // Active channel is handled by ChatViewModel.loadRecentMessages.
+                // We wait a bit so loadPersistedMentions has time to populate existingIds.
+                delay(1500)
+                scanAllChannelsForMentions(channelLogins)
             }
         }
     }
@@ -1013,7 +1050,7 @@ class MainViewModel(
         }
     }
 
-   
+
     private fun formatWhisperTime(timestamp: Long): String {
         val instant = Instant.fromEpochMilliseconds(timestamp)
         val dt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
@@ -1038,7 +1075,181 @@ class MainViewModel(
             null
         }
     }
-   
+
+
+    // ── Mention persistence & live observation ───────────────────────────────
+
+    /** Load persisted mentions from DB at startup — preserves isRead state. */
+    private fun loadPersistedMentions() {
+        viewModelScope.launch {
+            mentionRepository.pruneOld() // drop mentions older than 7 days
+            val persisted = mentionRepository.loadMentions()
+            if (persisted.isNotEmpty()) {
+                val unread = persisted.count { !it.isRead }
+                update { it.copy(mentions = persisted, unreadMentionsCount = unread) }
+            }
+        }
+    }
+
+    /**
+     * Observes ALL incoming IRC messages directly — independent of which channel
+     * is currently shown in the UI. This is the single source of truth for live
+     * mention detection: no dependency on LaunchedEffect / captured channelLogin.
+     */
+    private fun observeLiveMentions() {
+        viewModelScope.launch {
+            chatRepository.messages.collect { message ->
+                val account = state.value.selectedAccount ?: return@collect
+                if (message.userId == account.userId) return@collect // own message
+
+                val settings = SettingsViewModel.loadInitialState()
+                val userLogin = account.login.lowercase()
+                val matched = checkMentionInText(
+                    message.message, userLogin,
+                    settings.highlightRules.filter { it.enabled }
+                )
+                if (!matched) return@collect
+
+                val channelLogin = message.channelName.lowercase()
+                val entry = MentionEntry(
+                    messageId = message.id,
+                    channelLogin = channelLogin,
+                    fromUsername = message.username,
+                    fromDisplayName = message.displayName,
+                    fromColor = message.color,
+                    text = message.message,
+                    timestamp = message.timestamp,
+                    isRead = false
+                )
+
+                // Deduplicate (startup scan may arrive slightly before live IRC)
+                if (state.value.mentions.any { it.messageId == entry.messageId }) return@collect
+
+                val activeChannel = state.value.activeChannelLogin?.lowercase()
+                val isActiveChannel = channelLogin == activeChannel
+
+                update { st ->
+                    st.copy(
+                        mentions = (listOf(entry) + st.mentions).takeLast(200),
+                        unreadMentionsCount = st.unreadMentionsCount + 1,
+                        // Only increment tab badge for background channels
+                        openChannels = if (isActiveChannel) st.openChannels else st.openChannels.map {
+                            if (it.login == channelLogin) it.copy(unreadCount = it.unreadCount + 1) else it
+                        },
+                        unfolderedChannels = if (isActiveChannel) st.unfolderedChannels else st.unfolderedChannels.map {
+                            if (it.login == channelLogin) it.copy(unreadCount = it.unreadCount + 1) else it
+                        },
+                        folders = if (isActiveChannel) st.folders else st.folders.map { folder ->
+                            folder.copy(channels = folder.channels.map {
+                                if (it.login == channelLogin) it.copy(unreadCount = it.unreadCount + 1) else it
+                            })
+                        }
+                    )
+                }
+
+                // Persist to DB
+                viewModelScope.launch { mentionRepository.saveMention(entry) }
+
+                // Toast notification — always shown so user knows who mentioned them and where
+                sendEffect(MainEffect.MentionToast(
+                    channelLogin = channelLogin,
+                    fromDisplayName = message.displayName,
+                    text = message.message.take(100)
+                ))
+            }
+        }
+    }
+
+    /**
+     * On startup: fetch recent messages for background channels and surface any
+     * mentions that arrived while the app was closed. Already-persisted mentions
+     * (loaded by [loadPersistedMentions]) are skipped via ID deduplication.
+     */
+    private fun scanAllChannelsForMentions(channelLogins: List<String>) {
+        val account = state.value.selectedAccount ?: return
+        val activeChannel = state.value.activeChannelLogin?.lowercase()
+        val settings = SettingsViewModel.loadInitialState()
+        val userLogin = account.login.lowercase()
+        val userId = account.userId
+
+        channelLogins.forEach { login ->
+            val normalized = login.lowercase()
+            if (normalized == activeChannel) return@forEach // active channel handled by ChatViewModel
+
+            viewModelScope.launch {
+                try {
+                    val messages = recentMessagesClient.getRecentMessages(normalized, limit = 100)
+                    messages.forEach { msg ->
+                        if (msg.userId == userId) return@forEach
+                        // Skip if already in feed (persisted from previous session)
+                        if (state.value.mentions.any { it.messageId == msg.id }) return@forEach
+
+                        if (checkMentionInText(msg.message, userLogin, settings.highlightRules.filter { it.enabled })) {
+                            val entry = MentionEntry(
+                                messageId = msg.id,
+                                channelLogin = normalized,
+                                fromUsername = msg.username,
+                                fromDisplayName = msg.displayName,
+                                fromColor = msg.color,
+                                text = msg.message,
+                                timestamp = msg.timestamp,
+                                isRead = false
+                            )
+                            update { st ->
+                                st.copy(
+                                    mentions = (st.mentions + entry)
+                                        .sortedByDescending { it.timestamp }
+                                        .take(200),
+                                    unreadMentionsCount = st.unreadMentionsCount + 1,
+                                    openChannels = st.openChannels.map {
+                                        if (it.login == normalized) it.copy(unreadCount = it.unreadCount + 1) else it
+                                    },
+                                    unfolderedChannels = st.unfolderedChannels.map {
+                                        if (it.login == normalized) it.copy(unreadCount = it.unreadCount + 1) else it
+                                    },
+                                    folders = st.folders.map { folder ->
+                                        folder.copy(channels = folder.channels.map {
+                                            if (it.login == normalized) it.copy(unreadCount = it.unreadCount + 1) else it
+                                        })
+                                    }
+                                )
+                            }
+                            mentionRepository.saveMention(entry)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Napier.w("Mention scan failed for $normalized: ${e.message}", tag = TAG)
+                }
+            }
+        }
+    }
+
+    /** Mirrors ChatViewModel highlight logic without needing coroutine scope or state. */
+    private fun checkMentionInText(
+        text: String,
+        userLogin: String,
+        rules: List<io.rudione.chatone.domain.model.HighlightRule>
+    ): Boolean {
+        if (userLogin.isNotEmpty() && text.contains("@$userLogin", ignoreCase = true)) return true
+        for (rule in rules) {
+            val pattern = when (rule.id) {
+                "username" -> userLogin
+                "whispers", "subscriptions", "first_message" -> continue
+                else -> rule.pattern
+            }
+            if (pattern.isEmpty()) continue
+            val matches = if (rule.isRegex) {
+                try {
+                    val opts = if (rule.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
+                    Regex(pattern, opts).containsMatchIn(text)
+                } catch (_: Exception) { false }
+            } else {
+                text.contains(pattern, ignoreCase = !rule.caseSensitive)
+            }
+            if (matches) return true
+        }
+        return false
+    }
 
     override fun onCleared() {
         viewModelScope.launch { sevenTvEventApi.disconnect() }

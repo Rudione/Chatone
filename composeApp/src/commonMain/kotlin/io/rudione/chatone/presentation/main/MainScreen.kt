@@ -105,8 +105,12 @@ fun MainScreen(
                         effect.text
                     )
                 }
-
                 is MainEffect.IncomingWhisper -> scope.launch { snackbarHostState.showSnackbar("💬 ${effect.fromDisplayName}: ${effect.text}") }
+                is MainEffect.MentionToast -> scope.launch {
+                    snackbarHostState.showSnackbar(
+                        "🔔 @${effect.fromDisplayName} в #${effect.channelLogin}: ${effect.text}"
+                    )
+                }
             }
         }
     }
@@ -668,7 +672,7 @@ private fun MiniRail(
                     }
                 }
             }
-           
+
             Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
                 IconButton(
                     onClick = { onEvent(MainEvent.ToggleMentionsFeed) },
@@ -698,7 +702,7 @@ private fun MiniRail(
                     }
                 }
             }
-           
+
             Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
                 IconButton(
                     onClick = { onEvent(MainEvent.ToggleWhisperPanel) },
@@ -963,7 +967,7 @@ private fun ChannelSidebar(
                 }
             }
 
-           
+
             itemsIndexed(
                 filteredUnfoldered,
                 key = { _: Int, c: ChannelTab -> "channel_${c.login}" }
@@ -991,27 +995,27 @@ private fun ChannelSidebar(
                         dragOffsetPx += delta
                         val currentPos = dragStartOffsetPx + dragOffsetPx
 
-                       
+
                         dropTargetFolderId = folderBounds.find { it.rect.contains(currentPos) }?.id
 
-                       
+
                         val targetChannel = channelBounds.find { it.rect.contains(currentPos) }
                         dragOverIndex = targetChannel?.id?.substringAfterLast("_")?.toIntOrNull()
                     },
                     onDragEnd = {
                         val currentPos = dragStartOffsetPx + dragOffsetPx
 
-                       
+
                         val hitFolder = folderBounds.find { it.rect.contains(currentPos) }
                         if (hitFolder != null && draggedChannelLogin != null) {
                             onEvent(MainEvent.DropChannelOnFolder(draggedChannelLogin!!, hitFolder.id))
                         }
-                       
+
                         else if (dragOverIndex != null && dragStartIndex != null && dragOverIndex != dragStartIndex) {
                             onEvent(MainEvent.ReorderUnfolderedChannels(dragStartIndex!!, dragOverIndex!!))
                         }
 
-                       
+
                         draggedChannelLogin = null
                         dropTargetFolderId = null
                         dragOffsetPx = Offset.Zero
@@ -1153,7 +1157,7 @@ private fun ChannelSidebar(
         Spacer(Modifier.height(4.dp))
     }
 
-   
+
     if (isDragging && draggedChannelLogin != null) {
         Box(
             modifier = Modifier
@@ -1609,7 +1613,7 @@ private fun ChannelItem(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
-                   
+
                     if (showContextMenu) {
                         Popup(
                             alignment = Alignment.TopEnd,
@@ -1702,7 +1706,7 @@ private fun ChannelTabBar(
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
     var dropTargetIndex by remember { mutableStateOf<Int?>(null) }
-   
+
     val tabCenters = remember { mutableStateListOf<Pair<Int, Offset>>() }
 
     Surface(
@@ -1720,7 +1724,7 @@ private fun ChannelTabBar(
                 channels.forEachIndexed { index: Int, channel: ChannelTab ->
                     val isActive = channel.login == activeLogin
 
-                   
+
                     val tabCenter = remember { mutableStateOf(Offset.Zero) }
 
                     Box(
@@ -1742,7 +1746,7 @@ private fun ChannelTabBar(
                                     bounds.left + bounds.width / 2,
                                     bounds.top + bounds.height / 2
                                 )
-                               
+
                                 tabCenters.removeAll { pair: Pair<Int, Offset> -> pair.first == index }
                                 tabCenters.add(index to tabCenter.value)
                             }
@@ -1752,7 +1756,7 @@ private fun ChannelTabBar(
                                     onDrag = { change, delta ->
                                         change.consumeAllChanges()
                                         dragOffset += delta
-                                       
+
                                         val currentDragPos = tabCenter.value + dragOffset
                                         dropTargetIndex =
                                             tabCenters.minByOrNull { pair: Pair<Int, Offset> ->
@@ -1799,10 +1803,10 @@ private fun ChannelTabBar(
                                 Box(
                                     modifier = Modifier.size(6.dp).clip(CircleShape)
                                         .background(ChatoneTheme.extraColors.live).border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.surface,
-                                        CircleShape
-                                    )
+                                            1.dp,
+                                            MaterialTheme.colorScheme.surface,
+                                            CircleShape
+                                        )
                                 )
                                 Spacer(Modifier.width(4.dp))
                             }
@@ -1846,7 +1850,7 @@ private fun ChannelTabBar(
                 }
             }
 
-           
+
             draggedIndex?.let { idx: Int ->
                 channels.getOrNull(idx)?.let { ch: ChannelTab ->
                     Box(

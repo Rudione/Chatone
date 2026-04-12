@@ -318,8 +318,8 @@ fun ChatScreen(
                 }
                 is ChatEffect.MentionDetected -> {
                     val mentionChannel = effect.channelLogin
-                    val currentActiveChannel = viewModel.state.value.channelLogin
-                    val isActiveChannel = mentionChannel.equals(currentActiveChannel, ignoreCase = true)
+                    val currentChannel = viewModel.state.value.channelLogin
+                    val isActiveChannel = mentionChannel.equals(currentChannel, ignoreCase = true)
 
                     if (!isActiveChannel) {
                         if (settingsState.mentionSoundEnabled) {
@@ -625,23 +625,21 @@ fun ChatScreen(
                             }
                             if (unreadCount > 0) {
                                 val badgeText = if (unreadCount > 99) "99+" else "$unreadCount"
-                                Surface(
+                                Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .offset(x = 4.dp, y = (-4).dp)
-                                        .size(14.dp),
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.error,
-                                    shadowElevation = 2.dp
+                                        .background(MaterialTheme.colorScheme.error, CircleShape)
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        .widthIn(min = 16.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = badgeText,
                                         color = MaterialTheme.colorScheme.onError,
-                                        fontSize = 8.sp,
-                                        lineHeight = 8.sp,
+                                        fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        modifier = Modifier.wrapContentSize(Alignment.Center)
+                                        maxLines = 1
                                     )
                                 }
                             }

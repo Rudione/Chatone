@@ -32,6 +32,7 @@ import io.rudione.chatone.presentation.auth.AuthViewModel
 import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.main.MainViewModel
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.data.repository.MentionRepository
 import io.rudione.chatone.util.AppConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,13 +85,14 @@ val networkModule = module {
 
     single { PlatformAuthHandler() }
     single { RecentMessagesClient(httpClient = get()) }
+    single { MentionRepository(get()) }
 
-   
+
     single { SevenTvApiClient(httpClient = get()) }
     single { BttvApiClient(httpClient = get()) }
     single { FfzApiClient(httpClient = get()) }
 
-   
+
     single { SevenTvCosmeticsClient(httpClient = get()) }
     single { SevenTvEventApi(httpClient = get(), scope = get()) }
 }
