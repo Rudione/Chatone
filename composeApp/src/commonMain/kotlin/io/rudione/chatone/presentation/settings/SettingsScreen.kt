@@ -222,7 +222,6 @@ private fun SettingsDialogContent(
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsFullScreen(
@@ -233,6 +232,7 @@ private fun SettingsFullScreen(
     viewModel: SettingsViewModel
 ) {
     var expandedSections by remember { mutableStateOf(setOf<SettingsSection>()) }
+    val extra = ChatoneTheme.extraColors
 
     Scaffold(
         topBar = {
@@ -242,10 +242,16 @@ private fun SettingsFullScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
             )
         },
-        modifier = modifier
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.surface
     ) { padding ->
 
         Column(
@@ -253,10 +259,17 @@ private fun SettingsFullScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            extra.sidebarSurface,
+                            extra.sidebarSurface.copy(alpha = 0.95f)
+                        )
+                    )
+                )
         ) {
             SettingsSection.entries.forEach { section ->
                 val isExpanded = section in expandedSections
-
 
                 Row(
                     modifier = Modifier
@@ -278,7 +291,7 @@ private fun SettingsFullScreen(
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
                         tint = if (isExpanded) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.width(14.dp))
                     Text(
@@ -301,7 +314,6 @@ private fun SettingsFullScreen(
                 }
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
-
 
                 AnimatedVisibility(
                     visible = isExpanded,
@@ -327,7 +339,6 @@ private fun SettingsFullScreen(
     }
 }
 
-
 @Composable
 private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClick: () -> Unit) {
     val bg by animateColorAsState(
@@ -335,7 +346,7 @@ private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClic
         tween(150), label = "nav_bg"
     )
     val contentColor =
-        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
 
     Row(
         modifier = Modifier
@@ -348,7 +359,10 @@ private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClic
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Icon(
-            painterResource(Res.drawable.chatbubbles),
+            painterResource(
+                if (isSelected) section.icon
+                else (section.iconOutlined ?: section.icon)
+            ),
             null,
             modifier = Modifier.size(18.dp),
             tint = contentColor
@@ -407,7 +421,6 @@ private fun SectionContentLazy(
     }
 }
 
-
 @Composable
 private fun SectionContentColumn(
     section: SettingsSection,
@@ -416,23 +429,34 @@ private fun SectionContentColumn(
     viewModel: SettingsViewModel,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    Surface(
+        modifier = modifier
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        )
     ) {
-        when (section) {
-            SettingsSection.APPEARANCE -> AppearanceContent(state, onThemeChanged, viewModel)
-            SettingsSection.CHAT -> ChatContent(state, viewModel)
-            SettingsSection.NOTIFICATIONS -> NotificationContent(state, viewModel)
-            SettingsSection.HIGHLIGHTS -> HighlightContent(state, viewModel)
-            SettingsSection.BACKGROUND -> BackgroundContent(state, viewModel)
-            SettingsSection.HOTKEYS -> HotkeyContent(state, viewModel)
-            SettingsSection.MODERATION -> ModerationContent(state, viewModel)
-            SettingsSection.ABOUT -> AboutContent()
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            when (section) {
+                SettingsSection.APPEARANCE -> AppearanceContent(state, onThemeChanged, viewModel)
+                SettingsSection.CHAT -> ChatContent(state, viewModel)
+                SettingsSection.NOTIFICATIONS -> NotificationContent(state, viewModel)
+                SettingsSection.HIGHLIGHTS -> HighlightContent(state, viewModel)
+                SettingsSection.BACKGROUND -> BackgroundContent(state, viewModel)
+                SettingsSection.HOTKEYS -> HotkeyContent(state, viewModel)
+                SettingsSection.MODERATION -> ModerationContent(state, viewModel)
+                SettingsSection.ABOUT -> AboutContent()
+            }
         }
     }
 }
-
 
 private fun LazyListScope.appearanceLazyItems(
     state: SettingsState,
@@ -1239,7 +1263,7 @@ private fun AboutCard() {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Version 1.0.10",
+                        "Version 1.0.11",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

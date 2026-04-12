@@ -625,21 +625,23 @@ fun ChatScreen(
                             }
                             if (unreadCount > 0) {
                                 val badgeText = if (unreadCount > 99) "99+" else "$unreadCount"
-                                Box(
+                                Surface(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
-                                        .offset(x = 4.dp, y = (-4).dp)
-                                        .background(MaterialTheme.colorScheme.error, CircleShape)
-                                        .padding(horizontal = 4.dp, vertical = 1.dp)
-                                        .widthIn(min = 16.dp),
-                                    contentAlignment = Alignment.Center
+                                        .offset(x = 2.dp, y = (-2).dp)
+                                        .size(16.dp),
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.error,
+                                    shadowElevation = 2.dp
                                 ) {
                                     Text(
                                         text = badgeText,
                                         color = MaterialTheme.colorScheme.onError,
-                                        fontSize = 10.sp,
+                                        fontSize = 8.sp,
+                                        lineHeight = 8.sp,
                                         fontWeight = FontWeight.Bold,
-                                        maxLines = 1
+                                        maxLines = 1,
+                                        modifier = Modifier.wrapContentSize(Alignment.Center)
                                     )
                                 }
                             }

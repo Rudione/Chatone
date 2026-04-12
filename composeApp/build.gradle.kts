@@ -104,7 +104,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 3
-        versionName = "1.0.10"
+        versionName = "1.0.11"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     packaging {
@@ -131,7 +131,7 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
 
             packageName = "Chatone"
-            packageVersion = "1.0.10"
+            packageVersion = "1.0.11"
 
             modules(
                 "java.base",

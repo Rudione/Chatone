@@ -28,7 +28,7 @@ object AutoUpdater {
     private const val GITHUB_API = "https://api.github.com"
     private const val REPO = "Rudione/Chatone"
 
-    private const val CURRENT_VERSION = "1.0.10"
+    private const val CURRENT_VERSION = "1.0.11"
 
 
     private val httpClient = HttpClient(OkHttp) {
