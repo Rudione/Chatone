@@ -2,6 +2,21 @@
 
 A modern cross-platform Twitch chat client built with Kotlin Multiplatform and Compose Multiplatform.
 
+## ⬇️ Download
+
+[![Latest Release](https://img.shields.io/github/v/release/Rudione/Chatone?label=latest&style=for-the-badge)](https://github.com/Rudione/Chatone/releases/latest)
+
+Pick the file for your platform from the [latest release](https://github.com/Rudione/Chatone/releases/latest):
+
+| Platform | File to download |
+|----------|------------------|
+| 🪟 **Windows** | `Chatone-<version>.msi` |
+| 🍎 **macOS** | `Chatone-<version>.dmg` |
+| 🐧 **Linux (Debian/Ubuntu)** | `chatone_<version>-1_amd64.deb` |
+| 📦 **Portable (any OS)** | `Chatone-<version>-portable.zip` |
+
+> 👉 All downloads live on the [Releases page](https://github.com/Rudione/Chatone/releases/latest). The **Actions** tab is for CI artifacts and requires a GitHub account — always use Releases for installers.
+
 ## 🎯 How to Use
 
 ### 1. Login

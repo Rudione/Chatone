@@ -9,7 +9,9 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.utils.io.jvm.javaio.toInputStream
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
@@ -93,9 +95,8 @@ object AutoUpdater {
 
                 Napier.i("Downloading update: ${asset.name} (${formatSize(asset.size)})")
 
-                val tempDir = File(System.getProperty("java.io.tmpdir"), "chatone-update-${System.currentTimeMillis()}")
-                tempDir.mkdirs()
-                val updateFile = File(tempDir, asset.name)
+                val downloadsDir = File(System.getProperty("user.home"), "Downloads").apply { mkdirs() }
+                val updateFile = File(downloadsDir, asset.name)
 
                 downloadFile(asset.downloadUrl, updateFile) { progress ->
                     Napier.d("Download progress: $progress%")
@@ -103,21 +104,8 @@ object AutoUpdater {
 
                 Napier.i("Downloaded to: ${updateFile.absolutePath}")
 
-                when {
-                    asset.name.endsWith(".msi", ignoreCase = true) -> {
-                        installMsi(updateFile)
-                    }
-                    asset.name.endsWith(".zip", ignoreCase = true) -> {
-
-                        extractZip(updateFile, tempDir)
-                        restartFromZip(tempDir)
-                        true
-                    }
-                    else -> {
-                        Napier.e("Unknown update format: ${asset.name}")
-                        false
-                    }
-                }
+                launchInstallerAndExit(updateFile)
+                true
 
             } catch (e: Exception) {
                 Napier.e("Failed to download/update: ${e.message}", e)
@@ -187,94 +175,33 @@ object AutoUpdater {
     }
 
 
-    private fun installMsi(file: File): Boolean {
-        return try {
-            val command = listOf("msiexec", "/i", file.absolutePath, "/quiet", "/norestart")
-            Napier.d("Running installer: ${command.joinToString(" ")}")
-
-            val process = ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
-
-            val exitCode = process.waitFor()
-            Napier.d("Installer exited with code: $exitCode")
-
-            if (exitCode == 0) {
-                restartApp()
-                true
-            } else false
-
-        } catch (e: Exception) {
-            Napier.e("Failed to run installer: ${e.message}", e)
-            false
-        }
-    }
-
-
-    private fun extractZip(zipFile: File, destDir: File) {
-        java.util.zip.ZipFile(zipFile).use { zip ->
-            zip.entries().asSequence().forEach { entry ->
-                val dest = File(destDir, entry.name)
-                if (entry.isDirectory) {
-                    dest.mkdirs()
-                } else {
-                    dest.parentFile?.mkdirs()
-                    zip.getInputStream(entry).use { input ->
-                        FileOutputStream(dest).use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                }
+    private fun launchInstallerAndExit(file: File) {
+        val os = System.getProperty("os.name").lowercase()
+        try {
+            val command = when {
+                os.contains("win") -> listOf("cmd", "/c", "start", "", file.absolutePath)
+                os.contains("mac") -> listOf("open", file.absolutePath)
+                else -> listOf("xdg-open", file.absolutePath)
             }
+            Napier.i("Launching installer: ${command.joinToString(" ")}")
+            ProcessBuilder(command).start()
+        } catch (e: Exception) {
+            Napier.e("Failed to launch installer, falling back to Desktop.open: ${e.message}", e)
+            try { java.awt.Desktop.getDesktop().open(file) } catch (_: Exception) {}
         }
-    }
 
-    private fun restartFromZip(extractDir: File) {
-        try {
-            val os = System.getProperty("os.name").lowercase()
-            val launcher = when {
-                os.contains("win") ->
-                    extractDir.walk().find { it.name == "Chatone.exe" }
-                os.contains("mac") ->
-                    extractDir.walk().find {
-                        it.name == "Chatone" && it.parentFile?.name == "MacOS"
-                    }
-                else ->
-                    extractDir.walk().find {
-                        it.name == "Chatone" && it.parentFile?.name == "bin"
-                    }
-            } ?: throw IllegalStateException(
-                "Launcher not found in extracted update at ${extractDir.absolutePath}"
+        SwingUtilities.invokeLater {
+            JOptionPane.showMessageDialog(
+                null,
+                "Installer was opened.\nPlease close Chatone and complete the installation.\n\nFile: ${file.absolutePath}",
+                "Update Ready",
+                JOptionPane.INFORMATION_MESSAGE
             )
-
-            launcher.setExecutable(true)
-            Napier.d("Restarting from: ${launcher.absolutePath}")
-            ProcessBuilder(launcher.absolutePath).start()
             System.exit(0)
-
-        } catch (e: Exception) {
-            Napier.e("Failed to restart from ZIP: ${e.message}", e)
         }
     }
 
-
-    private fun restartApp() {
-        try {
-
-
-            val javaHome = System.getProperty("java.home")
-            val javaBin = "$javaHome/bin/java"
-            val classpath = System.getProperty("java.class.path")
-            val mainClass = "io.rudione.chatone.MainKt"
-
-            ProcessBuilder(javaBin, "-cp", classpath, mainClass)
-                .start()
-            System.exit(0)
-        } catch (e: Exception) {
-            Napier.e("Failed to restart app: ${e.message}", e)
-        }
-    }
-
+    @OptIn(DelicateCoroutinesApi::class)
     private fun showUpdateDialog(release: GitHubRelease, latestVersion: String) {
         SwingUtilities.invokeLater {
             val message = """
@@ -301,7 +228,7 @@ object AutoUpdater {
 
             when (choice) {
                 0 -> {
-                    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                    GlobalScope.launch(Dispatchers.IO) {
                         val success = downloadAndUpdate(release, latestVersion)
                         if (!success) {
                             withContext(Dispatchers.Main) {
