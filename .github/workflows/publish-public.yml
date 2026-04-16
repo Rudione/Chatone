@@ -1,0 +1,47 @@
+name: Publish snapshot to public repo
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Commit message for the public snapshot'
+        required: false
+        default: 'Public release snapshot'
+  push:
+    tags:
+      - 'public-v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Strip private artefacts
+        run: |
+          rm -rf .claude .claude-flow .swarm memory
+          rm -f .mcp.json CLAUDE.md SESSION_REPORT.md
+          find . -name ".DS_Store" -delete
+          find . -name "*.zip" ! -path "./gradle/*" -delete
+
+      - name: Create orphan snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan public-snapshot
+          git add -A
+          git commit -m "${{ github.event.inputs.message || format('Release {0}', github.ref_name) }}"
+
+      - name: Push to public repository
+        env:
+          PUBLIC_REPO: ${{ vars.PUBLIC_REPO }}
+          TOKEN: ${{ secrets.PUBLIC_REPO_PAT }}
+        run: |
+          if [ -z "$PUBLIC_REPO" ] || [ -z "$TOKEN" ]; then
+            echo "Missing PUBLIC_REPO variable or PUBLIC_REPO_PAT secret. Configure them in repo settings."
+            exit 1
+          fi
+          git remote add public "https://x-access-token:$TOKEN@github.com/$PUBLIC_REPO.git"
+          git push public public-snapshot:main --force

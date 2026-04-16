@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.8)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            short: windows
+            installer-glob: composeApp/build/compose/binaries/main-release/msi/*.msi
+            installer-ext: msi
+          - os: macos-latest
+            short: macos
+            installer-glob: composeApp/build/compose/binaries/main-release/dmg/*.dmg
+            installer-ext: dmg
+          - os: ubuntu-latest
+            short: linux
+            installer-glob: composeApp/build/compose/binaries/main-release/deb/*.deb
+            installer-ext: deb
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        if: runner.os != 'Windows'
+        run: chmod +x gradlew
+
+      - name: Verify tag matches packageVersion
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          TAG_VERSION="${TAG#v}"
+          PKG_VERSION=$(grep -E 'app\.version\s*=' gradle.properties | head -1 | sed -E 's/.*=\s*//')
+          [ -z "$PKG_VERSION" ] && PKG_VERSION=$(grep -E 'packageVersion\s*=\s*"' composeApp/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Tag version: $TAG_VERSION"
+          echo "packageVersion: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $TAG does not match packageVersion $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Build installer + portable ZIP
+        shell: bash
+        run: ./gradlew :composeApp:packageReleaseDistributionForCurrentOS :composeApp:createPortableZip --no-daemon --stacktrace
+
+      - name: List build outputs
+        shell: bash
+        run: |
+          echo "--- main-release ---"
+          find composeApp/build/compose/binaries/main-release -maxdepth 3 -type f 2>/dev/null || true
+          echo "--- distributions ---"
+          find composeApp/build/distributions -maxdepth 2 -type f 2>/dev/null || true
+
+      - name: Upload installer (${{ matrix.installer-ext }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chatone-${{ matrix.short }}-installer
+          path: ${{ matrix.installer-glob }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chatone-${{ matrix.short }}-portable
+          path: composeApp/build/distributions/*-portable.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifact tree
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' \) -exec cp -v {} release-assets/ \;
+          ls -la release-assets
+
+      - name: Resolve tag name
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF##*/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: Chatone ${{ steps.tag.outputs.name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: release-assets/*

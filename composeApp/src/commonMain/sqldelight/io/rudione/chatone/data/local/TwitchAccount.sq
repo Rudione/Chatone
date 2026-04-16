@@ -1,0 +1,42 @@
+CREATE TABLE TwitchAccountEntity (
+    userId TEXT NOT NULL PRIMARY KEY,
+    login TEXT NOT NULL,
+    displayName TEXT NOT NULL,
+    profileImageUrl TEXT NOT NULL,
+    accessToken TEXT NOT NULL,
+    refreshToken TEXT NOT NULL,
+    expiresAt INTEGER NOT NULL,
+    scopes TEXT NOT NULL,
+    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+);
+
+-- Insert or replace account
+insertAccount:
+INSERT OR REPLACE INTO TwitchAccountEntity(userId, login, displayName, profileImageUrl, accessToken, refreshToken, expiresAt, scopes)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Get all accounts
+getAllAccounts:
+SELECT * FROM TwitchAccountEntity ORDER BY createdAt DESC;
+
+-- Get account by user ID
+getAccountById:
+SELECT * FROM TwitchAccountEntity WHERE userId = ?;
+
+-- Get account by login
+getAccountByLogin:
+SELECT * FROM TwitchAccountEntity WHERE login = ?;
+
+-- Update tokens
+updateTokens:
+UPDATE TwitchAccountEntity
+SET accessToken = ?, refreshToken = ?, expiresAt = ?
+WHERE userId = ?;
+
+-- Delete account
+deleteAccount:
+DELETE FROM TwitchAccountEntity WHERE userId = ?;
+
+-- Delete all accounts
+deleteAllAccounts:
+DELETE FROM TwitchAccountEntity;

@@ -1,0 +1,49 @@
+CREATE TABLE ChannelEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    login TEXT NOT NULL,
+    displayName TEXT NOT NULL,
+    profileImageUrl TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    viewerCount INTEGER NOT NULL DEFAULT 0,
+    isLive INTEGER NOT NULL DEFAULT 0,
+    gameName TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    isFavorite INTEGER NOT NULL DEFAULT 0,
+    lastJoinedAt INTEGER,
+    createdAt INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+);
+
+-- Insert or update channel
+insertOrUpdateChannel:
+INSERT OR REPLACE INTO ChannelEntity(id, login, displayName, profileImageUrl, description, viewerCount, isLive, gameName, title, isFavorite, lastJoinedAt)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- Get all channels
+getAllChannels:
+SELECT * FROM ChannelEntity ORDER BY lastJoinedAt DESC;
+
+-- Get favorite channels
+getFavoriteChannels:
+SELECT * FROM ChannelEntity WHERE isFavorite = 1 ORDER BY displayName ASC;
+
+-- Get channel by ID
+getChannelById:
+SELECT * FROM ChannelEntity WHERE id = ?;
+
+-- Update favorite status
+updateFavorite:
+UPDATE ChannelEntity SET isFavorite = ? WHERE id = ?;
+
+-- Update last joined timestamp
+updateLastJoined:
+UPDATE ChannelEntity SET lastJoinedAt = ? WHERE id = ?;
+
+-- Delete channel
+deleteChannel:
+DELETE FROM ChannelEntity WHERE id = ?;
+
+-- Search channels by name
+searchChannels:
+SELECT * FROM ChannelEntity 
+WHERE displayName LIKE '%' || ? || '%' OR login LIKE '%' || ? || '%'
+ORDER BY displayName ASC;
