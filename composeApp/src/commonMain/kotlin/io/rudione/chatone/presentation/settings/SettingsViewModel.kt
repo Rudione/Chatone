@@ -52,7 +52,10 @@ data class SettingsState(
     val customModButtons: List<ModActionButton> = emptyList(),
     val macros: List<Macro> = emptyList(),
     val showChatHeader: Boolean = true,
-    val smoothChatEnabled: Boolean = false
+    val smoothChatEnabled: Boolean = false,
+    val showDefaultDeleteButton: Boolean = true,
+    val showDefaultTimeoutButton: Boolean = true,
+    val showDefaultBanButton: Boolean = true
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
     enum class EmoteSize { SMALL, MEDIUM, LARGE }
@@ -102,6 +105,9 @@ sealed class SettingsEvent : UiEvent {
     data class OnAddModButton(val durationSeconds: Int, val label: String) : SettingsEvent()
     data class OnRemoveModButton(val id: String) : SettingsEvent()
     data class OnUpdateModButton(val button: ModActionButton) : SettingsEvent()
+    data class OnShowDefaultDeleteChanged(val show: Boolean) : SettingsEvent()
+    data class OnShowDefaultTimeoutChanged(val show: Boolean) : SettingsEvent()
+    data class OnShowDefaultBanChanged(val show: Boolean) : SettingsEvent()
     data class OnReorderModButtons(val from: Int, val to: Int) : SettingsEvent()
 
 
@@ -150,6 +156,9 @@ class SettingsViewModel(
         private const val KEY_MACROS = "macros"
         private const val KEY_SHOW_CHAT_HEADER = "show_chat_header"
         private const val KEY_SMOOTH_CHAT = "smooth_chat_enabled"
+        private const val KEY_SHOW_DEFAULT_DELETE = "show_default_delete"
+        private const val KEY_SHOW_DEFAULT_TIMEOUT = "show_default_timeout"
+        private const val KEY_SHOW_DEFAULT_BAN = "show_default_ban"
         private val json = Json { ignoreUnknownKeys = true }
         private val _effects = MutableSharedFlow<SettingsEffect>()
         val effects = _effects.asSharedFlow()
@@ -229,7 +238,10 @@ class SettingsViewModel(
                 customModButtons = modButtons,
                 macros = macros,
                 showChatHeader = settings.getBoolean(KEY_SHOW_CHAT_HEADER, true),
-                smoothChatEnabled = settings.getBoolean(KEY_SMOOTH_CHAT, false)
+                smoothChatEnabled = settings.getBoolean(KEY_SMOOTH_CHAT, false),
+                showDefaultDeleteButton = settings.getBoolean(KEY_SHOW_DEFAULT_DELETE, true),
+                showDefaultTimeoutButton = settings.getBoolean(KEY_SHOW_DEFAULT_TIMEOUT, true),
+                showDefaultBanButton = settings.getBoolean(KEY_SHOW_DEFAULT_BAN, true)
             )
         }
     }
@@ -478,6 +490,19 @@ class SettingsViewModel(
                     val item = list.removeAt(event.from); list.add(event.to, item)
                 }
                 saveModButtons(list); s.copy(customModButtons = list)
+            }
+
+            is SettingsEvent.OnShowDefaultDeleteChanged -> {
+                settings.putBoolean(KEY_SHOW_DEFAULT_DELETE, event.show)
+                update { it.copy(showDefaultDeleteButton = event.show) }
+            }
+            is SettingsEvent.OnShowDefaultTimeoutChanged -> {
+                settings.putBoolean(KEY_SHOW_DEFAULT_TIMEOUT, event.show)
+                update { it.copy(showDefaultTimeoutButton = event.show) }
+            }
+            is SettingsEvent.OnShowDefaultBanChanged -> {
+                settings.putBoolean(KEY_SHOW_DEFAULT_BAN, event.show)
+                update { it.copy(showDefaultBanButton = event.show) }
             }
 
             is SettingsEvent.OnAddMacro -> update { s ->

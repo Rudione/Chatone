@@ -126,6 +126,9 @@ kotlin {
             implementation(libs.slf4j.simple)
             implementation(libs.ktor.server.cio)
         }
+        all {
+            languageSettings.enableLanguageFeature("BreakContinueInInlineLambdas")
+        }
     }
 }
 
@@ -189,10 +192,10 @@ compose.desktop {
             )
 
             macOS {
-                iconFile.set(project.file("src/desktopMain/resources/icon.icns"))
+                iconFile.set(project.file("src/desktopMain/resources/logochattone.icns"))
             }
             windows {
-                iconFile.set(project.file("src/desktopMain/resources/icon.ico"))
+                iconFile.set(project.file("src/desktopMain/resources/logochattone.ico"))
                 perUserInstall = true
                 menuGroup = "Chatone"
                 shortcut = true

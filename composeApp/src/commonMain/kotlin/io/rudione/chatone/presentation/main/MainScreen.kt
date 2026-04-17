@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -76,6 +78,7 @@ import kotlin.math.hypot
 import io.rudione.chatone.presentation.chat.components.ChattersPanel
 import io.rudione.chatone.presentation.main.components.MentionsFeed
 import io.rudione.chatone.presentation.main.components.MentionToast
+import kotlinx.coroutines.coroutineScope
 
 private data class ItemBounds(val id: String, val rect: Rect)
 
@@ -161,11 +164,38 @@ fun MainScreen(
                             centerX = 1.2f,
                             centerY = 0.5f
                         ) {
-                            ChannelSidebar(
-                                state = state,
-                                onEvent = { viewModel.sendEvent(it) },
-                                isWideScreen = true
-                            )
+                            androidx.compose.animation.AnimatedContent(
+                                targetState = state.sidebarCollapsed,
+                                transitionSpec = {
+                                    if (targetState) {
+                                        (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(220)) { -it } +
+                                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))).togetherWith(
+                                            androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(220)) { -it } +
+                                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140))
+                                        )
+                                    } else {
+                                        (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(220)) { -it } +
+                                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))).togetherWith(
+                                            androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(220)) { -it } +
+                                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140))
+                                        )
+                                    }
+                                },
+                                label = "sidebar_mode"
+                            ) { isCollapsed ->
+                                if (isCollapsed) {
+                                    CompactSidebar(
+                                        state = state,
+                                        onEvent = { viewModel.sendEvent(it) }
+                                    )
+                                } else {
+                                    ChannelSidebar(
+                                        state = state,
+                                        onEvent = { viewModel.sendEvent(it) },
+                                        isWideScreen = true
+                                    )
+                                }
+                            }
                         }
                         if (wallpaper.isActive) {
                             WallpaperGlowEdge(
@@ -560,6 +590,8 @@ private fun MiniRail(
 ) {
     val extra = ChatoneTheme.extraColors
     val uriHandler = LocalUriHandler.current
+    val coroutineScope = rememberCoroutineScope()
+    val railScrollState = rememberLazyListState()
 
     LiquidGlassSurface(
         modifier = modifier.padding(8.dp).shadow(
@@ -589,9 +621,27 @@ private fun MiniRail(
                 )
             }
             LazyRow(
+                state = railScrollState,
                 contentPadding = PaddingValues(horizontal = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (event.type == PointerEventType.Scroll) {
+                                    val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                                    if (delta != 0f) {
+                                        coroutineScope.launch {
+                                            railScrollState.scrollBy(delta * 5f)
+                                        }
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                }
+                            }
+                        }
+                    }
             ) {
                 items(
                     state.openChannels,
@@ -778,6 +828,321 @@ private fun MiniRail(
     }
 }
 
+@Composable
+private fun CompactSidebar(
+    state: MainState,
+    onEvent: (MainEvent) -> Unit
+) {
+    val extra = ChatoneTheme.extraColors
+    val expandedFolders = remember { mutableStateListOf<String>() }
+
+    Column(
+        modifier = Modifier
+            .width(60.dp)
+            .fillMaxHeight()
+            .shadow(
+                12.dp,
+                RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
+                ambientColor = extra.shadowColor,
+                spotColor = extra.elevatedShadow
+            )
+            .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
+            .background(extra.sidebarSurface)
+            .border(1.dp, extra.glassBorder, RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(8.dp))
+        IconButton(
+            onClick = { onEvent(MainEvent.ToggleSidebarCollapsed) },
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Expand sidebar",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        )
+
+        val folderedLogins = state.folders.flatMap { it.channels }.map { it.login }.toSet()
+        val filteredUnfoldered = state.unfolderedChannels.filter { it.login !in folderedLogins }
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            contentPadding = PaddingValues(vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            itemsIndexed(state.folders, key = { _, f -> "cf_${f.id}" }) { _, folder ->
+                val isExpanded = folder.id in expandedFolders
+                val folderColor = try {
+                    val c = folder.color.removePrefix("#").toLong(16)
+                    Color(red = ((c shr 16) and 0xFF) / 255f, green = ((c shr 8) and 0xFF) / 255f, blue = (c and 0xFF) / 255f)
+                } catch (_: Exception) { ChatoneColors.Violet400 }
+
+                val hasFolderActive = folder.channels.any { it.login == state.activeChannelLogin }
+                Box(
+                    modifier = Modifier.size(40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (hasFolderActive) folderColor.copy(alpha = 0.2f)
+                                else if (isExpanded) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                else Color.Transparent
+                            )
+                            .then(
+                                if (hasFolderActive) Modifier.border(2.dp, folderColor, RoundedCornerShape(10.dp))
+                                else Modifier
+                            )
+                            .clickable {
+                                if (isExpanded) expandedFolders.remove(folder.id)
+                                else expandedFolders.add(folder.id)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painterResource(Res.drawable.folder_outline),
+                            contentDescription = folder.name,
+                            modifier = Modifier.size(20.dp),
+                            tint = folderColor
+                        )
+                    }
+                    if (folder.channels.count { it.isLive } > 0) {
+                        Box(
+                            modifier = Modifier.align(Alignment.TopEnd)
+                                .offset(x = 2.dp, y = (-2).dp)
+                                .size(10.dp).clip(CircleShape)
+                                .background(ChatoneTheme.extraColors.live)
+                                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                        )
+                    }
+                }
+
+                if (isExpanded) {
+                    folder.channels.forEach { channel ->
+                        val isActive = channel.login == state.activeChannelLogin
+                        CompactChannelAvatar(
+                            channel = channel,
+                            isActive = isActive,
+                            onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
+                            indented = true
+                        )
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                    )
+                    Spacer(Modifier.height(2.dp))
+                }
+            }
+
+            items(filteredUnfoldered, key = { "cu_${it.login}" }) { channel ->
+                val isActive = channel.login == state.activeChannelLogin
+                CompactChannelAvatar(
+                    channel = channel,
+                    isActive = isActive,
+                    onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
+                    indented = false
+                )
+            }
+
+            item { Spacer(Modifier.height(8.dp)) }
+        }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        )
+
+        Spacer(Modifier.height(4.dp))
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            IconButton(
+                onClick = { onEvent(MainEvent.ToggleMentionsFeed) },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.Filled.Notifications,
+                    contentDescription = "Mentions",
+                    tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            if (state.unreadMentionsCount > 0) {
+                Box(
+                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
+                        .size(14.dp).clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error)
+                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                        color = Color.White
+                    )
+                }
+            }
+        }
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            IconButton(
+                onClick = { onEvent(MainEvent.ToggleWhisperPanel) },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.Filled.MailOutline,
+                    contentDescription = "Whispers",
+                    tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            if (state.totalUnreadWhispers > 0) {
+                Box(
+                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
+                        .size(14.dp).clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error)
+                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                        color = Color.White
+                    )
+                }
+            }
+        }
+        IconButton(
+            onClick = { onEvent(MainEvent.ShowSettings) },
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                Icons.Outlined.Settings,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun CompactChannelAvatar(
+    channel: ChannelTab,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    indented: Boolean = false
+) {
+    var showTooltip by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(start = if (indented) 8.dp else 0.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        else Color.Transparent
+                    )
+                    .then(
+                        if (isActive) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                        else Modifier
+                    )
+                    .clickable { onClick() }
+                    .pointerInput(channel.login) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                when (event.type) {
+                                    PointerEventType.Enter -> showTooltip = true
+                                    PointerEventType.Exit -> showTooltip = false
+                                }
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (channel.profileImageUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = channel.profileImageUrl,
+                        contentDescription = channel.displayName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(30.dp).clip(CircleShape)
+                    )
+                } else {
+                    Text(
+                        text = channel.displayName.take(2).uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isActive) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (channel.isLive) {
+                Box(
+                    modifier = Modifier.align(Alignment.TopEnd)
+                        .offset(x = 2.dp, y = (-2).dp)
+                        .size(10.dp).clip(CircleShape)
+                        .background(ChatoneTheme.extraColors.live)
+                        .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                )
+            }
+            if (channel.unreadCount > 0) {
+                Box(
+                    modifier = Modifier.align(Alignment.BottomEnd)
+                        .offset(x = 2.dp, y = 2.dp)
+                        .size(14.dp).clip(CircleShape)
+                        .background(Color.Red)
+                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (channel.unreadCount > 9) "9+" else "${channel.unreadCount}",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                        color = Color.White
+                    )
+                }
+            }
+        }
+        if (showTooltip) {
+            Popup(
+                alignment = Alignment.CenterEnd,
+                offset = IntOffset(28, 0),
+                properties = androidx.compose.ui.window.PopupProperties(focusable = false)
+            ) {
+                Box(
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = channel.displayName.ifBlank { channel.login.replaceFirstChar { it.uppercaseChar() } },
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun ChannelSidebar(
@@ -829,7 +1194,19 @@ private fun ChannelSidebar(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
-            if (!isWideScreen) {
+            if (isWideScreen) {
+                IconButton(
+                    onClick = { onEvent(MainEvent.ToggleSidebarCollapsed) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Collapse sidebar",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            } else {
                 IconButton(
                     onClick = { onEvent(MainEvent.CloseSidebar) },
                     modifier = Modifier.size(32.dp)

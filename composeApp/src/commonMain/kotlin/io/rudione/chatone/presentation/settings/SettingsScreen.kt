@@ -358,7 +358,7 @@ private fun SettingsFullScreen(
 
                 Spacer(Modifier.height(32.dp))
             }
-           
+
             SettingsThinScrollbarScroll(
                 scrollState = scrollState,
                 modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(10.dp)
@@ -518,7 +518,6 @@ private fun LazyListScope.appearanceLazyItems(
                 }
             ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
             UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
-            UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
             RowDivider()
             ListRow(
                 "Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
@@ -577,10 +576,6 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
                         )
                     )
                 }
-            }
-            RowDivider()
-            SwitchRow("Show Chat Header", "Show channel name bar at top of chat", state.showChatHeader) {
-                vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
             }
             RowDivider()
             SwitchRow("Show Chat Header", "Show channel name bar at top of chat", state.showChatHeader) {
@@ -839,6 +834,10 @@ private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
             }
         }
         RowDivider()
+        SwitchRow("Show Chat Header", "Show channel name bar at top of chat", state.showChatHeader) {
+            vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
+        }
+        RowDivider()
         SwitchRow("Show Badges", "Display user badges in chat", state.showBadges) {
             vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
         }
@@ -849,6 +848,14 @@ private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
             state.showDeletedMessages
         ) {
             vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
+        }
+        RowDivider()
+        SwitchRow(
+            "Smooth Chat",
+            "Add a small delay between bursts of messages from different users",
+            state.smoothChatEnabled
+        ) {
+            vm.sendEvent(SettingsEvent.OnSmoothChatEnabledChanged(it))
         }
     }
     SettingsGroup("Auto-scroll") {

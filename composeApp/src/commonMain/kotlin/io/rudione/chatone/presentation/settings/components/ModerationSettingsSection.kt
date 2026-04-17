@@ -103,11 +103,43 @@ private fun ModActionButtonsSection(
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
                 "Configure quick-action buttons shown left of the username when Mod Mode (★) is active. " +
-                        "Delete and Ban are always present. Add custom timeout durations between them.",
+                        "Toggle default buttons and add custom timeout durations.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            Text("Default buttons:", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(
+                    Triple("🗑️", "Delete", state.showDefaultDeleteButton) to
+                            { v: Boolean -> onEvent(SettingsEvent.OnShowDefaultDeleteChanged(v)) },
+                    Triple("⏱", "Timeout 10m", state.showDefaultTimeoutButton) to
+                            { v: Boolean -> onEvent(SettingsEvent.OnShowDefaultTimeoutChanged(v)) },
+                    Triple("🔨", "Ban", state.showDefaultBanButton) to
+                            { v: Boolean -> onEvent(SettingsEvent.OnShowDefaultBanChanged(v)) }
+                ).forEachIndexed { idx, (info, handler) ->
+                    val (icon, label, checked) = info
+                    if (idx > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(icon, style = MaterialTheme.typography.bodyMedium)
+                            Text(label, style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium)
+                        }
+                        Switch(checked = checked, onCheckedChange = handler)
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
             Text("Preview:", style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -116,8 +148,7 @@ private fun ModActionButtonsSection(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
-                item {
+                if (state.showDefaultDeleteButton) item {
                     ModButtonPreviewChip(
                         icon = "🗑️", label = "Del",
                         color = ChatoneTheme.extraColors.modDelete, isFixed = true
@@ -132,14 +163,14 @@ private fun ModActionButtonsSection(
                     )
                 }
 
-                item {
+                if (state.showDefaultTimeoutButton) item {
                     ModButtonPreviewChip(
                         icon = "⏱", label = "10m",
                         color = ChatoneTheme.extraColors.modTimeout, isFixed = true
                     )
                 }
 
-                item {
+                if (state.showDefaultBanButton) item {
                     ModButtonPreviewChip(
                         icon = "🔨", label = "Ban",
                         color = ChatoneTheme.extraColors.modBan, isFixed = true
@@ -577,7 +608,7 @@ fun MacroEditorDialog(
                 .fillMaxHeight(0.88f)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-               
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -592,7 +623,7 @@ fun MacroEditorDialog(
                     IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, null) }
                 }
 
-               
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -616,7 +647,7 @@ fun MacroEditorDialog(
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider()
 
-               
+
                 LazyColumn(
                     modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -686,7 +717,7 @@ fun MacroEditorDialog(
         }
     }
 
-   
+
     if (showAddStep) {
         AddMacroStepDialog(
             initialStep = null,
@@ -698,7 +729,7 @@ fun MacroEditorDialog(
         )
     }
 
-   
+
     editingStepIndex?.let { idx ->
         val stepToEdit = steps.getOrNull(idx)
         if (stepToEdit != null) {
@@ -735,7 +766,7 @@ private fun MacroStepRow(
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-       
+
         Box(
             modifier = Modifier.size(28.dp).clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
@@ -750,7 +781,7 @@ private fun MacroStepRow(
         Text(description, style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f), maxLines = 2)
         Row {
-           
+
             IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
@@ -786,11 +817,11 @@ private fun stepDescription(step: MacroStep): Pair<String, String> = when (step)
 
 @Composable
 private fun AddMacroStepDialog(
-    initialStep: MacroStep?,     
+    initialStep: MacroStep?,
     onAdd: (MacroStep) -> Unit,
     onDismiss: () -> Unit
 ) {
-   
+
     fun typeOf(s: MacroStep?) = when (s) {
         is MacroStep.SendMessage -> "send"
         is MacroStep.InsertText -> "insert"
@@ -843,7 +874,7 @@ private fun AddMacroStepDialog(
             }
         )
     }
-   
+
     var repeatCount by remember { mutableStateOf("1") }
 
     val isEditMode = initialStep != null
@@ -870,7 +901,7 @@ private fun AddMacroStepDialog(
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
 
-               
+
                 Column(
                     modifier = Modifier
                         .width(200.dp)
@@ -919,10 +950,10 @@ private fun AddMacroStepDialog(
                     }
                 }
 
-               
+
                 VerticalDivider()
 
-               
+
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -930,7 +961,7 @@ private fun AddMacroStepDialog(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                   
+
                     Column(
                         modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1011,7 +1042,7 @@ private fun AddMacroStepDialog(
                             )
                         }
 
-                       
+
                         if (selected in listOf("send", "insert", "delay")) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                             Row(
@@ -1036,7 +1067,7 @@ private fun AddMacroStepDialog(
                         }
                     }
 
-                   
+
                     val canConfirm = when (selected) {
                         "send" -> messageText.isNotBlank()
                         "insert" -> messageText.isNotBlank()
@@ -1061,12 +1092,8 @@ private fun AddMacroStepDialog(
                                     slowSeconds, followerMinutes, raidTarget, pinMessage, delaySeconds
                                 )
                                 if (baseStep != null) {
-                                   
-                                    if (count > 1 && baseStep is MacroStep.SendMessage) {
-                                        repeat(count) { onAdd(baseStep) }
-                                    } else {
-                                        onAdd(baseStep)
-                                    }
+                                    val times = count.coerceAtLeast(1)
+                                    repeat(times) { onAdd(baseStep) }
                                 }
                             },
                             enabled = canConfirm && selected != null,

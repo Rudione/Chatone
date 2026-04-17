@@ -122,6 +122,11 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
@@ -172,7 +177,6 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.roundToInt
-import kotlin.with
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -199,6 +203,7 @@ fun ChatScreen(
     var showModPanel by remember { mutableStateOf(false) }
     var profilePopupUserId by remember { mutableStateOf<String?>(null) }
     var profilePopupMessage by remember { mutableStateOf<DisplayMessage.PrivMsg?>(null) }
+    var detachedProfileMessage by remember { mutableStateOf<DisplayMessage.PrivMsg?>(null) }
     var pendingModAction by remember { mutableStateOf<PendingModAction?>(null) }
     var isPausedByHotkey by remember { mutableStateOf(false) }
     var isHoveredOverChat by remember { mutableStateOf(false) }
@@ -554,6 +559,9 @@ fun ChatScreen(
                                             currentUserId = state.currentUserId,
                                             emoteSize = settingsState.emoteSize,
                                             customModButtons = settingsState.customModButtons,
+                                            showDefaultDeleteButton = settingsState.showDefaultDeleteButton,
+                                            showDefaultTimeoutButton = settingsState.showDefaultTimeoutButton,
+                                            showDefaultBanButton = settingsState.showDefaultBanButton,
                                             chatFontSizeSp = when (settingsState.fontSize) {
                                                 io.rudione.chatone.presentation.settings.SettingsState.FontSize.SMALL -> 12f
                                                 SettingsState.FontSize.MEDIUM -> 15f
@@ -923,12 +931,7 @@ fun ChatScreen(
                     ignoreCase = true
                 ),
                 onTimeout = { seconds ->
-                    viewModel.sendEvent(
-                        ChatEvent.OnTimeoutUser(
-                            msg.userId,
-                            seconds
-                        )
-                    )
+                    viewModel.sendEvent(ChatEvent.OnTimeoutUser(msg.userId, seconds))
                 },
                 onBan = { viewModel.sendEvent(ChatEvent.OnBanUser(msg.userId)) },
                 onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(msg.userId)) },
@@ -937,14 +940,51 @@ fun ChatScreen(
                 onVip = { viewModel.sendEvent(ChatEvent.OnVipUser(msg.userId)) },
                 onUnvip = { viewModel.sendEvent(ChatEvent.OnUnvipUser(msg.userId)) },
                 onWhisper = {
-
                     onOpenWhisper(msg.userId, msg.username, msg.displayName, "", msg.color)
+                    profilePopupMessage = null
+                    profilePopupUserId = null
+                },
+                onDetach = {
+                    detachedProfileMessage = msg
                     profilePopupMessage = null
                     profilePopupUserId = null
                 },
                 onDismiss = { profilePopupMessage = null; profilePopupUserId = null }
             )
         }
+    }
+
+    detachedProfileMessage?.let { msg ->
+        DetachedProfileWindow(
+            msg = msg,
+            channelMessages = state.messages,
+            accessToken = state.currentAccessToken,
+            channelId = state.channelId,
+            showModActions = state.modModeEnabled || state.canModerate,
+            currentUserIsBroadcaster = state.currentUserLogin.equals(
+                channelLogin,
+                ignoreCase = true
+            ),
+            onTimeout = { seconds ->
+                viewModel.sendEvent(
+                    ChatEvent.OnTimeoutUser(
+                        msg.userId,
+                        seconds
+                    )
+                )
+            },
+            onBan = { viewModel.sendEvent(ChatEvent.OnBanUser(msg.userId)) },
+            onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(msg.userId)) },
+            onMod = { viewModel.sendEvent(ChatEvent.OnModUser(msg.userId)) },
+            onUnmod = { viewModel.sendEvent(ChatEvent.OnUnmodUser(msg.userId)) },
+            onVip = { viewModel.sendEvent(ChatEvent.OnVipUser(msg.userId)) },
+            onUnvip = { viewModel.sendEvent(ChatEvent.OnUnvipUser(msg.userId)) },
+            onWhisper = {
+                onOpenWhisper(msg.userId, msg.username, msg.displayName, "", msg.color)
+                detachedProfileMessage = null
+            },
+            onClose = { detachedProfileMessage = null }
+        )
     }
 
     pendingModAction?.let { action ->
@@ -1018,7 +1058,7 @@ private fun ChatTopBar(
     onToggleModMode: () -> Unit,
     onOpenModPanel: () -> Unit = {},
     onExecuteMacro: (io.rudione.chatone.domain.model.Macro) -> Unit = {},
-    isCompact: Boolean = false
+    isCompact: Boolean = false,
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
         Column {
@@ -1163,6 +1203,9 @@ private fun PrivMsgItem(
     currentUserId: String = "",
     emoteSize: SettingsState.EmoteSize = SettingsState.EmoteSize.SMALL,
     customModButtons: List<ModActionButton> = emptyList(),
+    showDefaultDeleteButton: Boolean = true,
+    showDefaultTimeoutButton: Boolean = true,
+    showDefaultBanButton: Boolean = true,
     chatFontSizeSp: Float = 13f,
     onUsernameClick: () -> Unit = {},
     onRightClickUsername: (String) -> Unit = {},
@@ -1250,29 +1293,28 @@ private fun PrivMsgItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                    ModActionIconBtn(
+                    if (showDefaultDeleteButton) ModActionIconBtn(
                         icon = Icons.Outlined.Delete, label = "Del",
                         tint = extraColors.modDelete, onClick = onDelete
                     )
-
 
                     customModButtons.filter { it.enabled }.take(8).forEach { btn ->
                         ModActionIconBtn(
                             icon = Icons.Outlined.Refresh,
                             label = btn.displayLabel,
                             tint = extraColors.modTimeout,
-                            onClick = { onCustomTimeout(btn.durationSeconds) }
+                            onClick = { onCustomTimeout(btn.durationSeconds) },
+                            visible = false
                         )
                     }
 
-
-                    ModActionIconBtn(
+                    if (showDefaultTimeoutButton) ModActionIconBtn(
                         icon = Icons.Outlined.Refresh, label = "10m",
-                        tint = extraColors.modTimeout, onClick = onTimeout
+                        tint = extraColors.modTimeout, onClick = onTimeout,
+                        visible = false
                     )
 
-
-                    ModActionIconBtn(
+                    if (showDefaultBanButton) ModActionIconBtn(
                         icon = Icons.Filled.Close, label = "Ban",
                         tint = extraColors.modBan, onClick = onBan
                     )
@@ -1516,96 +1558,152 @@ private fun PrivMsgItem(
             }
 
 
+            var hoveredUrl by remember { mutableStateOf<String?>(null) }
+            var hoverOffset by remember { mutableStateOf(IntOffset.Zero) }
+
             Box(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = annotatedString,
-                    inlineContent = inlineContent,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = when (chatFontSizeSp) {
-                            in 0f..11f -> 11.sp
-                            in 11f..16f -> chatFontSizeSp.sp
-                            else -> 16.sp
-                        }
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.fillMaxWidth()
-                        .pointerInput(annotatedString) {
-                            detectTapGestures(
-                                onTap = { offset ->
-                                    textLayoutResult?.let { layoutResult ->
-                                        val charOffset = layoutResult.getOffsetForPosition(offset)
-
-                                        annotatedString.getStringAnnotations(
-                                            "url",
-                                            charOffset,
-                                            charOffset
-                                        )
-                                            .firstOrNull()?.let { annotation ->
-                                                try {
-                                                    uriHandler.openUri(annotation.item)
-                                                } catch (_: Exception) {
+                SelectionContainer {
+                    Text(
+                        text = annotatedString,
+                        inlineContent = inlineContent,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = when (chatFontSizeSp) {
+                                in 0f..11f -> 11.sp
+                                in 11f..16f -> chatFontSizeSp.sp
+                                else -> 16.sp
+                            }
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth()
+                            .pointerInput(annotatedString) {
+                                detectTapGestures(
+                                    onTap = { offset ->
+                                        textLayoutResult?.let { layoutResult ->
+                                            val charOffset =
+                                                layoutResult.getOffsetForPosition(offset)
+                                            annotatedString.getStringAnnotations(
+                                                "url",
+                                                charOffset,
+                                                charOffset
+                                            )
+                                                .firstOrNull()?.let { annotation ->
+                                                    try {
+                                                        uriHandler.openUri(annotation.item)
+                                                    } catch (_: Exception) {
+                                                    }
+                                                    return@detectTapGestures
                                                 }
-                                                return@detectTapGestures
-                                            }
-
-                                        annotatedString.getStringAnnotations(
-                                            "username",
-                                            charOffset,
-                                            charOffset
-                                        )
-                                            .firstOrNull()?.let {
-                                                onUsernameClick(); return@detectTapGestures
-                                            }
-
-                                        annotatedString.getStringAnnotations(
-                                            "mention",
-                                            charOffset,
-                                            charOffset
-                                        )
-                                            .firstOrNull()?.let { annotation ->
-                                                onMentionClick(annotation.item)
-                                                return@detectTapGestures
-                                            }
+                                            annotatedString.getStringAnnotations(
+                                                "username",
+                                                charOffset,
+                                                charOffset
+                                            )
+                                                .firstOrNull()?.let {
+                                                    onUsernameClick(); return@detectTapGestures
+                                                }
+                                            annotatedString.getStringAnnotations(
+                                                "mention",
+                                                charOffset,
+                                                charOffset
+                                            )
+                                                .firstOrNull()?.let { annotation ->
+                                                    onMentionClick(annotation.item)
+                                                    return@detectTapGestures
+                                                }
+                                        }
+                                    },
+                                    onLongPress = { offset ->
+                                        contextMenuOffset =
+                                            IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
+                                        showContextMenu = true
                                     }
-                                },
-                                onLongPress = { offset ->
-                                    contextMenuOffset =
-                                        IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
-                                    showContextMenu = true
-                                }
-                            )
-                        }
-                        .pointerInput(message.displayName) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Press &&
-                                        event.buttons.isSecondaryPressed
-                                    ) {
+                                )
+                            }
+                            .pointerInput(message.id) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
 
-                                        val pos = event.changes.firstOrNull()?.position ?: continue
-                                        val layoutResult = textLayoutResult ?: continue
-                                        val charOffset = layoutResult.getOffsetForPosition(pos)
-                                        val onUsername = annotatedString.getStringAnnotations(
-                                            "username",
-                                            charOffset,
-                                            charOffset
-                                        ).isNotEmpty()
-                                        if (onUsername) {
+                                        when (event.type) {
+                                            PointerEventType.Press -> {
+                                                if (event.buttons.isSecondaryPressed) {
+                                                    val pos = event.changes.firstOrNull()?.position ?: continue
+                                                    val layoutResult = textLayoutResult ?: run {
+                                                        contextMenuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                                                        showContextMenu = true
+                                                        event.changes.forEach { it.consume() }
+                                                        continue
+                                                    }
+                                                    val charOffset = layoutResult.getOffsetForPosition(pos)
+                                                    val onUsername = annotatedString.getStringAnnotations("username", charOffset, charOffset).isNotEmpty()
 
-                                            onRightClickUsername(message.displayName)
-                                        } else {
-
-                                            contextMenuOffset =
-                                                IntOffset(pos.x.toInt(), pos.y.toInt())
-                                            showContextMenu = true
+                                                    if (onUsername) {
+                                                        onRightClickUsername(message.displayName)
+                                                    } else {
+                                                        contextMenuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                                                        showContextMenu = true
+                                                    }
+                                                    event.changes.forEach { it.consume() }
+                                                }
+                                            }
+                                            PointerEventType.Move, PointerEventType.Enter -> {
+                                                val pos = event.changes.firstOrNull()?.position
+                                                if (pos != null) {
+                                                    val layoutResult = textLayoutResult
+                                                    if (layoutResult != null) {
+                                                        val charOffset = layoutResult.getOffsetForPosition(pos)
+                                                        val urlAnnotation = annotatedString.getStringAnnotations("url", charOffset, charOffset).firstOrNull()
+                                                        hoveredUrl = if (urlAnnotation != null) urlAnnotation.item else null
+                                                        hoverOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
+                                                    }
+                                                }
+                                            }
+                                            PointerEventType.Exit -> {
+                                                hoveredUrl = null
+                                            }
                                         }
                                     }
                                 }
+                            },
+                        onTextLayout = { textLayoutResult = it }
+                    )
+                }
+
+                hoveredUrl?.let { url ->
+                    val displayUrl = if (url.length > 60) url.take(57) + "…" else url
+                    Popup(
+                        alignment = Alignment.TopStart,
+                        offset = hoverOffset + IntOffset(0, 22),
+                        properties = PopupProperties(focusable = false)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.inverseSurface,
+                            tonalElevation = 4.dp,
+                            shadowElevation = 6.dp,
+                            modifier = Modifier.widthIn(max = 360.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Star,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = displayUrl,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                                    maxLines = 1
+                                )
                             }
-                        },
-                    onTextLayout = { textLayoutResult = it }
-                )
+                        }
+                    }
+                }
             }
 
             if (showContextMenu) {
@@ -1723,6 +1821,7 @@ private fun ModActionIconBtn(
     label: String,
     tint: Color,
     onClick: () -> Unit,
+    visible: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -1730,7 +1829,6 @@ private fun ModActionIconBtn(
             .clickable(onClick = onClick)
             .clip(RoundedCornerShape(4.dp))
             .background(tint.copy(alpha = 0.08f))
-
             .widthIn(min = 0.dp)
             .heightIn(min = 0.dp)
             .wrapContentWidth()
@@ -1738,24 +1836,24 @@ private fun ModActionIconBtn(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp)
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.dp),
         ) {
 
             Icon(
                 icon,
                 contentDescription = label,
                 modifier = Modifier
-                    .size(12.dp)
+                    .size(8.dp)
                     .wrapContentSize(),
                 tint = tint
             )
 
+
             Text(
                 label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 6.sp,
-                    lineHeight = 6.sp
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = 9.sp,
+                    lineHeight = 9.sp
                 ),
                 color = tint,
                 modifier = Modifier.wrapContentHeight()
@@ -2572,10 +2670,6 @@ private fun computeEmoteDisplaySize(
     )).sp to baseHeightSp
 }
 
-/**
- * Custom scrollbar with coloured tick marks for highlights.
- * FIXED: Thumb now correctly positions at bottom when scrolled to bottom.
- */
 @Composable
 private fun HighlightScrollbar(
     listState: androidx.compose.foundation.lazy.LazyListState,
@@ -2584,41 +2678,28 @@ private fun HighlightScrollbar(
 ) {
     val coroutineScope = rememberCoroutineScope()
 
-
     val thumbFraction by remember {
         derivedStateOf {
             val info = listState.layoutInfo
             val total = info.totalItemsCount
             if (total == 0) return@derivedStateOf 0f to 0.1f
-
             val viewportHeight = info.viewportSize.height.toFloat()
-
-
             val visibleItems = info.visibleItemsInfo
             val avgHeight = if (visibleItems.isNotEmpty()) {
                 visibleItems.map { it.size }.average().toFloat()
             } else {
                 50f
             }
-
-
             val totalContentHeight = avgHeight * total
-
-
             val firstVisible = visibleItems.firstOrNull() ?: return@derivedStateOf 0f to 0.1f
             val scrollOffset = firstVisible.index * avgHeight + firstVisible.offset.toFloat()
-
-
             val thumbSize = (viewportHeight / totalContentHeight).coerceIn(0.05f, 1f)
-
-
             val maxScroll = (totalContentHeight - viewportHeight).coerceAtLeast(0f)
             val thumbOffset = if (maxScroll > 0f) {
                 (scrollOffset / maxScroll * (1f - thumbSize)).coerceIn(0f, 1f - thumbSize)
             } else {
                 0f
             }
-
             thumbOffset to thumbSize
         }
     }
@@ -2628,11 +2709,8 @@ private fun HighlightScrollbar(
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
                     val fraction = offset.y / size.height
-                    val target =
-                        (fraction * (messages.size - 1)).toInt().coerceIn(0, messages.lastIndex)
-                    coroutineScope.launch {
-                        listState.scrollToItem(target)
-                    }
+                    val target = (fraction * (messages.size - 1)).toInt().coerceIn(0, messages.lastIndex)
+                    coroutineScope.launch { listState.scrollToItem(target) }
                 }
             }
             .pointerInput(Unit) {
@@ -2640,73 +2718,60 @@ private fun HighlightScrollbar(
                     onDragStart = { },
                     onDrag = { change, dragAmount ->
                         change.consume()
-
-
                         val dragDelta = dragAmount.y
-
                         val layoutInfo = listState.layoutInfo
                         val viewportHeight = layoutInfo.viewportSize.height.toFloat()
-
-
                         val avgHeight = if (layoutInfo.visibleItemsInfo.isNotEmpty()) {
                             layoutInfo.visibleItemsInfo.map { it.size }.average().toFloat()
-                        } else {
-                            50f
-                        }
+                        } else { 50f }
                         val totalContentHeight = avgHeight * layoutInfo.totalItemsCount
                         val scrollRange = (totalContentHeight - viewportHeight).coerceAtLeast(0f)
-
                         val scrollDelta = if (viewportHeight > 0f && scrollRange > 0f) {
                             dragDelta * (scrollRange / viewportHeight)
                         } else 0f
-
-                        coroutineScope.launch {
-                            listState.scrollBy(scrollDelta)
-                        }
+                        coroutineScope.launch { listState.scrollBy(scrollDelta) }
                     },
                     onDragEnd = { },
                     onDragCancel = { }
                 )
             }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.type == PointerEventType.Scroll) {
+                            val scrollAmount = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                            if (scrollAmount != 0f) {
+                                coroutineScope.launch { listState.scrollBy(scrollAmount) }
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    }
+                }
+            }
     ) {
         val trackColor = Color.White.copy(alpha = 0.06f)
         val thumbColor = Color.White.copy(alpha = 0.35f)
-
-
         drawRect(color = trackColor)
-
-
         val (thumbOffset, thumbSize) = thumbFraction
         val thumbTop = thumbOffset * size.height
         val thumbHeightPx = (thumbSize * size.height).coerceAtLeast(24.dp.toPx())
-
         drawRoundRect(
             color = thumbColor,
             topLeft = androidx.compose.ui.geometry.Offset(1.dp.toPx(), thumbTop),
             size = androidx.compose.ui.geometry.Size(size.width - 2.dp.toPx(), thumbHeightPx),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())
         )
-
-
         val total = messages.size.takeIf { it > 0 } ?: return@Canvas
-
         messages.forEachIndexed { index, msg ->
             if (msg !is DisplayMessage.PrivMsg) return@forEachIndexed
-
             val tickColor = when {
-                msg.isMention -> if (msg.highlightColor != null) {
-                    Color(msg.highlightColor)
-                } else {
-                    Color(0xFFFF6B6B)
-                }
-
+                msg.isMention -> if (msg.highlightColor != null) Color(msg.highlightColor) else Color(0xFFFF6B6B)
                 msg.isHighlighted -> Color(0xFFFFD700)
                 msg.isFirstMessage -> FirstMessageColor.copy(alpha = 0.8f)
                 else -> return@forEachIndexed
             }
-
             val y = (index.toFloat() / total) * size.height
-
             drawRect(
                 color = tickColor.copy(alpha = 0.85f),
                 topLeft = androidx.compose.ui.geometry.Offset(0f, y - 1.dp.toPx()),
@@ -2735,14 +2800,16 @@ private fun rememberStaggeredMessages(
         val newOnes = source.filter { it.id !in visibleIds }
 
         val isBulk = visible.isEmpty() || newOnes.size > 3 ||
-            newOnes.size > source.size / 2
+                newOnes.size > source.size / 2
         if (newOnes.isEmpty() || isBulk) {
             visible = source
             return@LaunchedEffect
         }
 
         val tailStart = source.size - newOnes.size
-        if (tailStart < 0 || source.subList(tailStart, source.size).map { it.id } != newOnes.map { it.id }) {
+        if (tailStart < 0 || source.subList(tailStart, source.size)
+                .map { it.id } != newOnes.map { it.id }
+        ) {
             visible = source
             return@LaunchedEffect
         }
@@ -2772,14 +2839,16 @@ private fun RaidBanner(
 ) {
     val totalSeconds = 90
     var remaining by remember(startedAtMs) {
-        val elapsed = ((kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - startedAtMs) / 1000L).toInt()
+        val elapsed = ((kotlinx.datetime.Clock.System.now()
+            .toEpochMilliseconds() - startedAtMs) / 1000L).toInt()
         mutableStateOf<Int>((totalSeconds - elapsed).coerceIn(0, totalSeconds))
     }
 
     LaunchedEffect(startedAtMs) {
         while (remaining > 0) {
             delay(1000)
-            val elapsed = ((kotlinx.datetime.Clock.System.now().toEpochMilliseconds() - startedAtMs) / 1000L).toInt()
+            val elapsed = ((kotlinx.datetime.Clock.System.now()
+                .toEpochMilliseconds() - startedAtMs) / 1000L).toInt()
             remaining = (totalSeconds - elapsed).coerceIn(0, totalSeconds)
         }
     }
@@ -2833,3 +2902,22 @@ private fun RaidBanner(
         }
     }
 }
+
+@Composable
+expect fun DetachedProfileWindow(
+    msg: DisplayMessage.PrivMsg,
+    channelMessages: List<DisplayMessage>,
+    accessToken: String,
+    channelId: String,
+    showModActions: Boolean,
+    currentUserIsBroadcaster: Boolean,
+    onTimeout: (Int) -> Unit,
+    onBan: () -> Unit,
+    onUnban: () -> Unit,
+    onMod: () -> Unit,
+    onUnmod: () -> Unit,
+    onVip: () -> Unit,
+    onUnvip: () -> Unit,
+    onWhisper: () -> Unit,
+    onClose: () -> Unit
+)
