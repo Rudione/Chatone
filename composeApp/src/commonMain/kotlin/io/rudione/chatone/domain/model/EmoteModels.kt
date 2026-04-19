@@ -49,4 +49,8 @@ data class ChannelEmotes(
                 seen.add("${emote.provider}_${emote.id}")
             }
     }
+
+    val byProvider: Map<EmoteProvider, List<GenericEmote>> by lazy {
+        all.groupBy { it.provider }
+    }
 }

@@ -379,10 +379,10 @@ class ChatViewModel(
         val cachedMessages = channelMessageCache[key] ?: emptyList()
         val cachedRoomState = channelRoomStateCache[key] ?: RoomState()
         val cachedChannelId = channelIdCache[key] ?: ""
-       
-       
+
+
         val cachedIsMod = channelModCache[key] ?: readPersistedMod(key)
-       
+
         val effectiveUserLogin = (if (userLogin.isNotEmpty()) userLogin else oldState.currentUserLogin).lowercase()
         val isBroadcaster = effectiveUserLogin.isNotEmpty() && effectiveUserLogin == key
 
@@ -479,13 +479,13 @@ class ChatViewModel(
         if (userId.isEmpty() || channelId.isEmpty() || channelLogin.isEmpty()) return
         val key = channelLogin.lowercase()
         try {
-           
+
             if (channelId == userId) {
                 update { if (it.channelLogin == channelLogin) it.copy(isBroadcaster = true) else it }
                 retokenizeMessages()
                 return
             }
-           
+
             val modIds = ensureModeratedChannelsFetched()
             if (modIds != null) {
                 val wasMod = state.value.isMod
@@ -498,7 +498,7 @@ class ChatViewModel(
                     retokenizeMessages()
                 }
             }
-           
+
         } catch (e: Exception) {
             Napier.w("Failed to check mod status: ${e.message}", tag = TAG)
         }
@@ -837,9 +837,9 @@ class ChatViewModel(
                         if (event.channel.equals(channelLogin, ignoreCase = true)) {
                             val key = channelLogin.lowercase()
                             val prevIsMod = state.value.isMod
-                           
-                           
-                           
+
+
+
                             val finalIsMod = event.isMod || prevIsMod
                             channelModCache[key] = finalIsMod
                             if (finalIsMod) writePersistedMod(key, true)
@@ -1147,14 +1147,14 @@ class ChatViewModel(
         val s = state.value
         if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
 
-       
+
         val cacheKey = s.channelLogin.lowercase()
         update { st ->
             st.copy(messages = st.messages.map { dm ->
                 if (dm is DisplayMessage.PrivMsg && dm.id == messageId) dm.copy(isDeleted = true) else dm
             })
         }
-       
+
         channelMessageCache[cacheKey] = (channelMessageCache[cacheKey] ?: emptyList()).map { dm ->
             if (dm is DisplayMessage.PrivMsg && dm.id == messageId) dm.copy(isDeleted = true) else dm
         }
@@ -1162,7 +1162,7 @@ class ChatViewModel(
         viewModelScope.launch {
             val result = apiClient.deleteMessage(s.currentAccessToken, s.channelId, s.currentUserId, messageId)
             if (result.isError) {
-               
+
                 update { st ->
                     st.copy(messages = st.messages.map { dm ->
                         if (dm is DisplayMessage.PrivMsg && dm.id == messageId) dm.copy(isDeleted = false) else dm
@@ -1325,33 +1325,37 @@ class ChatViewModel(
             macro.steps.forEach { step ->
                 when (step) {
                     is MacroStep.SendMessage -> {
-                        try {
-                            sendMessageUseCase(s.channelLogin, step.text)
-                           
-                            val now = Clock.System.now().toEpochMilliseconds()
-                            val rawMsg = ChatMessage(
-                                id = "local_macro_$now",
-                                channelId = state.value.channelId,
-                                channelName = state.value.channelLogin,
-                                userId = state.value.currentUserId,
-                                username = state.value.currentUserLogin,
-                                displayName = state.value.currentDisplayName.ifEmpty { state.value.currentUserLogin },
-                                message = step.text,
-                                timestamp = now,
-                                color = state.value.currentUserColor.ifEmpty { "#9146FF" },
-                                isModerator = state.value.isMod
-                            )
-                            val displayMsg = chatMessageToDisplay(rawMsg)
-                            update { st ->
-                                val newMessages = (st.messages + displayMsg).takeLast(maxMessages)
-                                st.copy(messages = newMessages, messagesSeq = st.messagesSeq + 1)
-                            }
-                            sendEffect(ChatEffect.ScrollToBottom)
-                        } catch (_: Exception) {}
+                        val times = step.repeatCount.coerceAtLeast(1)
+                        repeat(times) { iteration ->
+                            try {
+                                sendMessageUseCase(s.channelLogin, step.text)
+                                val now = Clock.System.now().toEpochMilliseconds() + iteration
+                                val rawMsg = ChatMessage(
+                                    id = "local_macro_${now}_$iteration",
+                                    channelId = state.value.channelId,
+                                    channelName = state.value.channelLogin,
+                                    userId = state.value.currentUserId,
+                                    username = state.value.currentUserLogin,
+                                    displayName = state.value.currentDisplayName.ifEmpty { state.value.currentUserLogin },
+                                    message = step.text,
+                                    timestamp = now,
+                                    color = state.value.currentUserColor.ifEmpty { "#9146FF" },
+                                    isModerator = state.value.isMod
+                                )
+                                val displayMsg = chatMessageToDisplay(rawMsg)
+                                update { st ->
+                                    val newMessages = (st.messages + displayMsg).takeLast(maxMessages)
+                                    st.copy(messages = newMessages, messagesSeq = st.messagesSeq + 1)
+                                }
+                                sendEffect(ChatEffect.ScrollToBottom)
+                                if (iteration < times - 1) delay(300L)
+                            } catch (_: Exception) {}
+                        }
                     }
                     is MacroStep.InsertText ->
-                       
                         update { it.copy(messageInput = step.text) }
+                    is MacroStep.Delay ->
+                        repeat(step.repeatCount.coerceAtLeast(1)) { delay(step.seconds * 1000L) }
                     is MacroStep.SubMode ->
                         updateChatSettings(mapOf("subscriber_mode" to step.enable))
                     is MacroStep.EmoteMode ->
@@ -1368,8 +1372,7 @@ class ChatViewModel(
                         startRaid(step.targetLogin)
                     is MacroStep.PinMessage ->
                         try { sendMessageUseCase(s.channelLogin, "/pin ${step.message}") } catch (_: Exception) {}
-                    is MacroStep.Delay ->
-                        delay(step.seconds * 1000L)
+
                     is MacroStep.ClearChat ->
                         clearChat()
                 }

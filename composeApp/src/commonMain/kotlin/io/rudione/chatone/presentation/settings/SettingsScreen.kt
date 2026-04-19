@@ -31,7 +31,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
@@ -44,8 +43,6 @@ import androidx.compose.ui.window.DialogProperties
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chatbubbles
 import chatone.composeapp.generated.resources.chatbubbles_outline
-import chatone.composeapp.generated.resources.chevronright
-import chatone.composeapp.generated.resources.folder_outline
 import chatone.composeapp.generated.resources.bell_filled
 import chatone.composeapp.generated.resources.bell_outlined
 import chatone.composeapp.generated.resources.images
@@ -57,8 +54,6 @@ import chatone.composeapp.generated.resources.musical_notes_outline
 import chatone.composeapp.generated.resources.palette_fill_16
 import chatone.composeapp.generated.resources.palette_stroke_12
 import chatone.composeapp.generated.resources.panel_left_key_16_regular
-import chatone.composeapp.generated.resources.shield_checkmark_outline
-import chatone.composeapp.generated.resources.shield_checkmark_sharp
 import chatone.composeapp.generated.resources.shield_filled
 import chatone.composeapp.generated.resources.shield_outlined
 import chatone.composeapp.generated.resources.star_filled
@@ -69,13 +64,12 @@ import chatone.composeapp.generated.resources.unfold_more
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.settings.components.ModerationSettingsSection
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.NotificationSoundPlayer
 import io.rudione.chatone.util.WallpaperLoader
 import io.rudione.chatone.util.pickAudioFile
 import io.rudione.chatone.util.pickImageFile
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject

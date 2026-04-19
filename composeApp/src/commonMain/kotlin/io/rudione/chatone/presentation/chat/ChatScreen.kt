@@ -887,7 +887,7 @@ fun ChatScreen(
                 .padding(bottom = 56.dp)
         ) {
             EmotePickerSheet(
-                emotes = resolvedEmotes.all,
+                channelEmotes = resolvedEmotes,
                 closeOnMouseLeave = settingsState.closeEmotePickerOnMouseLeave,
                 onEmoteSelected = { emote ->
                     val current = state.messageInput

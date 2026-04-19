@@ -50,6 +50,11 @@ data class SettingsState(
     val wallpaperBlur: Float = 12f,
     val closeEmotePickerOnMouseLeave: Boolean = false,
     val customModButtons: List<ModActionButton> = emptyList(),
+    val allModButtons: List<ModActionButton> = listOf(
+        ModActionButton.DEFAULT_DELETE,
+        ModActionButton.DEFAULT_TIMEOUT,
+        ModActionButton.DEFAULT_BAN
+    ),
     val macros: List<Macro> = emptyList(),
     val showChatHeader: Boolean = true,
     val smoothChatEnabled: Boolean = false,
@@ -105,6 +110,7 @@ sealed class SettingsEvent : UiEvent {
     data class OnAddModButton(val durationSeconds: Int, val label: String) : SettingsEvent()
     data class OnRemoveModButton(val id: String) : SettingsEvent()
     data class OnUpdateModButton(val button: ModActionButton) : SettingsEvent()
+    data class OnReorderAllModButtons(val newOrder: List<ModActionButton>) : SettingsEvent()
     data class OnShowDefaultDeleteChanged(val show: Boolean) : SettingsEvent()
     data class OnShowDefaultTimeoutChanged(val show: Boolean) : SettingsEvent()
     data class OnShowDefaultBanChanged(val show: Boolean) : SettingsEvent()
@@ -153,6 +159,7 @@ class SettingsViewModel(
         private const val KEY_WALLPAPER_BLUR = "wallpaper_blur"
         private const val KEY_EMOTE_PICKER_MOUSE_LEAVE = "emote_picker_mouse_leave"
         private const val KEY_CUSTOM_MOD_BUTTONS = "custom_mod_buttons"
+        private const val KEY_ALL_MOD_BUTTONS = "all_mod_buttons_v2"
         private const val KEY_MACROS = "macros"
         private const val KEY_SHOW_CHAT_HEADER = "show_chat_header"
         private const val KEY_SMOOTH_CHAT = "smooth_chat_enabled"
@@ -176,6 +183,11 @@ class SettingsViewModel(
             } catch (_: Exception) {
                 emptyList()
             }
+            val allModBtns = try {
+                val j = settings.getStringOrNull(KEY_ALL_MOD_BUTTONS)
+                if (j != null) json.decodeFromString<List<ModActionButton>>(j)
+                else null
+            } catch (_: Exception) { null }
             val macros = try {
                 val j = settings.getStringOrNull(KEY_MACROS)
                 if (j != null) json.decodeFromString<List<Macro>>(j) else emptyList()
@@ -241,7 +253,12 @@ class SettingsViewModel(
                 smoothChatEnabled = settings.getBoolean(KEY_SMOOTH_CHAT, false),
                 showDefaultDeleteButton = settings.getBoolean(KEY_SHOW_DEFAULT_DELETE, true),
                 showDefaultTimeoutButton = settings.getBoolean(KEY_SHOW_DEFAULT_TIMEOUT, true),
-                showDefaultBanButton = settings.getBoolean(KEY_SHOW_DEFAULT_BAN, true)
+                showDefaultBanButton = settings.getBoolean(KEY_SHOW_DEFAULT_BAN, true),
+                allModButtons = allModBtns ?: run {
+                    val defaults = ModActionButton.defaultOrderedList()
+                    val combined = (defaults + modButtons).distinctBy { it.id }
+                    combined.mapIndexed { i, b -> b.copy(sortOrder = i) }
+                }
             )
         }
     }
@@ -468,13 +485,19 @@ class SettingsViewModel(
                     durationSeconds = event.durationSeconds,
                     label = event.label
                 )
-                val n = s.customModButtons + btn; saveModButtons(n); s.copy(customModButtons = n)
+                val n = s.customModButtons + btn
+                saveModButtons(n)
+                val newAll = (s.allModButtons + btn).mapIndexed { i, b -> b.copy(sortOrder = i) }
+                saveAllModButtons(newAll)
+                s.copy(customModButtons = n, allModButtons = newAll)
             }
 
             is SettingsEvent.OnRemoveModButton -> update { s ->
-                val n = s.customModButtons.filter { it.id != event.id }; saveModButtons(n); s.copy(
-                customModButtons = n
-            )
+                val n = s.customModButtons.filter { it.id != event.id }
+                saveModButtons(n)
+                val newAll = s.allModButtons.filter { it.id != event.id }.mapIndexed { i, b -> b.copy(sortOrder = i) }
+                saveAllModButtons(newAll)
+                s.copy(customModButtons = n, allModButtons = newAll)
             }
 
             is SettingsEvent.OnUpdateModButton -> update { s ->
@@ -490,6 +513,14 @@ class SettingsViewModel(
                     val item = list.removeAt(event.from); list.add(event.to, item)
                 }
                 saveModButtons(list); s.copy(customModButtons = list)
+            }
+
+            is SettingsEvent.OnReorderAllModButtons -> update { s ->
+                val reordered = event.newOrder.mapIndexed { i, b -> b.copy(sortOrder = i) }
+                saveAllModButtons(reordered)
+                val custom = reordered.filter { !it.isDefault }
+                saveModButtons(custom)
+                s.copy(allModButtons = reordered, customModButtons = custom)
             }
 
             is SettingsEvent.OnShowDefaultDeleteChanged -> {
@@ -548,6 +579,9 @@ class SettingsViewModel(
 
     private fun saveHighlightRules(rules: List<HighlightRule>) =
         settings.putString(KEY_HIGHLIGHT_RULES, json.encodeToString(rules))
+
+    private fun saveAllModButtons(buttons: List<ModActionButton>) =
+        settings.putString(KEY_ALL_MOD_BUTTONS, json.encodeToString(buttons))
 
     private fun saveModButtons(buttons: List<ModActionButton>) =
         settings.putString(KEY_CUSTOM_MOD_BUTTONS, json.encodeToString(buttons))
