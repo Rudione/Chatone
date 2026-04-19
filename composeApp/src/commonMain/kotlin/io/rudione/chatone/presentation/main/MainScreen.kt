@@ -164,7 +164,7 @@ fun MainScreen(
                             centerX = 1.2f,
                             centerY = 0.5f
                         ) {
-                            androidx.compose.animation.AnimatedContent(
+                            AnimatedContent(
                                 targetState = state.sidebarCollapsed,
                                 transitionSpec = {
                                     if (targetState) {
@@ -857,7 +857,7 @@ private fun CompactSidebar(
             modifier = Modifier.size(40.dp)
         ) {
             Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                Icons.Filled.KeyboardArrowLeft,
                 contentDescription = "Expand sidebar",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp)
@@ -2275,9 +2275,9 @@ private fun ChannelTabBar(
                             .offset {
                                 IntOffset(
                                     tabCenters.getOrNull(idx)?.second?.x?.toInt()
-                                        ?: 0 + dragOffset.x.toInt(),
+                                        ?: (0 + dragOffset.x.toInt()),
                                     tabCenters.getOrNull(idx)?.second?.y?.toInt()
-                                        ?: 0 + dragOffset.y.toInt()
+                                        ?: (0 + dragOffset.y.toInt())
                                 )
                             }
                             .zIndex(10f)

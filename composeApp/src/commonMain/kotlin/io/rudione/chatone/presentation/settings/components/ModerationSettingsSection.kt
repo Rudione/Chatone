@@ -1,10 +1,9 @@
-package io.rudione.chatone.presentation.settings
+package io.rudione.chatone.presentation.settings.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -14,7 +13,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -29,9 +32,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.MacroStep
 import io.rudione.chatone.domain.model.ModActionButton
+import io.rudione.chatone.presentation.settings.SettingsEvent
+import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 
 
@@ -90,7 +96,6 @@ fun ModerationSettingsSection(
     }
 }
 
-
 @Composable
 private fun ModActionButtonsSection(
     state: SettingsState,
@@ -99,105 +104,185 @@ private fun ModActionButtonsSection(
     var showAddDialog by remember { mutableStateOf(false) }
     var editingButton by remember { mutableStateOf<ModActionButton?>(null) }
 
+    var orderedButtons by remember(state.allModButtons) {
+        mutableStateOf(state.allModButtons.sortedBy { it.sortOrder })
+    }
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+
     SettingsCard(title = "Mod Action Buttons") {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Configure quick-action buttons shown left of the username when Mod Mode (★) is active. " +
-                        "Toggle default buttons and add custom timeout durations.",
+                "Drag to reorder. Toggle to show/hide. Add custom timeout durations.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Text("Default buttons:", style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf(
-                    Triple("🗑️", "Delete", state.showDefaultDeleteButton) to
-                            { v: Boolean -> onEvent(SettingsEvent.OnShowDefaultDeleteChanged(v)) },
-                    Triple("⏱", "Timeout 10m", state.showDefaultTimeoutButton) to
-                            { v: Boolean -> onEvent(SettingsEvent.OnShowDefaultTimeoutChanged(v)) },
-                    Triple("🔨", "Ban", state.showDefaultBanButton) to
-                            { v: Boolean -> onEvent(SettingsEvent.OnShowDefaultBanChanged(v)) }
-                ).forEachIndexed { idx, (info, handler) ->
-                    val (icon, label, checked) = info
-                    if (idx > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(icon, style = MaterialTheme.typography.bodyMedium)
-                            Text(label, style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium)
-                        }
-                        Switch(checked = checked, onCheckedChange = handler)
-                    }
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
             Text("Preview:", style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (state.showDefaultDeleteButton) item {
+                items(orderedButtons.filter { it.enabled }, key = { it.id }) { btn ->
+                    val color = when (btn.id) {
+                        "default_delete" -> ChatoneTheme.extraColors.modDelete
+                        "default_ban"    -> ChatoneTheme.extraColors.modBan
+                        else             -> ChatoneTheme.extraColors.modTimeout
+                    }
+                    val icon = when (btn.id) {
+                        "default_delete" -> "🗑️"
+                        "default_ban"    -> "🔨"
+                        else             -> "⏱"
+                    }
                     ModButtonPreviewChip(
-                        icon = "🗑️", label = "Del",
-                        color = ChatoneTheme.extraColors.modDelete, isFixed = true
-                    )
-                }
-
-                items(state.customModButtons.filter { it.enabled }, key = { it.id }) { btn ->
-                    ModButtonPreviewChip(
-                        icon = "⏱", label = btn.displayLabel,
-                        color = ChatoneTheme.extraColors.modTimeout, isFixed = false,
-                        onClick = { editingButton = btn }
-                    )
-                }
-
-                if (state.showDefaultTimeoutButton) item {
-                    ModButtonPreviewChip(
-                        icon = "⏱", label = "10m",
-                        color = ChatoneTheme.extraColors.modTimeout, isFixed = true
-                    )
-                }
-
-                if (state.showDefaultBanButton) item {
-                    ModButtonPreviewChip(
-                        icon = "🔨", label = "Ban",
-                        color = ChatoneTheme.extraColors.modBan, isFixed = true
+                        icon = icon, label = btn.displayLabel,
+                        color = color, isFixed = btn.isDefault,
+                        onClick = { if (!btn.isDefault) editingButton = btn }
                     )
                 }
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
+            Text(
+                "Press and drag to reorder:",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
-            if (state.customModButtons.isEmpty()) {
-                Text(
-                    "No custom buttons yet. Add timeout durations below.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            } else {
-                state.customModButtons.forEachIndexed { idx, btn ->
-                    ModButtonRow(
-                        button = btn,
-                        onEdit = { editingButton = btn },
-                        onDelete = { onEvent(SettingsEvent.OnRemoveModButton(btn.id)) },
-                        onMoveUp = { if (idx > 0) onEvent(SettingsEvent.OnReorderModButtons(idx, idx - 1)) },
-                        onMoveDown = { if (idx < state.customModButtons.lastIndex) onEvent(SettingsEvent.OnReorderModButtons(idx, idx + 1)) },
-                        isFirst = idx == 0,
-                        isLast = idx == state.customModButtons.lastIndex
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                orderedButtons.forEachIndexed { idx, btn ->
+                    val isDragged = draggedIndex == idx
+                    val btnColor = when (btn.id) {
+                        "default_delete" -> ChatoneTheme.extraColors.modDelete
+                        "default_ban"    -> ChatoneTheme.extraColors.modBan
+                        else             -> ChatoneTheme.extraColors.modTimeout
+                    }
+                    val btnIcon = when (btn.id) {
+                        "default_delete" -> "🗑️"
+                        "default_ban"    -> "🔨"
+                        else             -> "⏱"
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .zIndex(if (isDragged) 10f else 0f)
+                            .graphicsLayer {
+                                translationY = if (isDragged) dragOffsetY else 0f
+                                alpha = if (isDragged) 0.85f else 1f
+                                scaleX = if (isDragged) 1.02f else 1f
+                                scaleY = if (isDragged) 1.02f else 1f
+                            }
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (isDragged)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                                else
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            )
+                            .border(
+                                width = if (isDragged) 1.dp else 0.dp,
+                                color = MaterialTheme.colorScheme.primary.copy(
+                                    alpha = if (isDragged) 0.5f else 0f
+                                ),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .pointerInput(idx) {
+                                detectDragGestures(
+                                    onDragStart = { draggedIndex = idx; dragOffsetY = 0f },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragOffsetY += amount.y
+                                        val itemHeightPx = 52.dp.toPx()
+                                        val shift = (dragOffsetY / itemHeightPx).toInt()
+                                        val target = (idx + shift).coerceIn(0, orderedButtons.lastIndex)
+                                        if (target != idx) {
+                                            val list = orderedButtons.toMutableList()
+                                            val item = list.removeAt(idx)
+                                            list.add(target, item)
+                                            orderedButtons = list
+                                            draggedIndex = target
+                                            dragOffsetY = 0f
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        draggedIndex = null; dragOffsetY = 0f
+                                        onEvent(SettingsEvent.OnReorderAllModButtons(orderedButtons))
+                                    },
+                                    onDragCancel = {
+                                        draggedIndex = null; dragOffsetY = 0f
+                                        orderedButtons = state.allModButtons.sortedBy { it.sortOrder }
+                                    }
+                                )
+                            }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Menu, null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                        )
+                        Text(btnIcon, style = MaterialTheme.typography.bodyMedium)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                btn.displayLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = btnColor
+                            )
+                            if (!btn.isDefault) {
+                                Text(
+                                    ModActionButton.formatDuration(btn.durationSeconds),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        if (!btn.isDefault) {
+                            IconButton(
+                                onClick = { editingButton = btn },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Edit, null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(
+                                onClick = { onEvent(SettingsEvent.OnRemoveModButton(btn.id)) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Delete, null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = btn.enabled,
+                            onCheckedChange = { enabled ->
+                                val updated = orderedButtons.map {
+                                    if (it.id == btn.id) it.copy(enabled = enabled) else it
+                                }
+                                orderedButtons = updated
+                                onEvent(SettingsEvent.OnReorderAllModButtons(updated))
+                                when (btn.id) {
+                                    "default_delete"  -> onEvent(SettingsEvent.OnShowDefaultDeleteChanged(enabled))
+                                    "default_timeout" -> onEvent(SettingsEvent.OnShowDefaultTimeoutChanged(enabled))
+                                    "default_ban"     -> onEvent(SettingsEvent.OnShowDefaultBanChanged(enabled))
+                                }
+                                if (!btn.isDefault) {
+                                    onEvent(SettingsEvent.OnUpdateModButton(btn.copy(enabled = enabled)))
+                                }
+                            },
+                            modifier = Modifier.height(28.dp)
+                        )
+                    }
                 }
             }
 
@@ -386,14 +471,14 @@ fun MacrosSection(
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
                 "Create macros that execute multiple chat actions in sequence. " +
-                        "Pin up to 5 macros to the quick-access bar above ★ and ⚙.",
+                        "Pin up to 5 macros to the quick-access bar",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
 
             if (state.macros.any { it.pinnedIndex >= 0 }) {
-                Text("Quick bar (drag & drop in chat):", style = MaterialTheme.typography.labelSmall,
+                Text("Quick bar:", style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     (0..4).forEach { slot ->
@@ -599,7 +684,7 @@ fun MacroEditorDialog(
     var macroName by remember { mutableStateOf(macro.name) }
     var macroIcon by remember { mutableStateOf(macro.icon) }
 
-    Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             tonalElevation = 8.dp,
@@ -801,8 +886,8 @@ private fun MacroStepRow(
 }
 
 private fun stepDescription(step: MacroStep): Pair<String, String> = when (step) {
-    is MacroStep.SendMessage -> "💬" to "Send: \"${step.text}\""
-    is MacroStep.InsertText -> "✏️" to "Insert text: \"${step.text}\""
+    is MacroStep.SendMessage -> "💬" to if (step.repeatCount > 1) "Send (×${step.repeatCount}): \"${step.text}\"" else "Send: \"${step.text}\""
+    is MacroStep.InsertText -> "✏️" to if (step.repeatCount > 1) "Insert (×${step.repeatCount}): \"${step.text}\"" else "Insert text: \"${step.text}\""
     is MacroStep.SubMode -> "⭐" to if (step.enable) "Enable Sub-only mode" else "Disable Sub-only mode"
     is MacroStep.EmoteMode -> "😊" to if (step.enable) "Enable Emote-only mode" else "Disable Emote-only mode"
     is MacroStep.SlowMode -> "🐢" to if (step.enable) "Enable Slow mode (${step.seconds}s)" else "Disable Slow mode"
@@ -875,7 +960,14 @@ private fun AddMacroStepDialog(
         )
     }
 
-    var repeatCount by remember { mutableStateOf("1") }
+    var repeatCount by remember {
+        mutableStateOf(when (initialStep) {
+            is MacroStep.SendMessage -> "${initialStep.repeatCount}"
+            is MacroStep.InsertText  -> "${initialStep.repeatCount}"
+            is MacroStep.Delay       -> "${initialStep.repeatCount}"
+            else -> "1"
+        })
+    }
 
     val isEditMode = initialStep != null
     val title = if (isEditMode) "Edit Step" else "Add Step"
@@ -895,7 +987,7 @@ private fun AddMacroStepDialog(
         "clear" to "🗑️  Clear chat"
     )
 
-    Dialog(onDismissRequest = onDismiss, properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = RoundedCornerShape(20.dp), tonalElevation = 8.dp,
             modifier = Modifier.fillMaxWidth(0.92f).fillMaxHeight(0.85f)
         ) {
@@ -1089,11 +1181,10 @@ private fun AddMacroStepDialog(
                                 val count = repeatCount.toIntOrNull()?.coerceAtLeast(1) ?: 1
                                 val baseStep = buildStep(
                                     selected, messageText, boolState,
-                                    slowSeconds, followerMinutes, raidTarget, pinMessage, delaySeconds
+                                    slowSeconds, followerMinutes, raidTarget, pinMessage, delaySeconds, count
                                 )
                                 if (baseStep != null) {
-                                    val times = count.coerceAtLeast(1)
-                                    repeat(times) { onAdd(baseStep) }
+                                    onAdd(baseStep)
                                 }
                             },
                             enabled = canConfirm && selected != null,
@@ -1108,10 +1199,11 @@ private fun AddMacroStepDialog(
 
 private fun buildStep(
     type: String?, msg: String, bool: Boolean,
-    slow: String, follow: String, raid: String, pin: String, delay: String
+    slow: String, follow: String, raid: String, pin: String, delay: String,
+    repeatCount: Int = 1
 ): MacroStep? = when (type) {
-    "send" -> if (msg.isNotBlank()) MacroStep.SendMessage(msg) else null
-    "insert" -> if (msg.isNotBlank()) MacroStep.InsertText(msg) else null
+    "send" -> if (msg.isNotBlank()) MacroStep.SendMessage(msg, repeatCount.coerceAtLeast(1)) else null
+    "insert" -> if (msg.isNotBlank()) MacroStep.InsertText(msg, repeatCount.coerceAtLeast(1)) else null
     "sub" -> MacroStep.SubMode(bool)
     "emote" -> MacroStep.EmoteMode(bool)
     "slow" -> MacroStep.SlowMode(bool, slow.toIntOrNull() ?: 30)
@@ -1119,7 +1211,7 @@ private fun buildStep(
     "r9k" -> MacroStep.R9KMode(bool)
     "raid" -> if (raid.isNotBlank()) MacroStep.StartRaid(raid.trim()) else null
     "pin" -> if (pin.isNotBlank()) MacroStep.PinMessage(pin) else null
-    "delay" -> delay.toIntOrNull()?.takeIf { it > 0 }?.let { MacroStep.Delay(it) }
+    "delay" -> delay.toIntOrNull()?.takeIf { it > 0 }?.let { MacroStep.Delay(it, repeatCount.coerceAtLeast(1)) }
     "clear" -> MacroStep.ClearChat()
     else -> null
 }
