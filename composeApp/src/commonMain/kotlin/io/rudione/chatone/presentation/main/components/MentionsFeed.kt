@@ -56,6 +56,7 @@ fun MentionsFeed(
         modifier = modifier.width(340.dp).heightIn(max = 520.dp),
         shape = RoundedCornerShape(20.dp),
         contentPadding = PaddingValues(0.dp),
+        glassIntensity = 0.96f,
         backgroundAlphaHigh = 0.97f,
         backgroundAlphaLow = 0.92f,
         borderAlphaHigh = 0.22f,
@@ -63,7 +64,7 @@ fun MentionsFeed(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
 
-           
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -118,7 +119,7 @@ fun MentionsFeed(
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-           
+
             if (state.mentions.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(200.dp),

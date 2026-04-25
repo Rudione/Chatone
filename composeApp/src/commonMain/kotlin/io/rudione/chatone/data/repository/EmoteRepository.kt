@@ -112,4 +112,39 @@ class EmoteRepository(
     fun isOverlayEmote(emote: GenericEmote): Boolean {
         return emote.isZeroWidth || emote.code in OVERLAY_EMOTES
     }
+
+    
+    fun patchChannelEmote(channelName: String, emote: GenericEmote) {
+        val key = channelName.lowercase()
+        val flow = channelEmotesMap.getOrPut(key) { MutableStateFlow(ChannelEmotes()) }
+        val current = flow.value
+        val updated = current.sevenTvChannel
+            .filterNot { it.id == emote.id } + emote
+        flow.value = current.copy(sevenTvChannel = updated)
+        Napier.d("Patched 7TV emote ${emote.code} in $channelName", tag = TAG)
+    }
+
+    
+    fun removeChannelEmote(channelName: String, emoteId: String, emoteName: String) {
+        val key = channelName.lowercase()
+        val flow = channelEmotesMap[key] ?: return
+        val current = flow.value
+        flow.value = current.copy(
+            sevenTvChannel = current.sevenTvChannel.filterNot { it.id == emoteId || it.code == emoteName }
+        )
+        Napier.d("Removed 7TV emote $emoteName from $channelName", tag = TAG)
+    }
+
+    
+    fun renameChannelEmote(channelName: String, emoteId: String, newName: String) {
+        val key = channelName.lowercase()
+        val flow = channelEmotesMap[key] ?: return
+        val current = flow.value
+        flow.value = current.copy(
+            sevenTvChannel = current.sevenTvChannel.map {
+                if (it.id == emoteId) it.copy(code = newName) else it
+            }
+        )
+        Napier.d("Renamed 7TV emote $emoteId → $newName in $channelName", tag = TAG)
+    }
 }

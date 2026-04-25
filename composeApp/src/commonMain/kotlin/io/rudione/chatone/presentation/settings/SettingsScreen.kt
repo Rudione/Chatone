@@ -3,16 +3,15 @@ package io.rudione.chatone.presentation.settings
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -24,15 +23,15 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.input.pointer.pointerInput
-import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,10 +40,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.chatbubbles
-import chatone.composeapp.generated.resources.chatbubbles_outline
 import chatone.composeapp.generated.resources.bell_filled
 import chatone.composeapp.generated.resources.bell_outlined
+import chatone.composeapp.generated.resources.chatbubbles
+import chatone.composeapp.generated.resources.chatbubbles_outline
 import chatone.composeapp.generated.resources.images
 import chatone.composeapp.generated.resources.images_outline
 import chatone.composeapp.generated.resources.keyboard_24_filled
@@ -54,22 +53,31 @@ import chatone.composeapp.generated.resources.musical_notes_outline
 import chatone.composeapp.generated.resources.palette_fill_16
 import chatone.composeapp.generated.resources.palette_stroke_12
 import chatone.composeapp.generated.resources.panel_left_key_16_regular
+import chatone.composeapp.generated.resources.person_filled
 import chatone.composeapp.generated.resources.shield_filled
 import chatone.composeapp.generated.resources.shield_outlined
 import chatone.composeapp.generated.resources.star_filled
 import chatone.composeapp.generated.resources.star_outlined
+import chatone.composeapp.generated.resources.unfold_more
 import chatone.composeapp.generated.resources.wallpaper_filled
 import chatone.composeapp.generated.resources.wallpaper_outlined
-import chatone.composeapp.generated.resources.unfold_more
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.settings.components.ModerationSettingsSection
+import io.rudione.chatone.presentation.settings.theme_settings.ThemeSettingsScreen
+import io.rudione.chatone.presentation.settings.theme_settings.ThinSlider
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.theme.CustomThemeManager
+import io.rudione.chatone.presentation.theme.ExpressivePalettes
+import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
+import io.rudione.chatone.util.BuildConfig
 import io.rudione.chatone.util.NotificationSoundPlayer
 import io.rudione.chatone.util.WallpaperLoader
 import io.rudione.chatone.util.pickAudioFile
 import io.rudione.chatone.util.pickImageFile
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
@@ -87,9 +95,9 @@ private enum class SettingsSection(
     BACKGROUND("Background", Res.drawable.wallpaper_filled, Res.drawable.wallpaper_outlined),
     HOTKEYS("Hotkeys", Res.drawable.keyboard_24_filled, Res.drawable.keyboard_24_regular),
     MODERATION("Moderation", Res.drawable.shield_filled, Res.drawable.shield_outlined),
+    ACCOUNT("Account", Res.drawable.person_filled, Res.drawable.person_filled),
     ABOUT("About", Res.drawable.panel_left_key_16_regular, null),
 }
-
 
 @Composable
 fun SettingsScreen(
@@ -98,13 +106,29 @@ fun SettingsScreen(
     isWideScreen: Boolean = false,
     modifier: Modifier = Modifier,
     wallpaperLoader: WallpaperLoader = koinInject(),
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {},
+    onLogoutSuccess: (() -> Unit)? = null,
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val customThemeManager: CustomThemeManager = LocalCustomThemeManager.current
+
+    LaunchedEffect(viewModel) {
+        viewModel.effect.collect { effect -> 
+            if (effect is SettingsEffect.NavigateToAuth) {
+                onNavigateBack() 
+            }
+        }
+    }
 
     if (isWideScreen) {
         Dialog(
-            onDismissRequest = onNavigateBack,
+            onDismissRequest = {
+                onNavigateBack()
+                if (state.showThemeCreator) {
+                    viewModel.sendEvent(SettingsEvent.OnCloseThemeCreator)
+                }
+            },
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 dismissOnBackPress = true,
@@ -113,29 +137,81 @@ fun SettingsScreen(
         ) {
             SettingsDialogContent(
                 state = state,
-                onNavigateBack = onNavigateBack,
+                onNavigateBack = {
+                    onNavigateBack()
+                    if (state.showThemeCreator) {
+                        viewModel.sendEvent(SettingsEvent.OnCloseThemeCreator)
+                    }
+                },
                 onThemeChanged = onThemeChanged,
-                viewModel = viewModel
+                viewModel = viewModel,
+                onOpenThemeCreator = { seedColor ->
+                    viewModel.sendEvent(SettingsEvent.OnOpenThemeCreator(seedColor))
+                }
             )
         }
     } else {
         SettingsFullScreen(
             state = state,
-            onNavigateBack = onNavigateBack,
+            onNavigateBack = {
+                onNavigateBack()
+                if (state.showThemeCreator) {
+                    viewModel.sendEvent(SettingsEvent.OnCloseThemeCreator)
+                }
+            },
             onThemeChanged = onThemeChanged,
             modifier = modifier,
-            viewModel = viewModel
+            viewModel = viewModel,
+            onOpenThemeCreator = { seedColor ->
+                viewModel.sendEvent(SettingsEvent.OnOpenThemeCreator(seedColor))
+            }
         )
     }
-}
 
+    if (state.showThemeCreator) {
+        Dialog(
+            onDismissRequest = {
+                viewModel.sendEvent(SettingsEvent.OnCloseThemeCreator)
+            },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = true,
+            )
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .fillMaxHeight(0.88f),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 16.dp,
+                shadowElevation = 32.dp
+            ) {
+                ThemeSettingsScreen(
+                    onNavigateBack = {
+                        viewModel.sendEvent(SettingsEvent.OnCloseThemeCreator)
+                    },
+                    onThemeApplied = {
+                        val active = customThemeManager.currentTheme.value
+                        viewModel.sendEvent(SettingsEvent.OnCustomThemeApplied(active))
+                    },
+                    settingsViewModel = viewModel,
+                    customThemeManager = customThemeManager,
+                    initialSeedColor = state.themeCreatorSeedColor
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun SettingsDialogContent(
     state: SettingsState,
     onNavigateBack: () -> Unit,
     onThemeChanged: (Boolean) -> Unit,
-    viewModel: SettingsViewModel
+    viewModel: SettingsViewModel,
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
     var selectedSection by remember { mutableStateOf(SettingsSection.APPEARANCE) }
     val extra = ChatoneTheme.extraColors
@@ -150,8 +226,6 @@ private fun SettingsDialogContent(
         shadowElevation = 32.dp
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
-
-
             Column(
                 modifier = Modifier
                     .width(216.dp)
@@ -223,14 +297,13 @@ private fun SettingsDialogContent(
                 }
             }
 
-
-
             SectionContentLazy(
                 section = selectedSection,
                 state = state,
                 onThemeChanged = onThemeChanged,
                 viewModel = viewModel,
-                modifier = Modifier.weight(1f).fillMaxHeight()
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                onOpenThemeCreator = onOpenThemeCreator
             )
         }
     }
@@ -243,7 +316,8 @@ private fun SettingsFullScreen(
     onNavigateBack: () -> Unit,
     onThemeChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: SettingsViewModel
+    viewModel: SettingsViewModel,
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
     var expandedSections by remember { mutableStateOf(setOf<SettingsSection>()) }
     val extra = ChatoneTheme.extraColors
@@ -341,7 +415,8 @@ private fun SettingsFullScreen(
                             state = state,
                             onThemeChanged = onThemeChanged,
                             viewModel = viewModel,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            onOpenThemeCreator = onOpenThemeCreator
                         )
                     }
 
@@ -407,14 +482,14 @@ private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClic
     }
 }
 
-
 @Composable
 private fun SectionContentLazy(
     section: SettingsSection,
     state: SettingsState,
     onThemeChanged: (Boolean) -> Unit,
     viewModel: SettingsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -436,7 +511,13 @@ private fun SectionContentLazy(
                 )
             }
             when (section) {
-                SettingsSection.APPEARANCE -> appearanceLazyItems(state, onThemeChanged, viewModel)
+                SettingsSection.APPEARANCE -> appearanceLazyItems(
+                    state,
+                    onThemeChanged,
+                    viewModel,
+                    onOpenThemeCreator
+                )
+                SettingsSection.ACCOUNT -> accountLazyItems(viewModel)
                 SettingsSection.CHAT -> chatLazyItems(state, viewModel)
                 SettingsSection.NOTIFICATIONS -> notificationLazyItems(state, viewModel)
                 SettingsSection.HIGHLIGHTS -> highlightLazyItems(state, viewModel)
@@ -460,7 +541,8 @@ private fun SectionContentColumn(
     state: SettingsState,
     onThemeChanged: (Boolean) -> Unit,
     viewModel: SettingsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
     Surface(
         modifier = modifier
@@ -478,13 +560,20 @@ private fun SectionContentColumn(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             when (section) {
-                SettingsSection.APPEARANCE -> AppearanceContent(state, onThemeChanged, viewModel)
+                SettingsSection.APPEARANCE -> AppearanceContent(
+                    state,
+                    onThemeChanged,
+                    viewModel,
+                    onOpenThemeCreator
+                )
+
                 SettingsSection.CHAT -> ChatContent(state, viewModel)
                 SettingsSection.NOTIFICATIONS -> NotificationContent(state, viewModel)
                 SettingsSection.HIGHLIGHTS -> HighlightContent(state, viewModel)
                 SettingsSection.BACKGROUND -> BackgroundContent(state, viewModel)
                 SettingsSection.HOTKEYS -> HotkeyContent(state, viewModel)
                 SettingsSection.MODERATION -> ModerationContent(state, viewModel)
+                SettingsSection.ACCOUNT -> AccountContent(viewModel)
                 SettingsSection.ABOUT -> AboutContent()
             }
         }
@@ -494,15 +583,72 @@ private fun SectionContentColumn(
 private fun LazyListScope.appearanceLazyItems(
     state: SettingsState,
     onThemeChanged: (Boolean) -> Unit,
-    vm: SettingsViewModel
+    vm: SettingsViewModel,
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
     item {
         SettingsGroup("Theme") {
-            SwitchRow("Dark Theme", "Use dark color scheme", state.darkTheme) {
-                vm.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it)
+            RowDivider()
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Accent Color", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        ExpressivePalettes.getOrNull(state.accentColorIndex)?.name ?: "Violet",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onOpenThemeCreator(null) }
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "Set custom",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        painterResource(Res.drawable.palette_fill_16),
+                        contentDescription = "Create custom theme",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                ExpressivePalettes.forEachIndexed { index, palette ->
+                    val isSelected = index == state.accentColorIndex
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(palette.previewColor)
+                            .border(
+                                if (isSelected) 2.dp else 0.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                CircleShape
+                            )
+                            .clickable { vm.sendEvent(SettingsEvent.OnAccentColorChanged(index)) }
+                    )
+                }
             }
         }
     }
+
     item {
         SettingsGroup("Display") {
             ListRow(
@@ -532,9 +678,31 @@ private fun LazyListScope.appearanceLazyItems(
         }
     }
     item {
+        SettingsGroup("Links") {
+            ListRow(
+                "Open Links",
+                when (state.linkOpenMode) {
+                    SettingsState.LinkOpenMode.DEFAULT -> "Default Browser"
+                    SettingsState.LinkOpenMode.INCOGNITO -> "Incognito Mode"
+                },
+                listOf("Default Browser", "Incognito Mode")
+            ) {
+                vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it]))
+            }
+        }
+    }
+    item {
         SettingsGroup("Window") {
             SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
                 vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
+            }
+            RowDivider()
+            SwitchRow(
+                "Block Scroll While Paused",
+                "Disable mouse wheel scrolling when chat is paused via hotkey",
+                state.disableScrollOnAlt
+            ) {
+                vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
             }
         }
     }
@@ -572,7 +740,11 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
                 }
             }
             RowDivider()
-            SwitchRow("Show Chat Header", "Show channel name bar at top of chat", state.showChatHeader) {
+            SwitchRow(
+                "Show Chat Header",
+                "Show channel name bar at top of chat",
+                state.showChatHeader
+            ) {
                 vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
             }
             RowDivider()
@@ -651,14 +823,8 @@ private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsV
         HightlightRuleCard(
             rule = rule,
             onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-            onSoundToggle = {
-                vm.sendEvent(
-                    SettingsEvent.OnHighlightRuleSoundToggled(
-                        rule.id,
-                        it
-                    )
-                )
-            },
+            onSoundToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
+            onColorChange = { color -> vm.sendEvent(SettingsEvent.OnHighlightRuleColorChanged(rule.id, color)) },
             onRemove = if (!rule.id.startsWith("custom_")) null else {
                 { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
             }
@@ -751,18 +917,96 @@ private fun LazyListScope.aboutLazyItems() {
     item { AboutCard() }
 }
 
+private fun LazyListScope.accountLazyItems(vm: SettingsViewModel) {
+    item {
+        SettingsGroup("Account") {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    "Log out from your Twitch account",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                OutlinedButton(
+                    onClick = { vm.sendEvent(SettingsEvent.OnLogoutClicked) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Logout,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Log out")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountContent(viewModel: SettingsViewModel) {
+    SettingsGroup("Account") {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                "Log out from your Twitch account",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            OutlinedButton(
+                onClick = { viewModel.sendEvent(SettingsEvent.OnLogoutClicked) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
+                )
+            ) {
+                Icon(
+                    Icons.Default.Logout,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Log out")
+            }
+        }
+    }
+}
 
 @Composable
 private fun AppearanceContent(
     state: SettingsState,
     onThemeChanged: (Boolean) -> Unit,
-    vm: SettingsViewModel
+    vm: SettingsViewModel,
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
     SettingsGroup("Theme") {
-        SwitchRow("Dark Theme", "Use dark color scheme", state.darkTheme) {
-            vm.sendEvent(SettingsEvent.OnDarkThemeChanged(it)); onThemeChanged(it)
-        }
+        RowDivider()
+        AccentColorPaletteRow(
+            selectedIndex = state.accentColorIndex,
+            onSelect = { vm.sendEvent(SettingsEvent.OnAccentColorChanged(it)) },
+            state = state,
+            onOpenThemeCreator = onOpenThemeCreator,
+            onReset = {
+                vm.sendEvent(SettingsEvent.OnAccentColorChanged(0))
+                vm.sendEvent(SettingsEvent.OnCustomThemeApplied(null))
+            }
+        )
     }
+
     SettingsGroup("Display") {
         ListRow(
             "Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
@@ -789,9 +1033,27 @@ private fun AppearanceContent(
             listOf("Tab Bar", "Mini Rail", "Both")
         ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
     }
+    SettingsGroup("Links") {
+        ListRow(
+            "Open Links",
+            when (state.linkOpenMode) {
+                SettingsState.LinkOpenMode.DEFAULT -> "Default Browser"
+                SettingsState.LinkOpenMode.INCOGNITO -> "Incognito Mode"
+            },
+            listOf("Default Browser", "Incognito Mode")
+        ) { vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it])) }
+    }
     SettingsGroup("Window") {
         SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
             vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
+        }
+        RowDivider()
+        SwitchRow(
+            "Block Scroll While Paused",
+            "Disable mouse wheel when chat is paused via hotkey",
+            state.disableScrollOnAlt
+        ) {
+            vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
         }
     }
 }
@@ -828,7 +1090,11 @@ private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
             }
         }
         RowDivider()
-        SwitchRow("Show Chat Header", "Show channel name bar at top of chat", state.showChatHeader) {
+        SwitchRow(
+            "Show Chat Header",
+            "Show channel name bar at top of chat",
+            state.showChatHeader
+        ) {
             vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
         }
         RowDivider()
@@ -891,54 +1157,60 @@ private fun NotificationContent(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
-    Text(
-        "Rules matched against incoming messages. Your username is always highlighted.",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(bottom = 12.dp)
-    )
-    state.highlightRules.forEach { rule ->
-        HightlightRuleCard(
-            rule = rule,
-            onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-            onSoundToggle = {
-                vm.sendEvent(
-                    SettingsEvent.OnHighlightRuleSoundToggled(
-                        rule.id,
-                        it
-                    )
-                )
-            },
-            onRemove = if (!rule.id.startsWith("custom_")) null else {
-                { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
-            }
-        )
-        Spacer(Modifier.height(4.dp))
-    }
-    var newPattern by remember { mutableStateOf("") }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        OutlinedTextField(
-            value = newPattern,
-            onValueChange = { newPattern = it },
-            modifier = Modifier.weight(1f),
-            placeholder = { Text("Add highlight pattern...") },
-            singleLine = true,
-            shape = RoundedCornerShape(10.dp)
-        )
-        FilledTonalButton(
-            onClick = {
-                if (newPattern.isNotBlank()) {
-                    vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
-                    newPattern = ""
-                }
-            },
-            enabled = newPattern.isNotBlank()
+    SettingsGroup("Highlight Rules") {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+            Text(
+                "Matched against incoming messages. Your username is always highlighted.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            state.highlightRules.forEach { rule ->
+                HightlightRuleCard(
+                    rule = rule,
+                    onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
+                    onSoundToggle = {
+                        vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it))
+                    },
+                    onColorChange = { color ->
+                        vm.sendEvent(SettingsEvent.OnHighlightRuleColorChanged(rule.id, color))
+                    },
+                    onRemove = if (!rule.id.startsWith("custom_")) null else {
+                        { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
+                    }
+                )
+            }
+        }
+    }
+    SettingsGroup("Add Rule") {
+        var newPattern by remember { mutableStateOf("") }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = newPattern,
+                onValueChange = { newPattern = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Add highlight pattern...") },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp)
+            )
+            FilledTonalButton(
+                onClick = {
+                    if (newPattern.isNotBlank()) {
+                        vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
+                        newPattern = ""
+                    }
+                },
+                enabled = newPattern.isNotBlank()
+            ) {
+                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }
@@ -986,10 +1258,14 @@ private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun ModerationContent(state: SettingsState, vm: SettingsViewModel) {
-    ModerationSettingsSection(
-        state = state,
-        onEvent = { vm.sendEvent(it) }
-    )
+    SettingsGroup("Moderation") {
+        Column(modifier = Modifier.padding(12.dp)) {
+            ModerationSettingsSection(
+                state = state,
+                onEvent = { vm.sendEvent(it) }
+            )
+        }
+    }
 }
 
 @Composable
@@ -1049,7 +1325,7 @@ private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    Slider(
+                    ThinSlider(
                         value = state.mentionSoundVolume,
                         onValueChange = { vm.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it)) },
                         valueRange = 0f..1f
@@ -1240,7 +1516,7 @@ private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                     )
                 }
             }
-            Slider(
+            ThinSlider(
                 value = state.wallpaperBlur,
                 onValueChange = { vm.sendEvent(SettingsEvent.OnWallpaperBlurChanged(it)) },
                 valueRange = 0f..40f,
@@ -1299,7 +1575,7 @@ private fun AboutCard() {
     SettingsGroup("App Info") {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.foundation.Image(
+                Image(
                     painter = painterResource(Res.drawable.logochattone),
                     contentDescription = "Chatone",
                     modifier = Modifier.size(56.dp).clip(RoundedCornerShape(14.dp))
@@ -1312,7 +1588,7 @@ private fun AboutCard() {
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Version ${io.rudione.chatone.util.BuildConfig.VERSION}",
+                        "Version ${BuildConfig.VERSION}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1334,7 +1610,6 @@ private fun AboutCard() {
     }
 }
 
-
 @Composable
 private fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -1343,22 +1618,153 @@ private fun SettingsGroup(title: String? = null, content: @Composable ColumnScop
                 title,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
-                letterSpacing = 0.6.sp,
-                modifier = Modifier.padding(bottom = 6.dp, start = 2.dp)
+                letterSpacing = 0.8.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
             )
         }
-        Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-            border = BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-            ),
-            modifier = Modifier.fillMaxWidth()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f),
+                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.60f)
+                        )
+                    )
+                )
+                .border(
+                    1.dp,
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
+                        )
+                    ),
+                    RoundedCornerShape(16.dp)
+                )
         ) {
             Column(content = content)
         }
         Spacer(Modifier.height(18.dp))
+    }
+}
+
+@Composable
+private fun AccentColorPaletteRow(
+    selectedIndex: Int,
+    state: SettingsState,
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {},
+    onReset: () -> Unit = {},
+    onSelect: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Accent Color", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    ExpressivePalettes.getOrNull(state.accentColorIndex)?.name ?: "Violet",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+               
+                val customThemeManager = LocalCustomThemeManager.current
+                val activeTheme by customThemeManager.currentTheme.collectAsState()
+                if (activeTheme != null || state.accentColorIndex != 0) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onReset() }
+                            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f))
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Reset theme",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onOpenThemeCreator(null) }
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "Set custom",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        painterResource(Res.drawable.palette_fill_16),
+                        contentDescription = "Create custom theme",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            ExpressivePalettes.forEachIndexed { index, palette ->
+                val isSelected = index == selectedIndex
+                val animatedScale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.15f else 1f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .aspectRatio(1f)
+                        .graphicsLayer {
+                            scaleX = animatedScale
+                            scaleY = animatedScale
+                        }
+                        .clip(CircleShape)
+                        .background(palette.previewColor)
+                        .border(
+                            width = if (isSelected) 2.5.dp else 0.dp,
+                            color = if (isSelected) MaterialTheme.colorScheme.onSurface
+                            else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .clickable { onSelect(index) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            Icons.Outlined.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = Color.White.copy(alpha = 0.9f)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1490,7 +1896,7 @@ private fun SliderRow(
                 color = MaterialTheme.colorScheme.primary
             )
         }
-        Slider(value = value, onValueChange = onValueChange, valueRange = valueRange, steps = steps)
+        ThinSlider(value = value, onValueChange = onValueChange, valueRange = valueRange)
     }
 }
 
@@ -1537,55 +1943,130 @@ private fun HightlightRuleCard(
     rule: HighlightRule,
     onToggle: (Boolean) -> Unit,
     onSoundToggle: (Boolean) -> Unit,
+    onColorChange: (Long) -> Unit = {},
     onRemove: (() -> Unit)?
 ) {
+    var showColorPicker by remember { mutableStateOf(false) }
+    val ruleColor = Color(rule.color)
+
     Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        shape = RoundedCornerShape(12.dp),
+        color = ruleColor.copy(alpha = 0.06f),
+        border = BorderStroke(1.dp, ruleColor.copy(alpha = 0.25f))
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(rule.color)))
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    rule.pattern.ifEmpty {
-                        rule.id.replace("_", " ").replaceFirstChar { it.uppercase() }
-                    },
-                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium
-                )
-                if (rule.isRegex) Text(
-                    "Regex",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(
-                onClick = { onSoundToggle(!rule.playSound) },
-                modifier = Modifier.size(32.dp)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications,
-                    null,
-                    modifier = Modifier.size(16.dp),
-                    tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+               
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(ruleColor)
+                        .clickable { showColorPicker = true }
                 )
-            }
-            Switch(checked = rule.enabled, onCheckedChange = onToggle)
-            if (onRemove != null) {
-                IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-                    Icon(
-                        Icons.Filled.Close,
-                        null,
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.error
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        rule.pattern.ifEmpty {
+                            rule.id.replace("_", " ").replaceFirstChar { it.uppercase() }
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
                     )
+                    if (rule.isRegex) Text(
+                        "Regex",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+               
+                IconButton(onClick = { onSoundToggle(!rule.playSound) }, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications,
+                        null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+               
+                Switch(checked = rule.enabled, onCheckedChange = onToggle)
+               
+                if (onRemove != null) {
+                    IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Filled.Close, null, modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
+    }
+
+   
+    if (showColorPicker) {
+        var pickedColor by remember { mutableStateOf(ruleColor) }
+        val hue = remember(pickedColor) {
+            val r = pickedColor.red; val g = pickedColor.green; val b = pickedColor.blue
+            val mx = maxOf(r, g, b); val mn = minOf(r, g, b)
+            if (mx == mn) 0f else when (mx) {
+                r -> ((g - b) / (mx - mn) % 6f) / 6f * 360f
+                g -> ((b - r) / (mx - mn) + 2f) / 6f * 360f
+                else -> ((r - g) / (mx - mn) + 4f) / 6f * 360f
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { showColorPicker = false },
+            title = { Text("Highlight Color") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(pickedColor)
+                    )
+                   
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            Color(0xFFFF6B6B), Color(0xFFFF9F43), Color(0xFFFFD700),
+                            Color(0xFF2ECC71), Color(0xFF00BFFF), Color(0xFF9B59B6),
+                            Color(0xFFFF69B4), Color(0xFFFF4500)
+                        ).forEach { preset ->
+                            Box(
+                                modifier = Modifier.weight(1f).aspectRatio(1f)
+                                    .clip(CircleShape).background(preset)
+                                    .border(
+                                        if (pickedColor == preset) 2.dp else 0.dp,
+                                        MaterialTheme.colorScheme.onSurface, CircleShape
+                                    )
+                                    .clickable { pickedColor = preset }
+                            )
+                        }
+                    }
+                   
+                    Text("Hue", style = MaterialTheme.typography.labelSmall)
+                    Slider(
+                        value = hue,
+                        onValueChange = { h ->
+                            pickedColor = Color.hsl(h, 0.85f, 0.55f)
+                        },
+                        valueRange = 0f..360f
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                   
+                    val argb = pickedColor.copy(alpha = 1f)
+                    val longColor = ((argb.red * 255).toLong() shl 16) or
+                            ((argb.green * 255).toLong() shl 8) or
+                            (argb.blue * 255).toLong() or 0xFF000000L
+                    onColorChange(longColor)
+                    showColorPicker = false
+                }) { Text("Apply") }
+            },
+            dismissButton = { TextButton(onClick = { showColorPicker = false }) { Text("Cancel") } }
+        )
     }
 }
 
@@ -1697,7 +2178,6 @@ private fun HotkeyRow(
     }
 }
 
-
 private fun hotkeyKeyToName(key: Key): String = when (key) {
     Key.Spacebar -> "space"; Key.Enter -> "enter"; Key.Tab -> "tab"
     Key.Backspace -> "backspace"; Key.Delete -> "delete"
@@ -1717,7 +2197,6 @@ private fun hotkeyKeyToName(key: Key): String = when (key) {
         }
     }
 }
-
 
 @Composable
 private fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
@@ -1753,9 +2232,9 @@ private fun formatDuration(seconds: Int): String = when {
 
 @Composable
 private fun SettingsThinScrollbar(
-    listState: androidx.compose.foundation.lazy.LazyListState,
+    listState: LazyListState,
     modifier: Modifier = Modifier,
-    coroutineScope: kotlinx.coroutines.CoroutineScope = rememberCoroutineScope()
+    coroutineScope: CoroutineScope = rememberCoroutineScope()
 ) {
     val thumbFraction by remember {
         derivedStateOf {

@@ -1,6 +1,7 @@
 package io.rudione.chatone
 
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
@@ -10,8 +11,11 @@ import androidx.compose.ui.window.rememberWindowState
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.presentation.theme.LocalWallpaperController
+import io.rudione.chatone.presentation.theme.WallpaperController
 import io.rudione.chatone.util.AutoUpdater
 import io.rudione.chatone.util.GlobalKeyDispatcher
+import io.rudione.chatone.util.WindowsTitleBar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,12 +31,15 @@ private const val WIN_MAX = "win_maximized"
 
 private val NATIVE_BG = java.awt.Color(0x0A, 0x0A, 0x0F)
 
+private val DARK_CAPTION_COLOR = Color(0x0D, 0x0F, 0x1A)
+
 fun main() {
-   
-   
     System.setProperty("apple.awt.application.appearance", "system")
-   
     System.setProperty("apple.awt.application.name", "Chatone")
+   
+   
+    System.setProperty("http.maxConnections", "64")
+    System.setProperty("jdk.httpclient.connectionPoolSize", "64")
 
     startKoin {
         modules(appModules())
@@ -62,7 +69,6 @@ fun main() {
             placement = if (savedMaximized) WindowPlacement.Maximized else WindowPlacement.Floating
         )
 
-       
         LaunchedEffect(windowState) {
             snapshotFlow {
                 WindowSnapshot(
@@ -86,7 +92,10 @@ fun main() {
             }
         }
 
-        var alwaysOnTop by remember { mutableStateOf(SettingsViewModel.loadInitialState().alwaysOnTop) }
+        val initialSettings = remember { SettingsViewModel.loadInitialState() }
+        var alwaysOnTop by remember { mutableStateOf(initialSettings.alwaysOnTop) }
+        var isDarkTheme by remember { mutableStateOf(initialSettings.darkTheme) }
+        var dominantColor by remember { mutableStateOf<Color?>(null) }
 
         Window(
             onCloseRequest = { exitApplication() },
@@ -95,18 +104,45 @@ fun main() {
             alwaysOnTop = alwaysOnTop,
             onPreviewKeyEvent = { GlobalKeyDispatcher.dispatch(it) }
         ) {
-           
-           
             LaunchedEffect(Unit) {
                 window.background = NATIVE_BG
                 window.contentPane.background = NATIVE_BG
                 runCatching {
-                    window.rootPane.putClientProperty("apple.awt.windowAppearance", "NSAppearanceNameDarkAqua")
+                    window.rootPane.putClientProperty(
+                        "apple.awt.windowAppearance",
+                        "NSAppearanceNameDarkAqua"
+                    )
                 }
+                val captionColor = dominantColor
+                    ?.let { blendWithDark(it, isDarkTheme) }
+                    ?: if (isDarkTheme) DARK_CAPTION_COLOR else Color(0xF0, 0xF0, 0xF5)
+                WindowsTitleBar.applyTitleBarColor(window, captionColor, isDarkTheme)
             }
-            App(onAlwaysOnTopChanged = { alwaysOnTop = it })
+
+            LaunchedEffect(isDarkTheme, dominantColor) {
+                val captionColor = dominantColor
+                    ?.let { blendWithDark(it, isDarkTheme) }
+                    ?: if (isDarkTheme) DARK_CAPTION_COLOR else Color(0xF0, 0xF0, 0xF5)
+                WindowsTitleBar.applyTitleBarColor(window, captionColor, isDarkTheme)
+            }
+
+            App(
+                onAlwaysOnTopChanged = { alwaysOnTop = it },
+                onThemeChanged = { isDarkTheme = it },
+                onDominantColorChanged = { dominantColor = it }
+            )
         }
     }
+}
+
+private fun blendWithDark(dominant: Color, isDark: Boolean): Color {
+    val base = if (isDark) Color(0x0A, 0x0A, 0x0F) else Color(0xF5, 0xF5, 0xFF)
+    val t = 0.15f
+    return Color(
+        red = base.red * (1f - t) + dominant.red * t,
+        green = base.green * (1f - t) + dominant.green * t,
+        blue = base.blue * (1f - t) + dominant.blue * t
+    )
 }
 
 private data class WindowSnapshot(

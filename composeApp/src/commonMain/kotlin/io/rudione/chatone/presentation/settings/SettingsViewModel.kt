@@ -1,17 +1,24 @@
 package io.rudione.chatone.presentation.settings
 
+import androidx.lifecycle.viewModelScope
 import com.russhwolf.settings.Settings
+import io.github.aakira.napier.Napier
 import io.rudione.chatone.base.BaseViewModel
 import io.rudione.chatone.base.UIEffect
 import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
+import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.ModActionButton
+import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
+import io.rudione.chatone.presentation.theme.CustomThemeConfig
+import io.rudione.chatone.presentation.theme.WallpaperDisplayConfig
 import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.util.WallpaperLoader
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -39,7 +46,7 @@ data class SettingsState(
     val mentionSoundEnabled: Boolean = true,
     val mentionSoundVolume: Float = 0.8f,
     val customMentionSoundPath: String = "",
-    val alwaysOnTop: Boolean = true,
+    val alwaysOnTop: Boolean = false,
     val uiScale: Float = 1.0f,
     val pauseOnHover: Boolean = false,
     val pauseHotkey: String = "",
@@ -48,6 +55,8 @@ data class SettingsState(
     val inlineImageMaxHeight: Int = 200,
     val wallpaperPath: String = "",
     val wallpaperBlur: Float = 12f,
+    val wallpaperDisplayConfig: WallpaperDisplayConfig = WallpaperDisplayConfig(),
+    val activeCustomTheme: CustomThemeConfig? = null,
     val closeEmotePickerOnMouseLeave: Boolean = false,
     val customModButtons: List<ModActionButton> = emptyList(),
     val allModButtons: List<ModActionButton> = listOf(
@@ -60,9 +69,18 @@ data class SettingsState(
     val smoothChatEnabled: Boolean = false,
     val showDefaultDeleteButton: Boolean = true,
     val showDefaultTimeoutButton: Boolean = true,
-    val showDefaultBanButton: Boolean = true
+    val showDefaultBanButton: Boolean = true,
+    val disableScrollOnAlt: Boolean = true,
+    val linkOpenMode: LinkOpenMode = LinkOpenMode.DEFAULT,
+    val customThemesJson: String = "",
+    val accentColorIndex: Int = 0,
+    val customThemes: List<CustomThemeConfig> = emptyList(),
+    val activeCustomThemeId: String? = null,
+    val showThemeCreator: Boolean = false,
+    val themeCreatorSeedColor: Int? = null,
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
+    enum class LinkOpenMode { DEFAULT, INCOGNITO }
     enum class EmoteSize { SMALL, MEDIUM, LARGE }
     enum class FontSize { SMALL, MEDIUM, LARGE }
     enum class ChannelNavigation { TAB_BAR, MINI_RAIL, BOTH }
@@ -74,10 +92,13 @@ data class SettingsState(
 sealed class SettingsEvent : UiEvent {
     data class OnDarkThemeChanged(val enabled: Boolean) : SettingsEvent()
     data class OnShowChatHeaderChanged(val show: Boolean) : SettingsEvent()
-    data class OnTimestampFormatChanged(val format: SettingsState.TimestampFormat) : SettingsEvent()
+    data class OnOpenThemeCreator(val seedColor: Int? = null) : SettingsEvent()
+    data object OnCloseThemeCreator : SettingsEvent()
+    data class OnCustomThemeApplied(val theme: CustomThemeConfig?) : SettingsEvent()    data class OnTimestampFormatChanged(val format: SettingsState.TimestampFormat) : SettingsEvent()
     data class OnShowDeletedChanged(val show: Boolean) : SettingsEvent()
     data class OnScrollbackLimitChanged(val limit: Int) : SettingsEvent()
     data class OnEmoteSizeChanged(val size: SettingsState.EmoteSize) : SettingsEvent()
+    object OnLogoutClicked : SettingsEvent()
     data class OnShowBadgesChanged(val show: Boolean) : SettingsEvent()
     data class OnFontSizeChanged(val size: SettingsState.FontSize) : SettingsEvent()
     data class OnUiScaleChanged(val scale: Float) : SettingsEvent()
@@ -104,9 +125,10 @@ sealed class SettingsEvent : UiEvent {
     data class OnInlineImageMaxHeightChanged(val height: Int) : SettingsEvent()
     data class OnWallpaperPathChanged(val path: String) : SettingsEvent()
     data class OnWallpaperBlurChanged(val blur: Float) : SettingsEvent()
+    data class OnWallpaperDisplayConfigChanged(val config: WallpaperDisplayConfig) : SettingsEvent()
     data class OnCloseEmotePickerOnMouseLeaveChanged(val enabled: Boolean) : SettingsEvent()
-
-
+    data class OnActiveCustomThemeIdChanged(val themeId: String?) : SettingsEvent()
+    data class OnCustomThemesJsonChanged(val json: String) : SettingsEvent()
     data class OnAddModButton(val durationSeconds: Int, val label: String) : SettingsEvent()
     data class OnRemoveModButton(val id: String) : SettingsEvent()
     data class OnUpdateModButton(val button: ModActionButton) : SettingsEvent()
@@ -123,14 +145,23 @@ sealed class SettingsEvent : UiEvent {
     data class OnPinMacro(val macroId: String, val slotIndex: Int) : SettingsEvent()
 
     data class OnSmoothChatEnabledChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnDisableScrollOnAltChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnLinkOpenModeChanged(val mode: SettingsState.LinkOpenMode) : SettingsEvent()
+    data class OnAccentColorChanged(val index: Int) : SettingsEvent()
+    data class OnSaveCustomTheme(val theme: CustomThemeConfig) : SettingsEvent()
+    data class OnDeleteCustomTheme(val themeId: String) : SettingsEvent()
+    data class OnApplyCustomTheme(val themeId: String?) : SettingsEvent()
 }
 
 sealed class SettingsEffect : UIEffect {
     data class WallpaperChanged(val wallpaper: WallpaperState) : SettingsEffect()
+    object NavigateToAuth : SettingsEffect()
 }
 
 class SettingsViewModel(
-    private val wallpaperLoader: WallpaperLoader
+    private val wallpaperLoader: WallpaperLoader,
+    private val authRepository: AuthRepository,
+    private val getFirstValidAccountUseCase: GetFirstValidAccountUseCase
 ) : BaseViewModel<SettingsState, SettingsEvent, SettingsEffect>(loadInitialState()) {
     companion object {
         private val settings = Settings()
@@ -155,6 +186,9 @@ class SettingsViewModel(
         private const val KEY_PAUSE_HOTKEY_MODE = "pause_hotkey_mode"
         private const val KEY_SHOW_INLINE_IMAGES = "show_inline_images"
         private const val KEY_INLINE_IMAGE_MAX_HEIGHT = "inline_image_max_height"
+
+        private const val KEY_CUSTOM_THEMES = "custom_themes_json"
+        private const val KEY_ACTIVE_THEME_ID = "active_custom_theme_id"
         private const val KEY_WALLPAPER_PATH = "wallpaper_path"
         private const val KEY_WALLPAPER_BLUR = "wallpaper_blur"
         private const val KEY_EMOTE_PICKER_MOUSE_LEAVE = "emote_picker_mouse_leave"
@@ -166,6 +200,9 @@ class SettingsViewModel(
         private const val KEY_SHOW_DEFAULT_DELETE = "show_default_delete"
         private const val KEY_SHOW_DEFAULT_TIMEOUT = "show_default_timeout"
         private const val KEY_SHOW_DEFAULT_BAN = "show_default_ban"
+        private const val KEY_DISABLE_SCROLL_ON_ALT = "disable_scroll_on_alt"
+        private const val KEY_LINK_OPEN_MODE = "link_open_mode"
+        private const val KEY_ACCENT_COLOR_INDEX = "accent_color_index"
         private val json = Json { ignoreUnknownKeys = true }
         private val _effects = MutableSharedFlow<SettingsEffect>()
         val effects = _effects.asSharedFlow()
@@ -194,6 +231,18 @@ class SettingsViewModel(
             } catch (_: Exception) {
                 emptyList()
             }
+
+            val customThemes = try {
+                val j = settings.getStringOrNull(KEY_CUSTOM_THEMES)
+                if (j != null) json.decodeFromString<List<CustomThemeConfig>>(j) else emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val activeThemeId = settings.getStringOrNull(KEY_ACTIVE_THEME_ID)?.takeIf { it.isNotBlank() }
+            val activeCustomTheme = activeThemeId?.let { id -> customThemes.find { it.id == id } }
+            val wallpaperDisplayConfig = WallpaperDisplayConfig.fromJson(
+                settings.getStringOrNull(WallpaperDisplayConfig.SETTINGS_KEY)
+            )
 
             return SettingsState(
                 darkTheme = settings.getBoolean(KEY_DARK_THEME, true),
@@ -230,7 +279,7 @@ class SettingsViewModel(
                 mentionSoundEnabled = settings.getBoolean(KEY_MENTION_SOUND, true),
                 mentionSoundVolume = settings.getFloat(KEY_MENTION_VOLUME, 0.8f),
                 customMentionSoundPath = settings.getStringOrNull(KEY_CUSTOM_SOUND_PATH) ?: "",
-                alwaysOnTop = settings.getBoolean(KEY_ALWAYS_ON_TOP, true),
+                alwaysOnTop = settings.getBoolean(KEY_ALWAYS_ON_TOP, false),
                 uiScale = settings.getFloat(KEY_UI_SCALE, 1.0f),
                 pauseOnHover = settings.getBoolean(KEY_PAUSE_ON_HOVER, false),
                 pauseHotkey = settings.getStringOrNull(KEY_PAUSE_HOTKEY) ?: "",
@@ -243,6 +292,7 @@ class SettingsViewModel(
                 inlineImageMaxHeight = settings.getInt(KEY_INLINE_IMAGE_MAX_HEIGHT, 200),
                 wallpaperPath = settings.getStringOrNull(KEY_WALLPAPER_PATH) ?: "",
                 wallpaperBlur = settings.getFloat(KEY_WALLPAPER_BLUR, 12f),
+                wallpaperDisplayConfig = wallpaperDisplayConfig,
                 closeEmotePickerOnMouseLeave = settings.getBoolean(
                     KEY_EMOTE_PICKER_MOUSE_LEAVE,
                     false
@@ -254,11 +304,21 @@ class SettingsViewModel(
                 showDefaultDeleteButton = settings.getBoolean(KEY_SHOW_DEFAULT_DELETE, true),
                 showDefaultTimeoutButton = settings.getBoolean(KEY_SHOW_DEFAULT_TIMEOUT, true),
                 showDefaultBanButton = settings.getBoolean(KEY_SHOW_DEFAULT_BAN, true),
+                disableScrollOnAlt = settings.getBoolean(KEY_DISABLE_SCROLL_ON_ALT, true),
+                linkOpenMode = try {
+                    SettingsState.LinkOpenMode.valueOf(
+                        settings.getString(KEY_LINK_OPEN_MODE, SettingsState.LinkOpenMode.DEFAULT.name)
+                    )
+                } catch (_: Exception) { SettingsState.LinkOpenMode.DEFAULT },
+                accentColorIndex = settings.getInt(KEY_ACCENT_COLOR_INDEX, 0),
                 allModButtons = allModBtns ?: run {
                     val defaults = ModActionButton.defaultOrderedList()
                     val combined = (defaults + modButtons).distinctBy { it.id }
                     combined.mapIndexed { i, b -> b.copy(sortOrder = i) }
-                }
+                },
+                customThemes = customThemes,
+                activeCustomThemeId = activeThemeId,
+                activeCustomTheme = activeCustomTheme,
             )
         }
     }
@@ -275,7 +335,14 @@ class SettingsViewModel(
                     event.enabled
                 ); update { it.copy(darkTheme = event.enabled) }
             }
+            is SettingsEvent.OnActiveCustomThemeIdChanged -> {
+                update { it.copy(activeCustomThemeId = event.themeId) }
+            }
 
+            is SettingsEvent.OnCustomThemesJsonChanged -> {
+                settings.putString("custom_themes_json", event.json)
+                update { it.copy(customThemesJson = event.json) }
+            }
             is SettingsEvent.OnShowChatHeaderChanged -> {
                 settings.putBoolean(KEY_SHOW_CHAT_HEADER, event.show)
                 update { it.copy(showChatHeader = event.show) }
@@ -288,7 +355,67 @@ class SettingsViewModel(
                     )
                 }
             }
+            is SettingsEvent.OnLogoutClicked -> {
+                viewModelScope.launch {
+                    try {
+                       
+                        val account = getFirstValidAccountUseCase()
 
+                        if (account != null) {
+                           
+                            authRepository.revokeToken(account)
+                           
+                            authRepository.deleteAccount(account.userId)
+                            Napier.d("User logged out: ${account.login}", tag = "SettingsViewModel")
+                        }
+
+                       
+                        sendEffect(SettingsEffect.NavigateToAuth)
+                    } catch (e: Exception) {
+                        Napier.e("Logout error: ${e.message}", e, tag = "SettingsViewModel")
+                       
+                        val account = getFirstValidAccountUseCase()
+                        account?.let { authRepository.deleteAccount(it.userId) }
+                        sendEffect(SettingsEffect.NavigateToAuth)
+                    }
+                }
+            }
+
+            is SettingsEvent.OnOpenThemeCreator -> {
+                update { it.copy(showThemeCreator = true, themeCreatorSeedColor = event.seedColor) }
+            }
+
+            is SettingsEvent.OnCloseThemeCreator -> {
+                update { it.copy(showThemeCreator = false) }
+            }
+            is SettingsEvent.OnApplyCustomTheme -> {
+                saveCustomThemes(state.value.customThemes, event.themeId)
+                update { it.copy(activeCustomThemeId = event.themeId) }
+            }
+            is SettingsEvent.OnCustomThemeApplied -> {
+                settings.putString(KEY_ACTIVE_THEME_ID, event.theme?.id ?: "")
+
+                update {
+                    it.copy(
+                        activeCustomTheme = event.theme,
+                        activeCustomThemeId = event.theme?.id,
+                        showThemeCreator = false
+                    )
+                }
+            }
+            is SettingsEvent.OnDeleteCustomTheme -> {
+                val newThemes = state.value.customThemes.filter { it.id != event.themeId }
+                val newActiveId = if (state.value.activeCustomThemeId == event.themeId) null
+                else state.value.activeCustomThemeId
+                saveCustomThemes(newThemes, newActiveId)
+                update {
+                    it.copy(
+                        customThemes = newThemes,
+                        activeCustomThemeId = newActiveId,
+                        activeCustomTheme = newThemes.find { t -> t.id == newActiveId }
+                    )
+                }
+            }
             is SettingsEvent.OnShowDeletedChanged -> {
                 settings.putBoolean(KEY_SHOW_DELETED, event.show); update {
                     it.copy(
@@ -310,7 +437,24 @@ class SettingsViewModel(
                     event.size.ordinal
                 ); update { it.copy(emoteSize = event.size) }
             }
-
+            is SettingsEvent.OnSaveCustomTheme -> {
+                val newThemes = state.value.customThemes.toMutableList()
+                val existingIndex = newThemes.indexOfFirst { it.id == event.theme.id }
+                if (existingIndex >= 0) {
+                    newThemes[existingIndex] = event.theme
+                } else {
+                    newThemes.add(event.theme)
+                }
+                saveCustomThemes(newThemes, event.theme.id)
+                update {
+                    it.copy(
+                        customThemes = newThemes,
+                        activeCustomThemeId = event.theme.id,
+                        activeCustomTheme = event.theme,
+                        showThemeCreator = false
+                    )
+                }
+            }
             is SettingsEvent.OnShowBadgesChanged -> {
                 settings.putBoolean(
                     KEY_SHOW_BADGES,
@@ -470,6 +614,14 @@ class SettingsViewModel(
                 }; w?.let { sendEffect(SettingsEffect.WallpaperChanged(it)) }
             }
 
+            is SettingsEvent.OnWallpaperDisplayConfigChanged -> {
+                settings.putString(
+                    WallpaperDisplayConfig.SETTINGS_KEY,
+                    WallpaperDisplayConfig.toJson(event.config)
+                )
+                update { it.copy(wallpaperDisplayConfig = event.config) }
+            }
+
             is SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged -> {
                 settings.putBoolean(KEY_EMOTE_PICKER_MOUSE_LEAVE, event.enabled); update {
                     it.copy(
@@ -561,6 +713,21 @@ class SettingsViewModel(
                 update { it.copy(smoothChatEnabled = event.enabled) }
             }
 
+            is SettingsEvent.OnDisableScrollOnAltChanged -> {
+                settings.putBoolean(KEY_DISABLE_SCROLL_ON_ALT, event.enabled)
+                update { it.copy(disableScrollOnAlt = event.enabled) }
+            }
+
+            is SettingsEvent.OnLinkOpenModeChanged -> {
+                settings.putString(KEY_LINK_OPEN_MODE, event.mode.name)
+                update { it.copy(linkOpenMode = event.mode) }
+            }
+
+            is SettingsEvent.OnAccentColorChanged -> {
+                settings.putInt(KEY_ACCENT_COLOR_INDEX, event.index)
+                update { it.copy(accentColorIndex = event.index) }
+            }
+
             is SettingsEvent.OnPinMacro -> update { s ->
                 val n = s.macros.map { m ->
                     when {
@@ -572,6 +739,11 @@ class SettingsViewModel(
                 saveMacros(n); s.copy(macros = n)
             }
         }
+    }
+
+    private fun saveCustomThemes(themes: List<CustomThemeConfig>, activeId: String?) {
+        settings.putString(KEY_CUSTOM_THEMES, json.encodeToString(themes))
+        settings.putString(KEY_ACTIVE_THEME_ID, activeId ?: "")
     }
 
     private fun loadWallpaper(path: String, blur: Float): WallpaperState? =
