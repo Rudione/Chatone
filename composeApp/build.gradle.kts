@@ -210,23 +210,54 @@ compose.desktop {
 }
 
 tasks.register<Zip>("createPortableZip") {
-    dependsOn("createReleaseDistributable")
+    dependsOn(":composeApp:createReleaseDistributable")
 
-    val appDir = file("build/compose/binaries/main-release/app")
-    val appImageRoot = appDir.listFiles()?.firstOrNull { it.isDirectory }
+    val buildDir = layout.buildDirectory.asFile.get()
+    val appDir = buildDir.resolve("compose/binaries/main-release/app")
 
-    from(appImageRoot)
+    doFirst {
+        println("🔍 createPortableZip: Checking $appDir")
+        if (!appDir.exists()) {
+            throw GradleException("❌ Directory not found: $appDir")
+        }
+        appDir.listFiles()?.forEach { f ->
+            println("   ├─ ${f.name} (${if (f.isDirectory) "dir" else "file"})")
+        }
+    }
+
+    val sourceDir = provider {
+        val candidates = appDir.listFiles()?.filter { it.isDirectory && it.name.endsWith(".app") } ?: emptyList()
+        when {
+            candidates.isNotEmpty() -> {
+                println("✅ Found .app bundle: ${candidates.first().name}")
+                candidates.first()
+            }
+            appDir.listFiles()?.any { it.isDirectory } == true -> {
+                val first = appDir.listFiles()!!.first { it.isDirectory }
+                println("✅ Using first subdirectory: ${first.name}")
+                first
+            }
+            else -> {
+                println("⚠️ No subdirectories, zipping app/ contents directly")
+                appDir
+            }
+        }
+    }
+
+    from(sourceDir)
 
     archiveFileName.set("Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-portable.zip")
-    destinationDirectory.set(file("build/distributions"))
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 
     entryCompression = ZipEntryCompression.DEFLATED
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
 
     doLast {
-        println("Portable ZIP created: ${archiveFileName.get()}")
-        println("Location: ${destinationDirectory.get()}")
+        val zipFile = archiveFile.get().asFile
+        println("✅ Portable ZIP created: ${zipFile.name}")
+        println("📍 Location: ${zipFile.absolutePath}")
+        println("📦 Size: ${zipFile.length() / 1024 / 1024} MB")
     }
 }
 
