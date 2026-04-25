@@ -1,0 +1,56 @@
+CREATE TABLE IF NOT EXISTS AutomodRuleEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    scope TEXT NOT NULL,                    -- 'GLOBAL' or 'LOCAL'
+    channelLogin TEXT,                      -- non-null when scope='LOCAL'
+    pattern TEXT NOT NULL,
+    alternates TEXT NOT NULL DEFAULT '',    -- newline-separated additional patterns
+    isRegex INTEGER NOT NULL DEFAULT 0,
+    caseSensitive INTEGER NOT NULL DEFAULT 0,
+    wholeWord INTEGER NOT NULL DEFAULT 0,
+    action TEXT NOT NULL,                   -- 'DELETE' | 'TIMEOUT' | 'BAN'
+    timeoutMs INTEGER NOT NULL DEFAULT 60000,
+    frequencyThreshold INTEGER NOT NULL DEFAULT 0,
+    frequencyWindowMs INTEGER NOT NULL DEFAULT 60000,
+    exemptMods INTEGER NOT NULL DEFAULT 1,
+    exemptSubs INTEGER NOT NULL DEFAULT 0,
+    exemptVips INTEGER NOT NULL DEFAULT 1,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    note TEXT NOT NULL DEFAULT '',
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_automod_scope ON AutomodRuleEntity(scope);
+CREATE INDEX IF NOT EXISTS idx_automod_channel ON AutomodRuleEntity(channelLogin);
+CREATE INDEX IF NOT EXISTS idx_automod_enabled ON AutomodRuleEntity(enabled);
+
+upsertRule:
+INSERT OR REPLACE INTO AutomodRuleEntity(
+    id, scope, channelLogin, pattern, alternates, isRegex, caseSensitive, wholeWord,
+    action, timeoutMs, frequencyThreshold, frequencyWindowMs,
+    exemptMods, exemptSubs, exemptVips, enabled, note, createdAt, updatedAt
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getAllRules:
+SELECT * FROM AutomodRuleEntity ORDER BY scope ASC, channelLogin ASC, createdAt ASC;
+
+getEnabledRulesForChannel:
+SELECT * FROM AutomodRuleEntity
+WHERE enabled = 1
+  AND (scope = 'GLOBAL' OR (scope = 'LOCAL' AND channelLogin = ?))
+ORDER BY scope ASC, createdAt ASC;
+
+getRuleById:
+SELECT * FROM AutomodRuleEntity WHERE id = ?;
+
+deleteRule:
+DELETE FROM AutomodRuleEntity WHERE id = ?;
+
+deleteAll:
+DELETE FROM AutomodRuleEntity;
+
+updateEnabled:
+UPDATE AutomodRuleEntity SET enabled = ?, updatedAt = ? WHERE id = ?;
+
+countRules:
+SELECT COUNT(*) FROM AutomodRuleEntity;

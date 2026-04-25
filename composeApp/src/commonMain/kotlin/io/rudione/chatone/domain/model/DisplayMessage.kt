@@ -21,6 +21,7 @@ sealed class DisplayMessage {
         val isSubscriber: Boolean,
         val isVip: Boolean,
         val isBroadcaster: Boolean,
+        val isGrandMod: Boolean = false,
         val isMention: Boolean,
         val isAction: Boolean,
         val isFirstMessage: Boolean = false,

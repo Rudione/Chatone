@@ -1,6 +1,5 @@
 package io.rudione.chatone.presentation.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -50,7 +49,7 @@ object ChatoneColors {
 
 
     val DarkBg = Color(0xFF0A0A0F)
-    val DarkSurface = Color(0xFF121218)
+    val DarkSurface = Color(0xFF1E1E28)
     val DarkSurfaceElevated = Color(0xFF1A1A22)
     val DarkSurfaceHighest = Color(0xFF222230)
     val DarkBorder = Color(0xFF2A2A3A)
@@ -215,9 +214,10 @@ private val DarkExtraColors = ChatoneExtraColors(
     modDelete = ChatoneColors.ModDelete,
     modUnban = ChatoneColors.ModUnban,
     connected = ChatoneColors.Success,
-    sidebarSurface = Color(0xFF0D0D12),
-    sidebarSelected = Color(0xFF2A2A3C),
-    chatInputSurface = Color(0xFF151520),
+   
+    sidebarSurface = Color(0xFF18182A),
+    sidebarSelected = Color(0xFF2E2E46),
+    chatInputSurface = Color(0xFF1C1C2E),
     glassOverlay = ChatoneColors.GlassDark,
     glassBorder = ChatoneColors.GlassBorderDark,
     shadowColor = Color(0x66000000),
@@ -255,11 +255,35 @@ object ChatoneTheme {
 
 @Composable
 fun ChatoneTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = true,  
+    accentColorIndex: Int = 0,
+    customTheme: CustomThemeConfig? = null,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) ChatoneDarkScheme else ChatoneLightScheme
-    val extraColors = if (darkTheme) DarkExtraColors else LightExtraColors
+   
+    val colorScheme = if (customTheme != null) {
+        var base = ColorSchemeGenerator.generateFromSeed(
+            customTheme.seedColor,
+            true,
+            customTheme.contrastLevel
+        )
+        if (customTheme.customOverrides.isNotEmpty()) {
+            base = ColorSchemeGenerator.applyOverrides(base, customTheme.customOverrides)
+        }
+        base
+    } else {
+        applyAccentPalette(ChatoneDarkScheme, accentColorIndex, true)
+    }
+    val palette = ExpressivePalettes.getOrElse(accentColorIndex) { ExpressivePalettes[0] }
+
+    val baseExtra = DarkExtraColors
+    val accentHint = palette.darkPrimary
+    val extraColors = if (accentColorIndex == 0) baseExtra else baseExtra.copy(
+        sidebarSurface = accentHint.copy(alpha = 0.10f).compositeOver(baseExtra.sidebarSurface),
+        sidebarSelected = accentHint.copy(alpha = 0.20f).compositeOver(baseExtra.sidebarSelected),
+        chatInputSurface = accentHint.copy(alpha = 0.07f).compositeOver(baseExtra.chatInputSurface),
+        mentionHighlight = accentHint.copy(alpha = 0.14f)
+    )
 
     CompositionLocalProvider(LocalChatoneColors provides extraColors) {
         MaterialTheme(
@@ -269,6 +293,161 @@ fun ChatoneTheme(
             content = content
         )
     }
+}
+
+data class AccentPalette(
+    val name: String,
+    val darkPrimary: Color,
+    val darkSecondary: Color,
+    val darkTertiary: Color,
+    val lightPrimary: Color,
+    val lightSecondary: Color,
+    val lightTertiary: Color,
+    val previewColor: Color
+)
+
+val ExpressivePalettes = listOf(
+    AccentPalette(
+        name = "Violet",
+        darkPrimary = ChatoneColors.Violet500,
+        darkSecondary = ChatoneColors.Cyan400,
+        darkTertiary = ChatoneColors.Rose400,
+        lightPrimary = ChatoneColors.Violet600,
+        lightSecondary = ChatoneColors.Cyan500,
+        lightTertiary = ChatoneColors.Rose500,
+        previewColor = ChatoneColors.Violet500
+    ),
+    AccentPalette(
+        name = "Aurora",
+        darkPrimary = Color(0xFF00BFA5),
+        darkSecondary = Color(0xFF80DEEA),
+        darkTertiary = Color(0xFFFF8A65),
+        lightPrimary = Color(0xFF00897B),
+        lightSecondary = Color(0xFF00ACC1),
+        lightTertiary = Color(0xFFFF7043),
+        previewColor = Color(0xFF00BFA5)
+    ),
+    AccentPalette(
+        name = "Ember",
+        darkPrimary = Color(0xFFFF6E6E),
+        darkSecondary = Color(0xFFFFB347),
+        darkTertiary = Color(0xFFB39DDB),
+        lightPrimary = Color(0xFFD32F2F),
+        lightSecondary = Color(0xFFF57C00),
+        lightTertiary = Color(0xFF7B1FA2),
+        previewColor = Color(0xFFFF6E6E)
+    ),
+    AccentPalette(
+        name = "Ocean",
+        darkPrimary = Color(0xFF4FC3F7),
+        darkSecondary = Color(0xFF80CBC4),
+        darkTertiary = Color(0xFFCE93D8),
+        lightPrimary = Color(0xFF0277BD),
+        lightSecondary = Color(0xFF00695C),
+        lightTertiary = Color(0xFF6A1B9A),
+        previewColor = Color(0xFF4FC3F7)
+    ),
+    AccentPalette(
+        name = "Forest",
+        darkPrimary = Color(0xFF81C784),
+        darkSecondary = Color(0xFFA5D6A7),
+        darkTertiary = Color(0xFFFFD54F),
+        lightPrimary = Color(0xFF2E7D32),
+        lightSecondary = Color(0xFF388E3C),
+        lightTertiary = Color(0xFFF9A825),
+        previewColor = Color(0xFF81C784)
+    ),
+    AccentPalette(
+        name = "Candy",
+        darkPrimary = Color(0xFFF48FB1),
+        darkSecondary = Color(0xFFCE93D8),
+        darkTertiary = Color(0xFF80DEEA),
+        lightPrimary = Color(0xFFC2185B),
+        lightSecondary = Color(0xFF7B1FA2),
+        lightTertiary = Color(0xFF0097A7),
+        previewColor = Color(0xFFF48FB1)
+    ),
+    AccentPalette(
+        name = "Solar",
+        darkPrimary = Color(0xFFFFD54F),
+        darkSecondary = Color(0xFFFFCC02),
+        darkTertiary = Color(0xFF80CBC4),
+        lightPrimary = Color(0xFFF57F17),
+        lightSecondary = Color(0xFFE65100),
+        lightTertiary = Color(0xFF00695C),
+        previewColor = Color(0xFFFFD54F)
+    ),
+    AccentPalette(
+        name = "Midnight",
+        darkPrimary = Color(0xFF9FA8DA),
+        darkSecondary = Color(0xFF80DEEA),
+        darkTertiary = Color(0xFFEF9A9A),
+        lightPrimary = Color(0xFF283593),
+        lightSecondary = Color(0xFF00838F),
+        lightTertiary = Color(0xFFB71C1C),
+        previewColor = Color(0xFF9FA8DA)
+    )
+)
+
+private fun applyAccentPalette(base: ColorScheme, index: Int, dark: Boolean): ColorScheme {
+    val palette = ExpressivePalettes.getOrElse(index) { ExpressivePalettes[0] }
+    return if (dark) {
+        val tintedBg = palette.darkPrimary.copy(alpha = 0.1f).compositeOver(ChatoneColors.DarkBg)
+        val tintedSurface = palette.darkPrimary.copy(alpha = 0.04f).compositeOver(ChatoneColors.DarkSurface)
+        val tintedSurfaceElevated = palette.darkPrimary.copy(alpha = 0.05f).compositeOver(ChatoneColors.DarkSurfaceElevated)
+        base.copy(
+            primary = palette.darkPrimary,
+            onPrimary = Color.White,
+            primaryContainer = palette.darkPrimary.copy(alpha = 0.25f).compositeOver(Color(0xFF1A1A22)),
+            onPrimaryContainer = palette.darkPrimary.copy(alpha = 0.9f),
+            secondary = palette.darkSecondary,
+            onSecondary = Color.Black,
+            secondaryContainer = palette.darkSecondary.copy(alpha = 0.22f).compositeOver(Color(0xFF1A1A22)),
+            onSecondaryContainer = palette.darkSecondary,
+            tertiary = palette.darkTertiary,
+            onTertiary = Color.Black,
+            tertiaryContainer = palette.darkTertiary.copy(alpha = 0.22f).compositeOver(Color(0xFF1A1A22)),
+            onTertiaryContainer = palette.darkTertiary,
+            inversePrimary = palette.lightPrimary,
+           
+            background = tintedBg,
+            surface = tintedSurface,
+            surfaceVariant = tintedSurfaceElevated,
+            surfaceContainerHigh = palette.darkPrimary.copy(alpha = 0.06f).compositeOver(ChatoneColors.DarkSurfaceElevated),
+            surfaceContainerHighest = palette.darkPrimary.copy(alpha = 0.07f).compositeOver(ChatoneColors.DarkSurfaceHighest)
+        )
+    } else {
+        val tintedBg = palette.lightPrimary.copy(alpha = 0.02f).compositeOver(ChatoneColors.LightBg)
+        val tintedSurface = palette.lightPrimary.copy(alpha = 0.1f).compositeOver(ChatoneColors.LightSurface)
+        base.copy(
+            primary = palette.lightPrimary,
+            onPrimary = Color.White,
+            primaryContainer = palette.lightPrimary.copy(alpha = 0.12f).compositeOver(Color.White),
+            onPrimaryContainer = palette.lightPrimary,
+            secondary = palette.lightSecondary,
+            onSecondary = Color.White,
+            secondaryContainer = palette.lightSecondary.copy(alpha = 0.12f).compositeOver(Color.White),
+            onSecondaryContainer = palette.lightSecondary,
+            tertiary = palette.lightTertiary,
+            onTertiary = Color.White,
+            tertiaryContainer = palette.lightTertiary.copy(alpha = 0.12f).compositeOver(Color.White),
+            onTertiaryContainer = palette.lightTertiary,
+            inversePrimary = palette.darkPrimary,
+            background = tintedBg,
+            surface = tintedSurface
+        )
+    }
+}
+
+internal fun Color.compositeOver(background: Color): Color {
+    val fg = this
+    val a = fg.alpha
+    return Color(
+        red = fg.red * a + background.red * (1f - a),
+        green = fg.green * a + background.green * (1f - a),
+        blue = fg.blue * a + background.blue * (1f - a),
+        alpha = 1f
+    )
 }
 
 

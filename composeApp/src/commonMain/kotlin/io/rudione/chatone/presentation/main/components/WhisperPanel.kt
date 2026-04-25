@@ -58,13 +58,15 @@ fun WhisperPanel(
             .heightIn(max = 520.dp),
         shape = RoundedCornerShape(20.dp),
         contentPadding = PaddingValues(0.dp),
+       
+        glassIntensity = 0.96f,
         backgroundAlphaHigh = 0.97f,
         backgroundAlphaLow = 0.92f,
         borderAlphaHigh = 0.22f,
         borderAlphaLow = 0.08f
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-           
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -87,7 +89,7 @@ fun WhisperPanel(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Spacer(Modifier.width(8.dp))
-                   
+
                     WhisperAvatar(conv = activeConversation, size = 32)
                     Spacer(Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -123,9 +125,9 @@ fun WhisperPanel(
                 }
                 IconButton(
                     onClick = {
-                       
+
                         onEvent(MainEvent.HideWhisperPanel)
-                       
+
                     },
                     modifier = Modifier.size(28.dp)
                 ) {
@@ -140,7 +142,7 @@ fun WhisperPanel(
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-           
+
             if (activeConversation != null) {
                 WhisperChat(
                     conversation = activeConversation,
@@ -268,7 +270,7 @@ private fun WhisperChat(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
-       
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = 360.dp),
@@ -282,7 +284,7 @@ private fun WhisperChat(
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-       
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()

@@ -36,7 +36,7 @@ class TwitchIrcClient(
     private var reconnectJob: Job? = null
     private var connectionJob: Job? = null
 
-    private val _messages = MutableSharedFlow<ChatMessage>()
+    private val _messages = MutableSharedFlow<ChatMessage>(extraBufferCapacity = 128)
     val messages: SharedFlow<ChatMessage> = _messages.asSharedFlow()
 
     private val _events = MutableSharedFlow<IrcEvent>(extraBufferCapacity = 64)

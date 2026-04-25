@@ -1,6 +1,7 @@
 package io.rudione.chatone.presentation.main
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -32,7 +33,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.consumeAllChanges
@@ -69,7 +72,10 @@ import io.rudione.chatone.presentation.theme.ChatoneColors
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperGlowEdge
+import io.rudione.chatone.presentation.theme.panelBlur
+import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.util.WallpaperLoader
+import io.rudione.chatone.util.handleHover
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
@@ -78,6 +84,7 @@ import kotlin.math.hypot
 import io.rudione.chatone.presentation.chat.components.ChattersPanel
 import io.rudione.chatone.presentation.main.components.MentionsFeed
 import io.rudione.chatone.presentation.main.components.MentionToast
+import io.rudione.chatone.presentation.settings.SettingsEffect
 import kotlinx.coroutines.coroutineScope
 
 private data class ItemBounds(val id: String, val rect: Rect)
@@ -123,8 +130,18 @@ fun MainScreen(
                     )
                 }
             }
+            launch {
+                settingsViewModel.effect.collect { effect ->
+                    if (effect is SettingsEffect.NavigateToAuth) {
+                        viewModel.sendEvent(MainEvent.HideSettings) 
+                        onNavigateToAuth() 
+                    }
+                }
+            }
         }
     }
+
+
 
     if (state.showSettings && !isWideScreenForSettings) {
         SettingsScreen(
@@ -155,6 +172,46 @@ fun MainScreen(
             val isWideScreen = maxWidth >= 725.dp
             LaunchedEffect(isWideScreen) { isWideScreenForSettings = isWideScreen }
 
+            if (state.needsReauth) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .zIndex(100f)
+                ) {
+                    androidx.compose.material3.Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        tonalElevation = 4.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                "⚠️ Re-login required to enable deleting own messages",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.weight(1f)
+                            )
+                            androidx.compose.material3.TextButton(
+                                onClick = { viewModel.sendEvent(MainEvent.NavigateToAuth) }
+                            ) {
+                                Text(
+                                    "Re-login",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (isWideScreen) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     Box {
@@ -164,7 +221,7 @@ fun MainScreen(
                             centerX = 1.2f,
                             centerY = 0.5f
                         ) {
-                            androidx.compose.animation.AnimatedContent(
+                            AnimatedContent(
                                 targetState = state.sidebarCollapsed,
                                 transitionSpec = {
                                     if (targetState) {
@@ -592,6 +649,12 @@ private fun MiniRail(
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
     val railScrollState = rememberLazyListState()
+    val density = LocalDensity.current
+
+    var railDragLogin by remember { mutableStateOf<String?>(null) }
+    var railDragFromIndex by remember { mutableStateOf<Int?>(null) }
+    val railItemCenters = remember { mutableStateMapOf<String, Float>() }
+    val tooltipOffsetYPx = with(density) { 28.dp.roundToPx() }
 
     LiquidGlassSurface(
         modifier = modifier.padding(8.dp).shadow(
@@ -600,7 +663,7 @@ private fun MiniRail(
             ambientColor = extra.shadowColor,
             spotColor = extra.elevatedShadow
         ),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+        contentPadding = PaddingValues(2.dp),
         backgroundAlphaHigh = 0.95f,
         backgroundAlphaLow = 0.88f
     ) {
@@ -648,41 +711,85 @@ private fun MiniRail(
                     key = { channel: ChannelTab -> channel.login }) { channel ->
                     val isActive = channel.login == state.activeChannelLogin
                     var showTooltip by remember { mutableStateOf(false) }
-                    Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                    var tooltipOffset by remember { mutableStateOf(IntOffset.Zero) }
+                    val isDraggedItem = railDragLogin == channel.login
+
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .onGloballyPositioned { coords ->
+                                val bounds = coords.boundsInRoot()
+                                railItemCenters[channel.login] = bounds.left + bounds.width / 2f
+                            }
+                            .pointerInput(channel.login) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        railDragLogin = channel.login
+                                        railDragFromIndex = state.openChannels.indexOfFirst { it.login == channel.login }
+                                    },
+                                    onDrag = { change, delta ->
+                                        change.consume()
+                                        val draggedCenter = (railItemCenters[channel.login] ?: 0f) + delta.x
+                                        val targetLogin = railItemCenters.entries
+                                            .minByOrNull { (_, cx) -> kotlin.math.abs(cx - draggedCenter) }?.key
+                                        val fromIdx = railDragFromIndex
+                                        val toIdx = if (targetLogin != null)
+                                            state.openChannels.indexOfFirst { it.login == targetLogin }.takeIf { it >= 0 }
+                                        else null
+                                        if (fromIdx != null && toIdx != null && toIdx != fromIdx) {
+                                            onEvent(MainEvent.ReorderChannels(fromIdx, toIdx))
+                                            railDragFromIndex = toIdx
+                                        }
+                                    },
+                                    onDragEnd = { railDragLogin = null; railDragFromIndex = null },
+                                    onDragCancel = { railDragLogin = null; railDragFromIndex = null }
+                                )
+                            }
+                            .pointerInput(channel.login) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        when (event.type) {
+                                            PointerEventType.Enter -> {
+                                                val pos = event.changes.firstOrNull()?.position ?: Offset.Zero
+                                                tooltipOffset = IntOffset(pos.x.toInt() - 35, pos.y.toInt() - tooltipOffsetYPx)
+                                                showTooltip = true
+                                            }
+                                            PointerEventType.Move -> {
+                                                val pos = event.changes.firstOrNull()?.position ?: Offset.Zero
+                                                tooltipOffset = IntOffset(pos.x.toInt() - 35, pos.y.toInt() - tooltipOffsetYPx)
+                                            }
+                                            PointerEventType.Exit -> showTooltip = false
+                                            PointerEventType.Press -> if (event.buttons.isSecondaryPressed) {
+                                                try {
+                                                    uriHandler.openUri("https://www.twitch.tv/${channel.login}")
+                                                } catch (_: Exception) { }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (isActive) MaterialTheme.colorScheme.primary.copy(
-                                        alpha = 0.2f
-                                    ) else Color.Transparent
+                                    when {
+                                        isDraggedItem -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                        isActive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                        else -> Color.Transparent
+                                    }
                                 )
                                 .clickable { onEvent(MainEvent.SelectChannel(channel.login)) }
                                 .then(
-                                    if (isActive) Modifier.border(
+                                    if (isActive || isDraggedItem) Modifier.border(
                                         2.dp,
                                         MaterialTheme.colorScheme.primary,
                                         CircleShape
                                     ) else Modifier
-                                )
-                                .pointerInput(channel.login) {
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            when (event.type) {
-                                                PointerEventType.Enter -> showTooltip = true
-                                                PointerEventType.Exit -> showTooltip = false
-                                                PointerEventType.Press -> if (event.buttons.isSecondaryPressed) {
-                                                    try {
-                                                        uriHandler.openUri("https://www.twitch.tv/${channel.login}")
-                                                    } catch (_: Exception) {
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             if (channel.profileImageUrl.isNotEmpty()) {
@@ -725,29 +832,43 @@ private fun MiniRail(
                                 )
                             }
                         }
-                    }
-                    if (showTooltip) {
-                        Popup(
-                            alignment = Alignment.BottomCenter,
-                            offset = IntOffset(0, 12),
-                            properties = androidx.compose.ui.window.PopupProperties(focusable = false)
-                        ) {
-                            Box(
-                                modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
-                                    .border(
-                                        1.dp,
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                        RoundedCornerShape(6.dp)
-                                    ).padding(horizontal = 10.dp, vertical = 5.dp)
-                                    .shadow(4.dp, RoundedCornerShape(6.dp))
-                            ) {
-                                Text(
-                                    text = channel.displayName.ifBlank { channel.login.replaceFirstChar { char -> char.uppercaseChar() } },
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
+                        if (showTooltip) {
+                            Popup(
+                                alignment = Alignment.TopStart,
+                                offset = tooltipOffset,
+                                properties = androidx.compose.ui.window.PopupProperties(
+                                    focusable = false,
+                                    dismissOnBackPress = false,
+                                    dismissOnClickOutside = false
                                 )
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
+                                        .border(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                        .shadow(4.dp, RoundedCornerShape(6.dp))
+                                        .pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val event = awaitPointerEvent()
+                                                    event.changes.forEach { it.consumeAllChanges() }
+                                                }
+                                            }
+                                        }
+                                ) {
+                                    Text(
+                                        text = channel.displayName.ifBlank { channel.login.replaceFirstChar { char -> char.uppercaseChar() } },
+                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
@@ -885,45 +1006,61 @@ private fun CompactSidebar(
                 } catch (_: Exception) { ChatoneColors.Violet400 }
 
                 val hasFolderActive = folder.channels.any { it.login == state.activeChannelLogin }
-                Box(
-                    modifier = Modifier.size(40.dp),
-                    contentAlignment = Alignment.Center
+               
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.width(52.dp)
                 ) {
                     Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(
-                                if (hasFolderActive) folderColor.copy(alpha = 0.2f)
-                                else if (isExpanded) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                else Color.Transparent
-                            )
-                            .then(
-                                if (hasFolderActive) Modifier.border(2.dp, folderColor, RoundedCornerShape(10.dp))
-                                else Modifier
-                            )
-                            .clickable {
-                                if (isExpanded) expandedFolders.remove(folder.id)
-                                else expandedFolders.add(folder.id)
-                            },
+                        modifier = Modifier.size(40.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            painterResource(Res.drawable.folder_outline),
-                            contentDescription = folder.name,
-                            modifier = Modifier.size(20.dp),
-                            tint = folderColor
-                        )
-                    }
-                    if (folder.channels.count { it.isLive } > 0) {
                         Box(
-                            modifier = Modifier.align(Alignment.TopEnd)
-                                .offset(x = 2.dp, y = (-2).dp)
-                                .size(10.dp).clip(CircleShape)
-                                .background(ChatoneTheme.extraColors.live)
-                                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                        )
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (hasFolderActive) folderColor.copy(alpha = 0.2f)
+                                    else if (isExpanded) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    else Color.Transparent
+                                )
+                                .then(
+                                    if (hasFolderActive) Modifier.border(2.dp, folderColor, RoundedCornerShape(10.dp))
+                                    else Modifier
+                                )
+                                .clickable {
+                                    if (isExpanded) expandedFolders.remove(folder.id)
+                                    else expandedFolders.add(folder.id)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painterResource(Res.drawable.folder_outline),
+                                contentDescription = folder.name,
+                                modifier = Modifier.size(20.dp),
+                                tint = folderColor
+                            )
+                        }
+                        if (folder.channels.count { it.isLive } > 0) {
+                            Box(
+                                modifier = Modifier.align(Alignment.TopEnd)
+                                    .offset(x = 2.dp, y = (-2).dp)
+                                    .size(10.dp).clip(CircleShape)
+                                    .background(ChatoneTheme.extraColors.live)
+                                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                            )
+                        }
                     }
+                   
+                    Text(
+                        text = folder.name.take(8),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                        color = if (hasFolderActive) folderColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)
+                    )
                 }
 
                 if (isExpanded) {
@@ -1163,6 +1300,7 @@ private fun ChannelSidebar(
     var sidebarTopLeftInRoot by remember { mutableStateOf(Offset.Zero) }
 
     val folderBounds = remember { mutableStateListOf<ItemBounds>() }
+    val channelRectMap = remember { mutableStateMapOf<String, Rect>() }
     val channelBounds = remember { mutableStateListOf<ItemBounds>() }
 
     val folderedLogins = state.folders.flatMap { it.channels }.map { it.login }.toSet()
@@ -1400,15 +1538,22 @@ private fun ChannelSidebar(
                         dragStartOffsetPx = rootPos - sidebarTopLeftInRoot
                         dragOffsetPx = Offset.Zero
                         isDragging = true
-                        dragStartIndex = index
+                        dragStartIndex = filteredUnfoldered.indexOfFirst { it.login == channel.login }
                         dragOverIndex = null
                     },
                     onDrag = { delta ->
                         dragOffsetPx += delta
                         val currentPos = dragStartOffsetPx + dragOffsetPx
+
                         dropTargetFolderId = folderBounds.find { it.rect.contains(currentPos) }?.id
-                        val targetChannel = channelBounds.find { it.rect.contains(currentPos) }
-                        dragOverIndex = targetChannel?.id?.substringAfterLast("_")?.toIntOrNull()
+
+
+                        val hoveredLogin = channelRectMap.entries
+                            .firstOrNull { (_, rect) -> rect.contains(currentPos) }?.key
+                        dragOverIndex = if (hoveredLogin != null) {
+                            filteredUnfoldered.indexOfFirst { it.login == hoveredLogin }
+                                .takeIf { it >= 0 }
+                        } else null
                     },
                     onDragEnd = {
                         val currentPos = dragStartOffsetPx + dragOffsetPx
@@ -1429,8 +1574,9 @@ private fun ChannelSidebar(
                         .padding(horizontal = 4.dp)
                         .onGloballyPositioned { coords ->
                             val rect = coords.boundsInRoot()
-                            channelBounds.removeAll { it.id.startsWith("unfoldered_${channel.login}_") }
-                            channelBounds.add(ItemBounds("unfoldered_${channel.login}_$index", rect))
+                            channelRectMap[channel.login] = rect
+                            channelBounds.removeAll { it.id == "unfoldered_${channel.login}" }
+                            channelBounds.add(ItemBounds("unfoldered_${channel.login}", rect))
                         }
                 )
             }
@@ -1446,29 +1592,27 @@ private fun ChannelSidebar(
             modifier = Modifier.fillMaxWidth().padding(8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            FilledTonalButton(
+           
+            GradientButton(
+                text = "+ Channel",
                 onClick = { onEvent(MainEvent.ShowAddChannelDialog) },
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Channel", style = MaterialTheme.typography.labelMedium)
-            }
+                gradientColors = listOf(
+                    MaterialTheme.colorScheme.primary,
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f)
+                )
+            )
             Spacer(Modifier.width(8.dp))
-            OutlinedButton(
+           
+            GradientButton(
+                text = "+ Folder",
                 onClick = { onEvent(MainEvent.ShowCreateFolderDialog) },
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Create,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
+                gradientColors = listOf(
+                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.85f),
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                 )
-                Spacer(Modifier.width(4.dp))
-                Text("Folder", style = MaterialTheme.typography.labelMedium)
-            }
+            )
         }
 
         TextButton(
@@ -1631,12 +1775,21 @@ private fun FolderItem(
                     .combinedClickable(onClick = onToggle, onLongClick = { showFolderMenu = true })
                     .then(
                         if (isDropTarget) Modifier.background(
-                            MaterialTheme.colorScheme.primary.copy(
-                                alpha = 0.2f
-                            ), RoundedCornerShape(8.dp)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            RoundedCornerShape(8.dp)
                         ) else Modifier
                     )
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
+                                    showFolderMenu = true
+                                }
+                            }
+                        }
+                    },
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -1681,45 +1834,39 @@ private fun FolderItem(
                         expanded = showAddToFolderMenu,
                         onDismissRequest = { showAddToFolderMenu = false }) {
                         if (unfolderedChannels.isEmpty()) {
-                            DropdownMenuItem(text = {
-                                Text(
-                                    "No channels to add",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }, onClick = { showAddToFolderMenu = false }, enabled = false)
+                            DropdownMenuItem(
+                                text = { Text("No channels to add", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                onClick = { showAddToFolderMenu = false },
+                                enabled = false
+                            )
                         } else {
                             unfolderedChannels.forEach { ch: ChannelTab ->
                                 DropdownMenuItem(
                                     text = { Text("#${ch.displayName}") },
                                     onClick = {
-                                        showAddToFolderMenu = false; onMoveChannel(
-                                        ch.login,
-                                        folder.id
-                                    )
+                                        showAddToFolderMenu = false
+                                        onMoveChannel(ch.login, folder.id)
                                     },
                                     leadingIcon = {
-                                        Text(
-                                            "#",
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    })
+                                        Text("#", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                )
                             }
                         }
                     }
                 }
             }
-            DropdownMenu(expanded = showFolderMenu, onDismissRequest = { showFolderMenu = false }) {
+            DropdownMenu(
+                expanded = showFolderMenu,
+                onDismissRequest = { showFolderMenu = false }
+            ) {
                 DropdownMenuItem(
                     text = { Text("Delete folder") },
                     onClick = { showFolderMenu = false; onDelete() },
                     leadingIcon = {
-                        Icon(
-                            Icons.Outlined.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    })
+                        Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                )
             }
         }
     }
@@ -1828,7 +1975,7 @@ private fun ChannelItemWithDrag(
             )
             if (channel.unreadCount > 0) {
                 Surface(
-                    color = Color.Red,
+                    color = ChatoneTheme.extraColors.live, 
                     shape = CircleShape,
                     modifier = Modifier.padding(start = 4.dp)
                 ) {
@@ -1870,7 +2017,7 @@ private fun ChannelItemWithDrag(
                                     .zIndex(100f)
                                     .shadow(16.dp, RoundedCornerShape(12.dp)),
                                 contentPadding = PaddingValues(4.dp),
-                                backgroundAlphaHigh = 0.98f
+                                backgroundAlphaHigh = 0.99f
                             ) {
                                 Column {
                                     if (currentFolderId != null) {
@@ -2005,7 +2152,7 @@ private fun ChannelItem(
             )
             if (channel.unreadCount > 0) {
                 Surface(
-                    color = Color.Red,
+                    color = ChatoneTheme.extraColors.live, 
                     shape = CircleShape,
                     modifier = Modifier.padding(start = 4.dp)
                 ) {
@@ -2126,12 +2273,22 @@ private fun ChannelTabBar(
 
     val tabCenters = remember { mutableStateListOf<Pair<Int, Offset>>() }
 
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        tonalElevation = 1.dp,
-        shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, extra.cardBorder)
+   
+   
+    val tabBarWallpaper = LocalWallpaperController.current.state
+    val tabBarBlur = tabBarWallpaper.panelColorConfig.topBarBlurRadius
+    val tabBarColor = topBarBackgroundColor(tabBarWallpaper, MaterialTheme.colorScheme.surfaceContainer)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, extra.cardBorder)
     ) {
+        if (tabBarBlur > 0f) {
+            Box(modifier = Modifier.matchParentSize().background(tabBarColor).panelBlur(tabBarBlur))
+        } else {
+            Box(modifier = Modifier.matchParentSize().background(tabBarColor))
+        }
         Box(modifier = Modifier.fillMaxWidth()) {
             FlowRow(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
@@ -2303,6 +2460,73 @@ private fun ChannelTabBar(
     }
 }
 
+
+
+@Composable
+private fun GradientButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    gradientColors: List<Color>
+) {
+    var hovered by remember { mutableStateOf(false) }
+    val elevation by animateFloatAsState(
+        targetValue = if (hovered) 8f else 2f,
+        animationSpec = androidx.compose.animation.core.tween(150),
+        label = "btn_elevation"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (hovered) 1.03f else 1f,
+        animationSpec = androidx.compose.animation.core.tween(150),
+        label = "btn_scale"
+    )
+
+    Box(
+        modifier = modifier
+            .height(34.dp)
+            .graphicsLayer {
+                scaleX = scale; scaleY = scale
+                shadowElevation = elevation
+                shape = RoundedCornerShape(10.dp)
+                clip = true
+            }
+            .shadow(elevation.dp, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                brush = Brush.linearGradient(
+                    colors = if (hovered)
+                        gradientColors.map { it.copy(alpha = (it.alpha + 0.1f).coerceAtMost(1f)) }
+                    else gradientColors,
+                    start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                )
+            )
+            .handleHover(onEnter = { hovered = true }, onExit = { hovered = false })
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+       
+        if (hovered) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color.White.copy(alpha = 0.12f), Color.Transparent),
+                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, 0f)
+                        )
+                    )
+            )
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
 
 @Composable
 private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -> Unit) {

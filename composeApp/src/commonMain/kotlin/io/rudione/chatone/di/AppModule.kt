@@ -1,5 +1,6 @@
 package io.rudione.chatone.di
 
+import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -25,6 +26,7 @@ import io.rudione.chatone.data.repository.BadgeRepository
 import io.rudione.chatone.data.repository.ChannelFolderRepository
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.ChatRepositoryImpl
+import io.rudione.chatone.data.repository.AutomodRepository
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.data.repository.UserNoteRepository
 import io.rudione.chatone.domain.usecase.*
@@ -33,6 +35,7 @@ import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.main.MainViewModel
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.data.repository.MentionRepository
+import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.util.AppConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -141,6 +144,12 @@ val repositoryModule = module {
             database = get()
         )
     }
+
+    single {
+        AutomodRepository(
+            database = get()
+        )
+    }
 }
 
 val useCaseModule = module {
@@ -158,6 +167,11 @@ val useCaseModule = module {
     singleOf(::GetChannelInfoUseCase)
 }
 
+val appModule = module {
+    single { CustomThemeManager() }
+
+}
+
 val viewModelModule = module {
     viewModelOf(::AuthViewModel)
     viewModelOf(::ChatViewModel)
@@ -170,5 +184,6 @@ fun appModules(): List<Module> = listOf(
     databaseModule,
     repositoryModule,
     useCaseModule,
-    viewModelModule
+    viewModelModule,
+    appModule
 )

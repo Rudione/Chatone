@@ -202,3 +202,20 @@ data class BlockedUserData(
 data class PaginationData(
     val cursor: String? = null
 )
+@Serializable
+data class SendChatMessageResponse(
+    val data: List<SendChatMessageData>
+)
+
+@Serializable
+data class SendChatMessageData(
+    @SerialName("message_id") val messageId: String,
+    @SerialName("is_sent") val isSent: Boolean,
+    @SerialName("drop_reason") val dropReason: SendChatMessageDropReason? = null
+)
+
+@Serializable
+data class SendChatMessageDropReason(
+    val code: String,
+    val message: String
+)

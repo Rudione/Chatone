@@ -1,9 +1,14 @@
 package io.rudione.chatone.domain.model
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+
+@Immutable
 enum class EmoteProvider {
     TWITCH, SEVEN_TV, BTTV, FFZ
 }
 
+@Immutable
 data class GenericEmote(
     val id: String,
     val code: String,
@@ -12,14 +17,16 @@ data class GenericEmote(
     val url3x: String,
     val provider: EmoteProvider,
     val isZeroWidth: Boolean = false,
-
     val width: Int = 0,
     val height: Int = 0,
-
     val originalName: String = "",
     val authorName: String = ""
-)
+) {
+    val imageCacheKey: String by lazy { "${provider.name}_$id" }
+    val listKey: String by lazy { "${provider.name}_$id" }
+}
 
+@Stable
 data class ChannelEmotes(
     val twitchEmotes: List<GenericEmote> = emptyList(),
     val sevenTvChannel: List<GenericEmote> = emptyList(),
@@ -29,7 +36,7 @@ data class ChannelEmotes(
     val ffzChannel: List<GenericEmote> = emptyList(),
     val ffzGlobal: List<GenericEmote> = emptyList()
 ) {
-    val allByCode: Map<String, GenericEmote> by lazy {
+    val allByCode: Map<String, GenericEmote> by lazy(LazyThreadSafetyMode.PUBLICATION) {
         buildMap {
             ffzGlobal.forEach { put(it.code, it) }
             bttvGlobal.forEach { put(it.code, it) }
@@ -41,12 +48,28 @@ data class ChannelEmotes(
         }
     }
 
-    val all: List<GenericEmote> by lazy {
+    val all: List<GenericEmote> by lazy(LazyThreadSafetyMode.PUBLICATION) {
         val seen = mutableSetOf<String>()
-        (twitchEmotes + sevenTvChannel + bttvChannel + ffzChannel +
-                sevenTvGlobal + bttvGlobal + ffzGlobal)
-            .filter { emote ->
-                seen.add("${emote.provider}_${emote.id}")
+        val result = mutableListOf<GenericEmote>()
+        val sources = listOf(
+            twitchEmotes, sevenTvChannel, bttvChannel, ffzChannel,
+            sevenTvGlobal, bttvGlobal, ffzGlobal
+        )
+        for (source in sources) {
+            for (emote in source) {
+                if (seen.add(emote.listKey)) {
+                    result.add(emote)
+                }
             }
+        }
+        result
+    }
+
+    val byProvider: Map<EmoteProvider, List<GenericEmote>> by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        val result = mutableMapOf<EmoteProvider, MutableList<GenericEmote>>()
+        for (emote in all) {
+            result.getOrPut(emote.provider) { mutableListOf() }.add(emote)
+        }
+        result
     }
 }

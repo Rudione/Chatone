@@ -78,7 +78,8 @@ data class MainState(
 
     val showChattersPanel: Boolean = false,
     val activeChatChannelId: String = "",
-    val channelIdMap: Map<String, String> = emptyMap()
+    val channelIdMap: Map<String, String> = emptyMap(),
+    val needsReauth: Boolean = false
 ) : UiState
 
 
@@ -193,6 +194,7 @@ class MainViewModel(
         private const val KEY_OPEN_CHANNELS = "open_channels"
         private const val KEY_ACTIVE_CHANNEL = "active_channel"
         private const val KEY_FOLDERS = "folders"
+        private const val KEY_UNFOLDERED_ORDER = "unfoldered_order_v2"
         private const val LIVE_POLL_INTERVAL_MS = 60_000L
     }
 
@@ -281,6 +283,7 @@ class MainViewModel(
                         state.copy(unfolderedChannels = list)
                     } else state
                 }
+                saveChannelState()
             }
 
             is MainEvent.ReorderFolderChannels -> {
@@ -435,7 +438,7 @@ class MainViewModel(
                 if (!alreadyExists) {
                     update {
                         it.copy(
-                            mentions = (listOf(event.entry) + it.mentions).takeLast(200),
+                            mentions = (listOf(event.entry) + it.mentions).take(200),
                             unreadMentionsCount = it.unreadMentionsCount + 1
                         )
                     }
@@ -601,12 +604,14 @@ class MainViewModel(
     private fun loadAccounts() {
         viewModelScope.launch {
             getAccountsUseCase().collectLatest { accounts ->
+                val selected = state.value.selectedAccount ?: accounts.firstOrNull()
+                val needsReauth = selected != null && !selected.scopes.contains("user:write:chat")
                 update { state ->
-                    val selected = state.selectedAccount ?: accounts.firstOrNull()
                     state.copy(
                         accounts = accounts,
                         selectedAccount = selected,
-                        isGuest = accounts.isEmpty()
+                        isGuest = accounts.isEmpty(),
+                        needsReauth = needsReauth
                     )
                 }
                 val account = state.value.selectedAccount
@@ -925,6 +930,19 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 deleteAccountUseCase(userId)
+               
+               
+                val remaining = state.value.accounts.filter { it.userId != userId }
+                if (remaining.isEmpty()) {
+                    update { it.copy(
+                        selectedAccount = null,
+                        isGuest = true,
+                        needsReauth = false,
+                        openChannels = emptyList(),
+                        activeChannelLogin = ""
+                    )}
+                    sendEffect(MainEffect.NavigateToAuth)
+                }
             } catch (e: Exception) {
                 sendEffect(MainEffect.ShowError("Failed to delete account"))
             }
@@ -936,12 +954,23 @@ class MainViewModel(
         val activeChannel = settings.getStringOrNull(KEY_ACTIVE_CHANNEL)
         val channelLogins = saved.split(",").filter { it.isNotBlank() }
         if (channelLogins.isEmpty()) return
-        val tabs = channelLogins.map { login -> ChannelTab(login = login, displayName = login) }
+        val openTabs = channelLogins.map { login -> ChannelTab(login = login, displayName = login) }
+        val openSet = channelLogins.toSet()
+
+        val savedUnfoldered = settings.getStringOrNull(KEY_UNFOLDERED_ORDER)
+        val unfolderedTabs = if (savedUnfoldered != null) {
+            val orderedLogins = savedUnfoldered.split(",").filter { it.isNotBlank() && it in openSet }
+            val missing = channelLogins.filter { it !in orderedLogins.toSet() }
+            (orderedLogins + missing).map { login -> ChannelTab(login = login, displayName = login) }
+        } else {
+            openTabs
+        }
+
         update { state ->
             state.copy(
-                openChannels = tabs,
-                unfolderedChannels = tabs,
-                activeChannelLogin = activeChannel ?: tabs.firstOrNull()?.login
+                openChannels = openTabs,
+                unfolderedChannels = unfolderedTabs,
+                activeChannelLogin = activeChannel ?: openTabs.firstOrNull()?.login
             )
         }
         viewModelScope.launch {
@@ -958,9 +987,9 @@ class MainViewModel(
                     }
                 }
                 fetchAndUpdateProfileImages()
-               
-               
-               
+
+
+
                 delay(1500)
                 scanAllChannelsForMentions(channelLogins)
             }
@@ -972,6 +1001,8 @@ class MainViewModel(
         settings.putString(KEY_OPEN_CHANNELS, channels)
         state.value.activeChannelLogin?.let { settings.putString(KEY_ACTIVE_CHANNEL, it) }
             ?: settings.remove(KEY_ACTIVE_CHANNEL)
+        val unfolderedOrder = state.value.unfolderedChannels.joinToString(",") { it.login }
+        settings.putString(KEY_UNFOLDERED_ORDER, unfolderedOrder)
     }
 
     private fun observeEmoteUpdates() {
@@ -1116,8 +1147,16 @@ class MainViewModel(
             mentionRepository.pruneOld()
             val persisted = mentionRepository.loadMentions()
             if (persisted.isNotEmpty()) {
-                val unread = persisted.count { !it.isRead }
-                update { it.copy(mentions = persisted, unreadMentionsCount = unread) }
+                update { st ->
+                    val existingIds = st.mentions.mapTo(HashSet()) { it.messageId }
+                    val merged = (st.mentions + persisted.filter { it.messageId !in existingIds })
+                        .sortedByDescending { it.timestamp }
+                        .take(200)
+                    st.copy(
+                        mentions = merged,
+                        unreadMentionsCount = merged.count { !it.isRead }
+                    )
+                }
             }
         }
     }
@@ -1148,7 +1187,7 @@ class MainViewModel(
                     isRead = false
                 )
 
-               
+
                 if (state.value.mentions.any { it.messageId == entry.messageId }) return@collect
 
                 val activeChannel = state.value.activeChannelLogin?.lowercase()
@@ -1156,9 +1195,9 @@ class MainViewModel(
 
                 update { st ->
                     st.copy(
-                        mentions = (listOf(entry) + st.mentions).takeLast(200),
+                        mentions = (listOf(entry) + st.mentions).take(200),
                         unreadMentionsCount = st.unreadMentionsCount + 1,
-                       
+
                         openChannels = if (isActiveChannel) st.openChannels else st.openChannels.map {
                             if (it.login == channelLogin) it.copy(unreadCount = it.unreadCount + 1) else it
                         },
@@ -1173,10 +1212,10 @@ class MainViewModel(
                     )
                 }
 
-               
+
                 viewModelScope.launch { mentionRepository.saveMention(entry) }
 
-               
+
                 sendEffect(
                     MainEffect.MentionToast(
                         channelLogin = channelLogin,
@@ -1204,7 +1243,7 @@ class MainViewModel(
                     val messages = recentMessagesClient.getRecentMessages(normalized, limit = 100)
                     messages.forEach { msg ->
                         if (msg.userId == userId) return@forEach
-                       
+
                         if (state.value.mentions.any { it.messageId == msg.id }) return@forEach
 
                         if (checkMentionInText(

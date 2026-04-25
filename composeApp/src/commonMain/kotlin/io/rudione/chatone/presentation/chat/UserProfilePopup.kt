@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -29,6 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.copy_check
+import chatone.composeapp.generated.resources.ic_copy
+import chatone.composeapp.generated.resources.ic_twitch
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.UserNoteRepository
@@ -42,6 +48,7 @@ import io.rudione.chatone.util.MessageToken
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -810,6 +817,17 @@ fun UserProfileHeader(
     onDismiss: (() -> Unit)? = null,
     showIconDetached: Boolean = true
 ) {
+    val clipboardManager = LocalClipboardManager.current
+    var showCopied by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+
+    LaunchedEffect(showCopied) {
+        if (showCopied) {
+            kotlinx.coroutines.delay(1500)
+            showCopied = false
+        }
+    }
+
     Column(modifier = Modifier.padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (avatarUrl.isNotEmpty()) {
@@ -834,10 +852,47 @@ fun UserProfileHeader(
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 val nameColor = parseHexColor(color) ?: MaterialTheme.colorScheme.primary
-                Text(
-                    displayName, style = MaterialTheme.typography.titleMedium,
-                    color = nameColor, fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        displayName, style = MaterialTheme.typography.titleMedium,
+                        color = nameColor, fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(username))
+                            showCopied = true
+                        },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            if (showCopied) painterResource(Res.drawable.copy_check)
+                            else painterResource(
+                                Res.drawable.ic_copy
+                            ),
+                            contentDescription = "Copy username",
+                            modifier = Modifier.size(14.dp),
+                            tint = if (showCopied)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            val twitchUrl = "https://www.twitch.tv/${username.lowercase()}"
+                            uriHandler.openUri(twitchUrl)
+                        },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(Res.drawable.ic_twitch),
+                            contentDescription = "Open Twitch profile",
+                            modifier = Modifier.size(14.dp),
+                            tint = Color(0xFF9146FF)
+                        )
+                    }
+                }
                 if (username.lowercase() != displayName.lowercase()) {
                     Text(
                         "@$username", style = MaterialTheme.typography.bodySmall,
@@ -848,7 +903,7 @@ fun UserProfileHeader(
             if (onDetach != null) {
                 IconButton(onClick = onDetach, modifier = Modifier.size(28.dp)) {
                     Icon(
-                        Icons.Outlined.Star, null, modifier = Modifier.size(15.dp),
+                        Icons.Outlined.OpenInNew, null, modifier = Modifier.size(15.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

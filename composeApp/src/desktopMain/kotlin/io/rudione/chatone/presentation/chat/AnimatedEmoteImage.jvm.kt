@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.TooltipArea
@@ -12,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -20,6 +24,7 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,6 +33,7 @@ import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.EmoteProvider
 import io.rudione.chatone.domain.model.GenericEmote
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.util.EmoteAnimationCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -35,16 +41,16 @@ import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Codec
 import org.jetbrains.skia.Data
 import java.net.URI
+import java.util.concurrent.ConcurrentHashMap
 
 
-private val animatedCache = mutableMapOf<String, AnimatedFrames>()
+private val animatedCache = ConcurrentHashMap<String, AnimatedFrames>()
+private val staticUrls = ConcurrentHashMap.newKeySet<String>()
 
 private data class AnimatedFrames(
     val frames: List<ImageBitmap>,
     val durations: IntArray
 )
-
-
 
 @Composable
 actual fun AnimatedEmoteImage(
@@ -54,39 +60,6 @@ actual fun AnimatedEmoteImage(
 ) {
     AnimatedEmoteImageCore(url = url, contentDescription = contentDescription, modifier = modifier)
 }
-
-
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
-@Composable
-fun EmoteImageWithTooltip(
-    emote: GenericEmote,
-    modifier: Modifier,
-    onShowContextMenu: (() -> Unit)? = null
-) {
-    val uriHandler = LocalUriHandler.current
-
-    TooltipArea(
-        tooltip = { EmoteTooltip(emote = emote) },
-        delayMillis = 500
-    ) {
-        AnimatedEmoteImageCore(
-            url = emote.url2x.ifEmpty { emote.url1x },
-            contentDescription = emote.code,
-            modifier = modifier
-                .onPointerEvent(PointerEventType.Press) { event ->
-                    if (event.buttons.isSecondaryPressed) {
-                        if (emote.provider == EmoteProvider.SEVEN_TV && emote.id.isNotEmpty()) {
-                            try {
-                                uriHandler.openUri("https://7tv.app/emotes/${emote.id}")
-                            } catch (_: Exception) {}
-                        }
-                        onShowContextMenu?.invoke()
-                    }
-                }
-        )
-    }
-}
-
 
 @Composable
 fun EmoteTooltip(emote: GenericEmote) {
@@ -217,15 +190,16 @@ fun EmoteTooltip(emote: GenericEmote) {
     }
 }
 
-
 @Composable
 fun AnimatedEmoteImageCore(
     url: String,
     contentDescription: String?,
-    modifier: Modifier
+    modifier: Modifier = Modifier,
+    emoteId: String? = null,
+    entranceAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 150)
 ) {
-    var animData by remember(url) { mutableStateOf(animatedCache[url]) }
-    var isStatic by remember(url) { mutableStateOf(false) }
+    var animData by remember(url) { mutableStateOf<AnimatedFrames?>(animatedCache[url]) }
+    var isStatic by remember(url) { mutableStateOf(url in staticUrls) }
     var currentFrame by remember(url) { mutableIntStateOf(0) }
 
     LaunchedEffect(url) {
@@ -239,8 +213,15 @@ fun AnimatedEmoteImageCore(
                     animData = cached
                     return@withContext
                 }
+                if (url in staticUrls) {
+                    isStatic = true
+                    return@withContext
+                }
 
-                val bytes = URI(url).toURL().readBytes()
+                val conn = URI(url).toURL().openConnection()
+                conn.connectTimeout = 10_000
+                conn.readTimeout = 15_000
+                val bytes = conn.getInputStream().use { it.readBytes() }
                 val data = Data.makeFromBytes(bytes)
                 val codec = Codec.makeFromData(data)
 
@@ -259,12 +240,30 @@ fun AnimatedEmoteImageCore(
                     animatedCache[url] = result
                     animData = result
                 } else {
+                    staticUrls.add(url)
                     isStatic = true
                 }
             } catch (_: Exception) {
+                staticUrls.add(url)
                 isStatic = true
             }
         }
+    }
+
+    val entranceProgress = if (emoteId != null) {
+        val anim = remember(emoteId) {
+            EmoteAnimationCache.getOrCreateAnimation(emoteId, animationSpec = entranceAnimationSpec)
+        }
+        LaunchedEffect(emoteId) {
+            EmoteAnimationCache.startAnimation(emoteId)
+        }
+        anim.value
+    } else {
+        val localAnim = remember { Animatable(0f) }
+        LaunchedEffect(Unit) {
+            localAnim.animateTo(1f, animationSpec = entranceAnimationSpec)
+        }
+        localAnim.value
     }
 
     val data = animData
@@ -278,13 +277,16 @@ fun AnimatedEmoteImageCore(
         Image(
             bitmap = data.frames[currentFrame],
             contentDescription = contentDescription,
-            modifier = modifier
+            modifier = modifier.alpha(entranceProgress)
         )
     } else {
+       
+       
         AsyncImage(
             model = url,
             contentDescription = contentDescription,
-            modifier = modifier
+            modifier = modifier.alpha(entranceProgress),
+            contentScale = ContentScale.Fit
         )
     }
 }

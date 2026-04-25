@@ -1,19 +1,24 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ic_lock
+import chatone.composeapp.generated.resources.ic_unlock
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 actual fun DetachedProfileWindow(
@@ -33,48 +38,80 @@ actual fun DetachedProfileWindow(
     onWhisper: () -> Unit,
     onClose: () -> Unit
 ) {
+    var isPinned by remember { mutableStateOf(false) }
+
     val windowState = rememberWindowState(
         width = 340.dp,
         height = 600.dp,
-        position = WindowPosition(120.dp, 120.dp)
+        position = WindowPosition.PlatformDefault
+    )
+
+    val pinTint by animateColorAsState(
+        targetValue = if (isPinned) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(200)
     )
 
     Window(
         onCloseRequest = onClose,
-        title = "[Pinned] ${msg.displayName}",
+        title = "${msg.displayName} — Profile",
         state = windowState,
-        alwaysOnTop = true,
+        alwaysOnTop = isPinned,
         resizable = true
     ) {
         ChatoneTheme {
-            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.surface
+            ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(Icons.Outlined.Star, null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(13.dp))
-                            Text("Pinned Profile",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.weight(1f))
-                            IconButton(onClick = onClose, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Filled.Close, "Close",
+                            Text(
+                                text = msg.displayName,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            IconButton(
+                                onClick = { isPinned = !isPinned },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    painter = if (isPinned) painterResource(Res.drawable.ic_lock) else painterResource(
+                                        Res.drawable.ic_unlock
+                                    ),
+                                    contentDescription = if (isPinned) "Unpin (always on top)" else "Pin (always on top)",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = pinTint
+                                )
+                            }
+
+                            IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Close",
                                     modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                    )
+
                     UserProfileContent(
                         msg = msg,
                         channelMessages = channelMessages,
