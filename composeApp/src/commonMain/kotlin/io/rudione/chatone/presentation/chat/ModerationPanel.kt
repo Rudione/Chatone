@@ -16,9 +16,22 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Face
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +65,7 @@ fun ModerationPanel(
     onSendPinMessage: (message: String) -> Unit = {},
     onShoutout: (targetLogin: String) -> Unit = {},
     onSendRawCommand: (String) -> Unit = {},
+    onOpenLocalAutomod: () -> Unit = {},
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -258,12 +272,7 @@ fun ModerationPanel(
                     isToggled = showAnnouncement
                 ) { showAnnouncement = !showAnnouncement }
 
-                /*ModPanelButton(
-                    label = "Pin",
-                    icon = Icons.Filled.Place,
-                    tint = MaterialTheme.colorScheme.secondary,
-                    isToggled = showPin
-                ) { showPin = !showPin }*/
+                
 
                 ModPanelButton(
                     label = "Raid",
@@ -272,24 +281,15 @@ fun ModerationPanel(
                     isToggled = showRaid
                 ) { showRaid = !showRaid }
 
-                /*ModPanelButton(
-                    label = "Shoutout",
-                    icon = Icons.Outlined.Notifications,
-                    tint = MaterialTheme.colorScheme.tertiary,
-                    isToggled = showShoutout
-                ) { showShoutout = !showShoutout }*/
-
-                /*ModPanelButton(
-                    label = "Marker",
-                    icon = Icons.Filled.PlayArrow,
-                    tint = MaterialTheme.colorScheme.primary
-                ) { onSendRawCommand("/marker Chatone marker") }
-
                 ModPanelButton(
-                    label = "Commercial",
-                    icon = Icons.Outlined.Info,
+                    label = "Automod",
+                    icon = Icons.Outlined.Build,
                     tint = MaterialTheme.colorScheme.primary
-                ) { onSendRawCommand("/commercial 60") }*/
+                ) { onOpenLocalAutomod() }
+
+                
+
+                
             }
 
 

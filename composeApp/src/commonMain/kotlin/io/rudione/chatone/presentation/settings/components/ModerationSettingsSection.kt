@@ -36,6 +36,7 @@ import androidx.compose.ui.window.DialogProperties
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.MacroStep
 import io.rudione.chatone.domain.model.ModActionButton
+import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
@@ -47,9 +48,49 @@ fun ModerationSettingsSection(
     onEvent: (SettingsEvent) -> Unit
 ) {
     val extra = ChatoneTheme.extraColors
+    var showAutomod by remember { mutableStateOf(false) }
+
+    if (showAutomod) {
+        DetachedAutomodWindow(
+            currentChannelLogin = null,
+            onClose = { showAutomod = false }
+        )
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
 
+        SettingsCard(title = "Local Automod") {
+            Text(
+                "Custom word/phrase rules that auto-delete, timeout, or ban in " +
+                    "channels you moderate. Rules can be scoped globally or to a " +
+                    "specific channel.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 10.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                    .clickable { showAutomod = true }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.Build,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    "Open Local Automod editor",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
 
         SettingsCard(title = "Default Timeout Duration") {
             val options = listOf(
@@ -68,29 +109,7 @@ fun ModerationSettingsSection(
             }
         }
 
-
-        SettingsCard(title = "Safety") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Show confirmation dialog for ban / mute", style = MaterialTheme.typography.bodyMedium)
-                    Text("When off, ban and mute apply instantly. Delete never shows a dialog.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(
-                    checked = state.confirmModActions,
-                    onCheckedChange = { onEvent(SettingsEvent.OnConfirmModActionsChanged(it)) }
-                )
-            }
-        }
-
-
         ModActionButtonsSection(state = state, onEvent = onEvent)
-
 
         MacrosSection(state = state, onEvent = onEvent)
     }

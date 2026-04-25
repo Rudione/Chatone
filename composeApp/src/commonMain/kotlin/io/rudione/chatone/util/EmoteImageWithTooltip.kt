@@ -8,5 +8,5 @@ import io.rudione.chatone.domain.model.GenericEmote
 expect fun EmoteImageWithTooltip(
     emote: GenericEmote,
     modifier: Modifier,
-    onShowContextMenu: (() -> Unit)? = null
+    onShowContextMenu: (() -> Unit)?
 )

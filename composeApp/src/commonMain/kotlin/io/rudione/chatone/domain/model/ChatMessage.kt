@@ -19,6 +19,7 @@ data class ChatMessage(
     val isSubscriber: Boolean = false,
     val isVip: Boolean = false,
     val isBroadcaster: Boolean = false,
+    val isGrandMod: Boolean = false,
     val isMention: Boolean = false,
     val isAction: Boolean = false,
     val isFirstMessage: Boolean = false,
@@ -29,8 +30,24 @@ data class ChatMessage(
 data class Badge(
     val id: String,
     val version: String,
-    val imageUrl: String
+    val imageUrl: String,
+    val months: Int? = null,          
+    val tooltip: String = "",         
+    val setId: String = "",           
+    val isGlobal: Boolean = false     
 )
+
+fun List<Badge>.hasGrandModBadge(): Boolean = any { badge ->
+    val id = badge.id.lowercase()
+    when {
+        id == "grand_moderator" -> true
+        id == "chat_manager" -> true
+        id == "broadcaster_mode" -> true
+        id == "super_moderator" -> true
+        id == "moderator" && (badge.version.toIntOrNull() ?: 1) >= 2 -> true
+        else -> false
+    }
+}
 
 @Serializable
 data class Emote(

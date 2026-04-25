@@ -1,12 +1,15 @@
 package io.rudione.chatone
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import coil3.compose.setSingletonImageLoaderFactory
+import com.russhwolf.settings.Settings
 import io.rudione.chatone.util.createAnimatedImageLoader
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
@@ -17,8 +20,11 @@ import io.rudione.chatone.presentation.main.MainScreen
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.theme.CustomThemeManager
+import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperController
+import io.rudione.chatone.presentation.theme.WallpaperDisplayConfig
 import io.rudione.chatone.util.WallpaperLoader
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
@@ -33,8 +39,15 @@ sealed class Screen {
 @Composable
 fun App(
     darkTheme: Boolean = true,
-    onAlwaysOnTopChanged: (Boolean) -> Unit = {}
+    onAlwaysOnTopChanged: (Boolean) -> Unit = {},
+    onThemeChanged: ((Boolean) -> Unit)? = null,
+    onDominantColorChanged: ((Color?) -> Unit)? = null
 ) {
+    val customThemeManager: CustomThemeManager = koinInject()
+    val activeCustomTheme by customThemeManager.currentTheme.collectAsState()
+
+    val settings = Settings()
+
     LaunchedEffect(Unit) {
         Napier.base(DebugAntilog())
     }
@@ -54,29 +67,73 @@ fun App(
 
         val wallpaperLoader: WallpaperLoader = koinInject()
 
+       
         LaunchedEffect(settingsState.alwaysOnTop) {
             onAlwaysOnTopChanged(settingsState.alwaysOnTop)
         }
 
+       
+       
+        LaunchedEffect(Unit) {
+            val saved = settingsState.wallpaperDisplayConfig
+            wallpaperController.setDisplayConfig(saved)
+        }
 
+       
+       
+       
         LaunchedEffect(settingsState.wallpaperPath, settingsState.wallpaperBlur) {
             if (settingsState.wallpaperPath.isBlank()) {
-                wallpaperController.clear()
+               
+                wallpaperController.update(
+                    io.rudione.chatone.presentation.theme.WallpaperState(
+                        displayConfig = wallpaperController.state.displayConfig
+                    )
+                )
+                onDominantColorChanged?.invoke(null)
             } else {
                 val loaded = wallpaperLoader.load(
                     path = settingsState.wallpaperPath,
                     blurRadius = settingsState.wallpaperBlur
                 )
                 if (loaded != null) {
-                    wallpaperController.update(loaded)
+                   
+                    wallpaperController.update(
+                        loaded.copy(displayConfig = wallpaperController.state.displayConfig)
+                    )
+                    onDominantColorChanged?.invoke(loaded.dominantColor)
                 } else {
-
-                    wallpaperController.clear()
+                    wallpaperController.update(
+                        io.rudione.chatone.presentation.theme.WallpaperState(
+                            displayConfig = wallpaperController.state.displayConfig
+                        )
+                    )
+                    onDominantColorChanged?.invoke(null)
                     settingsViewModel.sendEvent(SettingsEvent.OnWallpaperPathChanged(""))
                 }
             }
         }
 
+        val wallpaper by remember { derivedStateOf { wallpaperController.state } }
+        LaunchedEffect(wallpaper.dominantColor, wallpaper.isActive) {
+            if (wallpaper.isActive) {
+                onDominantColorChanged?.invoke(wallpaper.dominantColor)
+            } else {
+                onDominantColorChanged?.invoke(null)
+            }
+        }
+
+       
+        LaunchedEffect(customThemeManager.savedThemes.value, activeCustomTheme) {
+            settingsViewModel.sendEvent(
+                SettingsEvent.OnCustomThemesJsonChanged(customThemeManager.serialize())
+            )
+            customThemeManager.currentTheme.value?.let {
+                settingsViewModel.sendEvent(SettingsEvent.OnActiveCustomThemeIdChanged(it.id))
+            }
+        }
+
+       
         LaunchedEffect(Unit) {
             try {
                 val account = getFirstValidAccount()
@@ -87,13 +144,33 @@ fun App(
             }
         }
 
+       
+        LaunchedEffect(Unit) {
+            val themes = settingsState.customThemes
+            if (themes.isNotEmpty()) {
+                themes.forEach { customThemeManager.saveTheme(it) }
+                settingsState.activeCustomThemeId?.let { id ->
+                    themes.find { it.id == id }?.let { customThemeManager.setTheme(it) }
+                }
+            }
+        }
+
+       
         val uiScale = settingsState.uiScale
         CompositionLocalProvider(
             LocalWallpaperController provides wallpaperController,
-            LocalDensity provides Density(LocalDensity.current.density * uiScale, LocalDensity.current.fontScale)
+            LocalCustomThemeManager provides customThemeManager,
+            LocalDensity provides Density(
+                LocalDensity.current.density * uiScale,
+                LocalDensity.current.fontScale
+            )
         ) {
-            ChatoneTheme(darkTheme = isDarkTheme) {
-                androidx.compose.foundation.layout.Box(
+            ChatoneTheme(
+                darkTheme = true,  
+                accentColorIndex = settingsState.accentColorIndex,
+                customTheme = activeCustomTheme
+            ) {
+                Box(
                     modifier = androidx.compose.ui.Modifier
                         .pointerInput(Unit) {
                             awaitPointerEventScope {
@@ -119,7 +196,10 @@ fun App(
                         Screen.Main -> {
                             MainScreen(
                                 onNavigateToAuth = { currentScreen = Screen.Auth },
-                                onThemeChanged = { dark -> isDarkTheme = dark }
+                                onThemeChanged = { dark ->
+                                    isDarkTheme = dark
+                                    onThemeChanged?.invoke(dark)
+                                }
                             )
                         }
                     }

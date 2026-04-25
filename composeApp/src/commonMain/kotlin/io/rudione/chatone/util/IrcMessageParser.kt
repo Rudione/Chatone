@@ -4,6 +4,7 @@ import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.Emote
 import io.rudione.chatone.domain.model.EmotePosition
+import io.rudione.chatone.domain.model.hasGrandModBadge
 import kotlinx.datetime.Clock
 
 data class IrcMessage(
@@ -129,6 +130,7 @@ object IrcMessageParser {
         val isSubscriber = tags["subscriber"] == "1"
         val isVip = badges.any { it.id == "vip" }
         val isBroadcaster = badges.any { it.id == "broadcaster" }
+        val isGrandMod = badges.hasGrandModBadge()
 
 
         val isFirstMessage = tags["first-msg"] == "1"
@@ -157,6 +159,7 @@ object IrcMessageParser {
             isSubscriber = isSubscriber,
             isVip = isVip,
             isBroadcaster = isBroadcaster,
+            isGrandMod = isGrandMod,
             isMention = false,
             isAction = isAction,
             isFirstMessage = isFirstMessage,

@@ -50,6 +50,17 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
         }
     }
 
+    
+    suspend fun getEmoteById(emoteId: String): GenericEmote? {
+        return try {
+            val emote = httpClient.get("$baseUrl/emotes/$emoteId").body<SevenTvEmote>()
+            emote.toGenericEmote()
+        } catch (e: Exception) {
+            Napier.w("Failed to fetch 7TV emote $emoteId: ${e.message}", tag = TAG)
+            null
+        }
+    }
+
     private fun SevenTvEmote.toGenericEmote(): GenericEmote? {
         val emoteData = data ?: return null
         val host = emoteData.host

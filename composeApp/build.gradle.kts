@@ -98,6 +98,8 @@ kotlin {
             implementation(libs.multiplatform.settings.noarg)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
+            implementation("org.jetbrains.kotlinx:atomicfu:0.32.1")
+            implementation(compose.materialIconsExtended)
         }
 
         androidMain.dependencies {
@@ -210,7 +212,9 @@ compose.desktop {
 tasks.register<Zip>("createPortableZip") {
     dependsOn("createReleaseDistributable")
 
-    val appImageRoot = file("build/compose/binaries/main-release/app")
+    val appDir = file("build/compose/binaries/main-release/app")
+    val appImageRoot = appDir.listFiles()?.firstOrNull { it.isDirectory }
+
     from(appImageRoot)
 
     archiveFileName.set("Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-portable.zip")

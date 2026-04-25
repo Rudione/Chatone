@@ -24,6 +24,7 @@ import io.rudione.chatone.util.Result
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.decodeFromString
 
 class TwitchApiClient(
     private val httpClient: HttpClient,
@@ -200,7 +201,7 @@ class TwitchApiClient(
         }
     }
 
-    
+
     suspend fun banUser(
         accessToken: String,
         broadcasterId: String,
@@ -212,7 +213,7 @@ class TwitchApiClient(
         return try {
             val dataBody = buildJsonObject {
                 put("user_id", JsonPrimitive(userId))
-               
+
                 if (duration != null && duration > 0) {
                     put("duration", JsonPrimitive(duration))
                 }
@@ -281,7 +282,7 @@ class TwitchApiClient(
         }
     }
 
-    
+
     suspend fun updateChatSettings(
         accessToken: String,
         broadcasterId: String,
@@ -329,6 +330,53 @@ class TwitchApiClient(
             Result.Success(Unit)
         } catch (e: Exception) {
             Napier.e("Failed to send whisper: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    
+    suspend fun sendChatMessage(
+        accessToken: String,
+        broadcasterId: String,
+        senderId: String,
+        message: String,
+        replyParentMessageId: String? = null
+    ): Result<SendChatMessageData> {
+        return try {
+            val response = httpClient.post("$baseUrl/chat/messages") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("broadcaster_id", JsonPrimitive(broadcasterId))
+                    put("sender_id", JsonPrimitive(senderId))
+                    put("message", JsonPrimitive(message))
+                    if (replyParentMessageId != null) {
+                        put("reply_parent_message_id", JsonPrimitive(replyParentMessageId))
+                    }
+                })
+            }
+            if (!response.status.isSuccess()) {
+                val errText = response.bodyAsText()
+                Napier.e("sendChatMessage HTTP ${response.status}: $errText", tag = TAG)
+                return Result.Error(Exception("HTTP ${response.status}"))
+            }
+            val rawText = response.bodyAsText()
+            Napier.v("sendChatMessage response: $rawText", tag = TAG)
+           
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            val body = json.decodeFromString<SendChatMessageResponse>(rawText)
+            val data = body.data.firstOrNull()
+            if (data != null && data.isSent) {
+                Napier.d("sendChatMessage success, message_id=${data.messageId}", tag = TAG)
+                Result.Success(data)
+            } else {
+                val reason = data?.dropReason?.message ?: "Message not sent / not in response"
+                Napier.e("sendChatMessage not sent: $reason", tag = TAG)
+                Result.Error(Exception(reason))
+            }
+        } catch (e: Exception) {
+            Napier.e("Failed to send chat message via Helix: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
     }
@@ -567,7 +615,7 @@ class TwitchApiClient(
         }
     }
 
-    
+
     suspend fun getChatters(
         accessToken: String,
         broadcasterId: String,
@@ -591,7 +639,7 @@ class TwitchApiClient(
         }
     }
 
-    
+
     suspend fun blockUser(accessToken: String, targetUserId: String): Result<Unit> {
         return try {
             httpClient.put("$baseUrl/users/blocks") {
@@ -606,7 +654,7 @@ class TwitchApiClient(
         }
     }
 
-    
+
     suspend fun unblockUser(accessToken: String, targetUserId: String): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/users/blocks") {
@@ -621,7 +669,7 @@ class TwitchApiClient(
         }
     }
 
-    
+
     suspend fun getBlockedUsers(accessToken: String, broadcasterId: String, first: Int = 100): Result<BlockedUsersResponse> {
         return try {
             val response = httpClient.get("$baseUrl/users/blocks") {
@@ -637,12 +685,12 @@ class TwitchApiClient(
         }
     }
 
-    
+
     suspend fun manageAutoModMessage(
         accessToken: String,
         userId: String,
         msgId: String,
-        action: String 
+        action: String
     ): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/moderation/automod/message") {

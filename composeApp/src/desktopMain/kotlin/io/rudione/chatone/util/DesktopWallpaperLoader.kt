@@ -23,7 +23,7 @@ class DesktopWallpaperLoader : WallpaperLoader {
             WallpaperState(
                 imageBitmap = bitmap,
                 dominantColor = dominant,
-                blurRadius = blurRadius,
+               
                 isActive = true
             )
         } catch (_: Exception) {
