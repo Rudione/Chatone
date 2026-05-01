@@ -44,6 +44,7 @@ import chatone.composeapp.generated.resources.palette_fill_16
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.*
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.datetime.Clock
 import org.jetbrains.compose.resources.painterResource
 
@@ -69,8 +70,8 @@ fun ThemeSettingsScreen(
     var showEdit by remember { mutableStateOf(false) }
     var showGenerator by remember { mutableStateOf(false) }
     var activeTab by remember { mutableIntStateOf(0) }
+    val s = LocalStrings.current
 
-   
     val save: () -> Unit = {
         settingsViewModel.sendEvent(
             SettingsEvent.OnWallpaperDisplayConfigChanged(wallpaperController.state.displayConfig)
@@ -89,8 +90,8 @@ fun ThemeSettingsScreen(
             LargeTopAppBar(
                 title = {
                     Column {
-                        Text("Appearance", fontWeight = FontWeight.Bold)
-                        Text("Make Chatone yours", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.themeTitle, fontWeight = FontWeight.Bold)
+                        Text(s.themeSubtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 navigationIcon = {
@@ -107,9 +108,9 @@ fun ThemeSettingsScreen(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
                 divider = {}
             ) {
-                listOf("Themes" to Icons.Outlined.Palette, "Background" to Icons.Outlined.Wallpaper,
-                    "Panels" to Icons.Outlined.Dashboard, "Chat" to Icons.Outlined.Chat,
-                    "Global" to Icons.Outlined.Tune
+                listOf(s.themeTabThemes to Icons.Outlined.Palette, s.themeTabBackground to Icons.Outlined.Wallpaper,
+                    s.themeTabPanels to Icons.Outlined.Dashboard, s.themeTabChat to Icons.Outlined.Chat,
+                    s.themeTabGlobal to Icons.Outlined.Tune
                 ).forEachIndexed { i, (label, icon) ->
                     Tab(selected = activeTab == i, onClick = { activeTab = i },
                         text = { Text(label, fontWeight = if (activeTab == i) FontWeight.SemiBold else FontWeight.Normal) },
@@ -180,6 +181,7 @@ private fun ThemesTab(
     onCreateClick: () -> Unit,
     settingsState: io.rudione.chatone.presentation.settings.SettingsState, initialSeedColor: Int?
 ) {
+    val s = LocalStrings.current
     var seed by remember { mutableStateOf(Color(initialSeedColor ?: 0xFF7C4DFF.toInt())) }
     var isDark by remember { mutableStateOf(settingsState.darkTheme) }
     var contrast by remember { mutableStateOf(0f) }
@@ -190,9 +192,9 @@ private fun ThemesTab(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(onClick = onToggleGenerator, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (showGenerator) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer)
-                ) { Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Auto Generate") }
+                ) { Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text(s.themeAutoGenerate) }
                 OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.Refresh, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Reset")
+                    Icon(Icons.Default.Refresh, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text(s.themeReset)
                 }
             }
         }
@@ -205,7 +207,7 @@ private fun ThemesTab(
         }
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Saved Themes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(s.themeSavedThemes, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 FilledTonalIconButton(onClick = onCreateClick, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Add, null, Modifier.size(20.dp)) }
             }
         }
@@ -266,7 +268,7 @@ private fun PanelsTab(
     onUpdate: (PanelColorConfig) -> Unit,
     onResetAll: () -> Unit
 ) {
-   
+    val s = LocalStrings.current
     val hasCustomValues = panelConfig != PanelColorConfig()
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -287,7 +289,7 @@ private fun PanelsTab(
                     ) {
                         Icon(Icons.Default.Refresh, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
                         Spacer(Modifier.width(6.dp))
-                        Text("Reset all panels", color = MaterialTheme.colorScheme.onErrorContainer)
+                        Text(s.themeResetAllPanels, color = MaterialTheme.colorScheme.onErrorContainer)
                     }
                 }
             }
@@ -380,6 +382,7 @@ private fun ChatColorTab(
     onUpdate: (ChatColorConfig) -> Unit,
     onReset: () -> Unit
 ) {
+    val s = LocalStrings.current
     val cfg = wallpaper.chatColorConfig
     val wallpaperActive = wallpaper.isActive
 
@@ -411,7 +414,7 @@ private fun ChatColorTab(
             SectionCard("Chat Background", icon = Icons.Outlined.Chat) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text("Custom colour", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(s.themeCustomColor, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         Text(
                             if (wallpaperActive) "Disabled while wallpaper is active"
                             else if (cfg.useCustomColor) "Using your colour" else "Using theme default",
@@ -432,7 +435,7 @@ private fun ChatColorTab(
                         Spacer(Modifier.height(14.dp))
                         HexColorInput(cfg.customBackgroundColor) { onUpdate(cfg.copy(customBackgroundColor = it)) }
                         Spacer(Modifier.height(12.dp))
-                        Text("Quick presets", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.themeQuickPresets, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(6.dp))
                         ChatColorPresets { onUpdate(cfg.copy(customBackgroundColor = it)) }
                     }
@@ -444,12 +447,12 @@ private fun ChatColorTab(
             SectionCard("Fine-tuning", icon = Icons.Outlined.Tune) {
                
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Adjustments", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(s.themeAdjustments, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (cfg != ChatColorConfig()) {
                         TextButton(onClick = onReset) {
                             Icon(Icons.Default.Refresh, null, Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Reset", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                            Text(s.themeReset, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
@@ -481,6 +484,7 @@ private fun PanelSection(
     isCustomised: Boolean = false,
     onResetSection: () -> Unit = {}
 ) {
+    val s = LocalStrings.current
     var expanded by remember { mutableStateOf(false) }
 
     SectionCard(title, subtitle, icon) {
@@ -493,7 +497,7 @@ private fun PanelSection(
                 ) {
                     Icon(Icons.Default.Refresh, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.width(4.dp))
-                    Text("Reset", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    Text(s.themeReset, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 }
             } else {
                 Text(
@@ -542,6 +546,7 @@ private fun PanelSection(
 
 @Composable
 private fun ChatSimulationPreview(wallpaper: WallpaperState) {
+    val s = LocalStrings.current
     val chatBg = remember(wallpaper.displayConfig, wallpaper.dominantColor, wallpaper.isActive) {
         chatPaneBackgroundColor(wallpaper, isDark = true)
     }
@@ -562,7 +567,7 @@ private fun ChatSimulationPreview(wallpaper: WallpaperState) {
     SectionCard("Live Chat Preview", icon = Icons.Outlined.Visibility) {
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.size(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error))
-            Text("LIVE PREVIEW", style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            Text(s.themeLivePreview, style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
             if (wallpaper.isActive) {
                 Spacer(Modifier.width(4.dp))
                 Text("• wallpaper dominant colour", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -601,7 +606,7 @@ private fun ChatSimulationPreview(wallpaper: WallpaperState) {
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Surface(Modifier.weight(1f).height(28.dp), color = textOnBg.copy(0.06f), shape = RoundedCornerShape(8.dp)) {
                         Box(Modifier.padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-                            Text("Send a message...", style = MaterialTheme.typography.bodySmall, color = textSecondary, fontSize = 11.sp)
+                            Text(s.themeSendMessagePlaceholder, style = MaterialTheme.typography.bodySmall, color = textSecondary, fontSize = 11.sp)
                         }
                     }
                     Surface(shape = CircleShape, color = textOnBg.copy(0.08f), modifier = Modifier.size(28.dp)) {
@@ -624,6 +629,7 @@ private fun GlobalTab(
     onUpdate: (WallpaperDisplayConfig) -> Unit,
     onResetAll: () -> Unit
 ) {
+    val s = LocalStrings.current
     val isNonDefault = displayConfig != WallpaperDisplayConfig()
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -638,7 +644,7 @@ private fun GlobalTab(
                 ) {
                     Icon(Icons.Default.Refresh, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
                     Spacer(Modifier.width(8.dp))
-                    Text("Reset ALL appearance to defaults", color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.SemiBold)
+                    Text(s.themeResetAllAppearance, color = MaterialTheme.colorScheme.onErrorContainer, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -647,7 +653,7 @@ private fun GlobalTab(
             SectionCard("Apply One Color to Everything", icon = Icons.Outlined.Palette) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
-                        Text("Master Color", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(s.themeMasterColor, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         Text(
                             if (displayConfig.useMasterColor) "Overrides all panel defaults"
                             else "Off — each panel uses its own color",
@@ -667,7 +673,7 @@ private fun GlobalTab(
                             onUpdate(displayConfig.copy(masterColor = it, useMasterColor = true))
                         }
                         Spacer(Modifier.height(12.dp))
-                        Text("Presets", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(s.themePresets, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(6.dp))
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(listOf(
@@ -692,7 +698,7 @@ private fun GlobalTab(
 
         item {
             SectionCard("Global Adjustments", icon = Icons.Outlined.Tune) {
-                Text("Applied on top of all panel colors", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(s.themeAppliedOnTop, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
                 LabeledSlider("Brightness", displayConfig.globalBrightness, { onUpdate(displayConfig.copy(globalBrightness = it)) }, -0.8f..0.8f, adjStr(displayConfig.globalBrightness))
                 Spacer(Modifier.height(6.dp))
@@ -706,7 +712,7 @@ private fun GlobalTab(
                         modifier = Modifier.align(Alignment.End)) {
                         Icon(Icons.Default.Refresh, null, Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Reset adjustments", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                        Text(s.themeResetAdjustments, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -756,6 +762,7 @@ private fun AutoGeneratorPanel(
     contrast: Float, onContrastChanged: (Float) -> Unit,
     preview: ColorScheme, onApply: () -> Unit
 ) {
+    val s = LocalStrings.current
     var showPicker by remember { mutableStateOf(false) }
     SectionCard("Auto Generator", icon = Icons.Default.AutoAwesome) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -767,9 +774,9 @@ private fun AutoGeneratorPanel(
             }
             Column(Modifier.weight(1f)) {
                 Text("#${seedColor.toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase()}", style = MaterialTheme.typography.labelLarge, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
-                Text("Drag = hue/sat • Tap = picker", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(s.themeDragTapHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            FilledTonalButton(onClick = { showPicker = true }) { Text("Pick") }
+            FilledTonalButton(onClick = { showPicker = true }) { Text(s.themePick) }
         }
         Spacer(Modifier.height(12.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -779,13 +786,13 @@ private fun AutoGeneratorPanel(
         }
         Spacer(Modifier.height(14.dp)); Divider(color = MaterialTheme.colorScheme.outlineVariant); Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Mode", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(50.dp))
+            Text(s.themeMode, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(50.dp))
             M3SegBtn(listOf("Dark", "Light"), if (isDark) 0 else 1, { onDarkChanged(it == 0) }, Modifier.weight(1f))
         }
         Spacer(Modifier.height(12.dp))
         LabeledSlider("Contrast", contrast, onContrastChanged, -1f..1f, adjStr(contrast))
         Spacer(Modifier.height(14.dp)); Divider(color = MaterialTheme.colorScheme.outlineVariant); Spacer(Modifier.height(12.dp))
-        Text("Preview", style = MaterialTheme.typography.labelMedium); Spacer(Modifier.height(8.dp))
+        Text(s.themePreview, style = MaterialTheme.typography.labelMedium); Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             listOf("Primary" to (preview.primary to preview.onPrimary), "Surface" to (preview.surface to preview.onSurface), "Error" to (preview.error to preview.onError)).forEach { (l,c) ->
                 PreviewChip(l, c.first, c.second, Modifier.weight(1f))
@@ -793,7 +800,7 @@ private fun AutoGeneratorPanel(
         }
         Spacer(Modifier.height(14.dp))
         Button(onClick = onApply, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-            Icon(Icons.Filled.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Apply Theme", fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Filled.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(s.themeApplyTheme, fontWeight = FontWeight.SemiBold)
         }
     }
     if (showPicker) ColorPickerDialog(seedColor, { onSeedChanged(it); showPicker = false }, { showPicker = false })
@@ -833,37 +840,39 @@ private fun ThemeCard(theme: CustomThemeConfig, isSelected: Boolean, onSelect: (
 
 @Composable
 private fun CreateThemeDialog(onDismiss: () -> Unit, onCreate: (String, Color, Boolean) -> Unit) {
+    val s = LocalStrings.current
     var name by remember { mutableStateOf("") }
     var seed by remember { mutableStateOf(Color(0xFF7C4DFF.toInt())) }
     var dark by remember { mutableStateOf(true) }
     var showPicker by remember { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("New Theme", fontWeight = FontWeight.Bold) },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(s.themeNewTheme, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(name, { name = it }, label = { Text(s.themeName) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(seed).border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp)).clickable { showPicker = true })
-                    Column { Text("Seed", style = MaterialTheme.typography.labelSmall); Text("#${seed.toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase()}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium) }
-                    Spacer(Modifier.weight(1f)); FilledTonalButton(onClick = { showPicker = true }) { Text("Pick") }
+                    Column { Text(s.themeSeed, style = MaterialTheme.typography.labelSmall); Text("#${seed.toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase()}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium) }
+                    Spacer(Modifier.weight(1f)); FilledTonalButton(onClick = { showPicker = true }) { Text(s.themePick) }
                 }
                 M3SegBtn(listOf("Dark", "Light"), if (dark) 0 else 1, { dark = it == 0 })
             }
         },
-        confirmButton = { Button(onClick = { onCreate(name.ifBlank { "My Theme" }, seed, dark) }, enabled = name.isNotBlank()) { Text("Create") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { Button(onClick = { onCreate(name.ifBlank { "My Theme" }, seed, dark) }, enabled = name.isNotBlank()) { Text(s.themeCreate) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(s.themeCancel) } }
     )
     if (showPicker) ColorPickerDialog(seed, { seed = it; showPicker = false }, { showPicker = false })
 }
 
 @Composable
 private fun EditThemeDialog(theme: CustomThemeConfig, onDismiss: () -> Unit, onSave: (CustomThemeConfig) -> Unit, onResetOverrides: () -> Unit) {
+    val s = LocalStrings.current
     var name by remember { mutableStateOf(theme.name) }
     var overrides by remember { mutableStateOf(theme.customOverrides.toMutableMap()) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Edit Theme", fontWeight = FontWeight.Bold) },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(s.themeEditTheme, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                Text("Override Colors", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(name, { name = it }, label = { Text(s.themeName) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                Text(s.themeOverrideColors, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 LazyColumn(Modifier.heightIn(max = 220.dp)) {
                     items(ColorSchemeGenerator.getAvailableRoles()) { role ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -876,27 +885,28 @@ private fun EditThemeDialog(theme: CustomThemeConfig, onDismiss: () -> Unit, onS
                         }
                     }
                 }
-                TextButton(onClick = onResetOverrides, Modifier.align(Alignment.End)) { Text("Reset overrides", color = MaterialTheme.colorScheme.error) }
+                TextButton(onClick = onResetOverrides, Modifier.align(Alignment.End)) { Text(s.themeResetOverrides, color = MaterialTheme.colorScheme.error) }
             }
         },
-        confirmButton = { Button(onClick = { onSave(theme.copy(name = name.ifBlank { "My Theme" }, customOverrides = overrides)) }) { Text("Save") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { Button(onClick = { onSave(theme.copy(name = name.ifBlank { "My Theme" }, customOverrides = overrides)) }) { Text(s.themeSave) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(s.themeCancel) } }
     )
 }
 
 @Composable
 private fun ColorPickerDialog(initial: Color, onSelected: (Color) -> Unit, onDismiss: () -> Unit) {
+    val s = LocalStrings.current
     var color by remember { mutableStateOf(initial) }
     var hex by remember(color) { mutableStateOf(color.toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase()) }
     val hsl = color.toHsl(); val fm = LocalFocusManager.current
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Color Picker", fontWeight = FontWeight.Bold) },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(s.themeColorPicker, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Box(Modifier.fillMaxWidth().height(68.dp).clip(RoundedCornerShape(14.dp)).background(color).border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp)), Alignment.Center) {
                     Text("#$hex", style = MaterialTheme.typography.titleMedium, color = if (color.luminance() > 0.5f) Color.Black else Color.White, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 }
                 OutlinedTextField(hex, { raw -> val c = raw.trimStart('#').uppercase().filter { it.isLetterOrDigit() }.take(6); hex = c; if (c.length == 6) try { color = Color(("FF$c").toLong(16).toInt()) } catch (_: Exception) {} },
-                    label = { Text("HEX") }, prefix = { Text("#") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
+                    label = { Text(s.themeHex) }, prefix = { Text("#") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { fm.clearFocus() }),
                     textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -910,14 +920,15 @@ private fun ColorPickerDialog(initial: Color, onSelected: (Color) -> Unit, onDis
                 HslRow("Light", hsl.lightness, 0f..1f, "${(hsl.lightness*100).toInt()}%") { color = Color.hsl(hsl.hue, hsl.saturation, it) }
             }
         },
-        confirmButton = { Button(onClick = { onSelected(color) }) { Text("Apply") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        confirmButton = { Button(onClick = { onSelected(color) }) { Text(s.themeApply) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(s.themeCancel) } }
     )
 }
 
 
 @Composable
 private fun HexColorInput(argb: Int?, onColorPicked: (Int) -> Unit) {
+    val s = LocalStrings.current
     var hex by remember(argb) { mutableStateOf(argb?.let { Color(it).toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase() } ?: "") }
     val fm = LocalFocusManager.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -925,7 +936,7 @@ private fun HexColorInput(argb: Int?, onColorPicked: (Int) -> Unit) {
             if (hex.length == 6) try { Color(("FF$hex").toLong(16).toInt()) } catch (_: Exception) { Color.Gray.copy(0.3f) } else Color.Gray.copy(0.3f)
         ).border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp)))
         OutlinedTextField(hex, { raw -> val c = raw.trimStart('#').uppercase().filter { it.isLetterOrDigit() }.take(6); hex = c; if (c.length == 6) try { onColorPicked(Color(("FF$c").toLong(16).toInt()).toArgb()) } catch (_: Exception) {} },
-            label = { Text("HEX Color") }, prefix = { Text("#") }, placeholder = { Text("7C4DFF") }, singleLine = true,
+            label = { Text(s.themeHexColor) }, prefix = { Text("#") }, placeholder = { Text("7C4DFF") }, singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { fm.clearFocus() }),
             modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
@@ -1041,9 +1052,10 @@ fun ThinSlider(
 
 @Composable
 private fun PreviewChip(label: String, bg: Color, fg: Color, modifier: Modifier = Modifier) {
+    val s = LocalStrings.current
     Surface(color = bg, shape = RoundedCornerShape(10.dp), modifier = modifier.height(52.dp)) {
         Column(Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Text("Aa", style = MaterialTheme.typography.bodySmall, color = fg, fontWeight = FontWeight.Bold)
+            Text(s.themeFontPreview, style = MaterialTheme.typography.bodySmall, color = fg, fontWeight = FontWeight.Bold)
             Text(label, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = fg.copy(0.7f))
         }
     }
@@ -1061,13 +1073,14 @@ private fun InfoBanner(text: String) {
 
 @Composable
 private fun EmptyThemesPlaceholder(onCreate: () -> Unit) {
+    val s = LocalStrings.current
     Column(Modifier.fillMaxWidth().padding(vertical = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.size(64.dp)) {
             Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Palette, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp)) }
         }
-        Text("No custom themes yet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Text("Use the Auto Generator above", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        FilledTonalButton(onClick = onCreate) { Icon(Icons.Default.Add, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Create theme") }
+        Text(s.themeNoCustomThemes, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text(s.themeUseAutoGenerator, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FilledTonalButton(onClick = onCreate) { Icon(Icons.Default.Add, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text(s.themeCreateTheme) }
     }
 }
 

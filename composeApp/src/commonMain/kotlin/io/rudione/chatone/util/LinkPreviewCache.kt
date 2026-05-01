@@ -47,7 +47,7 @@ private data class YouTubeOEmbed(
 )
 
 object LinkPreviewCache {
-    private const val TTL_MS = 30 * 60 * 1000L
+    private const val TTL_MS = 60 * 60 * 1000L
     private const val MAX_BODY_BYTES = 256 * 1024
 
     private data class Entry(val preview: LinkPreview, val fetchedAt: Long)

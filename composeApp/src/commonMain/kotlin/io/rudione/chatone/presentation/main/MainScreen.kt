@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.*
@@ -63,7 +65,6 @@ import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.main.components.LiquidGlassDropdown
 import io.rudione.chatone.presentation.settings.SettingsScreen
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
@@ -76,6 +77,7 @@ import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.util.WallpaperLoader
 import io.rudione.chatone.util.handleHover
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
@@ -85,7 +87,6 @@ import io.rudione.chatone.presentation.chat.components.ChattersPanel
 import io.rudione.chatone.presentation.main.components.MentionsFeed
 import io.rudione.chatone.presentation.main.components.MentionToast
 import io.rudione.chatone.presentation.settings.SettingsEffect
-import kotlinx.coroutines.coroutineScope
 
 private data class ItemBounds(val id: String, val rect: Rect)
 
@@ -99,6 +100,7 @@ fun MainScreen(
     val state by viewModel.state.collectAsState()
     val settingsViewModel: SettingsViewModel = koinViewModel()
     val settingsState by settingsViewModel.state.collectAsState()
+    val s = LocalStrings.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val wallpaperController = LocalWallpaperController.current
@@ -133,8 +135,8 @@ fun MainScreen(
             launch {
                 settingsViewModel.effect.collect { effect ->
                     if (effect is SettingsEffect.NavigateToAuth) {
-                        viewModel.sendEvent(MainEvent.HideSettings) 
-                        onNavigateToAuth() 
+                        viewModel.sendEvent(MainEvent.HideSettings)
+                        onNavigateToAuth()
                     }
                 }
             }
@@ -172,46 +174,6 @@ fun MainScreen(
             val isWideScreen = maxWidth >= 725.dp
             LaunchedEffect(isWideScreen) { isWideScreenForSettings = isWideScreen }
 
-            if (state.needsReauth) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .zIndex(100f)
-                ) {
-                    androidx.compose.material3.Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        tonalElevation = 4.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                "⚠️ Re-login required to enable deleting own messages",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier.weight(1f)
-                            )
-                            androidx.compose.material3.TextButton(
-                                onClick = { viewModel.sendEvent(MainEvent.NavigateToAuth) }
-                            ) {
-                                Text(
-                                    "Re-login",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
             if (isWideScreen) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     Box {
@@ -225,16 +187,48 @@ fun MainScreen(
                                 targetState = state.sidebarCollapsed,
                                 transitionSpec = {
                                     if (targetState) {
-                                        (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(220)) { -it } +
-                                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))).togetherWith(
-                                            androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(220)) { -it } +
-                                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140))
+                                        (androidx.compose.animation.slideInHorizontally(
+                                            androidx.compose.animation.core.tween(
+                                                220
+                                            )
+                                        ) { -it } +
+                                                androidx.compose.animation.fadeIn(
+                                                    androidx.compose.animation.core.tween(
+                                                        180
+                                                    )
+                                                )).togetherWith(
+                                            androidx.compose.animation.slideOutHorizontally(
+                                                androidx.compose.animation.core.tween(
+                                                    220
+                                                )
+                                            ) { -it } +
+                                                    androidx.compose.animation.fadeOut(
+                                                        androidx.compose.animation.core.tween(
+                                                            140
+                                                        )
+                                                    )
                                         )
                                     } else {
-                                        (androidx.compose.animation.slideInHorizontally(androidx.compose.animation.core.tween(220)) { -it } +
-                                                androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180))).togetherWith(
-                                            androidx.compose.animation.slideOutHorizontally(androidx.compose.animation.core.tween(220)) { -it } +
-                                                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(140))
+                                        (androidx.compose.animation.slideInHorizontally(
+                                            androidx.compose.animation.core.tween(
+                                                220
+                                            )
+                                        ) { -it } +
+                                                androidx.compose.animation.fadeIn(
+                                                    androidx.compose.animation.core.tween(
+                                                        180
+                                                    )
+                                                )).togetherWith(
+                                            androidx.compose.animation.slideOutHorizontally(
+                                                androidx.compose.animation.core.tween(
+                                                    220
+                                                )
+                                            ) { -it } +
+                                                    androidx.compose.animation.fadeOut(
+                                                        androidx.compose.animation.core.tween(
+                                                            140
+                                                        )
+                                                    )
                                         )
                                     }
                                 },
@@ -653,6 +647,10 @@ private fun MiniRail(
 
     var railDragLogin by remember { mutableStateOf<String?>(null) }
     var railDragFromIndex by remember { mutableStateOf<Int?>(null) }
+    var railDragOffset by remember { mutableStateOf(Offset.Zero) }
+    var railDragStartCenterX by remember { mutableStateOf(0f) }
+    var railDropTargetLogin by remember { mutableStateOf<String?>(null) }
+    val s = LocalStrings.current
     val railItemCenters = remember { mutableStateMapOf<String, Float>() }
     val tooltipOffsetYPx = with(density) { 28.dp.roundToPx() }
 
@@ -678,7 +676,7 @@ private fun MiniRail(
             ) {
                 Icon(
                     Icons.Filled.Menu,
-                    contentDescription = "Open sidebar",
+                    contentDescription = LocalStrings.current.mainOpenSidebar,
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(20.dp)
                 )
@@ -713,36 +711,65 @@ private fun MiniRail(
                     var showTooltip by remember { mutableStateOf(false) }
                     var tooltipOffset by remember { mutableStateOf(IntOffset.Zero) }
                     val isDraggedItem = railDragLogin == channel.login
+                    val isDragTarget = railDropTargetLogin == channel.login && !isDraggedItem
+                    val itemCenterX = remember { mutableStateOf(0f) }
 
                     Box(
                         modifier = Modifier
                             .size(38.dp)
                             .onGloballyPositioned { coords ->
                                 val bounds = coords.boundsInRoot()
-                                railItemCenters[channel.login] = bounds.left + bounds.width / 2f
+                                val cx = bounds.left + bounds.width / 2f
+                                railItemCenters[channel.login] = cx
+                                itemCenterX.value = cx
                             }
                             .pointerInput(channel.login) {
-                                detectDragGestures(
+                                detectDragGesturesAfterLongPress(
                                     onDragStart = {
                                         railDragLogin = channel.login
-                                        railDragFromIndex = state.openChannels.indexOfFirst { it.login == channel.login }
+                                        railDragOffset = Offset.Zero
+                                        railDragStartCenterX = itemCenterX.value
+                                        railDropTargetLogin = null
+                                        railDragFromIndex =
+                                            state.openChannels.indexOfFirst { it.login == channel.login }
                                     },
                                     onDrag = { change, delta ->
                                         change.consume()
-                                        val draggedCenter = (railItemCenters[channel.login] ?: 0f) + delta.x
-                                        val targetLogin = railItemCenters.entries
-                                            .minByOrNull { (_, cx) -> kotlin.math.abs(cx - draggedCenter) }?.key
+                                        railDragOffset += delta
+                                        val currentX = railDragStartCenterX + railDragOffset.x
+                                        val itemHalfWidthPx = with(density) { 19.dp.toPx() }
+                                        val closest = railItemCenters.entries
+                                            .filter { (login, _) -> login != channel.login }
+                                            .minByOrNull { (_, cx) -> kotlin.math.abs(cx - currentX) }?.key
+                                        val nearestCx = closest?.let { railItemCenters[it] }
+                                        railDropTargetLogin =
+                                            if (closest != null && nearestCx != null &&
+                                                kotlin.math.abs(nearestCx - currentX) < itemHalfWidthPx
+                                            ) closest else null
+                                    },
+                                    onDragEnd = {
                                         val fromIdx = railDragFromIndex
-                                        val toIdx = if (targetLogin != null)
-                                            state.openChannels.indexOfFirst { it.login == targetLogin }.takeIf { it >= 0 }
+                                        val toLogin = railDropTargetLogin
+                                        val toIdx = if (toLogin != null)
+                                            state.openChannels.indexOfFirst { it.login == toLogin }
+                                                .takeIf { it >= 0 }
                                         else null
                                         if (fromIdx != null && toIdx != null && toIdx != fromIdx) {
                                             onEvent(MainEvent.ReorderChannels(fromIdx, toIdx))
-                                            railDragFromIndex = toIdx
                                         }
+                                        railDragLogin = null
+                                        railDragOffset = Offset.Zero
+                                        railDragStartCenterX = 0f
+                                        railDropTargetLogin = null
+                                        railDragFromIndex = null
                                     },
-                                    onDragEnd = { railDragLogin = null; railDragFromIndex = null },
-                                    onDragCancel = { railDragLogin = null; railDragFromIndex = null }
+                                    onDragCancel = {
+                                        railDragLogin = null
+                                        railDragOffset = Offset.Zero
+                                        railDragStartCenterX = 0f
+                                        railDropTargetLogin = null
+                                        railDragFromIndex = null
+                                    }
                                 )
                             }
                             .pointerInput(channel.login) {
@@ -751,19 +778,30 @@ private fun MiniRail(
                                         val event = awaitPointerEvent()
                                         when (event.type) {
                                             PointerEventType.Enter -> {
-                                                val pos = event.changes.firstOrNull()?.position ?: Offset.Zero
-                                                tooltipOffset = IntOffset(pos.x.toInt() - 35, pos.y.toInt() - tooltipOffsetYPx)
+                                                val pos = event.changes.firstOrNull()?.position
+                                                    ?: Offset.Zero
+                                                tooltipOffset = IntOffset(
+                                                    pos.x.toInt() - 35,
+                                                    pos.y.toInt() - tooltipOffsetYPx
+                                                )
                                                 showTooltip = true
                                             }
+
                                             PointerEventType.Move -> {
-                                                val pos = event.changes.firstOrNull()?.position ?: Offset.Zero
-                                                tooltipOffset = IntOffset(pos.x.toInt() - 35, pos.y.toInt() - tooltipOffsetYPx)
+                                                val pos = event.changes.firstOrNull()?.position
+                                                    ?: Offset.Zero
+                                                tooltipOffset = IntOffset(
+                                                    pos.x.toInt() - 35,
+                                                    pos.y.toInt() - tooltipOffsetYPx
+                                                )
                                             }
+
                                             PointerEventType.Exit -> showTooltip = false
                                             PointerEventType.Press -> if (event.buttons.isSecondaryPressed) {
                                                 try {
                                                     uriHandler.openUri("https://www.twitch.tv/${channel.login}")
-                                                } catch (_: Exception) { }
+                                                } catch (_: Exception) {
+                                                }
                                             }
                                         }
                                     }
@@ -777,7 +815,14 @@ private fun MiniRail(
                                 .clip(CircleShape)
                                 .background(
                                     when {
-                                        isDraggedItem -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                        isDraggedItem -> MaterialTheme.colorScheme.primary.copy(
+                                            alpha = 0.35f
+                                        )
+
+                                        isDragTarget -> MaterialTheme.colorScheme.secondary.copy(
+                                            alpha = 0.25f
+                                        )
+
                                         isActive -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                                         else -> Color.Transparent
                                     }
@@ -882,7 +927,7 @@ private fun MiniRail(
                 ) {
                     Icon(
                         Icons.Filled.Notifications,
-                        contentDescription = "Mentions",
+                        contentDescription = s.chatMentionsTab,
                         tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -912,7 +957,7 @@ private fun MiniRail(
                 ) {
                     Icon(
                         Icons.Filled.MailOutline,
-                        contentDescription = "Whispers",
+                        contentDescription = s.chatWhisperTab,
                         tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -940,7 +985,7 @@ private fun MiniRail(
             ) {
                 Icon(
                     Icons.Filled.Add,
-                    contentDescription = "Add channel",
+                    contentDescription = s.addChannel,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
@@ -979,7 +1024,7 @@ private fun CompactSidebar(
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "Expand sidebar",
+                contentDescription = LocalStrings.current.mainExpandSidebar,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(20.dp)
             )
@@ -991,6 +1036,7 @@ private fun CompactSidebar(
 
         val folderedLogins = state.folders.flatMap { it.channels }.map { it.login }.toSet()
         val filteredUnfoldered = state.unfolderedChannels.filter { it.login !in folderedLogins }
+        val s = LocalStrings.current
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -1002,11 +1048,17 @@ private fun CompactSidebar(
                 val isExpanded = folder.id in expandedFolders
                 val folderColor = try {
                     val c = folder.color.removePrefix("#").toLong(16)
-                    Color(red = ((c shr 16) and 0xFF) / 255f, green = ((c shr 8) and 0xFF) / 255f, blue = (c and 0xFF) / 255f)
-                } catch (_: Exception) { ChatoneColors.Violet400 }
+                    Color(
+                        red = ((c shr 16) and 0xFF) / 255f,
+                        green = ((c shr 8) and 0xFF) / 255f,
+                        blue = (c and 0xFF) / 255f
+                    )
+                } catch (_: Exception) {
+                    ChatoneColors.Violet400
+                }
 
                 val hasFolderActive = folder.channels.any { it.login == state.activeChannelLogin }
-               
+
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.width(52.dp)
@@ -1021,11 +1073,17 @@ private fun CompactSidebar(
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(
                                     if (hasFolderActive) folderColor.copy(alpha = 0.2f)
-                                    else if (isExpanded) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    else if (isExpanded) MaterialTheme.colorScheme.surfaceVariant.copy(
+                                        alpha = 0.5f
+                                    )
                                     else Color.Transparent
                                 )
                                 .then(
-                                    if (hasFolderActive) Modifier.border(2.dp, folderColor, RoundedCornerShape(10.dp))
+                                    if (hasFolderActive) Modifier.border(
+                                        2.dp,
+                                        folderColor,
+                                        RoundedCornerShape(10.dp)
+                                    )
                                     else Modifier
                                 )
                                 .clickable {
@@ -1051,11 +1109,13 @@ private fun CompactSidebar(
                             )
                         }
                     }
-                   
+
                     Text(
                         text = folder.name.take(8),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                        color = if (hasFolderActive) folderColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        color = if (hasFolderActive) folderColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            alpha = 0.7f
+                        ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -1108,7 +1168,7 @@ private fun CompactSidebar(
             ) {
                 Icon(
                     Icons.Filled.Notifications,
-                    contentDescription = "Mentions",
+                    contentDescription = s.chatMentionsTab,
                     tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
@@ -1137,7 +1197,7 @@ private fun CompactSidebar(
             ) {
                 Icon(
                     Icons.Filled.MailOutline,
-                    contentDescription = "Whispers",
+                    contentDescription = s.chatWhisperTab,
                     tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
@@ -1165,7 +1225,7 @@ private fun CompactSidebar(
         ) {
             Icon(
                 Icons.Outlined.Settings,
-                contentDescription = "Settings",
+                contentDescription = s.settingsTitle,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )
@@ -1196,7 +1256,11 @@ private fun CompactChannelAvatar(
                         else Color.Transparent
                     )
                     .then(
-                        if (isActive) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                        if (isActive) Modifier.border(
+                            2.dp,
+                            MaterialTheme.colorScheme.primary,
+                            CircleShape
+                        )
                         else Modifier
                     )
                     .clickable { onClick() }
@@ -1265,7 +1329,11 @@ private fun CompactChannelAvatar(
                 Box(
                     modifier = Modifier.clip(RoundedCornerShape(6.dp))
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                            RoundedCornerShape(6.dp)
+                        )
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
@@ -1302,7 +1370,7 @@ private fun ChannelSidebar(
     val folderBounds = remember { mutableStateListOf<ItemBounds>() }
     val channelRectMap = remember { mutableStateMapOf<String, Rect>() }
     val channelBounds = remember { mutableStateListOf<ItemBounds>() }
-
+    val s = LocalStrings.current
     val folderedLogins = state.folders.flatMap { it.channels }.map { it.login }.toSet()
     val filteredUnfoldered = state.unfolderedChannels.filter { it.login !in folderedLogins }
 
@@ -1338,8 +1406,10 @@ private fun ChannelSidebar(
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Collapse sidebar",
+                        if (state.sidebarCollapsed)
+                            Icons.AutoMirrored.Filled.KeyboardArrowLeft
+                        else Icons.AutoMirrored.Default.KeyboardArrowRight,
+                        contentDescription = LocalStrings.current.mainCollapseSidebar,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -1395,7 +1465,7 @@ private fun ChannelSidebar(
                         ) {
                             Icon(
                                 Icons.Filled.MoreVert,
-                                contentDescription = "Channel options",
+                                contentDescription = LocalStrings.current.mainChannelOptions,
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1404,7 +1474,7 @@ private fun ChannelSidebar(
                             expanded = showChannelMenu,
                             onDismissRequest = { showChannelMenu = false }) {
                             DropdownMenuItem(
-                                text = { Text("Viewers list") },
+                                text = { Text(LocalStrings.current.mainViewersList) },
                                 leadingIcon = {
                                     Icon(
                                         Icons.Filled.Person,
@@ -1436,7 +1506,7 @@ private fun ChannelSidebar(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("Login to Twitch")
+                    Text(LocalStrings.current.mainLoginToTwitch)
                 }
             }
         }
@@ -1508,7 +1578,7 @@ private fun ChannelSidebar(
             if (filteredUnfoldered.isNotEmpty()) {
                 item(key = "unfoldered_header") {
                     Text(
-                        "CHANNELS",
+                        LocalStrings.current.mainChannelsHeader,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 1.sp,
@@ -1538,7 +1608,8 @@ private fun ChannelSidebar(
                         dragStartOffsetPx = rootPos - sidebarTopLeftInRoot
                         dragOffsetPx = Offset.Zero
                         isDragging = true
-                        dragStartIndex = filteredUnfoldered.indexOfFirst { it.login == channel.login }
+                        dragStartIndex =
+                            filteredUnfoldered.indexOfFirst { it.login == channel.login }
                         dragOverIndex = null
                     },
                     onDrag = { delta ->
@@ -1559,9 +1630,19 @@ private fun ChannelSidebar(
                         val currentPos = dragStartOffsetPx + dragOffsetPx
                         val hitFolder = folderBounds.find { it.rect.contains(currentPos) }
                         if (hitFolder != null && draggedChannelLogin != null) {
-                            onEvent(MainEvent.DropChannelOnFolder(draggedChannelLogin!!, hitFolder.id))
+                            onEvent(
+                                MainEvent.DropChannelOnFolder(
+                                    draggedChannelLogin!!,
+                                    hitFolder.id
+                                )
+                            )
                         } else if (dragOverIndex != null && dragStartIndex != null && dragOverIndex != dragStartIndex) {
-                            onEvent(MainEvent.ReorderUnfolderedChannels(dragStartIndex!!, dragOverIndex!!))
+                            onEvent(
+                                MainEvent.ReorderUnfolderedChannels(
+                                    dragStartIndex!!,
+                                    dragOverIndex!!
+                                )
+                            )
                         }
                         draggedChannelLogin = null
                         dropTargetFolderId = null
@@ -1592,9 +1673,9 @@ private fun ChannelSidebar(
             modifier = Modifier.fillMaxWidth().padding(8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-           
+
             GradientButton(
-                text = "+ Channel",
+                text = LocalStrings.current.sidebarAddChannelButton,
                 onClick = { onEvent(MainEvent.ShowAddChannelDialog) },
                 modifier = Modifier.weight(1f),
                 gradientColors = listOf(
@@ -1603,9 +1684,9 @@ private fun ChannelSidebar(
                 )
             )
             Spacer(Modifier.width(8.dp))
-           
+
             GradientButton(
-                text = "+ Folder",
+                text = LocalStrings.current.sidebarAddFolderButton,
                 onClick = { onEvent(MainEvent.ShowCreateFolderDialog) },
                 modifier = Modifier.weight(1f),
                 gradientColors = listOf(
@@ -1641,7 +1722,7 @@ private fun ChannelSidebar(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            Text("/mentions")
+            Text(s.panelMentionsTitle)
             Spacer(Modifier.weight(1f))
             if (state.unreadMentionsCount > 0) {
                 Surface(color = MaterialTheme.colorScheme.error, shape = CircleShape) {
@@ -1680,7 +1761,7 @@ private fun ChannelSidebar(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            Text("Whispers")
+            Text(s.chatWhisperTab)
             Spacer(Modifier.weight(1f))
             if (state.totalUnreadWhispers > 0) {
                 Surface(color = MaterialTheme.colorScheme.error, shape = CircleShape) {
@@ -1703,7 +1784,7 @@ private fun ChannelSidebar(
                 modifier = Modifier.size(18.dp)
             )
             Spacer(Modifier.width(8.dp))
-            Text("Settings")
+            Text(s.settingsTitle)
             Spacer(Modifier.weight(1f))
         }
         Spacer(Modifier.height(4.dp))
@@ -1825,7 +1906,7 @@ private fun FolderItem(
                     ) {
                         Icon(
                             Icons.Filled.Add,
-                            contentDescription = "Add channel to folder",
+                            contentDescription = LocalStrings.current.mainAddChannelToFolder,
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                         )
@@ -1835,7 +1916,12 @@ private fun FolderItem(
                         onDismissRequest = { showAddToFolderMenu = false }) {
                         if (unfolderedChannels.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("No channels to add", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                text = {
+                                    Text(
+                                        LocalStrings.current.mainNoChannelsToAdd,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
                                 onClick = { showAddToFolderMenu = false },
                                 enabled = false
                             )
@@ -1848,7 +1934,11 @@ private fun FolderItem(
                                         onMoveChannel(ch.login, folder.id)
                                     },
                                     leadingIcon = {
-                                        Text("#", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            "#",
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 )
                             }
@@ -1861,10 +1951,14 @@ private fun FolderItem(
                 onDismissRequest = { showFolderMenu = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text("Delete folder") },
+                    text = { Text(LocalStrings.current.mainDeleteFolder) },
                     onClick = { showFolderMenu = false; onDelete() },
                     leadingIcon = {
-                        Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Outlined.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 )
             }
@@ -1975,7 +2069,7 @@ private fun ChannelItemWithDrag(
             )
             if (channel.unreadCount > 0) {
                 Surface(
-                    color = ChatoneTheme.extraColors.live, 
+                    color = ChatoneTheme.extraColors.live,
                     shape = CircleShape,
                     modifier = Modifier.padding(start = 4.dp)
                 ) {
@@ -1995,7 +2089,7 @@ private fun ChannelItemWithDrag(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Outlined.List,
-                            contentDescription = "Move to folder",
+                            contentDescription = LocalStrings.current.mainMoveToFolder,
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
@@ -2022,7 +2116,7 @@ private fun ChannelItemWithDrag(
                                 Column {
                                     if (currentFolderId != null) {
                                         LiquidGlassDropdownItem(
-                                            text = "Remove from folder",
+                                            text = LocalStrings.current.mainRemoveFromFolder,
                                             icon = Icons.Outlined.Close,
                                             onClick = {
                                                 showContextMenu = false
@@ -2049,7 +2143,7 @@ private fun ChannelItemWithDrag(
                                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                                     )
                                     LiquidGlassDropdownItem(
-                                        text = "Close channel",
+                                        text = LocalStrings.current.mainCloseChannel,
                                         icon = Icons.Outlined.Close,
                                         onClick = {
                                             showContextMenu = false
@@ -2152,7 +2246,7 @@ private fun ChannelItem(
             )
             if (channel.unreadCount > 0) {
                 Surface(
-                    color = ChatoneTheme.extraColors.live, 
+                    color = ChatoneTheme.extraColors.live,
                     shape = CircleShape,
                     modifier = Modifier.padding(start = 4.dp)
                 ) {
@@ -2172,7 +2266,7 @@ private fun ChannelItem(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Outlined.List,
-                            contentDescription = "Move to folder",
+                            contentDescription = LocalStrings.current.mainMoveToFolder,
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
@@ -2200,7 +2294,7 @@ private fun ChannelItem(
                                 Column {
                                     if (currentFolderId != null) {
                                         LiquidGlassDropdownItem(
-                                            text = "Remove from folder",
+                                            text = LocalStrings.current.mainRemoveFromFolder,
                                             icon = Icons.Outlined.Close,
                                             onClick = {
                                                 showContextMenu = false
@@ -2227,7 +2321,7 @@ private fun ChannelItem(
                                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                                     )
                                     LiquidGlassDropdownItem(
-                                        text = "Close channel",
+                                        text = LocalStrings.current.mainCloseChannel,
                                         icon = Icons.Outlined.Close,
                                         onClick = {
                                             showContextMenu = false
@@ -2273,11 +2367,11 @@ private fun ChannelTabBar(
 
     val tabCenters = remember { mutableStateListOf<Pair<Int, Offset>>() }
 
-   
-   
+
     val tabBarWallpaper = LocalWallpaperController.current.state
     val tabBarBlur = tabBarWallpaper.panelColorConfig.topBarBlurRadius
-    val tabBarColor = topBarBackgroundColor(tabBarWallpaper, MaterialTheme.colorScheme.surfaceContainer)
+    val tabBarColor =
+        topBarBackgroundColor(tabBarWallpaper, MaterialTheme.colorScheme.surfaceContainer)
 
     Box(
         modifier = Modifier
@@ -2461,7 +2555,6 @@ private fun ChannelTabBar(
 }
 
 
-
 @Composable
 private fun GradientButton(
     text: String,
@@ -2498,14 +2591,17 @@ private fun GradientButton(
                         gradientColors.map { it.copy(alpha = (it.alpha + 0.1f).coerceAtMost(1f)) }
                     else gradientColors,
                     start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                    end = androidx.compose.ui.geometry.Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+                    end = androidx.compose.ui.geometry.Offset(
+                        Float.POSITIVE_INFINITY,
+                        Float.POSITIVE_INFINITY
+                    )
                 )
             )
             .handleHover(onEnter = { hovered = true }, onExit = { hovered = false })
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-       
+
         if (hovered) {
             Box(
                 modifier = Modifier
@@ -2530,6 +2626,8 @@ private fun GradientButton(
 
 @Composable
 private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -> Unit) {
+    val s = LocalStrings.current
+
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         LiquidGlassSurface(
             modifier = Modifier
@@ -2551,12 +2649,12 @@ private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 )
                 Text(
-                    text = "No channels open",
+                    text = s.noChannelsOpen,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = "Add a channel to start chatting",
+                    text = LocalStrings.current.mainNoChannelsHint,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -2568,7 +2666,7 @@ private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Add Channel")
+                    Text(LocalStrings.current.mainAddChannelTitle)
                 }
                 if (isGuest) {
                     OutlinedButton(onClick = onLogin) {
@@ -2578,7 +2676,7 @@ private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Login to Twitch")
+                        Text(LocalStrings.current.mainLoginToTwitch)
                     }
                 }
             }
@@ -2597,16 +2695,17 @@ private fun AddChannelDialog(
     onChannelSelected: (String, String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val s = LocalStrings.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Channel") },
+        title = { Text(s.mainAddChannelTitle) },
         text = {
             Column {
                 OutlinedTextField(
                     value = query,
                     onValueChange = onQueryChange,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Channel name...") },
+                    placeholder = { Text(s.mainChannelNamePlaceholder) },
                     leadingIcon = {
                         Text(
                             "#",
@@ -2701,9 +2800,9 @@ private fun AddChannelDialog(
                     )
                 },
                 enabled = query.isNotBlank()
-            ) { Text("Join") }
+            ) { Text(s.mainJoin) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(s.cancel) } }
     )
 }
 
@@ -2715,15 +2814,16 @@ private fun CreateFolderDialog(
     onCreate: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val s = LocalStrings.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create Folder") },
+        title = { Text(s.mainCreateFolderTitle) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = onNameChange,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Folder name...") },
+                placeholder = { Text(s.mainFolderNamePlaceholder) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Outlined.List, contentDescription = null) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -2734,9 +2834,9 @@ private fun CreateFolderDialog(
             Button(
                 onClick = onCreate,
                 enabled = name.isNotBlank()
-            ) { Text("Create") }
+            ) { Text(s.mainCreate) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(s.cancel) } }
     )
 }
 

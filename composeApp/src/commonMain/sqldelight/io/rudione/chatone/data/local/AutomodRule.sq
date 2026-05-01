@@ -1,50 +1,115 @@
+-- Schema version 2: added ruleKind + chat-rule columns
 CREATE TABLE IF NOT EXISTS AutomodRuleEntity (
     id TEXT NOT NULL PRIMARY KEY,
-    scope TEXT NOT NULL,                    -- 'GLOBAL' or 'LOCAL'
-    channelLogin TEXT,                      -- non-null when scope='LOCAL'
-    pattern TEXT NOT NULL,
-    alternates TEXT NOT NULL DEFAULT '',    -- newline-separated additional patterns
+    ruleKind TEXT NOT NULL DEFAULT 'WORD',      -- 'WORD' | 'CHAT'
+    scope TEXT NOT NULL,                         -- 'GLOBAL' | 'LOCAL'
+    channelLogin TEXT,
+    -- WORD rule fields
+    pattern TEXT NOT NULL DEFAULT '',
+    alternates TEXT NOT NULL DEFAULT '',
     isRegex INTEGER NOT NULL DEFAULT 0,
     caseSensitive INTEGER NOT NULL DEFAULT 0,
     wholeWord INTEGER NOT NULL DEFAULT 0,
-    action TEXT NOT NULL,                   -- 'DELETE' | 'TIMEOUT' | 'BAN'
+    -- shared action
+    action TEXT NOT NULL DEFAULT 'DELETE',       -- 'DELETE' | 'TIMEOUT' | 'BAN'
     timeoutMs INTEGER NOT NULL DEFAULT 60000,
+    -- WORD frequency
     frequencyThreshold INTEGER NOT NULL DEFAULT 0,
     frequencyWindowMs INTEGER NOT NULL DEFAULT 60000,
+    -- shared exemptions
     exemptMods INTEGER NOT NULL DEFAULT 1,
     exemptSubs INTEGER NOT NULL DEFAULT 0,
     exemptVips INTEGER NOT NULL DEFAULT 1,
     enabled INTEGER NOT NULL DEFAULT 1,
     note TEXT NOT NULL DEFAULT '',
     createdAt INTEGER NOT NULL,
-    updatedAt INTEGER NOT NULL
+    updatedAt INTEGER NOT NULL,
+    -- CHAT rule fields (NULL means "not a chat rule" / use default)
+    chatRuleType TEXT,                           -- 'SPAM_RATE'|'ALL_CAPS'|'LINKS'|'EMOTE_SPAM'|'NEW_ACCOUNT'|'DUPLICATE_MESSAGE'
+    spamMaxMessages INTEGER NOT NULL DEFAULT 5,
+    spamWindowSeconds INTEGER NOT NULL DEFAULT 10,
+    capsThresholdPercent INTEGER NOT NULL DEFAULT 70,
+    capsMinLength INTEGER NOT NULL DEFAULT 8,
+    linksAllowClips INTEGER NOT NULL DEFAULT 1,
+    emoteMaxCount INTEGER NOT NULL DEFAULT 8,
+    newAccountAgeDays INTEGER NOT NULL DEFAULT 7,
+    duplicateMinLength INTEGER NOT NULL DEFAULT 8,
+    timeoutSeconds INTEGER NOT NULL DEFAULT 60
 );
 
-CREATE INDEX IF NOT EXISTS idx_automod_scope ON AutomodRuleEntity(scope);
-CREATE INDEX IF NOT EXISTS idx_automod_channel ON AutomodRuleEntity(channelLogin);
-CREATE INDEX IF NOT EXISTS idx_automod_enabled ON AutomodRuleEntity(enabled);
+CREATE INDEX IF NOT EXISTS idx_automod_scope    ON AutomodRuleEntity(scope);
+CREATE INDEX IF NOT EXISTS idx_automod_channel  ON AutomodRuleEntity(channelLogin);
+CREATE INDEX IF NOT EXISTS idx_automod_enabled  ON AutomodRuleEntity(enabled);
+CREATE INDEX IF NOT EXISTS idx_automod_kind     ON AutomodRuleEntity(ruleKind);
 
-upsertRule:
+-- ── WORD rules ────────────────────────────────────────────────────────────────
+
+upsertWordRule:
 INSERT OR REPLACE INTO AutomodRuleEntity(
-    id, scope, channelLogin, pattern, alternates, isRegex, caseSensitive, wholeWord,
+    id, ruleKind, scope, channelLogin, pattern, alternates, isRegex, caseSensitive, wholeWord,
     action, timeoutMs, frequencyThreshold, frequencyWindowMs,
     exemptMods, exemptSubs, exemptVips, enabled, note, createdAt, updatedAt
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, 'WORD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
-getAllRules:
-SELECT * FROM AutomodRuleEntity ORDER BY scope ASC, channelLogin ASC, createdAt ASC;
+getAllWordRules:
+SELECT * FROM AutomodRuleEntity WHERE ruleKind = 'WORD'
+ORDER BY scope ASC, channelLogin ASC, createdAt ASC;
 
-getEnabledRulesForChannel:
+getEnabledWordRulesForChannel:
 SELECT * FROM AutomodRuleEntity
-WHERE enabled = 1
+WHERE ruleKind = 'WORD' AND enabled = 1
   AND (scope = 'GLOBAL' OR (scope = 'LOCAL' AND channelLogin = ?))
 ORDER BY scope ASC, createdAt ASC;
+
+-- ── CHAT rules ────────────────────────────────────────────────────────────────
+
+upsertChatRule:
+INSERT OR REPLACE INTO AutomodRuleEntity(
+    id, ruleKind, scope, channelLogin,
+    pattern, alternates, isRegex, caseSensitive, wholeWord,
+    action, timeoutMs, frequencyThreshold, frequencyWindowMs,
+    exemptMods, exemptSubs, exemptVips, enabled, note, createdAt, updatedAt,
+    chatRuleType,
+    spamMaxMessages, spamWindowSeconds,
+    capsThresholdPercent, capsMinLength,
+    linksAllowClips, emoteMaxCount, newAccountAgeDays, duplicateMinLength,
+    timeoutSeconds
+) VALUES (?, 'CHAT', ?, ?,
+    '', '', 0, 0, 0,
+    ?, ?, 0, 60000,
+    ?, ?, ?, ?, '', ?, ?,
+    ?,
+    ?, ?,
+    ?, ?,
+    ?, ?, ?, ?,
+    ?);
+
+getAllChatRules:
+SELECT * FROM AutomodRuleEntity WHERE ruleKind = 'CHAT'
+ORDER BY scope ASC, channelLogin ASC, createdAt ASC;
+
+getEnabledChatRulesForChannel:
+SELECT * FROM AutomodRuleEntity
+WHERE ruleKind = 'CHAT' AND enabled = 1
+  AND (scope = 'GLOBAL' OR (scope = 'LOCAL' AND channelLogin = ?))
+ORDER BY scope ASC, createdAt ASC;
+
+-- ── Shared ────────────────────────────────────────────────────────────────────
+
+getAllRules:
+SELECT * FROM AutomodRuleEntity ORDER BY ruleKind ASC, scope ASC, channelLogin ASC, createdAt ASC;
 
 getRuleById:
 SELECT * FROM AutomodRuleEntity WHERE id = ?;
 
 deleteRule:
 DELETE FROM AutomodRuleEntity WHERE id = ?;
+
+deleteAllWordRules:
+DELETE FROM AutomodRuleEntity WHERE ruleKind = 'WORD';
+
+deleteAllChatRules:
+DELETE FROM AutomodRuleEntity WHERE ruleKind = 'CHAT';
 
 deleteAll:
 DELETE FROM AutomodRuleEntity;
@@ -54,3 +119,20 @@ UPDATE AutomodRuleEntity SET enabled = ?, updatedAt = ? WHERE id = ?;
 
 countRules:
 SELECT COUNT(*) FROM AutomodRuleEntity;
+
+countByKind:
+SELECT ruleKind, COUNT(*) AS cnt FROM AutomodRuleEntity GROUP BY ruleKind;
+
+-- Legacy compat (old callers used upsertRule / getEnabledRulesForChannel)
+upsertRule:
+INSERT OR REPLACE INTO AutomodRuleEntity(
+    id, ruleKind, scope, channelLogin, pattern, alternates, isRegex, caseSensitive, wholeWord,
+    action, timeoutMs, frequencyThreshold, frequencyWindowMs,
+    exemptMods, exemptSubs, exemptVips, enabled, note, createdAt, updatedAt
+) VALUES (?, 'WORD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getEnabledRulesForChannel:
+SELECT * FROM AutomodRuleEntity
+WHERE ruleKind = 'WORD' AND enabled = 1
+  AND (scope = 'GLOBAL' OR (scope = 'LOCAL' AND channelLogin = ?))
+ORDER BY scope ASC, createdAt ASC;

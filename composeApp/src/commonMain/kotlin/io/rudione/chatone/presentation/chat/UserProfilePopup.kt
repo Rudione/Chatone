@@ -2,7 +2,6 @@ package io.rudione.chatone.presentation.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,7 +23,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -42,9 +40,9 @@ import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.domain.model.SevenTvCosmetics
-import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.MessageToken
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -137,10 +135,11 @@ fun UserProfilePopup(
     }
 
     if (showDeleteConfirmation) {
+        val sd = LocalStrings.current
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Delete Note") },
-            text = { Text("Are you sure you want to delete this note?") },
+            title = { Text(sd.profileDeleteNote) },
+            text = { Text(sd.profileDeleteNoteConfirm) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -148,12 +147,12 @@ fun UserProfilePopup(
                         false
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Delete") }
+                ) { Text(sd.delete) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showDeleteConfirmation = false
-                }) { Text("Cancel") }
+                }) { Text(sd.cancel) }
             }
         )
     }
@@ -194,7 +193,7 @@ fun UserProfilePopup(
                         selected = selectedTab == 0, onClick = { selectedTab = 0 },
                         text = {
                             Text(
-                                "Usercard", style = MaterialTheme.typography.labelMedium,
+                                LocalStrings.current.profileTabUsercard, style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal
                             )
                         })
@@ -206,7 +205,7 @@ fun UserProfilePopup(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    "Messages", style = MaterialTheme.typography.labelMedium,
+                                    LocalStrings.current.profileTabMessages, style = MaterialTheme.typography.labelMedium,
                                     fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal
                                 )
                                 if (userMessages.isNotEmpty()) {
@@ -306,7 +305,7 @@ internal fun UsercardTab(
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    "Joined $fetchedCreatedAt", style = MaterialTheme.typography.bodySmall,
+                    LocalStrings.current.profileJoined.replace("{0}", fetchedCreatedAt), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -320,7 +319,7 @@ internal fun UsercardTab(
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    "Following since $date", style = MaterialTheme.typography.bodySmall,
+                    LocalStrings.current.profileFollowingSince.replace("{0}", date), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -342,7 +341,7 @@ internal fun UsercardTab(
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    "Note",
+                    LocalStrings.current.profileNote,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -354,7 +353,7 @@ internal fun UsercardTab(
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                     ) {
                         Text(
-                            "Copy",
+                            LocalStrings.current.profileNoteCopy,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -383,7 +382,7 @@ internal fun UsercardTab(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 16.dp, max = 72.dp),
                 placeholder = {
                     Text(
-                        "Add a note about this user...",
+                        LocalStrings.current.profileNotePlaceholder,
                         style = MaterialTheme.typography.bodySmall
                     )
                 },
@@ -408,7 +407,7 @@ internal fun UsercardTab(
         ) {
             Icon(Icons.Outlined.MailOutline, null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(8.dp))
-            Text("Whisper", modifier = Modifier.weight(1f))
+            Text(LocalStrings.current.profileSendWhisper, modifier = Modifier.weight(1f))
         }
 
         if (showModActions && !isBroadcaster) {
@@ -417,7 +416,7 @@ internal fun UsercardTab(
             Spacer(Modifier.height(8.dp))
 
             Text(
-                "MODERATION", style = MaterialTheme.typography.labelSmall,
+                LocalStrings.current.profileSectionModeration, style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 letterSpacing = 1.sp,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -459,7 +458,7 @@ internal fun UsercardTab(
                 ) {
                     Icon(Icons.Filled.Close, null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Ban", style = MaterialTheme.typography.labelMedium)
+                    Text(LocalStrings.current.profileBan, style = MaterialTheme.typography.labelMedium)
                 }
                 FilledTonalButton(
                     onClick = { onUnban(); onDismiss() },
@@ -472,7 +471,7 @@ internal fun UsercardTab(
                 ) {
                     Icon(Icons.Outlined.CheckCircle, null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Unban", style = MaterialTheme.typography.labelMedium)
+                    Text(LocalStrings.current.profileUnban, style = MaterialTheme.typography.labelMedium)
                 }
             }
 
@@ -532,7 +531,7 @@ internal fun MessagesTab(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 )
                 Text(
-                    "No messages in this session", style = MaterialTheme.typography.bodySmall,
+                    LocalStrings.current.profileNoMessagesInSession, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
             }
@@ -710,10 +709,11 @@ fun UserProfileContent(
     }
 
     if (showDeleteConfirmation) {
+        val sd2 = LocalStrings.current
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text("Delete Note") },
-            text = { Text("Are you sure?") },
+            title = { Text(sd2.profileDeleteNote) },
+            text = { Text(sd2.profileDeleteNoteConfirm) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -721,12 +721,12 @@ fun UserProfileContent(
                         ""; showDeleteConfirmation = false
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Delete") }
+                ) { Text(sd2.delete) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showDeleteConfirmation = false
-                }) { Text("Cancel") }
+                }) { Text(sd2.cancel) }
             }
         )
     }
@@ -754,12 +754,12 @@ fun UserProfileContent(
             divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)) }) {
             Tab(
                 selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                text = { Text("Usercard", style = MaterialTheme.typography.labelMedium) })
+                text = { Text(LocalStrings.current.profileTabUsercard, style = MaterialTheme.typography.labelMedium) })
             Tab(
                 selected = selectedTab == 1, onClick = { selectedTab = 1 },
                 text = {
                     Text(
-                        "Messages (${userMessages.size})",
+                        LocalStrings.current.profileTabMessagesCount.replace("{0}", userMessages.size.toString()),
                         style = MaterialTheme.typography.labelMedium
                     )
                 })

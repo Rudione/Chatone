@@ -29,7 +29,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -44,11 +43,11 @@ import chatone.composeapp.generated.resources.bell_filled
 import chatone.composeapp.generated.resources.bell_outlined
 import chatone.composeapp.generated.resources.chatbubbles
 import chatone.composeapp.generated.resources.chatbubbles_outline
+import chatone.composeapp.generated.resources.icon
 import chatone.composeapp.generated.resources.images
 import chatone.composeapp.generated.resources.images_outline
 import chatone.composeapp.generated.resources.keyboard_24_filled
 import chatone.composeapp.generated.resources.keyboard_24_regular
-import chatone.composeapp.generated.resources.logochattone
 import chatone.composeapp.generated.resources.musical_notes_outline
 import chatone.composeapp.generated.resources.palette_fill_16
 import chatone.composeapp.generated.resources.palette_stroke_12
@@ -74,6 +73,9 @@ import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.util.BuildConfig
 import io.rudione.chatone.util.NotificationSoundPlayer
 import io.rudione.chatone.util.WallpaperLoader
+import io.rudione.chatone.presentation.theme.i18n.AppLocale
+import io.rudione.chatone.presentation.theme.i18n.AppStrings
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.pickAudioFile
 import io.rudione.chatone.util.pickImageFile
 import kotlinx.coroutines.CoroutineScope
@@ -96,7 +98,19 @@ private enum class SettingsSection(
     HOTKEYS("Hotkeys", Res.drawable.keyboard_24_filled, Res.drawable.keyboard_24_regular),
     MODERATION("Moderation", Res.drawable.shield_filled, Res.drawable.shield_outlined),
     ACCOUNT("Account", Res.drawable.person_filled, Res.drawable.person_filled),
-    ABOUT("About", Res.drawable.panel_left_key_16_regular, null),
+    ABOUT("About", Res.drawable.panel_left_key_16_regular, null);
+
+    fun localizedLabel(s: AppStrings): String = when (this) {
+        APPEARANCE -> s.settingsAppearance
+        CHAT -> s.sectionChat
+        NOTIFICATIONS -> s.settingsNotifications
+        HIGHLIGHTS -> s.sectionHighlights
+        BACKGROUND -> s.sectionBackground
+        HOTKEYS -> s.sectionHotkeys
+        MODERATION -> s.settingsModeration
+        ACCOUNT -> s.settingsAccount
+        ABOUT -> s.settingsAbout
+    }
 }
 
 @Composable
@@ -112,11 +126,11 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val customThemeManager: CustomThemeManager = LocalCustomThemeManager.current
-
-    LaunchedEffect(viewModel) {
-        viewModel.effect.collect { effect -> 
+    val s = LocalStrings.current
+    LaunchedEffect(Unit) {
+        viewModel.effect.collect { effect ->
             if (effect is SettingsEffect.NavigateToAuth) {
-                onNavigateBack() 
+                onNavigateBack()
             }
         }
     }
@@ -213,6 +227,7 @@ private fun SettingsDialogContent(
     viewModel: SettingsViewModel,
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
+    val s = LocalStrings.current
     var selectedSection by remember { mutableStateOf(SettingsSection.APPEARANCE) }
     val extra = ChatoneTheme.extraColors
 
@@ -246,7 +261,7 @@ private fun SettingsDialogContent(
             ) {
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
                     Text(
-                        "Settings",
+                        s.settingsTitle,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -293,7 +308,7 @@ private fun SettingsDialogContent(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Close")
+                    Text(s.close)
                 }
             }
 
@@ -319,16 +334,17 @@ private fun SettingsFullScreen(
     viewModel: SettingsViewModel,
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
+    val s = LocalStrings.current
     var expandedSections by remember { mutableStateOf(setOf<SettingsSection>()) }
     val extra = ChatoneTheme.extraColors
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(s.settingsTitle) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, s.back)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -385,7 +401,7 @@ private fun SettingsFullScreen(
                         )
                         Spacer(Modifier.width(14.dp))
                         Text(
-                            section.label,
+                            section.localizedLabel(s),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = if (isExpanded) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (isExpanded) MaterialTheme.colorScheme.primary
@@ -438,6 +454,7 @@ private fun SettingsFullScreen(
 
 @Composable
 private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClick: () -> Unit) {
+    val s = LocalStrings.current
     val bg by animateColorAsState(
         if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
         tween(150), label = "nav_bg"
@@ -465,7 +482,7 @@ private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClic
             tint = contentColor
         )
         Text(
-            section.label,
+            section.localizedLabel(s),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             color = contentColor,
@@ -491,6 +508,7 @@ private fun SectionContentLazy(
     modifier: Modifier = Modifier,
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
+    val s = LocalStrings.current
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -503,7 +521,7 @@ private fun SectionContentLazy(
         ) {
             item {
                 Text(
-                    section.label,
+                    section.localizedLabel(s),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -544,6 +562,7 @@ private fun SectionContentColumn(
     modifier: Modifier = Modifier,
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
+    val s = LocalStrings.current
     Surface(
         modifier = modifier
             .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -584,10 +603,11 @@ private fun LazyListScope.appearanceLazyItems(
     state: SettingsState,
     onThemeChanged: (Boolean) -> Unit,
     vm: SettingsViewModel,
-    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
+    onOpenThemeCreator: (seedColor: Int?) -> Unit = {},
 ) {
     item {
-        SettingsGroup("Theme") {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsTheme) {
             RowDivider()
 
             Row(
@@ -595,7 +615,7 @@ private fun LazyListScope.appearanceLazyItems(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Accent Color", style = MaterialTheme.typography.bodyMedium)
+                    Text(s.settingsAccentColor, style = MaterialTheme.typography.bodyMedium)
                     Text(
                         ExpressivePalettes.getOrNull(state.accentColorIndex)?.name ?: "Violet",
                         style = MaterialTheme.typography.bodySmall,
@@ -611,7 +631,7 @@ private fun LazyListScope.appearanceLazyItems(
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        "Set custom",
+                        s.settingsSetCustom,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium
@@ -650,9 +670,10 @@ private fun LazyListScope.appearanceLazyItems(
     }
 
     item {
-        SettingsGroup("Display") {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsDisplay) {
             ListRow(
-                "Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
+                s.settingsFontSize, state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
                 SettingsState.FontSize.entries.map {
                     it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
                 }
@@ -660,46 +681,60 @@ private fun LazyListScope.appearanceLazyItems(
             UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
             RowDivider()
             ListRow(
-                "Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
+                s.settingsEmoteSize, state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
                 SettingsState.EmoteSize.entries.map {
                     it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
                 }
             ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
             RowDivider()
             ListRow(
-                "Channel Navigation",
+                s.settingsChannelNavigation,
                 when (state.channelNavigation) {
-                    SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
-                    SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
-                    SettingsState.ChannelNavigation.BOTH -> "Both"
+                    SettingsState.ChannelNavigation.TAB_BAR -> s.settingsTabBar
+                    SettingsState.ChannelNavigation.MINI_RAIL -> s.settingsMiniRail
+                    SettingsState.ChannelNavigation.BOTH -> s.settingsBoth
                 },
-                listOf("Tab Bar", "Mini Rail", "Both")
+                listOf(s.settingsTabBar, s.settingsMiniRail, s.settingsBoth)
             ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
         }
     }
     item {
-        SettingsGroup("Links") {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsLinks) {
             ListRow(
-                "Open Links",
+                s.settingsOpenLinks,
                 when (state.linkOpenMode) {
-                    SettingsState.LinkOpenMode.DEFAULT -> "Default Browser"
-                    SettingsState.LinkOpenMode.INCOGNITO -> "Incognito Mode"
+                    SettingsState.LinkOpenMode.DEFAULT -> s.settingsDefaultBrowser
+                    SettingsState.LinkOpenMode.INCOGNITO -> s.settingsIncognitoMode
                 },
-                listOf("Default Browser", "Incognito Mode")
+                listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
             ) {
                 vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it]))
             }
         }
     }
     item {
-        SettingsGroup("Window") {
-            SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsWindow) {
+            SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
                 vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
             }
             RowDivider()
+            run {
+                val locales = AppLocale.all
+                val selectedIdx = locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0)
+                DropdownRow(
+                    label = s.settingsLanguage,
+                    description = s.settingsLanguageDesc,
+                    options = locales.map { it.displayName },
+                    selected = selectedIdx,
+                    onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
+                )
+            }
+            RowDivider()
             SwitchRow(
-                "Block Scroll While Paused",
-                "Disable mouse wheel scrolling when chat is paused via hotkey",
+                s.settingsBlockScroll,
+                s.settingsBlockScrollDesc,
                 state.disableScrollOnAlt
             ) {
                 vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
@@ -710,9 +745,10 @@ private fun LazyListScope.appearanceLazyItems(
 
 private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewModel) {
     item {
-        SettingsGroup("Messages") {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsMessages) {
             SwitchRow(
-                "Show Timestamps", "Display message time in chat",
+                s.settingsTimestamps, s.settingsShowTimestampsDesc,
                 state.timestampFormat != SettingsState.TimestampFormat.OFF
             ) { enabled ->
                 vm.sendEvent(
@@ -724,13 +760,13 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
             if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
                 RowDivider()
                 ListRow(
-                    "Timestamp Format",
+                    s.settingsTimestampFormat,
                     when (state.timestampFormat) {
-                        SettingsState.TimestampFormat.H12 -> "12-hour"
-                        SettingsState.TimestampFormat.H24 -> "24-hour"
-                        else -> "Off"
+                        SettingsState.TimestampFormat.H12 -> s.settingsTimestamp12h
+                        SettingsState.TimestampFormat.H24 -> s.settingsTimestamp24h
+                        else -> s.settingsTimestampOff
                     },
-                    listOf("12-hour", "24-hour")
+                    listOf(s.settingsTimestamp12h, s.settingsTimestamp24h)
                 ) {
                     vm.sendEvent(
                         SettingsEvent.OnTimestampFormatChanged(
@@ -741,28 +777,28 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
             }
             RowDivider()
             SwitchRow(
-                "Show Chat Header",
-                "Show channel name bar at top of chat",
+                s.settingsShowChatHeader,
+                s.settingsShowChatHeaderDesc,
                 state.showChatHeader
             ) {
                 vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
             }
             RowDivider()
-            SwitchRow("Show Badges", "Display user badges in chat", state.showBadges) {
+            SwitchRow(s.chatShowBadges, s.chatShowBadgesDesc, state.showBadges) {
                 vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
             }
             RowDivider()
             SwitchRow(
-                "Show Deleted Messages",
-                "Show deleted messages as grayed out",
+                s.settingsShowDeletedMessages,
+                s.settingsShowDeletedMessagesDesc,
                 state.showDeletedMessages
             ) {
                 vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
             }
             RowDivider()
             SwitchRow(
-                "Smooth Chat",
-                "Add a small delay between bursts of messages from different users",
+                s.settingsSmoothChat,
+                s.settingsSmoothChatDesc,
                 state.smoothChatEnabled
             ) {
                 vm.sendEvent(SettingsEvent.OnSmoothChatEnabledChanged(it))
@@ -770,10 +806,11 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
         }
     }
     item {
-        SettingsGroup("Auto-scroll") {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsAutoScroll) {
             SwitchRow(
-                "Pause on Hover",
-                "Stop auto-scrolling when mouse is over chat",
+                s.settingsPauseOnHover,
+                s.settingsPauseOnHoverDesc,
                 state.pauseOnHover
             ) {
                 vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
@@ -781,10 +818,11 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
         }
     }
     item {
-        SettingsGroup("Emote Picker") {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsEmotePicker) {
             SwitchRow(
-                "Close on Mouse Leave",
-                "Hide emote picker when cursor leaves it",
+                s.settingsCloseOnMouseLeave,
+                s.settingsCloseOnMouseLeaveDesc,
                 state.closeEmotePickerOnMouseLeave
             ) {
                 vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
@@ -792,10 +830,11 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
         }
     }
     item {
-        SettingsGroup("History") {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsHistoryGroup) {
             SliderRow(
-                "Message History Limit", state.scrollbackLimit, 100f..2000f, 18,
-                "${state.scrollbackLimit} messages"
+                s.settingsMessageHistoryLimit, state.scrollbackLimit, 100f..2000f, 18,
+                s.settingsMessagesUnit.replace("{0}", state.scrollbackLimit.toString())
             ) {
                 vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
             }
@@ -812,8 +851,9 @@ private fun LazyListScope.notificationLazyItems(state: SettingsState, vm: Settin
 
 private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsViewModel) {
     item {
+        val s = LocalStrings.current
         Text(
-            "Rules matched against incoming messages. Your username is always highlighted.",
+            s.settingsHighlightRulesHint,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 12.dp)
@@ -842,7 +882,10 @@ private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsV
                 value = newPattern,
                 onValueChange = { newPattern = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Add highlight pattern...") },
+                placeholder = {
+                    val sp = LocalStrings.current
+                    Text(sp.settingsAddHighlightPattern)
+                },
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp)
             )
@@ -867,13 +910,14 @@ private fun LazyListScope.backgroundLazyItems(state: SettingsState, vm: Settings
 
 private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsViewModel) {
     item {
-        SettingsGroup("Chat Controls") {
-            HotkeyRow("Pause Auto-scroll", "Hotkey to pause chat scrolling", state.pauseHotkey) {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsChatControls) {
+            HotkeyRow(s.settingsPauseAutoScroll, s.settingsPauseAutoScrollDesc, state.pauseHotkey) {
                 vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
             }
             DropdownRow(
-                label = "Pause Mode",
-                description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) "Hold key to pause, release to resume" else "Press to toggle pause on/off",
+                label = s.settingsPauseMode,
+                description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) s.settingsPauseModeHoldDesc else s.settingsPauseModeToggleDesc,
                 options = PauseHotkeyMode.entries.map { it.name },
                 selected = state.pauseHotkeyMode.ordinal
             ) { idx ->
@@ -882,22 +926,23 @@ private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsView
         }
     }
     item {
-        SettingsGroup("Image Links") {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsImageLinks) {
             DropdownRow(
-                label = "Show inline images",
-                description = "Preview image links (imgur, kappa, etc.) in chat",
-                options = listOf("On", "Off", "Blur"),
+                label = s.settingsShowInlineImages,
+                description = s.settingsShowInlineImagesDesc,
+                options = listOf(s.on, s.off, s.blur),
                 selected = state.showInlineImages.ordinal
             ) { idx ->
                 vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
             }
             if (state.showInlineImages != InlineImageMode.OFF) {
                 SliderRow(
-                    label = "Image max height",
+                    label = s.settingsImageMaxHeight,
                     value = state.inlineImageMaxHeight.toFloat(),
                     valueRange = 50f..500f,
                     steps = 8,
-                    valueLabel = "${state.inlineImageMaxHeight}px"
+                    valueLabel = s.settingsImageMaxHeightUnit.replace("{0}", state.inlineImageMaxHeight.toString())
                 ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
             }
         }
@@ -919,70 +964,115 @@ private fun LazyListScope.aboutLazyItems() {
 
 private fun LazyListScope.accountLazyItems(vm: SettingsViewModel) {
     item {
-        SettingsGroup("Account") {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Log out from your Twitch account",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                OutlinedButton(
-                    onClick = { vm.sendEvent(SettingsEvent.OnLogoutClicked) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    border = BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
-                    )
-                ) {
-                    Icon(
-                        Icons.Default.Logout,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Log out")
-                }
-            }
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsAccount) {
+            AccountSectionBody(
+                onLogout = { vm.sendEvent(SettingsEvent.OnLogoutClicked) },
+                onClearCache = { vm.sendEvent(SettingsEvent.OnClearCacheClicked) }
+            )
         }
     }
 }
 
 @Composable
-private fun AccountContent(viewModel: SettingsViewModel) {
-    SettingsGroup("Account") {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "Log out from your Twitch account",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+private fun AccountSectionBody(
+    onLogout: () -> Unit,
+    onClearCache: () -> Unit
+) {
+    val s = LocalStrings.current
+    var showClearDialog by remember { mutableStateOf(false) }
 
-            OutlinedButton(
-                onClick = { viewModel.sendEvent(SettingsEvent.OnLogoutClicked) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
-                )
-            ) {
-                Icon(
-                    Icons.Default.Logout,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text("Log out")
-            }
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+            s.settingsLogoutDesc,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        OutlinedButton(
+            onClick = onLogout,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error
+            ),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
+            )
+        ) {
+            Icon(
+                Icons.Default.Logout,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(s.settingsLogout)
         }
+
+        Spacer(Modifier.height(12.dp))
+
+        Text(
+            s.settingsClearCacheDesc,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedButton(
+            onClick = { showClearDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error
+            ),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
+            )
+        ) {
+            Icon(
+                Icons.Default.DeleteForever,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(s.settingsClearCache)
+        }
+    }
+
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text(s.settingsClearCache) },
+            text = { Text(s.settingsConfirmClearCache) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearDialog = false
+                        onClearCache()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text(s.settingsClearCache) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text(s.settingsCancel)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun AccountContent(viewModel: SettingsViewModel) {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsAccount) {
+        AccountSectionBody(
+            onLogout = { viewModel.sendEvent(SettingsEvent.OnLogoutClicked) },
+            onClearCache = { viewModel.sendEvent(SettingsEvent.OnClearCacheClicked) }
+        )
     }
 }
 
@@ -993,7 +1083,8 @@ private fun AppearanceContent(
     vm: SettingsViewModel,
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
-    SettingsGroup("Theme") {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsTheme) {
         RowDivider()
         AccentColorPaletteRow(
             selectedIndex = state.accentColorIndex,
@@ -1007,9 +1098,9 @@ private fun AppearanceContent(
         )
     }
 
-    SettingsGroup("Display") {
+    SettingsGroup(s.settingsDisplay) {
         ListRow(
-            "Font Size", state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
+            s.settingsFontSize, state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
             SettingsState.FontSize.entries.map {
                 it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
             }
@@ -1017,40 +1108,52 @@ private fun AppearanceContent(
         UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
         RowDivider()
         ListRow(
-            "Emote Size", state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
+            s.settingsEmoteSize, state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
             SettingsState.EmoteSize.entries.map {
                 it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
             }
         ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
         RowDivider()
         ListRow(
-            "Channel Navigation",
+            s.settingsChannelNavigation,
             when (state.channelNavigation) {
-                SettingsState.ChannelNavigation.TAB_BAR -> "Tab Bar"
-                SettingsState.ChannelNavigation.MINI_RAIL -> "Mini Rail"
-                SettingsState.ChannelNavigation.BOTH -> "Both"
+                SettingsState.ChannelNavigation.TAB_BAR -> s.settingsTabBar
+                SettingsState.ChannelNavigation.MINI_RAIL -> s.settingsMiniRail
+                SettingsState.ChannelNavigation.BOTH -> s.settingsBoth
             },
-            listOf("Tab Bar", "Mini Rail", "Both")
+            listOf(s.settingsTabBar, s.settingsMiniRail, s.settingsBoth)
         ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
     }
-    SettingsGroup("Links") {
+    SettingsGroup(s.settingsLinks) {
         ListRow(
-            "Open Links",
+            s.settingsOpenLinks,
             when (state.linkOpenMode) {
-                SettingsState.LinkOpenMode.DEFAULT -> "Default Browser"
-                SettingsState.LinkOpenMode.INCOGNITO -> "Incognito Mode"
+                SettingsState.LinkOpenMode.DEFAULT -> s.settingsDefaultBrowser
+                SettingsState.LinkOpenMode.INCOGNITO -> s.settingsIncognitoMode
             },
-            listOf("Default Browser", "Incognito Mode")
+            listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
         ) { vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it])) }
     }
-    SettingsGroup("Window") {
-        SwitchRow("Always on Top", "Keep window above other windows", state.alwaysOnTop) {
+    SettingsGroup(s.settingsWindow) {
+        SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
             vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
         }
         RowDivider()
+        run {
+            val locales = AppLocale.all
+            val selectedIdx = locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0)
+            DropdownRow(
+                label = s.settingsLanguage,
+                description = s.settingsLanguageDesc,
+                options = locales.map { it.displayName },
+                selected = selectedIdx,
+                onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
+            )
+        }
+        RowDivider()
         SwitchRow(
-            "Block Scroll While Paused",
-            "Disable mouse wheel when chat is paused via hotkey",
+            s.settingsBlockScroll,
+            s.settingsBlockScrollDesc,
             state.disableScrollOnAlt
         ) {
             vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
@@ -1060,9 +1163,10 @@ private fun AppearanceContent(
 
 @Composable
 private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
-    SettingsGroup("Messages") {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsMessages) {
         SwitchRow(
-            "Show Timestamps", "Display message time in chat",
+            s.settingsTimestamps, s.settingsShowTimestampsDesc,
             state.timestampFormat != SettingsState.TimestampFormat.OFF
         ) { enabled ->
             vm.sendEvent(
@@ -1074,13 +1178,13 @@ private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
         if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
             RowDivider()
             ListRow(
-                "Timestamp Format",
+                s.settingsTimestampFormat,
                 when (state.timestampFormat) {
-                    SettingsState.TimestampFormat.H12 -> "12-hour"
-                    SettingsState.TimestampFormat.H24 -> "24-hour"
-                    else -> "Off"
+                    SettingsState.TimestampFormat.H12 -> s.settingsTimestamp12h
+                    SettingsState.TimestampFormat.H24 -> s.settingsTimestamp24h
+                    else -> s.settingsTimestampOff
                 },
-                listOf("12-hour", "24-hour")
+                listOf(s.settingsTimestamp12h, s.settingsTimestamp24h)
             ) {
                 vm.sendEvent(
                     SettingsEvent.OnTimestampFormatChanged(
@@ -1091,55 +1195,55 @@ private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
         }
         RowDivider()
         SwitchRow(
-            "Show Chat Header",
-            "Show channel name bar at top of chat",
+            s.settingsShowChatHeader,
+            s.settingsShowChatHeaderDesc,
             state.showChatHeader
         ) {
             vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
         }
         RowDivider()
-        SwitchRow("Show Badges", "Display user badges in chat", state.showBadges) {
+        SwitchRow(s.chatShowBadges, s.chatShowBadgesDesc, state.showBadges) {
             vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
         }
         RowDivider()
         SwitchRow(
-            "Show Deleted Messages",
-            "Show deleted messages as grayed out",
+            s.settingsShowDeletedMessages,
+            s.settingsShowDeletedMessagesDesc,
             state.showDeletedMessages
         ) {
             vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
         }
         RowDivider()
         SwitchRow(
-            "Smooth Chat",
-            "Add a small delay between bursts of messages from different users",
+            s.settingsSmoothChat,
+            s.settingsSmoothChatDesc,
             state.smoothChatEnabled
         ) {
             vm.sendEvent(SettingsEvent.OnSmoothChatEnabledChanged(it))
         }
     }
-    SettingsGroup("Auto-scroll") {
+    SettingsGroup(s.settingsAutoScroll) {
         SwitchRow(
-            "Pause on Hover",
-            "Stop auto-scrolling when mouse is over chat",
+            s.settingsPauseOnHover,
+            s.settingsPauseOnHoverDesc,
             state.pauseOnHover
         ) {
             vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
         }
     }
-    SettingsGroup("Emote Picker") {
+    SettingsGroup(s.settingsEmotePicker) {
         SwitchRow(
-            "Close on Mouse Leave",
-            "Hide emote picker when cursor leaves it",
+            s.settingsCloseOnMouseLeave,
+            s.settingsCloseOnMouseLeaveDesc,
             state.closeEmotePickerOnMouseLeave
         ) {
             vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
         }
     }
-    SettingsGroup("History") {
+    SettingsGroup(s.settingsHistoryGroup) {
         SliderRow(
-            "Message History Limit", state.scrollbackLimit, 100f..2000f, 18,
-            "${state.scrollbackLimit} messages"
+            s.settingsMessageHistoryLimit, state.scrollbackLimit, 100f..2000f, 18,
+            s.settingsMessagesUnit.replace("{0}", state.scrollbackLimit.toString())
         ) {
             vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
         }
@@ -1157,13 +1261,14 @@ private fun NotificationContent(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
-    SettingsGroup("Highlight Rules") {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsHighlightRules) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                "Matched against incoming messages. Your username is always highlighted.",
+                s.settingsHighlightRulesHint,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 4.dp)
@@ -1185,7 +1290,7 @@ private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
             }
         }
     }
-    SettingsGroup("Add Rule") {
+    SettingsGroup(s.settingsAddRule) {
         var newPattern by remember { mutableStateOf("") }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -1196,7 +1301,7 @@ private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
                 value = newPattern,
                 onValueChange = { newPattern = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Add highlight pattern...") },
+                placeholder = { Text(s.settingsAddHighlightPattern) },
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp)
             )
@@ -1222,35 +1327,36 @@ private fun BackgroundContent(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
-    SettingsGroup("Chat Controls") {
-        HotkeyRow("Pause Auto-scroll", "Hotkey to pause chat scrolling", state.pauseHotkey) {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsChatControls) {
+        HotkeyRow(s.settingsPauseAutoScroll, s.settingsPauseAutoScrollDesc, state.pauseHotkey) {
             vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
         }
         DropdownRow(
-            label = "Pause Mode",
-            description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) "Hold key to pause, release to resume" else "Press to toggle pause on/off",
+            label = s.settingsPauseMode,
+            description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) s.settingsPauseModeHoldDesc else s.settingsPauseModeToggleDesc,
             options = PauseHotkeyMode.entries.map { it.name },
             selected = state.pauseHotkeyMode.ordinal
         ) { idx ->
             vm.sendEvent(SettingsEvent.OnPauseHotkeyModeChanged(PauseHotkeyMode.entries[idx]))
         }
     }
-    SettingsGroup("Image Links") {
+    SettingsGroup(s.settingsImageLinks) {
         DropdownRow(
-            label = "Show inline images",
-            description = "Preview image links in chat",
-            options = listOf("On", "Off", "Blur"),
+            label = s.settingsShowInlineImages,
+            description = s.settingsShowInlineImagesDesc,
+            options = listOf(s.on, s.off, s.blur),
             selected = state.showInlineImages.ordinal
         ) { idx ->
             vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
         }
         if (state.showInlineImages != InlineImageMode.OFF) {
             SliderRow(
-                label = "Image max height",
+                label = s.settingsImageMaxHeight,
                 value = state.inlineImageMaxHeight.toFloat(),
                 valueRange = 50f..500f,
                 steps = 8,
-                valueLabel = "${state.inlineImageMaxHeight}px"
+                valueLabel = s.settingsImageMaxHeightUnit.replace("{0}", state.inlineImageMaxHeight.toString())
             ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
         }
     }
@@ -1258,7 +1364,8 @@ private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun ModerationContent(state: SettingsState, vm: SettingsViewModel) {
-    SettingsGroup("Moderation") {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsModeration) {
         Column(modifier = Modifier.padding(12.dp)) {
             ModerationSettingsSection(
                 state = state,
@@ -1276,6 +1383,7 @@ private fun AboutContent() {
 
 @Composable
 private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
+    val s = LocalStrings.current
     LiquidGlassSurface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
@@ -1287,7 +1395,7 @@ private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Mention Sound",
+                s.settingsMentionSound,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -1297,9 +1405,9 @@ private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Enable Mention Sound", style = MaterialTheme.typography.bodyMedium)
+                    Text(s.settingsEnableMentionSound, style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "Play sound when you are mentioned",
+                        s.settingsEnableMentionSoundDesc,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1315,7 +1423,7 @@ private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            "Volume",
+                            s.settingsVolume,
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1338,6 +1446,7 @@ private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
+    val s = LocalStrings.current
     LiquidGlassSurface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         shape = RoundedCornerShape(12.dp),
@@ -1349,7 +1458,7 @@ private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Custom Sound",
+                s.settingsCustomSound,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -1412,7 +1521,7 @@ private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
                     )
                 ) {
                     Text(
-                        if (state.customMentionSoundPath.isBlank()) "Browse..." else "Change...",
+                        if (state.customMentionSoundPath.isBlank()) s.settingsBrowseSound else s.settingsChangeSound,
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
@@ -1431,7 +1540,7 @@ private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
                 ) { Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp)) }
             }
             Text(
-                text = if (state.customMentionSoundPath.isBlank()) "Using default tone. Select WAV or OGG." else "Supported: WAV, OGG",
+                text = if (state.customMentionSoundPath.isBlank()) s.settingsSoundDefault else s.settingsSoundSupported,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
@@ -1441,7 +1550,8 @@ private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
-    SettingsGroup("Chat Background Image") {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsChatBackgroundImage) {
         Column(modifier = Modifier.padding(16.dp)) {
             val scope = rememberCoroutineScope()
             if (state.wallpaperPath.isNotBlank()) {
@@ -1450,7 +1560,7 @@ private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                         .clip(RoundedCornerShape(12.dp))
                 ) {
                     AsyncImage(
-                        model = state.wallpaperPath, contentDescription = "Background preview",
+                        model = state.wallpaperPath, contentDescription = s.settingsBackgroundPreview,
                         modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
                     )
                     Box(
@@ -1503,7 +1613,7 @@ private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Overlay Opacity", style = MaterialTheme.typography.bodyMedium)
+                Text(s.settingsOverlayOpacity, style = MaterialTheme.typography.bodyMedium)
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(4.dp)
@@ -1527,12 +1637,12 @@ private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "Transparent",
+                    s.settingsTransparent,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "Opaque",
+                    s.settingsOpaque,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1556,12 +1666,12 @@ private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(if (state.wallpaperPath.isBlank()) "Choose background image..." else "Change image...")
+                Text(if (state.wallpaperPath.isBlank()) s.settingsChooseBackgroundImage else s.settingsChangeImage)
             }
             if (state.wallpaperPath.isBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Supports JPG, PNG, WebP.",
+                    s.settingsSupportsImageFormats,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1572,23 +1682,24 @@ private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun AboutCard() {
-    SettingsGroup("App Info") {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsAppInfo) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
-                    painter = painterResource(Res.drawable.logochattone),
-                    contentDescription = "Chatone",
+                    painter = painterResource(Res.drawable.icon),
+                    contentDescription = s.appName,
                     modifier = Modifier.size(56.dp).clip(RoundedCornerShape(14.dp))
                 )
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text(
-                        "Chatone",
+                        s.appName,
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Version ${BuildConfig.VERSION}",
+                        "${s.settingsVersion} ${BuildConfig.VERSION}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1596,7 +1707,7 @@ private fun AboutCard() {
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "TG",
+                s.settingsTelegram,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1660,6 +1771,7 @@ private fun AccentColorPaletteRow(
     onReset: () -> Unit = {},
     onSelect: (Int) -> Unit
 ) {
+    val s = LocalStrings.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1670,7 +1782,7 @@ private fun AccentColorPaletteRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Accent Color", style = MaterialTheme.typography.bodyMedium)
+                Text(s.themeAccentColor, style = MaterialTheme.typography.bodyMedium)
                 Text(
                     ExpressivePalettes.getOrNull(state.accentColorIndex)?.name ?: "Violet",
                     style = MaterialTheme.typography.bodySmall,
@@ -1977,7 +2089,7 @@ private fun HightlightRuleCard(
                         fontWeight = FontWeight.Medium
                     )
                     if (rule.isRegex) Text(
-                        "Regex",
+                        LocalStrings.current.settingsRegex,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2015,9 +2127,10 @@ private fun HightlightRuleCard(
                 else -> ((r - g) / (mx - mn) + 4f) / 6f * 360f
             }
         }
+        val sd = LocalStrings.current
         AlertDialog(
             onDismissRequest = { showColorPicker = false },
-            title = { Text("Highlight Color") },
+            title = { Text(sd.settingsHighlightColor) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
@@ -2044,7 +2157,7 @@ private fun HightlightRuleCard(
                         }
                     }
                    
-                    Text("Hue", style = MaterialTheme.typography.labelSmall)
+                    Text(sd.settingsHue, style = MaterialTheme.typography.labelSmall)
                     Slider(
                         value = hue,
                         onValueChange = { h ->
@@ -2063,9 +2176,9 @@ private fun HightlightRuleCard(
                             (argb.blue * 255).toLong() or 0xFF000000L
                     onColorChange(longColor)
                     showColorPicker = false
-                }) { Text("Apply") }
+                }) { Text(sd.apply) }
             },
-            dismissButton = { TextButton(onClick = { showColorPicker = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showColorPicker = false }) { Text(sd.cancel) } }
         )
     }
 }
@@ -2147,9 +2260,10 @@ private fun HotkeyRow(
                     }
                     .clickable { isRecording = true }
             ) {
+                val sh = LocalStrings.current
                 Text(
                     when {
-                        isRecording -> "Recording..."; currentHotkey.isBlank() -> "Not set"; else -> currentHotkey.uppercase()
+                        isRecording -> sh.settingsRecording; currentHotkey.isBlank() -> sh.settingsHotkeyNotSet; else -> currentHotkey.uppercase()
                         .replace("+", " + ")
                     },
                     style = MaterialTheme.typography.labelMedium,
@@ -2205,7 +2319,7 @@ private fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("UI Scale", style = MaterialTheme.typography.bodyLarge)
+            Text(LocalStrings.current.settingsUiScale, style = MaterialTheme.typography.bodyLarge)
             Text(
                 "${(currentScale * 100).toInt()}%",
                 style = MaterialTheme.typography.bodySmall,

@@ -20,12 +20,14 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.theme.ChatoneColors
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 fun LoadingScreen(
     modifier: Modifier = Modifier
 ) {
     val cs = MaterialTheme.colorScheme
+    val s = LocalStrings.current
 
     val gradient = Brush.radialGradient(
         colors = listOf(
@@ -48,7 +50,7 @@ fun LoadingScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                "Chatone",
+                s.appName,
                 style = MaterialTheme.typography.titleLarge,
                 color = cs.onBackground,
                 fontWeight = FontWeight.SemiBold

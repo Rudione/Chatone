@@ -22,6 +22,7 @@ import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.data.remote.RecentMessagesClient
 import io.rudione.chatone.data.repository.MentionRepository
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.util.AppRestarter
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -329,7 +330,9 @@ class MainViewModel(
 
 
             is MainEvent.ResetMentionCount -> resetMentionCount(event.channelLogin)
-            MainEvent.NavigateToAuth -> sendEffect(MainEffect.NavigateToAuth)
+            MainEvent.NavigateToAuth -> {
+                AppRestarter.restart(delayMs = 300L)
+            }
 
 
             MainEvent.ToggleWhisperPanel -> update {
@@ -930,8 +933,7 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 deleteAccountUseCase(userId)
-               
-               
+
                 val remaining = state.value.accounts.filter { it.userId != userId }
                 if (remaining.isEmpty()) {
                     update { it.copy(

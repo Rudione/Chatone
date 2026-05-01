@@ -16,21 +16,26 @@ object EmoteAnimationCache {
     private val tooltipTimings: SnapshotStateMap<String, Long> = mutableStateMapOf()
     private val mutex = Mutex()
 
+    private val animationSpecs: SnapshotStateMap<String, AnimationSpec<Float>> = mutableStateMapOf()
+
     fun getOrCreateAnimation(
         emoteId: String,
         initialValue: Float = 0f,
-        animationSpec: AnimationSpec<Float> = tween(durationMillis = 800)
+        animationSpec: AnimationSpec<Float> = tween(durationMillis = 150)
     ): Animatable<Float, *> {
+        animationSpecs[emoteId] = animationSpec
         return animationStates.getOrPut(emoteId) {
             Animatable(initialValue)
         }
     }
 
     suspend fun startAnimation(emoteId: String, targetValue: Float = 1f) {
+        val anim = animationStates[emoteId] ?: return
+        if (anim.isRunning || anim.value == targetValue) return
         mutex.withLock {
-            val anim = animationStates[emoteId] ?: return@withLock
             if (!anim.isRunning && anim.value != targetValue) {
-                anim.animateTo(targetValue, animationSpec = tween(durationMillis = 800))
+                val spec = animationSpecs[emoteId] ?: tween(durationMillis = 150)
+                anim.animateTo(targetValue, animationSpec = spec)
             }
         }
     }

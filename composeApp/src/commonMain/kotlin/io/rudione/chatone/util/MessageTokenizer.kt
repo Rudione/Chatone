@@ -39,7 +39,8 @@ object MessageTokenizer {
     fun tokenize(
         message: ChatMessage,
         channelEmotes: ChannelEmotes,
-        currentUsername: String? = null
+        currentUsername: String? = null,
+        personalEmotes: List<GenericEmote> = emptyList()
     ): List<MessageToken> {
         val text = message.message
         if (text.isEmpty()) return emptyList()
@@ -76,7 +77,7 @@ object MessageTokenizer {
                 .minByOrNull { it.first }?.first ?: text.length
 
             val segment = text.substring(i, nextTwitchStart)
-            tokens.addAll(tokenizeSegment(segment, channelEmotes, currentUsername))
+            tokens.addAll(tokenizeSegment(segment, channelEmotes, currentUsername, personalEmotes))
             i = nextTwitchStart
         }
 
@@ -86,13 +87,19 @@ object MessageTokenizer {
     private fun tokenizeSegment(
         segment: String,
         channelEmotes: ChannelEmotes,
-        currentUsername: String?
+        currentUsername: String?,
+        personalEmotes: List<GenericEmote>
     ): List<MessageToken> {
         if (segment.isEmpty()) return emptyList()
 
         val tokens = mutableListOf<MessageToken>()
         val words = segment.split(" ")
-        val emoteMap = channelEmotes.allByCode
+        val emoteMap = if (personalEmotes.isNotEmpty()) {
+            buildMap {
+                putAll(channelEmotes.allByCode)
+                personalEmotes.forEach { put(it.code, it) }
+            }
+        } else channelEmotes.allByCode
 
         for ((index, word) in words.withIndex()) {
             if (word.isEmpty()) {

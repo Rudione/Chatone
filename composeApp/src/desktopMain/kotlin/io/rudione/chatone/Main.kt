@@ -1,7 +1,6 @@
 package io.rudione.chatone
 
-import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.*import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
@@ -36,8 +35,8 @@ private val DARK_CAPTION_COLOR = Color(0x0D, 0x0F, 0x1A)
 fun main() {
     System.setProperty("apple.awt.application.appearance", "system")
     System.setProperty("apple.awt.application.name", "Chatone")
-   
-   
+
+
     System.setProperty("http.maxConnections", "64")
     System.setProperty("jdk.httpclient.connectionPoolSize", "64")
 
@@ -104,19 +103,25 @@ fun main() {
             alwaysOnTop = alwaysOnTop,
             onPreviewKeyEvent = { GlobalKeyDispatcher.dispatch(it) }
         ) {
-            LaunchedEffect(Unit) {
-                window.background = NATIVE_BG
-                window.contentPane.background = NATIVE_BG
-                runCatching {
-                    window.rootPane.putClientProperty(
-                        "apple.awt.windowAppearance",
-                        "NSAppearanceNameDarkAqua"
-                    )
+            DisposableEffect(window) {
+                val initialDark = isDarkTheme
+                val listener = object : java.awt.event.WindowAdapter() {
+                    override fun windowOpened(e: java.awt.event.WindowEvent) {
+                        window.background = NATIVE_BG
+                        window.contentPane.background = NATIVE_BG
+                        runCatching {
+                            window.rootPane.putClientProperty(
+                                "apple.awt.windowAppearance",
+                                "NSAppearanceNameDarkAqua"
+                            )
+                        }
+                        val captionColor = if (initialDark) DARK_CAPTION_COLOR
+                        else Color(0xF0, 0xF0, 0xF5)
+                        WindowsTitleBar.applyTitleBarColor(window, captionColor, initialDark)
+                    }
                 }
-                val captionColor = dominantColor
-                    ?.let { blendWithDark(it, isDarkTheme) }
-                    ?: if (isDarkTheme) DARK_CAPTION_COLOR else Color(0xF0, 0xF0, 0xF5)
-                WindowsTitleBar.applyTitleBarColor(window, captionColor, isDarkTheme)
+                window.addWindowListener(listener)
+                onDispose { window.removeWindowListener(listener) }
             }
 
             LaunchedEffect(isDarkTheme, dominantColor) {

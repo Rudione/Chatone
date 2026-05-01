@@ -1,7 +1,15 @@
 package io.rudione.chatone
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -10,7 +18,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import coil3.compose.setSingletonImageLoaderFactory
 import com.russhwolf.settings.Settings
-import io.rudione.chatone.util.createAnimatedImageLoader
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
@@ -24,8 +31,10 @@ import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperController
-import io.rudione.chatone.presentation.theme.WallpaperDisplayConfig
 import io.rudione.chatone.util.WallpaperLoader
+import io.rudione.chatone.util.createAnimatedImageLoader
+import io.rudione.chatone.presentation.theme.i18n.AppStrings
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -67,24 +76,24 @@ fun App(
 
         val wallpaperLoader: WallpaperLoader = koinInject()
 
-       
+
         LaunchedEffect(settingsState.alwaysOnTop) {
             onAlwaysOnTopChanged(settingsState.alwaysOnTop)
         }
 
-       
-       
+
+
         LaunchedEffect(Unit) {
             val saved = settingsState.wallpaperDisplayConfig
             wallpaperController.setDisplayConfig(saved)
         }
 
-       
-       
-       
+
+
+
         LaunchedEffect(settingsState.wallpaperPath, settingsState.wallpaperBlur) {
             if (settingsState.wallpaperPath.isBlank()) {
-               
+
                 wallpaperController.update(
                     io.rudione.chatone.presentation.theme.WallpaperState(
                         displayConfig = wallpaperController.state.displayConfig
@@ -97,7 +106,7 @@ fun App(
                     blurRadius = settingsState.wallpaperBlur
                 )
                 if (loaded != null) {
-                   
+
                     wallpaperController.update(
                         loaded.copy(displayConfig = wallpaperController.state.displayConfig)
                     )
@@ -123,7 +132,7 @@ fun App(
             }
         }
 
-       
+
         LaunchedEffect(customThemeManager.savedThemes.value, activeCustomTheme) {
             settingsViewModel.sendEvent(
                 SettingsEvent.OnCustomThemesJsonChanged(customThemeManager.serialize())
@@ -133,7 +142,7 @@ fun App(
             }
         }
 
-       
+
         LaunchedEffect(Unit) {
             try {
                 val account = getFirstValidAccount()
@@ -144,7 +153,7 @@ fun App(
             }
         }
 
-       
+
         LaunchedEffect(Unit) {
             val themes = settingsState.customThemes
             if (themes.isNotEmpty()) {
@@ -155,9 +164,13 @@ fun App(
             }
         }
 
-       
+
         val uiScale = settingsState.uiScale
+        val currentStrings = remember(settingsState.language) {
+            AppStrings.forLocale(settingsState.language)
+        }
         CompositionLocalProvider(
+            LocalStrings provides currentStrings,
             LocalWallpaperController provides wallpaperController,
             LocalCustomThemeManager provides customThemeManager,
             LocalDensity provides Density(
@@ -166,7 +179,7 @@ fun App(
             )
         ) {
             ChatoneTheme(
-                darkTheme = true,  
+                darkTheme = true,
                 accentColorIndex = settingsState.accentColorIndex,
                 customTheme = activeCustomTheme
             ) {

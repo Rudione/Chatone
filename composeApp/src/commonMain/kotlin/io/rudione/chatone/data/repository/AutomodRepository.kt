@@ -5,6 +5,9 @@ import io.rudione.chatone.data.local.ChatoneDatabase
 import io.rudione.chatone.domain.model.AutomodAction
 import io.rudione.chatone.domain.model.AutomodRule
 import io.rudione.chatone.domain.model.AutomodScope
+import io.rudione.chatone.domain.model.ChatRule
+import io.rudione.chatone.domain.model.ChatRuleAction
+import io.rudione.chatone.domain.model.ChatRuleType
 import io.rudione.chatone.domain.model.decodeAlternates
 import io.rudione.chatone.domain.model.encodeAlternates
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,52 +15,59 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.datetime.Clock
 
 class AutomodRepository(private val database: ChatoneDatabase) {
-
     private val _rules = MutableStateFlow<List<AutomodRule>>(emptyList())
     val rules: StateFlow<List<AutomodRule>> = _rules
+
+
+    private val _chatRules = MutableStateFlow<List<ChatRule>>(emptyList())
+    val chatRules: StateFlow<List<ChatRule>> = _chatRules
 
     init { reload() }
 
     fun reload() {
         _rules.value = runCatching {
-            database.automodRuleQueries.getAllRules().executeAsList().map { it.toDomain() }
+            database.automodRuleQueries.getAllWordRules().executeAsList().map { it.toWordDomain() }
+        }.getOrElse { emptyList() }
+
+        _chatRules.value = runCatching {
+            database.automodRuleQueries.getAllChatRules().executeAsList().map { it.toChatDomain() }
         }.getOrElse { emptyList() }
     }
 
     fun rulesForChannel(channelLogin: String): List<AutomodRule> = runCatching {
         database.automodRuleQueries
-            .getEnabledRulesForChannel(channelLogin.lowercase())
+            .getEnabledWordRulesForChannel(channelLogin.lowercase())
             .executeAsList()
-            .map { it.toDomain() }
+            .map { it.toWordDomain() }
     }.getOrElse { emptyList() }
 
     fun upsert(rule: AutomodRule) {
         val now = Clock.System.now().toEpochMilliseconds()
-        val finalRule = rule.copy(
+        val r = rule.copy(
             createdAt = if (rule.createdAt == 0L) now else rule.createdAt,
             updatedAt = now,
             channelLogin = rule.channelLogin?.lowercase()?.takeIf { it.isNotBlank() }
         )
-        database.automodRuleQueries.upsertRule(
-            id = finalRule.id,
-            scope = finalRule.scope.name,
-            channelLogin = finalRule.channelLogin,
-            pattern = finalRule.pattern,
-            alternates = finalRule.alternates.encodeAlternates(),
-            isRegex = finalRule.isRegex.toLong(),
-            caseSensitive = finalRule.caseSensitive.toLong(),
-            wholeWord = finalRule.wholeWord.toLong(),
-            action = finalRule.action.name,
-            timeoutMs = finalRule.timeoutMs,
-            frequencyThreshold = finalRule.frequencyThreshold.toLong(),
-            frequencyWindowMs = finalRule.frequencyWindowMs,
-            exemptMods = finalRule.exemptMods.toLong(),
-            exemptSubs = finalRule.exemptSubs.toLong(),
-            exemptVips = finalRule.exemptVips.toLong(),
-            enabled = finalRule.enabled.toLong(),
-            note = finalRule.note,
-            createdAt = finalRule.createdAt,
-            updatedAt = finalRule.updatedAt
+        database.automodRuleQueries.upsertWordRule(
+            id = r.id,
+            scope = r.scope.name,
+            channelLogin = r.channelLogin,
+            pattern = r.pattern,
+            alternates = r.alternates.encodeAlternates(),
+            isRegex = r.isRegex.toLong(),
+            caseSensitive = r.caseSensitive.toLong(),
+            wholeWord = r.wholeWord.toLong(),
+            action = r.action.name,
+            timeoutMs = r.timeoutMs,
+            frequencyThreshold = r.frequencyThreshold.toLong(),
+            frequencyWindowMs = r.frequencyWindowMs,
+            exemptMods = r.exemptMods.toLong(),
+            exemptSubs = r.exemptSubs.toLong(),
+            exemptVips = r.exemptVips.toLong(),
+            enabled = r.enabled.toLong(),
+            note = r.note,
+            createdAt = r.createdAt,
+            updatedAt = r.updatedAt
         )
         reload()
     }
@@ -77,7 +87,7 @@ class AutomodRepository(private val database: ChatoneDatabase) {
     }
 
     fun replaceAll(rules: List<AutomodRule>) {
-        database.automodRuleQueries.deleteAll()
+        database.automodRuleQueries.deleteAllWordRules()
         rules.forEach { upsert(it.copy(createdAt = 0L)) }
         reload()
     }
@@ -87,9 +97,76 @@ class AutomodRepository(private val database: ChatoneDatabase) {
         reload()
     }
 
+
+    fun chatRulesForChannel(channelLogin: String): List<ChatRule> = runCatching {
+        database.automodRuleQueries
+            .getEnabledChatRulesForChannel(channelLogin.lowercase())
+            .executeAsList()
+            .map { it.toChatDomain() }
+    }.getOrElse { emptyList() }
+
+    fun upsertChatRule(rule: ChatRule) {
+        val now = Clock.System.now().toEpochMilliseconds()
+        val r = rule.copy(
+            createdAt = if (rule.createdAt == 0L) now else rule.createdAt,
+            channelLogin = rule.channelLogin?.lowercase()?.takeIf { it.isNotBlank() }
+        )
+        database.automodRuleQueries.upsertChatRule(
+            id = r.id,
+            scope = r.scope.name,
+            channelLogin = r.channelLogin,
+            action = r.action.name,
+            timeoutMs = r.timeoutSeconds * 1000L,
+            exemptMods = r.exemptMods.toLong(),
+            exemptSubs = r.exemptSubs.toLong(),
+            exemptVips = r.exemptVips.toLong(),
+            enabled = r.enabled.toLong(),
+            createdAt = r.createdAt,
+            updatedAt = now,
+            chatRuleType = r.type.name,
+            spamMaxMessages = r.spamMaxMessages.toLong(),
+            spamWindowSeconds = r.spamWindowSeconds.toLong(),
+            capsThresholdPercent = r.capsThresholdPercent.toLong(),
+            capsMinLength = r.capsMinLength.toLong(),
+            linksAllowClips = r.linksAllowClips.toLong(),
+            emoteMaxCount = r.emoteMaxCount.toLong(),
+            newAccountAgeDays = r.newAccountAgeDays.toLong(),
+            duplicateMinLength = r.duplicateMinLength.toLong(),
+            timeoutSeconds = r.timeoutSeconds.toLong()
+        )
+        reload()
+    }
+
+    fun deleteChatRule(id: String) {
+        database.automodRuleQueries.deleteRule(id)
+        reload()
+    }
+
+    fun setChatRuleEnabled(id: String, enabled: Boolean) {
+        database.automodRuleQueries.updateEnabled(
+            enabled = enabled.toLong(),
+            updatedAt = Clock.System.now().toEpochMilliseconds(),
+            id = id
+        )
+        reload()
+    }
+
+    fun replaceAllChatRules(rules: List<ChatRule>) {
+        database.automodRuleQueries.deleteAllChatRules()
+        rules.forEach { upsertChatRule(it.copy(createdAt = 0L)) }
+        reload()
+    }
+
+
+    fun importMergeChatRules(rules: List<ChatRule>) {
+        rules.forEach { upsertChatRule(it.copy(createdAt = 0L)) }
+        reload()
+    }
+
+
     private fun Boolean.toLong(): Long = if (this) 1L else 0L
 
-    private fun AutomodRuleEntity.toDomain(): AutomodRule = AutomodRule(
+    private fun AutomodRuleEntity.toWordDomain(): AutomodRule = AutomodRule(
         id = id,
         scope = runCatching { AutomodScope.valueOf(scope) }.getOrDefault(AutomodScope.GLOBAL),
         channelLogin = channelLogin,
@@ -109,5 +186,27 @@ class AutomodRepository(private val database: ChatoneDatabase) {
         note = note,
         createdAt = createdAt,
         updatedAt = updatedAt
+    )
+
+    private fun AutomodRuleEntity.toChatDomain(): ChatRule = ChatRule(
+        id = id,
+        type = runCatching { ChatRuleType.valueOf(chatRuleType ?: "") }.getOrDefault(ChatRuleType.SPAM_RATE),
+        scope = runCatching { AutomodScope.valueOf(scope) }.getOrDefault(AutomodScope.GLOBAL),
+        channelLogin = channelLogin,
+        action = runCatching { ChatRuleAction.valueOf(action) }.getOrDefault(ChatRuleAction.DELETE),
+        timeoutSeconds = timeoutSeconds.toInt(),
+        enabled = enabled == 1L,
+        spamMaxMessages = spamMaxMessages.toInt(),
+        spamWindowSeconds = spamWindowSeconds.toInt(),
+        capsThresholdPercent = capsThresholdPercent.toInt(),
+        capsMinLength = capsMinLength.toInt(),
+        linksAllowClips = linksAllowClips == 1L,
+        emoteMaxCount = emoteMaxCount.toInt(),
+        newAccountAgeDays = newAccountAgeDays.toInt(),
+        duplicateMinLength = duplicateMinLength.toInt(),
+        exemptMods = exemptMods == 1L,
+        exemptVips = exemptVips == 1L,
+        exemptSubs = exemptSubs == 1L,
+        createdAt = createdAt
     )
 }

@@ -50,8 +50,9 @@ actual fun DetachedAutomodWindow(
                     onImport = {
                         scope.launch {
                             val text = readAutomodText() ?: return@launch
-                            val parsed = AutomodImportExport.fromJson(text)
-                            if (parsed.isNotEmpty()) repository.importMerge(parsed)
+                            val result = AutomodImportExport.fromJson(text)
+                            if (result.wordRules.isNotEmpty()) repository.importMerge(result.wordRules)
+                            if (result.chatRules.isNotEmpty()) repository.importMergeChatRules(result.chatRules)
                         }
                     },
                     repository = repository

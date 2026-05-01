@@ -15,6 +15,7 @@ import io.rudione.chatone.data.local.createDatabase
 import io.rudione.chatone.data.remote.RecentMessagesClient
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.remote.TwitchIrcClient
+import io.rudione.chatone.data.remote.TwitchPubSubClient
 import io.rudione.chatone.data.remote.emote.BttvApiClient
 import io.rudione.chatone.data.remote.emote.FfzApiClient
 import io.rudione.chatone.data.remote.emote.SevenTvApiClient
@@ -85,6 +86,8 @@ val networkModule = module {
             scope = get()
         )
     }
+
+    single { TwitchPubSubClient(httpClient = get(), scope = get()) }
 
     single { PlatformAuthHandler() }
     single { RecentMessagesClient(httpClient = get()) }

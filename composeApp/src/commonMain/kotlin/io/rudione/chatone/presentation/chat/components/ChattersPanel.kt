@@ -30,6 +30,7 @@ import io.rudione.chatone.data.remote.dto.ChatterData
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.Result
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 
 
@@ -98,10 +99,11 @@ fun ChattersPanel(
                     tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Viewers", style = MaterialTheme.typography.titleSmall,
+                    val s = LocalStrings.current
+                    Text(s.panelViewers, style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     if (totalCount > 0) {
-                        Text("$totalCount in chat", style = MaterialTheme.typography.labelSmall,
+                        Text(s.panelViewersInChat.replace("{0}", totalCount.toString()), style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -118,7 +120,7 @@ fun ChattersPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 6.dp),
-                placeholder = { Text("Search viewers…", style = MaterialTheme.typography.bodySmall) },
+                placeholder = { Text(LocalStrings.current.panelSearchViewers, style = MaterialTheme.typography.bodySmall) },
                 leadingIcon = { Icon(Icons.Filled.Search, null, modifier = Modifier.size(16.dp)) },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodySmall,

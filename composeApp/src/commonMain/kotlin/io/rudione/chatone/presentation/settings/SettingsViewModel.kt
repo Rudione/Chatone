@@ -15,6 +15,8 @@ import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import io.rudione.chatone.presentation.theme.CustomThemeConfig
 import io.rudione.chatone.presentation.theme.WallpaperDisplayConfig
 import io.rudione.chatone.presentation.theme.WallpaperState
+import io.rudione.chatone.util.AppDataCleaner
+import io.rudione.chatone.util.AppRestarter
 import io.rudione.chatone.util.WallpaperLoader
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -78,6 +80,7 @@ data class SettingsState(
     val activeCustomThemeId: String? = null,
     val showThemeCreator: Boolean = false,
     val themeCreatorSeedColor: Int? = null,
+    val language: String = "en",
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
     enum class LinkOpenMode { DEFAULT, INCOGNITO }
@@ -94,14 +97,17 @@ sealed class SettingsEvent : UiEvent {
     data class OnShowChatHeaderChanged(val show: Boolean) : SettingsEvent()
     data class OnOpenThemeCreator(val seedColor: Int? = null) : SettingsEvent()
     data object OnCloseThemeCreator : SettingsEvent()
-    data class OnCustomThemeApplied(val theme: CustomThemeConfig?) : SettingsEvent()    data class OnTimestampFormatChanged(val format: SettingsState.TimestampFormat) : SettingsEvent()
+    data class OnCustomThemeApplied(val theme: CustomThemeConfig?) : SettingsEvent()
+    data class OnTimestampFormatChanged(val format: SettingsState.TimestampFormat) : SettingsEvent()
     data class OnShowDeletedChanged(val show: Boolean) : SettingsEvent()
     data class OnScrollbackLimitChanged(val limit: Int) : SettingsEvent()
     data class OnEmoteSizeChanged(val size: SettingsState.EmoteSize) : SettingsEvent()
     object OnLogoutClicked : SettingsEvent()
+    object OnClearCacheClicked : SettingsEvent()
     data class OnShowBadgesChanged(val show: Boolean) : SettingsEvent()
     data class OnFontSizeChanged(val size: SettingsState.FontSize) : SettingsEvent()
     data class OnUiScaleChanged(val scale: Float) : SettingsEvent()
+    data class OnLanguageChanged(val code: String) : SettingsEvent()
     data class OnDefaultTimeoutChanged(val duration: Int) : SettingsEvent()
     data class OnConfirmModActionsChanged(val confirm: Boolean) : SettingsEvent()
     data class OnChannelNavigationChanged(val navigation: SettingsState.ChannelNavigation) :
@@ -181,6 +187,7 @@ class SettingsViewModel(
         private const val KEY_CUSTOM_SOUND_PATH = "custom_sound_path"
         private const val KEY_ALWAYS_ON_TOP = "always_on_top"
         private const val KEY_UI_SCALE = "ui_scale"
+        private const val KEY_LANGUAGE = "language"
         private const val KEY_PAUSE_ON_HOVER = "pause_on_hover"
         private const val KEY_PAUSE_HOTKEY = "pause_hotkey"
         private const val KEY_PAUSE_HOTKEY_MODE = "pause_hotkey_mode"
@@ -281,6 +288,7 @@ class SettingsViewModel(
                 customMentionSoundPath = settings.getStringOrNull(KEY_CUSTOM_SOUND_PATH) ?: "",
                 alwaysOnTop = settings.getBoolean(KEY_ALWAYS_ON_TOP, false),
                 uiScale = settings.getFloat(KEY_UI_SCALE, 1.0f),
+                language = settings.getString(KEY_LANGUAGE, "en"),
                 pauseOnHover = settings.getBoolean(KEY_PAUSE_ON_HOVER, false),
                 pauseHotkey = settings.getStringOrNull(KEY_PAUSE_HOTKEY) ?: "",
                 pauseHotkeyMode = PauseHotkeyMode.entries.getOrNull(
@@ -355,29 +363,33 @@ class SettingsViewModel(
                     )
                 }
             }
+            is SettingsEvent.OnClearCacheClicked -> {
+                viewModelScope.launch {
+                    try {
+                        AppDataCleaner.clearAll()
+                    } catch (e: Exception) {
+                        Napier.e("Clear cache error: ${e.message}", e, tag = "SettingsViewModel")
+                    }
+                    AppRestarter.restart(delayMs = 300L)
+                }
+            }
             is SettingsEvent.OnLogoutClicked -> {
                 viewModelScope.launch {
                     try {
-                       
                         val account = getFirstValidAccountUseCase()
-
                         if (account != null) {
-                           
                             authRepository.revokeToken(account)
-                           
                             authRepository.deleteAccount(account.userId)
                             Napier.d("User logged out: ${account.login}", tag = "SettingsViewModel")
                         }
-
-                       
-                        sendEffect(SettingsEffect.NavigateToAuth)
                     } catch (e: Exception) {
                         Napier.e("Logout error: ${e.message}", e, tag = "SettingsViewModel")
-                       
-                        val account = getFirstValidAccountUseCase()
-                        account?.let { authRepository.deleteAccount(it.userId) }
-                        sendEffect(SettingsEffect.NavigateToAuth)
+                        try {
+                            val account = getFirstValidAccountUseCase()
+                            account?.let { authRepository.deleteAccount(it.userId) }
+                        } catch (_: Exception) {}
                     }
+                    AppRestarter.restart(delayMs = 300L)
                 }
             }
 
@@ -465,6 +477,10 @@ class SettingsViewModel(
             is SettingsEvent.OnUiScaleChanged -> {
                 settings.putFloat(KEY_UI_SCALE, event.scale.coerceIn(0.7f, 2.0f))
                 update { it.copy(uiScale = event.scale.coerceIn(0.7f, 2.0f)) }
+            }
+            is SettingsEvent.OnLanguageChanged -> {
+                settings.putString(KEY_LANGUAGE, event.code)
+                update { it.copy(language = event.code) }
             }
             is SettingsEvent.OnFontSizeChanged -> {
                 settings.putInt(

@@ -13,7 +13,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -40,6 +39,8 @@ import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.theme.i18n.AppStrings
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 
 @Composable
@@ -48,6 +49,7 @@ fun ModerationSettingsSection(
     onEvent: (SettingsEvent) -> Unit
 ) {
     val extra = ChatoneTheme.extraColors
+    val s = LocalStrings.current
     var showAutomod by remember { mutableStateOf(false) }
 
     if (showAutomod) {
@@ -59,11 +61,9 @@ fun ModerationSettingsSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
 
-        SettingsCard(title = "Local Automod") {
+        SettingsCard(title = s.modLocalAutomod) {
             Text(
-                "Custom word/phrase rules that auto-delete, timeout, or ban in " +
-                    "channels you moderate. Rules can be scoped globally or to a " +
-                    "specific channel.",
+                s.modLocalAutomodDesc,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 10.dp)
@@ -84,7 +84,7 @@ fun ModerationSettingsSection(
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    "Open Local Automod editor",
+                    s.modOpenLocalAutomodEditor,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold
@@ -92,7 +92,7 @@ fun ModerationSettingsSection(
             }
         }
 
-        SettingsCard(title = "Default Timeout Duration") {
+        SettingsCard(title = s.modDefaultTimeoutDuration) {
             val options = listOf(
                 60 to "1m", 300 to "5m", 600 to "10m",
                 1800 to "30m", 3600 to "1h", 86400 to "1d"
@@ -128,16 +128,17 @@ private fun ModActionButtonsSection(
     }
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
+    val s = LocalStrings.current
 
-    SettingsCard(title = "Mod Action Buttons") {
+    SettingsCard(title = s.modModActionButtons) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Drag to reorder. Toggle to show/hide. Add custom timeout durations.",
+                s.modDragReorderHint,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Text("Preview:", style = MaterialTheme.typography.labelSmall,
+            Text(s.modPreviewLabel, style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -165,7 +166,7 @@ private fun ModActionButtonsSection(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
             Text(
-                "Press and drag to reorder:",
+                s.modPressDragReorder,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -207,22 +208,28 @@ private fun ModActionButtonsSection(
                                 ),
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .pointerInput(idx) {
+                            .pointerInput(btn.id) {
                                 detectDragGestures(
-                                    onDragStart = { draggedIndex = idx; dragOffsetY = 0f },
+                                    onDragStart = {
+                                        val curIdx = orderedButtons.indexOfFirst { it.id == btn.id }
+                                        draggedIndex = curIdx
+                                        dragOffsetY = 0f
+                                    },
                                     onDrag = { change, amount ->
                                         change.consume()
                                         dragOffsetY += amount.y
                                         val itemHeightPx = 52.dp.toPx()
+                                        val curIdx = orderedButtons.indexOfFirst { it.id == btn.id }
+                                        if (curIdx < 0) return@detectDragGestures
                                         val shift = (dragOffsetY / itemHeightPx).toInt()
-                                        val target = (idx + shift).coerceIn(0, orderedButtons.lastIndex)
-                                        if (target != idx) {
+                                        val target = (curIdx + shift).coerceIn(0, orderedButtons.lastIndex)
+                                        if (target != curIdx) {
                                             val list = orderedButtons.toMutableList()
-                                            val item = list.removeAt(idx)
+                                            val item = list.removeAt(curIdx)
                                             list.add(target, item)
                                             orderedButtons = list
                                             draggedIndex = target
-                                            dragOffsetY = 0f
+                                            dragOffsetY -= (target - curIdx) * itemHeightPx
                                         }
                                     },
                                     onDragEnd = {
@@ -314,7 +321,7 @@ private fun ModActionButtonsSection(
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Add timeout button (${state.customModButtons.size}/8)")
+                Text(s.modAddTimeoutButtonCount.replace("{0}", state.customModButtons.size.toString()).replace("{1}", "8"))
             }
         }
     }
@@ -418,18 +425,19 @@ private fun AddModButtonDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(20.dp), tonalElevation = 8.dp) {
+            val s = LocalStrings.current
             Column(
                 modifier = Modifier.padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    if (initial == null) "Add Timeout Button" else "Edit Timeout Button",
+                    if (initial == null) s.modAddTimeoutButton else s.modEditTimeoutButton,
                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
                 )
 
                 val presets = listOf(1 to "1s", 10 to "10s", 60 to "1m", 300 to "5m",
                     600 to "10m", 3600 to "1h", 86400 to "1d")
-                Text("Quick presets:", style = MaterialTheme.typography.labelSmall,
+                Text(s.modQuickPresets, style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(presets) { (s, l) ->
@@ -443,7 +451,7 @@ private fun AddModButtonDialog(
                 OutlinedTextField(
                     value = seconds,
                     onValueChange = { seconds = it.filter { c -> c.isDigit() } },
-                    label = { Text("Duration (seconds)") },
+                    label = { Text(s.modDurationSeconds) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     trailingIcon = {
@@ -459,18 +467,18 @@ private fun AddModButtonDialog(
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("Custom label (optional)") },
-                    placeholder = { Text(secsInt?.let { ModActionButton.formatDuration(it) } ?: "auto") },
+                    label = { Text(s.modCustomLabelOptional) },
+                    placeholder = { Text(secsInt?.let { ModActionButton.formatDuration(it) } ?: s.modAuto) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(s.cancel) }
                     Button(
                         onClick = { secsInt?.let { onAdd(it, label.trim()) } },
                         enabled = secsInt != null && secsInt > 0,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Save") }
+                    ) { Text(s.save) }
                 }
             }
         }
@@ -485,19 +493,19 @@ fun MacrosSection(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingMacro by remember { mutableStateOf<Macro?>(null) }
+    val s = LocalStrings.current
 
-    SettingsCard(title = "Macros") {
+    SettingsCard(title = s.modMacros) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Create macros that execute multiple chat actions in sequence. " +
-                        "Pin up to 5 macros to the quick-access bar",
+                s.modMacrosDesc,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
 
             if (state.macros.any { it.pinnedIndex >= 0 }) {
-                Text("Quick bar:", style = MaterialTheme.typography.labelSmall,
+                Text(s.modQuickBar, style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     (0..4).forEach { slot ->
@@ -529,7 +537,7 @@ fun MacrosSection(
             }
 
             if (state.macros.isEmpty()) {
-                Text("No macros yet. Create your first macro below.",
+                Text(s.modNoMacros,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
             } else {
@@ -552,7 +560,7 @@ fun MacrosSection(
             ) {
                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Create macro")
+                Text(s.modCreateMacro)
             }
         }
     }
@@ -586,6 +594,7 @@ private fun MacroRow(
 ) {
     var showPinMenu by remember { mutableStateOf(false) }
     val isPinned = macro.pinnedIndex in 0..4
+    val s = LocalStrings.current
 
     Row(
         modifier = Modifier
@@ -600,7 +609,7 @@ private fun MacroRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(macro.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Text(
-                "${macro.steps.size} step(s)" + if (isPinned) " · Slot ${macro.pinnedIndex + 1}" else "",
+                s.modStepCount.replace("{0}", macro.steps.size.toString()) + if (isPinned) s.modPinnedSlotSuffix.replace("{0}", (macro.pinnedIndex + 1).toString()) else "",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -612,7 +621,7 @@ private fun MacroRow(
             ) {
                 Icon(
                     if (isPinned) Icons.Filled.Star else Icons.Outlined.Star,
-                    contentDescription = "Pin macro",
+                    contentDescription = s.modPinMacro,
                     modifier = Modifier.size(16.dp),
                     tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -620,7 +629,7 @@ private fun MacroRow(
             DropdownMenu(expanded = showPinMenu, onDismissRequest = { showPinMenu = false }) {
                 if (isPinned) {
                     DropdownMenuItem(
-                        text = { Text("Unpin from bar") },
+                        text = { Text(s.modUnpinFromBar) },
                         onClick = { showPinMenu = false; onUnpin() },
                         leadingIcon = { Icon(Icons.Filled.Close, null, modifier = Modifier.size(16.dp)) }
                     )
@@ -629,7 +638,7 @@ private fun MacroRow(
                 (0..4).forEach { slot ->
                     val slotMacro = pinnedMacros.find { it.pinnedIndex == slot }
                     DropdownMenuItem(
-                        text = { Text("Slot ${slot + 1}" + (slotMacro?.let { " (${it.name})" } ?: " (empty)")) },
+                        text = { Text(s.modSlot.replace("{0}", (slot + 1).toString()) + (slotMacro?.let { s.modSlotName.replace("{0}", it.name) } ?: s.modSlotEmpty)) },
                         onClick = { showPinMenu = false; onPin(slot) },
                         leadingIcon = { Text("${slot + 1}", style = MaterialTheme.typography.labelMedium) }
                     )
@@ -655,16 +664,17 @@ private fun MacroNameDialog(
     var icon by remember { mutableStateOf("⚡") }
     val emojis = listOf("⚡", "🔥", "❄️", "🎯", "🚀", "🛡️", "⚔️", "🎲", "💫", "🌊", "🎮", "📢")
 
+    val s = LocalStrings.current
     Dialog(onDismissRequest = onDismiss) {
         Surface(shape = RoundedCornerShape(20.dp), tonalElevation = 8.dp) {
             Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("New Macro", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(s.modNewMacro, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
-                    label = { Text("Macro name") }, singleLine = true,
+                    label = { Text(s.modMacroName) }, singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text("Choose icon:", style = MaterialTheme.typography.labelSmall,
+                Text(s.modChooseIcon, style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(emojis) { emoji ->
@@ -679,11 +689,11 @@ private fun MacroNameDialog(
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel") }
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(s.cancel) }
                     Button(
                         onClick = { if (name.isNotBlank()) onConfirm(name.trim(), icon) },
                         enabled = name.isNotBlank(), modifier = Modifier.weight(1f)
-                    ) { Text("Create") }
+                    ) { Text(s.modCreate) }
                 }
             }
         }
@@ -702,6 +712,7 @@ fun MacroEditorDialog(
     var editingStepIndex by remember { mutableStateOf<Int?>(null) }
     var macroName by remember { mutableStateOf(macro.name) }
     var macroIcon by remember { mutableStateOf(macro.icon) }
+    val s = LocalStrings.current
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -720,7 +731,7 @@ fun MacroEditorDialog(
                     Text(macroIcon, fontSize = 24.sp)
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Edit Macro", style = MaterialTheme.typography.labelSmall,
+                        Text(s.modEditMacro, style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(macroName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
@@ -736,14 +747,14 @@ fun MacroEditorDialog(
                     OutlinedTextField(
                         value = macroIcon,
                         onValueChange = { if (it.length <= 2) macroIcon = it },
-                        label = { Text("Icon") },
+                        label = { Text(s.modIcon) },
                         modifier = Modifier.width(72.dp),
                         singleLine = true
                     )
                     OutlinedTextField(
                         value = macroName,
                         onValueChange = { macroName = it },
-                        label = { Text("Macro name") },
+                        label = { Text(s.modMacroName) },
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
@@ -763,7 +774,7 @@ fun MacroEditorDialog(
                                 modifier = Modifier.fillMaxWidth().padding(32.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("No steps yet. Tap \"Add step\" below.",
+                                Text(s.modNoStepsYet,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                             }
@@ -810,12 +821,12 @@ fun MacroEditorDialog(
                     ) {
                         Icon(Icons.Filled.Add, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Add step")
+                        Text(s.modAddStep)
                     }
                     Button(
                         onClick = { onSave(macro.copy(name = macroName, icon = macroIcon, steps = steps)) },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Save macro") }
+                    ) { Text(s.modSaveMacro) }
                 }
             }
         }
@@ -861,7 +872,8 @@ private fun MacroStepRow(
     isFirst: Boolean,
     isLast: Boolean
 ) {
-    val (icon, description) = stepDescription(step)
+    val s = LocalStrings.current
+    val (icon, description) = stepDescription(step, s)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -904,18 +916,24 @@ private fun MacroStepRow(
     }
 }
 
-private fun stepDescription(step: MacroStep): Pair<String, String> = when (step) {
-    is MacroStep.SendMessage -> "💬" to if (step.repeatCount > 1) "Send (×${step.repeatCount}): \"${step.text}\"" else "Send: \"${step.text}\""
-    is MacroStep.InsertText -> "✏️" to if (step.repeatCount > 1) "Insert (×${step.repeatCount}): \"${step.text}\"" else "Insert text: \"${step.text}\""
-    is MacroStep.SubMode -> "⭐" to if (step.enable) "Enable Sub-only mode" else "Disable Sub-only mode"
-    is MacroStep.EmoteMode -> "😊" to if (step.enable) "Enable Emote-only mode" else "Disable Emote-only mode"
-    is MacroStep.SlowMode -> "🐢" to if (step.enable) "Enable Slow mode (${step.seconds}s)" else "Disable Slow mode"
-    is MacroStep.FollowerMode -> "❤️" to if (step.enable) "Enable Follower mode (${step.minutes}m)" else "Disable Follower mode"
-    is MacroStep.R9KMode -> "🔒" to if (step.enable) "Enable R9K / Unique mode" else "Disable R9K mode"
-    is MacroStep.StartRaid -> "🚀" to "Start raid → ${step.targetLogin}"
-    is MacroStep.PinMessage -> "📌" to "Pin: \"${step.message}\""
-    is MacroStep.Delay -> "⏳" to "Wait ${step.seconds}s"
-    is MacroStep.ClearChat -> "🗑️" to "Clear chat"
+private fun stepDescription(step: MacroStep, s: AppStrings): Pair<String, String> = when (step) {
+    is MacroStep.SendMessage -> "💬" to if (step.repeatCount > 1)
+        s.modStepDescSendMulti.replace("{0}", step.repeatCount.toString()).replace("{1}", step.text)
+    else s.modStepDescSend.replace("{0}", step.text)
+    is MacroStep.InsertText -> "✏️" to if (step.repeatCount > 1)
+        s.modStepDescInsertMulti.replace("{0}", step.repeatCount.toString()).replace("{1}", step.text)
+    else s.modStepDescInsert.replace("{0}", step.text)
+    is MacroStep.SubMode -> "⭐" to if (step.enable) s.modStepDescSubEnable else s.modStepDescSubDisable
+    is MacroStep.EmoteMode -> "😊" to if (step.enable) s.modStepDescEmoteEnable else s.modStepDescEmoteDisable
+    is MacroStep.SlowMode -> "🐢" to if (step.enable)
+        s.modStepDescSlowEnable.replace("{0}", step.seconds.toString()) else s.modStepDescSlowDisable
+    is MacroStep.FollowerMode -> "❤️" to if (step.enable)
+        s.modStepDescFollowEnable.replace("{0}", step.minutes.toString()) else s.modStepDescFollowDisable
+    is MacroStep.R9KMode -> "🔒" to if (step.enable) s.modStepDescR9kEnable else s.modStepDescR9kDisable
+    is MacroStep.StartRaid -> "🚀" to s.modStepDescRaid.replace("{0}", step.targetLogin)
+    is MacroStep.PinMessage -> "📌" to s.modStepDescPin.replace("{0}", step.message)
+    is MacroStep.Delay -> "⏳" to s.modStepDescDelay.replace("{0}", step.seconds.toString())
+    is MacroStep.ClearChat -> "🗑️" to s.modStepDescClear
 }
 
 
@@ -988,22 +1006,23 @@ private fun AddMacroStepDialog(
         })
     }
 
+    val s = LocalStrings.current
     val isEditMode = initialStep != null
-    val title = if (isEditMode) "Edit Step" else "Add Step"
-    val confirmLabel = if (isEditMode) "Save changes" else "Add step"
+    val title = if (isEditMode) s.modEditStep else s.modAddStep
+    val confirmLabel = if (isEditMode) s.modSaveChanges else s.modAddStep
 
     val stepTypes = listOf(
-        "send" to "💬  Send message",
-        "insert" to "✏️  Insert text (no send)",
-        "sub" to "⭐  Sub-only mode",
-        "emote" to "😊  Emote-only mode",
-        "slow" to "🐢  Slow mode",
-        "followers" to "❤️  Follower mode",
-        "r9k" to "🔒  R9K / Unique mode",
-        "raid" to "🚀  Start raid",
-        "pin" to "📌  Pin message",
-        "delay" to "⏳  Delay / Wait",
-        "clear" to "🗑️  Clear chat"
+        "send" to s.modStepTypeSend,
+        "insert" to s.modStepTypeInsert,
+        "sub" to s.modStepTypeSub,
+        "emote" to s.modStepTypeEmote,
+        "slow" to s.modStepTypeSlow,
+        "followers" to s.modStepTypeFollowers,
+        "r9k" to s.modStepTypeR9k,
+        "raid" to s.modStepTypeRaid,
+        "pin" to s.modStepTypePin,
+        "delay" to s.modStepTypeDelay,
+        "clear" to s.modStepTypeClear
     )
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -1078,7 +1097,7 @@ private fun AddMacroStepDialog(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         if (selected == null) {
-                            Text("← Select an action type",
+                            Text(s.modSelectActionType,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
@@ -1086,68 +1105,68 @@ private fun AddMacroStepDialog(
                         when (selected) {
                             "send" -> OutlinedTextField(
                                 value = messageText, onValueChange = { messageText = it },
-                                label = { Text("Message text") }, singleLine = true,
+                                label = { Text(s.modMessageText) }, singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             "insert" -> OutlinedTextField(
                                 value = messageText, onValueChange = { messageText = it },
-                                label = { Text("Text to insert") }, singleLine = true,
+                                label = { Text(s.modTextToInsert) }, singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             "sub", "emote", "r9k" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Action:", style = MaterialTheme.typography.labelMedium)
+                                Text(s.modAction, style = MaterialTheme.typography.labelMedium)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilterChip(selected = boolState, onClick = { boolState = true }, label = { Text("Enable") })
-                                    FilterChip(selected = !boolState, onClick = { boolState = false }, label = { Text("Disable") })
+                                    FilterChip(selected = boolState, onClick = { boolState = true }, label = { Text(s.modEnable) })
+                                    FilterChip(selected = !boolState, onClick = { boolState = false }, label = { Text(s.modDisable) })
                                 }
                             }
                             "slow" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Action:", style = MaterialTheme.typography.labelMedium)
+                                Text(s.modAction, style = MaterialTheme.typography.labelMedium)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilterChip(selected = boolState, onClick = { boolState = true }, label = { Text("Enable") })
-                                    FilterChip(selected = !boolState, onClick = { boolState = false }, label = { Text("Disable") })
+                                    FilterChip(selected = boolState, onClick = { boolState = true }, label = { Text(s.modEnable) })
+                                    FilterChip(selected = !boolState, onClick = { boolState = false }, label = { Text(s.modDisable) })
                                 }
                                 if (boolState) OutlinedTextField(
                                     value = slowSeconds,
                                     onValueChange = { slowSeconds = it.filter { c -> c.isDigit() } },
-                                    label = { Text("Slow mode (seconds)") }, singleLine = true,
+                                    label = { Text(s.modSlowModeSeconds) }, singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
                             "followers" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Action:", style = MaterialTheme.typography.labelMedium)
+                                Text(s.modAction, style = MaterialTheme.typography.labelMedium)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilterChip(selected = boolState, onClick = { boolState = true }, label = { Text("Enable") })
-                                    FilterChip(selected = !boolState, onClick = { boolState = false }, label = { Text("Disable") })
+                                    FilterChip(selected = boolState, onClick = { boolState = true }, label = { Text(s.modEnable) })
+                                    FilterChip(selected = !boolState, onClick = { boolState = false }, label = { Text(s.modDisable) })
                                 }
                                 if (boolState) OutlinedTextField(
                                     value = followerMinutes,
                                     onValueChange = { followerMinutes = it.filter { c -> c.isDigit() } },
-                                    label = { Text("Duration (minutes)") }, singleLine = true,
+                                    label = { Text(s.modDurationMinutes) }, singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
                             "raid" -> OutlinedTextField(
                                 value = raidTarget, onValueChange = { raidTarget = it },
-                                label = { Text("Channel to raid") }, singleLine = true,
+                                label = { Text(s.modChannelToRaid) }, singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             "pin" -> OutlinedTextField(
                                 value = pinMessage, onValueChange = { pinMessage = it },
-                                label = { Text("Message to pin") }, singleLine = true,
+                                label = { Text(s.modMessageToPin) }, singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             "delay" -> OutlinedTextField(
                                 value = delaySeconds,
                                 onValueChange = { delaySeconds = it.filter { c -> c.isDigit() } },
-                                label = { Text("Wait (seconds)") }, singleLine = true,
+                                label = { Text(s.modWaitSeconds) }, singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             "clear" -> Text(
-                                "This will clear all messages in chat.",
+                                s.modClearWarning,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -1160,7 +1179,7 @@ private fun AddMacroStepDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("Repeat:", style = MaterialTheme.typography.labelMedium,
+                                Text(s.modRepeat, style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.width(60.dp))
                                 OutlinedTextField(
                                     value = repeatCount,
@@ -1172,7 +1191,7 @@ private fun AddMacroStepDialog(
                                     modifier = Modifier.width(80.dp),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
-                                Text("× times", style = MaterialTheme.typography.bodySmall,
+                                Text(s.modRepeatTimes, style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -1193,7 +1212,7 @@ private fun AddMacroStepDialog(
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                            Text("Cancel")
+                            Text(s.cancel)
                         }
                         Button(
                             onClick = {

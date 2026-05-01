@@ -1,9 +1,5 @@
 package io.rudione.chatone.presentation.main.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,6 +27,7 @@ import io.rudione.chatone.domain.model.MentionEntry
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.main.MainState
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -86,7 +83,7 @@ fun MentionsFeed(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    "/mentions",
+                    LocalStrings.current.panelMentionsTitle,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -99,7 +96,7 @@ fun MentionsFeed(
                         modifier = Modifier.height(28.dp)
                     ) {
                         Text(
-                            "Mark all read",
+                            LocalStrings.current.panelMentionsMarkAllRead,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -133,12 +130,12 @@ fun MentionsFeed(
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "No mentions yet",
+                            LocalStrings.current.panelMentionsEmpty,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                         Text(
-                            "You'll see them here when tagged",
+                            LocalStrings.current.panelMentionsHint,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                         )
@@ -201,7 +198,7 @@ private fun MentionRow(entry: MentionEntry, onClick: () -> Unit) {
                     maxLines = 1
                 )
                 Text(
-                    " in #${entry.channelLogin}",
+                    LocalStrings.current.panelInChannel.replace("{0}", entry.channelLogin),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     maxLines = 1,

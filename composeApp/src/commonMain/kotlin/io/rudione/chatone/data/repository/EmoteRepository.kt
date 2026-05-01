@@ -10,6 +10,8 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class EmoteRepository(
     private val sevenTvApi: SevenTvApiClient,
@@ -27,6 +29,11 @@ class EmoteRepository(
 
     private val channelEmotesMap = mutableMapOf<String, MutableStateFlow<ChannelEmotes>>()
     private val channelEmoteSetIds = mutableMapOf<String, String>()
+
+    private val personalEmotesCache = mutableMapOf<String, List<GenericEmote>>()
+    private val personalEmotesMutex = Mutex()
+    private val personalEmotesInflight = mutableSetOf<String>()
+    private val personalEmotesFetched = mutableSetOf<String>()
 
     private val _globalEmotes = MutableStateFlow(ChannelEmotes())
     val globalEmotes: StateFlow<ChannelEmotes> = _globalEmotes
@@ -113,7 +120,7 @@ class EmoteRepository(
         return emote.isZeroWidth || emote.code in OVERLAY_EMOTES
     }
 
-    
+
     fun patchChannelEmote(channelName: String, emote: GenericEmote) {
         val key = channelName.lowercase()
         val flow = channelEmotesMap.getOrPut(key) { MutableStateFlow(ChannelEmotes()) }
@@ -124,7 +131,7 @@ class EmoteRepository(
         Napier.d("Patched 7TV emote ${emote.code} in $channelName", tag = TAG)
     }
 
-    
+
     fun removeChannelEmote(channelName: String, emoteId: String, emoteName: String) {
         val key = channelName.lowercase()
         val flow = channelEmotesMap[key] ?: return
@@ -135,7 +142,7 @@ class EmoteRepository(
         Napier.d("Removed 7TV emote $emoteName from $channelName", tag = TAG)
     }
 
-    
+
     fun renameChannelEmote(channelName: String, emoteId: String, newName: String) {
         val key = channelName.lowercase()
         val flow = channelEmotesMap[key] ?: return
@@ -146,5 +153,54 @@ class EmoteRepository(
             }
         )
         Napier.d("Renamed 7TV emote $emoteId → $newName in $channelName", tag = TAG)
+    }
+
+    /** Clears all cached emotes for a channel so next load fetches fresh data. */
+    fun invalidateChannel(channelName: String) {
+        val key = channelName.lowercase()
+        channelEmotesMap[key]?.value = ChannelEmotes()
+        channelEmoteSetIds.remove(key)
+        Napier.d("Invalidated emote cache for $channelName", tag = TAG)
+    }
+
+    /** Clears personal emotes cache so they'll be re-fetched on next message. */
+    fun invalidatePersonalEmotes() {
+        personalEmotesCache.clear()
+        personalEmotesInflight.clear()
+        personalEmotesFetched.clear()
+        Napier.d("Cleared personal emotes cache", tag = TAG)
+    }
+
+    /** Returns true if we've already attempted (and completed) a fetch for this user. */
+    fun hasAttemptedPersonalEmotes(twitchUserId: String): Boolean =
+        twitchUserId in personalEmotesFetched
+
+    fun getCachedPersonalEmotes(twitchUserId: String): List<GenericEmote> {
+        if (twitchUserId.isBlank()) return emptyList()
+        return personalEmotesCache[twitchUserId] ?: emptyList()
+    }
+
+    suspend fun loadPersonalEmotes(twitchUserId: String): List<GenericEmote> {
+        if (twitchUserId.isBlank()) return emptyList()
+        personalEmotesMutex.withLock {
+            personalEmotesCache[twitchUserId]?.let { return it }
+            if (twitchUserId in personalEmotesInflight) return emptyList()
+            personalEmotesInflight.add(twitchUserId)
+        }
+        val emotes = try {
+            sevenTvApi.getChannelEmotes(twitchUserId)
+        } catch (e: Exception) {
+            Napier.w("Failed to fetch 7TV personal emotes for $twitchUserId: ${e.message}", tag = TAG)
+            emptyList()
+        }
+        personalEmotesMutex.withLock {
+            personalEmotesCache[twitchUserId] = emotes
+            personalEmotesInflight.remove(twitchUserId)
+            personalEmotesFetched.add(twitchUserId)
+        }
+        if (emotes.isNotEmpty()) {
+            Napier.d("Loaded ${emotes.size} 7TV personal emotes for user $twitchUserId", tag = TAG)
+        }
+        return emotes
     }
 }

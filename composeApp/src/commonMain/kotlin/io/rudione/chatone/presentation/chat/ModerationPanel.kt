@@ -16,7 +16,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Send
@@ -41,7 +40,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -49,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 fun ModerationPanel(
@@ -109,7 +108,7 @@ fun ModerationPanel(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "Moderation",
+                    LocalStrings.current.panelModeration,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -348,7 +347,7 @@ fun ModerationPanel(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Color:",
+                            LocalStrings.current.panelColor,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
