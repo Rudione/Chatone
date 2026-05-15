@@ -33,6 +33,13 @@ import io.rudione.chatone.data.repository.UserNoteRepository
 import io.rudione.chatone.domain.usecase.*
 import io.rudione.chatone.presentation.auth.AuthViewModel
 import io.rudione.chatone.presentation.chat.ChatViewModel
+import io.rudione.chatone.presentation.chat.multichat.ChatPanelManager
+import io.rudione.chatone.presentation.chat.multichat.PanelPersistence
+import io.rudione.chatone.presentation.chat.multichat.PanelLifecycleSync
+import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.presentation.account.AccountListLoader
+import io.rudione.chatone.presentation.account.AccountSwitchCoordinator
+import io.rudione.chatone.data.remote.proxy.HttpClientFactory
 import io.rudione.chatone.presentation.main.MainViewModel
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.data.repository.MentionRepository
@@ -172,7 +179,112 @@ val useCaseModule = module {
 
 val appModule = module {
     single { CustomThemeManager() }
+    single { ChatPanelManager() }
+    single { AccountManager(settings = get()) }
+    single { PanelPersistence(settings = get()) }
+    single { AccountListLoader(authRepository = get()) }
+    single { HttpClientFactory(accountManager = get()) }
+    single { PanelLifecycleSync(ircClient = get(), scope = get()) }
+    single { io.rudione.chatone.presentation.chat.multichat.PanelViewModelStoreRegistry() }
+    single {
+        io.rudione.chatone.data.repository.PersonalEmoteBackfiller(
+            emoteRepository = get(),
+            sevenTvApi = get(),
+            scope = get()
+        )
+    }
+    single {
+        io.rudione.chatone.presentation.account.AccountActions(
+            authRepository = get(),
+            accountManager = get(),
+            switchCoordinator = get(),
+            scope = get()
+        )
+    }
+    single { io.rudione.chatone.presentation.chat.multichat.PanelEventBus() }
+    single {
+        io.rudione.chatone.presentation.account.oauth.AddAccountOAuthHandler(
+            platformAuth = get(),
+            authRepository = get(),
+            accountManager = get(),
+            scope = get()
+        )
+    }
+    single {
+        io.rudione.chatone.data.remote.emote.PersonalSetExtractor(
+            httpClient = get()
+        )
+    }
+    single {
+        io.rudione.chatone.data.repository.EnrichedPersonalEmoteBackfiller(
+            emoteRepository = get(),
+            extractor = get(),
+            scope = get()
+        )
+    }
+    single { io.rudione.chatone.presentation.account.PerAccountSettingsLoader(accountManager = get()) }
+    single {
+        io.rudione.chatone.presentation.account.AccountStateRefresher(
+            authRepository = get(),
+            accountManager = get(),
+            scope = get()
+        )
+    }
+    single {
+        io.rudione.chatone.presentation.account.AccountInitializer(
+            authRepository = get(),
+            accountManager = get(),
+            scope = get()
+        )
+    }
+    single {
+        io.rudione.chatone.presentation.account.AccountFlowGlue(
+            authRepository = get(),
+            accountManager = get()
+        )
+    }
+    single { io.rudione.chatone.presentation.chat.multichat.PanelMessageInputBus() }
+    single {
+        io.rudione.chatone.presentation.account.AccountMigration(
+            authRepository = get(),
+            accountManager = get(),
+            scope = get()
+        )
+    }
+    single {
+        io.rudione.chatone.data.remote.proxy.IrcConnectionFactory(
+            httpClientFactory = get(),
+            accountManager = get(),
+            scope = get()
+        )
+    }
+    single {
+        io.rudione.chatone.data.repository.MultiAccountConnectionRegistry(
+            ircFactory = get(),
+            accountManager = get(),
+            scope = get()
+        )
+    }
+    single {
+        AccountSwitchCoordinator(
+            accountManager = get(),
+            ircClient = get(),
+            pubSubClient = get(),
+            emoteRepository = get(),
+            scope = get()
+        )
+    }
+    single {
+        io.rudione.chatone.presentation.account.AccountSettingsExporter(
+            accountManager = get()
+        )
+    }
+    single { io.rudione.chatone.presentation.chat.multichat.PanelMessageDispatcher() }
+    single { io.rudione.chatone.presentation.chat.multichat.ChatViewModelPerPanelFactory() }
+}
 
+val settingsModule = module {
+    single { com.russhwolf.settings.Settings() }
 }
 
 val viewModelModule = module {
@@ -183,6 +295,7 @@ val viewModelModule = module {
 }
 
 fun appModules(): List<Module> = listOf(
+    settingsModule,
     networkModule,
     databaseModule,
     repositoryModule,

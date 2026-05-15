@@ -46,7 +46,7 @@ abstract class BaseViewModel<State : UiState, Event : UiEvent, Effect : UIEffect
 
     protected open fun Flow<Event>.addDataFlows(): Flow<Any> = flowOf(Unit)
 
-    protected fun update(updater: (state: State) -> State) {
+    protected open fun update(updater: (state: State) -> State) {
         _state.update(updater)
         if (showStateLog) Napier.d("state: ${state.value}", tag = TAG)
     }

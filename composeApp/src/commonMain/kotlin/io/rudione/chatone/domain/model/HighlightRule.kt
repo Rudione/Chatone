@@ -45,5 +45,29 @@ data class HighlightRule(
             showInMentions = false,
             color = 0xFFF39C12
         )
+
+        val SEARCH_MATCH_RULE = HighlightRule(
+            id = "search_match",
+            pattern = "",
+            playSound = false,
+            showInMentions = false,
+            color = 0xFF4FC3F7
+        )
+
+        val CHANNEL_POINTS_RULE = HighlightRule(
+            id = "channel_points",
+            pattern = "",
+            playSound = false,
+            showInMentions = false,
+            color = 0xFF9146FF
+        )
+
+        val MENTION_ACCENT_RULE = HighlightRule(
+            id = "mention_accent",
+            pattern = "",
+            playSound = false,
+            showInMentions = false,
+            color = 0xFFFF6B6B
+        )
     }
 }

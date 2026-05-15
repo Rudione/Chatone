@@ -30,9 +30,10 @@ class EmoteRepository(
     private val channelEmotesMap = mutableMapOf<String, MutableStateFlow<ChannelEmotes>>()
     private val channelEmoteSetIds = mutableMapOf<String, String>()
 
-    private val personalEmotesCache = mutableMapOf<String, List<GenericEmote>>()
+    private val personalEmoteSetsByUser = mutableMapOf<String, MutableSet<String>>()
+    private val personalEmoteSetContents = mutableMapOf<String, List<GenericEmote>>()
     private val personalEmotesMutex = Mutex()
-    private val personalEmotesInflight = mutableSetOf<String>()
+    private val personalEmoteSetsInflight = mutableSetOf<String>()
     private val personalEmotesFetched = mutableSetOf<String>()
 
     private val _globalEmotes = MutableStateFlow(ChannelEmotes())
@@ -155,7 +156,6 @@ class EmoteRepository(
         Napier.d("Renamed 7TV emote $emoteId → $newName in $channelName", tag = TAG)
     }
 
-    /** Clears all cached emotes for a channel so next load fetches fresh data. */
     fun invalidateChannel(channelName: String) {
         val key = channelName.lowercase()
         channelEmotesMap[key]?.value = ChannelEmotes()
@@ -163,44 +163,116 @@ class EmoteRepository(
         Napier.d("Invalidated emote cache for $channelName", tag = TAG)
     }
 
-    /** Clears personal emotes cache so they'll be re-fetched on next message. */
     fun invalidatePersonalEmotes() {
-        personalEmotesCache.clear()
-        personalEmotesInflight.clear()
+        personalEmoteSetsByUser.clear()
+        personalEmoteSetContents.clear()
+        personalEmoteSetsInflight.clear()
         personalEmotesFetched.clear()
         Napier.d("Cleared personal emotes cache", tag = TAG)
     }
 
-    /** Returns true if we've already attempted (and completed) a fetch for this user. */
     fun hasAttemptedPersonalEmotes(twitchUserId: String): Boolean =
         twitchUserId in personalEmotesFetched
 
-    fun getCachedPersonalEmotes(twitchUserId: String): List<GenericEmote> {
-        if (twitchUserId.isBlank()) return emptyList()
-        return personalEmotesCache[twitchUserId] ?: emptyList()
+    fun markPersonalEmotesAttempted(twitchUserId: String) {
+        if (twitchUserId.isBlank()) return
+        personalEmotesFetched.add(twitchUserId)
     }
 
+    fun getCachedPersonalEmotes(twitchUserId: String): List<GenericEmote> {
+        if (twitchUserId.isBlank()) return emptyList()
+        val setIds = personalEmoteSetsByUser[twitchUserId] ?: return emptyList()
+        if (setIds.isEmpty()) return emptyList()
+        val merged = mutableMapOf<String, GenericEmote>()
+        for (setId in setIds) {
+            val emotes = personalEmoteSetContents[setId] ?: continue
+            for (e in emotes) merged[e.code] = e
+        }
+        return merged.values.toList()
+    }
+
+    @Suppress("UNUSED_PARAMETER")
     suspend fun loadPersonalEmotes(twitchUserId: String): List<GenericEmote> {
         if (twitchUserId.isBlank()) return emptyList()
+        markPersonalEmotesAttempted(twitchUserId)
+        return getCachedPersonalEmotes(twitchUserId)
+    }
+
+    suspend fun grantPersonalEmoteSet(
+        twitchUserId: String,
+        emoteSetId: String
+    ): List<GenericEmote>? {
+        if (twitchUserId.isBlank() || emoteSetId.isBlank()) return null
+
+        var needFetch = false
         personalEmotesMutex.withLock {
-            personalEmotesCache[twitchUserId]?.let { return it }
-            if (twitchUserId in personalEmotesInflight) return emptyList()
-            personalEmotesInflight.add(twitchUserId)
-        }
-        val emotes = try {
-            sevenTvApi.getChannelEmotes(twitchUserId)
-        } catch (e: Exception) {
-            Napier.w("Failed to fetch 7TV personal emotes for $twitchUserId: ${e.message}", tag = TAG)
-            emptyList()
-        }
-        personalEmotesMutex.withLock {
-            personalEmotesCache[twitchUserId] = emotes
-            personalEmotesInflight.remove(twitchUserId)
+            val sets = personalEmoteSetsByUser.getOrPut(twitchUserId) { mutableSetOf() }
+            sets.add(emoteSetId)
             personalEmotesFetched.add(twitchUserId)
+            if (emoteSetId !in personalEmoteSetContents &&
+                emoteSetId !in personalEmoteSetsInflight
+            ) {
+                personalEmoteSetsInflight.add(emoteSetId)
+                needFetch = true
+            }
         }
-        if (emotes.isNotEmpty()) {
-            Napier.d("Loaded ${emotes.size} 7TV personal emotes for user $twitchUserId", tag = TAG)
+
+        if (needFetch) {
+            val emotes = try {
+                sevenTvApi.getEmoteSet(emoteSetId)
+            } catch (e: Exception) {
+                Napier.w("Failed to fetch 7TV personal set $emoteSetId: ${e.message}", tag = TAG)
+                emptyList()
+            }
+            personalEmotesMutex.withLock {
+                personalEmoteSetContents[emoteSetId] = emotes
+                personalEmoteSetsInflight.remove(emoteSetId)
+            }
+            if (emotes.isNotEmpty()) {
+                Napier.d(
+                    "Loaded ${emotes.size} 7TV personal emotes (set $emoteSetId) for user $twitchUserId",
+                    tag = TAG
+                )
+            }
         }
-        return emotes
+
+        return getCachedPersonalEmotes(twitchUserId)
+    }
+
+    fun revokePersonalEmoteSet(twitchUserId: String, emoteSetId: String): List<GenericEmote> {
+        if (twitchUserId.isBlank() || emoteSetId.isBlank()) return emptyList()
+        val sets = personalEmoteSetsByUser[twitchUserId]
+        if (sets != null) {
+            sets.remove(emoteSetId)
+            if (sets.isEmpty()) personalEmoteSetsByUser.remove(twitchUserId)
+        }
+        return getCachedPersonalEmotes(twitchUserId)
+    }
+
+    fun isPersonalEmoteSet(emoteSetId: String): Boolean =
+        emoteSetId in personalEmoteSetContents
+
+    fun usersForPersonalSet(emoteSetId: String): List<String> {
+        return personalEmoteSetsByUser.entries
+            .filter { emoteSetId in it.value }
+            .map { it.key }
+    }
+
+    fun patchPersonalSet(emoteSetId: String, emote: GenericEmote) {
+        val existing = personalEmoteSetContents[emoteSetId] ?: return
+        personalEmoteSetContents[emoteSetId] = existing.filterNot { it.id == emote.id } + emote
+    }
+
+    fun removeFromPersonalSet(emoteSetId: String, emoteId: String, emoteName: String) {
+        val existing = personalEmoteSetContents[emoteSetId] ?: return
+        personalEmoteSetContents[emoteSetId] =
+            existing.filterNot { it.id == emoteId || it.code == emoteName }
+    }
+
+    fun renameInPersonalSet(emoteSetId: String, emoteId: String, newName: String) {
+        val existing = personalEmoteSetContents[emoteSetId] ?: return
+        personalEmoteSetContents[emoteSetId] = existing.map {
+            if (it.id == emoteId) it.copy(code = newName) else it
+        }
     }
 }

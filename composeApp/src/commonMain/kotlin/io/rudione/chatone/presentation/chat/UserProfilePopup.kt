@@ -13,7 +13,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,6 +72,9 @@ fun UserProfilePopup(
     showModActions: Boolean = false,
 
     currentUserIsBroadcaster: Boolean = false,
+    isBlocked: Boolean = false,
+    onBlock: () -> Unit = {},
+    onUnblock: () -> Unit = {},
     onTimeout: (Int) -> Unit = {},
     onBan: () -> Unit = {},
     onUnban: () -> Unit = {},
@@ -243,6 +248,9 @@ fun UserProfilePopup(
                         isVip = isVip,
                         isSubscriber = isSubscriber,
                         currentUserIsBroadcaster = currentUserIsBroadcaster,
+                        isBlocked = isBlocked,
+                        onBlock = onBlock,
+                        onUnblock = onUnblock,
                         onNoteChange = { noteText = it },
                         onShowDeleteConfirmation = { showDeleteConfirmation = true },
                         onWhisper = onWhisper,
@@ -284,6 +292,9 @@ internal fun UsercardTab(
     isVip: Boolean,
     isSubscriber: Boolean,
     currentUserIsBroadcaster: Boolean,
+    isBlocked: Boolean = false,
+    onBlock: () -> Unit = {},
+    onUnblock: () -> Unit = {},
     onNoteChange: (String) -> Unit,
     onShowDeleteConfirmation: () -> Unit,
     onWhisper: () -> Unit,
@@ -410,6 +421,57 @@ internal fun UsercardTab(
             Text(LocalStrings.current.profileSendWhisper, modifier = Modifier.weight(1f))
         }
 
+        if (!isBroadcaster) {
+            var showBlockConfirm by remember { mutableStateOf(false) }
+            if (showBlockConfirm) {
+                val confirmTitle = if (isBlocked)
+                    LocalStrings.current.profileUnblockConfirmTitle
+                else
+                    LocalStrings.current.profileBlockConfirmTitle
+                val confirmText = ""
+                AlertDialog(
+                    onDismissRequest = { showBlockConfirm = false },
+                    title = { Text(confirmTitle, style = MaterialTheme.typography.titleSmall) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            if (isBlocked) onUnblock() else onBlock()
+                            showBlockConfirm = false
+                            onDismiss()
+                        }, colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (isBlocked) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.error
+                        )) {
+                            Text(if (isBlocked) LocalStrings.current.unblockUser else LocalStrings.current.blockUser)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showBlockConfirm = false }) {
+                            Text(LocalStrings.current.cancel)
+                        }
+                    }
+                )
+            }
+            TextButton(
+                onClick = { showBlockConfirm = true },
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = if (isBlocked) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                )
+            ) {
+                Icon(
+                    if (isBlocked) Icons.Outlined.LockOpen else Icons.Outlined.Block,
+                    null, modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (isBlocked) LocalStrings.current.profileUnblock else LocalStrings.current.profileBlock,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
         if (showModActions && !isBroadcaster) {
             Spacer(Modifier.height(4.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -432,9 +494,13 @@ internal fun UsercardTab(
                     1 to "1s",
                     30 to "30s",
                     60 to "1m",
+                    300 to "5m",
                     600 to "10m",
                     3600 to "1h",
-                    86400 to "1d"
+                    21600 to "6h",
+                    86400 to "1d",
+                    604800 to "7d",
+                    1209600 to "14d"
                 ).forEach { (sec, label) ->
                     TimeoutChip(label, sec, onTimeout, onDismiss)
                 }
@@ -658,6 +724,9 @@ fun UserProfileContent(
     channelId: String,
     showModActions: Boolean,
     currentUserIsBroadcaster: Boolean,
+    isBlocked: Boolean = false,
+    onBlock: () -> Unit = {},
+    onUnblock: () -> Unit = {},
     onTimeout: (Int) -> Unit,
     onBan: () -> Unit,
     onUnban: () -> Unit,
@@ -779,6 +848,9 @@ fun UserProfileContent(
                 isVip = msg.isVip,
                 isSubscriber = msg.isSubscriber,
                 currentUserIsBroadcaster = currentUserIsBroadcaster,
+                isBlocked = isBlocked,
+                onBlock = onBlock,
+                onUnblock = onUnblock,
                 onNoteChange = { noteText = it },
                 onShowDeleteConfirmation = { showDeleteConfirmation = true },
                 onWhisper = onWhisper,

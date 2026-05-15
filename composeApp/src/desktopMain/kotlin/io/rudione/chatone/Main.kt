@@ -1,6 +1,7 @@
 package io.rudione.chatone
 
-import androidx.compose.runtime.*import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
@@ -10,8 +11,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.WallpaperController
+import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.util.AutoUpdater
 import io.rudione.chatone.util.GlobalKeyDispatcher
 import io.rudione.chatone.util.WindowsTitleBar
@@ -95,6 +95,7 @@ fun main() {
         var alwaysOnTop by remember { mutableStateOf(initialSettings.alwaysOnTop) }
         var isDarkTheme by remember { mutableStateOf(initialSettings.darkTheme) }
         var dominantColor by remember { mutableStateOf<Color?>(null) }
+        var titleBarMode by remember { mutableStateOf(initialSettings.titleBarMode) }
 
         Window(
             onCloseRequest = { exitApplication() },
@@ -115,30 +116,68 @@ fun main() {
                                 "NSAppearanceNameDarkAqua"
                             )
                         }
-                        val captionColor = if (initialDark) DARK_CAPTION_COLOR
-                        else Color(0xF0, 0xF0, 0xF5)
-                        WindowsTitleBar.applyTitleBarColor(window, captionColor, initialDark)
+                        val (captionColor, useDark) = resolveTitleBar(
+                            initialSettings.titleBarMode, initialDark, null
+                        )
+                        WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
                     }
                 }
                 window.addWindowListener(listener)
                 onDispose { window.removeWindowListener(listener) }
             }
 
-            LaunchedEffect(isDarkTheme, dominantColor) {
-                val captionColor = dominantColor
-                    ?.let { blendWithDark(it, isDarkTheme) }
-                    ?: if (isDarkTheme) DARK_CAPTION_COLOR else Color(0xF0, 0xF0, 0xF5)
-                WindowsTitleBar.applyTitleBarColor(window, captionColor, isDarkTheme)
+            LaunchedEffect(isDarkTheme, dominantColor, titleBarMode) {
+                val (captionColor, useDark) = resolveTitleBar(titleBarMode, isDarkTheme, dominantColor)
+                WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
             }
 
             App(
                 onAlwaysOnTopChanged = { alwaysOnTop = it },
                 onThemeChanged = { isDarkTheme = it },
-                onDominantColorChanged = { dominantColor = it }
+                onDominantColorChanged = { dominantColor = it },
+                onTitleBarModeChanged = { titleBarMode = it }
             )
         }
     }
 }
+
+private fun resolveTitleBar(
+    mode: TitleBarMode,
+    isDarkTheme: Boolean,
+    dominantColor: Color?
+): Pair<Color, Boolean> = when (mode) {
+    TitleBarMode.DARK -> DARK_CAPTION_COLOR to true
+    TitleBarMode.LIGHT -> Color(0xF0, 0xF0, 0xF5) to false
+    TitleBarMode.ADAPTIVE -> {
+        val blended = dominantColor?.let { blendWithDark(it, isDarkTheme) }
+            ?: if (isDarkTheme) DARK_CAPTION_COLOR else Color(0xF0, 0xF0, 0xF5)
+        blended to isDarkTheme
+    }
+    TitleBarMode.SYSTEM -> {
+        val systemDark = isSystemDarkMode()
+        val color = if (systemDark) DARK_CAPTION_COLOR else Color(0xF0, 0xF0, 0xF5)
+        color to systemDark
+    }
+}
+
+private fun isSystemDarkMode(): Boolean = runCatching {
+    val osName = System.getProperty("os.name", "").lowercase()
+    if (osName.contains("win")) {
+        val proc = Runtime.getRuntime().exec(
+            arrayOf("reg", "query",
+                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                "/v", "AppsUseLightTheme")
+        )
+        val output = proc.inputStream.bufferedReader().readText()
+        val value = output.lines()
+            .firstOrNull { it.contains("AppsUseLightTheme") }
+            ?.trim()?.split("\\s+".toRegex())?.lastOrNull()
+            ?.let { java.lang.Long.parseLong(it.removePrefix("0x"), 16) }
+        value == 0L
+    } else {
+        true
+    }
+}.getOrDefault(true)
 
 private fun blendWithDark(dominant: Color, isDark: Boolean): Color {
     val base = if (isDark) Color(0x0A, 0x0A, 0x0F) else Color(0xF5, 0xF5, 0xFF)

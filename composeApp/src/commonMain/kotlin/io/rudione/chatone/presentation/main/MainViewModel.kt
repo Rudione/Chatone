@@ -21,6 +21,7 @@ import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.data.remote.RecentMessagesClient
 import io.rudione.chatone.data.repository.MentionRepository
+import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.util.AppRestarter
 import io.rudione.chatone.util.Result
@@ -80,6 +81,7 @@ data class MainState(
     val showChattersPanel: Boolean = false,
     val activeChatChannelId: String = "",
     val channelIdMap: Map<String, String> = emptyMap(),
+    val moderatedChannelIds: Set<String> = emptySet(),
     val needsReauth: Boolean = false
 ) : UiState
 
@@ -159,6 +161,12 @@ sealed class MainEvent : UiEvent {
     object ShowChattersPanel : MainEvent()
     object HideChattersPanel : MainEvent()
     data class SetActiveChatChannelId(val channelId: String) : MainEvent()
+    data class MuteMentionsUser(val userLogin: String) : MainEvent()
+    data class UnmuteMentionsUser(val userLogin: String) : MainEvent()
+    data class MuteMentionsChannel(val channelLogin: String) : MainEvent()
+    data class UnmuteMentionsChannel(val channelLogin: String) : MainEvent()
+    data class MuteMentionsUserInChannel(val userLogin: String, val channelLogin: String) : MainEvent()
+    data class UnmuteMentionsUserInChannel(val userLogin: String, val channelLogin: String) : MainEvent()
 }
 
 
@@ -189,6 +197,8 @@ class MainViewModel(
     private val mentionRepository: MentionRepository,
     private val recentMessagesClient: RecentMessagesClient
 ) : BaseViewModel<MainState, MainEvent, MainEffect>(MainState()) {
+
+    val mentionMuteRepository = MentionMuteRepository()
 
     companion object {
         private const val TAG = "MainViewModel"
@@ -439,14 +449,37 @@ class MainViewModel(
                 val alreadyExists =
                     state.value.mentions.any { it.messageId == event.entry.messageId }
                 if (!alreadyExists) {
+                    val isMuted = mentionMuteRepository.isMuted(
+                        userLogin = event.entry.fromUsername,
+                        channelLogin = event.entry.channelLogin
+                    )
                     update {
                         it.copy(
                             mentions = (listOf(event.entry) + it.mentions).take(200),
-                            unreadMentionsCount = it.unreadMentionsCount + 1
+                            unreadMentionsCount = if (isMuted) it.unreadMentionsCount else it.unreadMentionsCount + 1
                         )
                     }
                     viewModelScope.launch { mentionRepository.saveMention(event.entry) }
                 }
+            }
+
+            is MainEvent.MuteMentionsUser -> {
+                mentionMuteRepository.muteUser(event.userLogin)
+            }
+            is MainEvent.UnmuteMentionsUser -> {
+                mentionMuteRepository.unmuteUser(event.userLogin)
+            }
+            is MainEvent.MuteMentionsChannel -> {
+                mentionMuteRepository.muteChannel(event.channelLogin)
+            }
+            is MainEvent.UnmuteMentionsChannel -> {
+                mentionMuteRepository.unmuteChannel(event.channelLogin)
+            }
+            is MainEvent.MuteMentionsUserInChannel -> {
+                mentionMuteRepository.muteUserInChannel(event.userLogin, event.channelLogin)
+            }
+            is MainEvent.UnmuteMentionsUserInChannel -> {
+                mentionMuteRepository.unmuteUserInChannel(event.userLogin, event.channelLogin)
             }
 
             MainEvent.ShowChattersPanel -> update { it.copy(showChattersPanel = true) }
@@ -630,6 +663,14 @@ class MainViewModel(
                 update { it.copy(isConnected = true) }
                 launch { emoteRepository.loadGlobalEmotes() }
                 launch { sevenTvEventApi.connect() }
+                launch {
+                    try {
+                        val res = apiClient.getModeratedChannels(account.accessToken, account.userId)
+                        if (res is io.rudione.chatone.util.Result.Success) {
+                            update { it.copy(moderatedChannelIds = res.data) }
+                        }
+                    } catch (_: Exception) {}
+                }
                 Napier.d("Connected as ${account.login}", tag = TAG)
             } catch (e: Exception) {
                 Napier.e("Failed to connect: ${e.message}", e, tag = TAG)
@@ -1014,8 +1055,10 @@ class MainViewModel(
                     is SevenTvEventApi.EmoteSetUpdateEvent.EmoteAdded -> "${event.actorName} added emote ${event.emoteName}"
                     is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRemoved -> "${event.actorName} removed emote ${event.emoteName}"
                     is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRenamed -> "${event.actorName} renamed ${event.oldName} to ${event.newName}"
+                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetGranted,
+                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetRevoked -> null
                 }
-                sendEffect(MainEffect.ShowEmoteUpdate(text))
+                if (text != null) sendEffect(MainEffect.ShowEmoteUpdate(text))
             }
         }
     }

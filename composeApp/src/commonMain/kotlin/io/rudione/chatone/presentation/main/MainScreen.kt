@@ -23,8 +23,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -86,7 +87,15 @@ import kotlin.math.hypot
 import io.rudione.chatone.presentation.chat.components.ChattersPanel
 import io.rudione.chatone.presentation.main.components.MentionsFeed
 import io.rudione.chatone.presentation.main.components.MentionToast
+import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
 import io.rudione.chatone.presentation.settings.SettingsEffect
+import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
+import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
+import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AuthRepository
+import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
+import io.rudione.chatone.presentation.chat.ChatViewModel
+import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
 
 private data class ItemBounds(val id: String, val rect: Rect)
 
@@ -101,6 +110,17 @@ fun MainScreen(
     val settingsViewModel: SettingsViewModel = koinViewModel()
     val settingsState by settingsViewModel.state.collectAsState()
     val s = LocalStrings.current
+
+
+    MultiChatRootSetup()
+    val accountManager: AccountManager = koinInject()
+    val authRepository: AuthRepository = koinInject()
+    val connectionRegistry: MultiAccountConnectionRegistry = koinInject()
+    AccountAutoConnectEffect(
+        authRepository = authRepository,
+        registry = connectionRegistry,
+        accountManager = accountManager
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val wallpaperController = LocalWallpaperController.current
@@ -123,7 +143,13 @@ fun MainScreen(
                     )
                 }
 
-                is MainEffect.IncomingWhisper -> scope.launch { snackbarHostState.showSnackbar("💬 ${effect.fromDisplayName}: ${effect.text}") }
+                is MainEffect.IncomingWhisper -> {
+                    mentionToastData = Triple(
+                        effect.fromDisplayName,
+                        "💬 whisper",
+                        effect.text
+                    )
+                }
                 is MainEffect.MentionToast -> {
                     mentionToastData = Triple(
                         effect.fromDisplayName,
@@ -146,13 +172,10 @@ fun MainScreen(
 
 
     if (state.showSettings && !isWideScreenForSettings) {
-        SettingsScreen(
-            onNavigateBack = { viewModel.sendEvent(MainEvent.HideSettings) },
-            onThemeChanged = onThemeChanged,
-            isWideScreen = false,
-            wallpaperLoader = wallpaperLoader
+        DetachedSettingsWindow(
+            onClose = { viewModel.sendEvent(MainEvent.HideSettings) },
+            onThemeChanged = onThemeChanged
         )
-        return
     }
 
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { scaffoldPadding ->
@@ -173,6 +196,75 @@ fun MainScreen(
         ) {
             val isWideScreen = maxWidth >= 725.dp
             LaunchedEffect(isWideScreen) { isWideScreenForSettings = isWideScreen }
+
+            val chatContent = remember {
+                movableContentOf<String, Boolean> { activeChannel, wide ->
+                    ChatScreen(
+                        channelLogin = activeChannel,
+                        onNavigateBack = {
+                            if (!wide) viewModel.sendEvent(MainEvent.ToggleSidebar)
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        accessToken = state.selectedAccount?.accessToken ?: "",
+                        currentUserId = state.selectedAccount?.userId ?: "",
+                        currentUserLogin = state.selectedAccount?.login ?: "",
+                        currentDisplayName = state.selectedAccount?.displayName ?: "",
+                        onMentionDetected = { login: String ->
+                            viewModel.sendEvent(MainEvent.IncrementMentionCount(login))
+                        },
+                        onMentionReceived = { entry ->
+                            viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
+                        },
+                        onOpenWhisper = { userId, username, displayName, avatarUrl, color ->
+                            viewModel.sendEvent(
+                                MainEvent.OpenWhisperWith(
+                                    userId, username, displayName, avatarUrl, color
+                                )
+                            )
+                        },
+                        onChannelIdResolved = { channelId ->
+                            viewModel.sendEvent(MainEvent.SetActiveChatChannelId(channelId))
+                        },
+                        isWideScreen = wide,
+                        wallpaper = wallpaper,
+                        mentionMuteRepository = viewModel.mentionMuteRepository
+                    )
+                }
+            }
+
+
+            val multiPanelRenderer: @Composable (String, Boolean, Modifier) -> Unit =
+                { panelChannel, isCompact, panelModifier ->
+
+                    val perPanelViewModel: ChatViewModel =
+                        koinViewModel(key = "panel-vm-${panelChannel.lowercase()}")
+                    ChatScreen(
+                        channelLogin = panelChannel,
+                        onNavigateBack = {},
+                        modifier = panelModifier,
+                        accessToken = state.selectedAccount?.accessToken ?: "",
+                        currentUserId = state.selectedAccount?.userId ?: "",
+                        currentUserLogin = state.selectedAccount?.login ?: "",
+                        currentDisplayName = state.selectedAccount?.displayName ?: "",
+                        onMentionDetected = { login: String ->
+                            viewModel.sendEvent(MainEvent.IncrementMentionCount(login))
+                        },
+                        onMentionReceived = { entry ->
+                            viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
+                        },
+                        onOpenWhisper = { userId, username, displayName, avatarUrl, color ->
+                            viewModel.sendEvent(
+                                MainEvent.OpenWhisperWith(userId, username, displayName, avatarUrl, color)
+                            )
+                        },
+                        onChannelIdResolved = { _ -> },
+                        isWideScreen = false,
+                        wallpaper = wallpaper,
+                        mentionMuteRepository = viewModel.mentionMuteRepository,
+                        renderBackground = false,
+                        viewModel = perPanelViewModel
+                    )
+                }
 
             if (isWideScreen) {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -243,7 +335,8 @@ fun MainScreen(
                                     ChannelSidebar(
                                         state = state,
                                         onEvent = { viewModel.sendEvent(it) },
-                                        isWideScreen = true
+                                        isWideScreen = true,
+                                        mentionMuteRepository = viewModel.mentionMuteRepository
                                     )
                                 }
                             }
@@ -300,40 +393,11 @@ fun MainScreen(
                                 darkTheme = settingsState.darkTheme,
                                 modifier = Modifier.weight(1f)
                             ) {
-                                ChatScreen(
-                                    channelLogin = activeChannel,
-                                    onNavigateBack = {},
-                                    modifier = Modifier.fillMaxSize(),
-                                    accessToken = state.selectedAccount?.accessToken ?: "",
-                                    currentUserId = state.selectedAccount?.userId ?: "",
-                                    currentUserLogin = state.selectedAccount?.login ?: "",
-                                    currentDisplayName = state.selectedAccount?.displayName ?: "",
-                                    onMentionDetected = { login: String ->
-                                        viewModel.sendEvent(MainEvent.IncrementMentionCount(login))
-                                    },
-                                    onMentionReceived = { entry ->
-                                        viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
-                                    },
-                                    onOpenWhisper = { userId, username, displayName, avatarUrl, color ->
-                                        viewModel.sendEvent(
-                                            MainEvent.OpenWhisperWith(
-                                                userId,
-                                                username,
-                                                displayName,
-                                                avatarUrl,
-                                                color
-                                            )
-                                        )
-                                    },
-                                    onChannelIdResolved = { channelId ->
-                                        viewModel.sendEvent(
-                                            MainEvent.SetActiveChatChannelId(
-                                                channelId
-                                            )
-                                        )
-                                    },
+                                MainScreenChatRouter(
+                                    activeChannel = activeChannel,
                                     isWideScreen = true,
-                                    wallpaper = wallpaper
+                                    singleChatRenderer = { ch, wide -> chatContent(ch, wide) },
+                                    multiChatRenderer = multiPanelRenderer
                                 )
                             }
                         } else {
@@ -391,36 +455,11 @@ fun MainScreen(
                             darkTheme = settingsState.darkTheme,
                             modifier = Modifier.weight(1f)
                         ) {
-                            ChatScreen(
-                                channelLogin = activeChannel,
-                                onNavigateBack = { viewModel.sendEvent(MainEvent.ToggleSidebar) },
-                                modifier = Modifier.fillMaxSize(),
-                                accessToken = state.selectedAccount?.accessToken ?: "",
-                                currentUserId = state.selectedAccount?.userId ?: "",
-                                currentUserLogin = state.selectedAccount?.login ?: "",
-                                currentDisplayName = state.selectedAccount?.displayName ?: "",
-                                onMentionDetected = { login: String ->
-                                    viewModel.sendEvent(MainEvent.IncrementMentionCount(login))
-                                },
-                                onMentionReceived = { entry ->
-                                    viewModel.sendEvent(MainEvent.AddMentionEntry(entry))
-                                },
-                                onOpenWhisper = { userId, username, displayName, avatarUrl, color ->
-                                    viewModel.sendEvent(
-                                        MainEvent.OpenWhisperWith(
-                                            userId,
-                                            username,
-                                            displayName,
-                                            avatarUrl,
-                                            color
-                                        )
-                                    )
-                                },
-                                onChannelIdResolved = { channelId ->
-                                    viewModel.sendEvent(MainEvent.SetActiveChatChannelId(channelId))
-                                },
+                            MainScreenChatRouter(
+                                activeChannel = activeChannel,
                                 isWideScreen = false,
-                                wallpaper = wallpaper
+                                singleChatRenderer = { ch, wide -> chatContent(ch, wide) },
+                                multiChatRenderer = multiPanelRenderer
                             )
                         }
                     } else {
@@ -487,7 +526,8 @@ fun MainScreen(
                             ChannelSidebar(
                                 state = state,
                                 onEvent = { event: MainEvent -> viewModel.sendEvent(event) },
-                                isWideScreen = true
+                                isWideScreen = true,
+                                mentionMuteRepository = viewModel.mentionMuteRepository
                             )
                         }
                         if (wallpaper.isActive) {
@@ -1353,7 +1393,8 @@ private fun CompactChannelAvatar(
 private fun ChannelSidebar(
     state: MainState,
     onEvent: (MainEvent) -> Unit,
-    isWideScreen: Boolean = false
+    isWideScreen: Boolean = false,
+    mentionMuteRepository: io.rudione.chatone.data.repository.MentionMuteRepository? = null
 ) {
     val extra = ChatoneTheme.extraColors
     val density = LocalDensity.current
@@ -1457,6 +1498,9 @@ private fun ChannelSidebar(
                     }
                 }
                 if (state.activeChannelLogin != null) {
+                    val isBroadcaster = state.activeChannelLogin.equals(account.login, ignoreCase = true)
+                    val isModForActive = state.activeChatChannelId.isNotEmpty() &&
+                            state.activeChatChannelId in state.moderatedChannelIds
                     Box {
                         var showChannelMenu by remember { mutableStateOf(false) }
                         IconButton(
@@ -1470,20 +1514,55 @@ private fun ChannelSidebar(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        val activeLogin = state.activeChannelLogin ?: ""
+                        val isChannelMuted = remember(activeLogin) {
+                            mentionMuteRepository?.isChannelMuted(activeLogin) ?: false
+                        }
+                        var channelMuted by remember(activeLogin) { mutableStateOf(isChannelMuted) }
                         DropdownMenu(
                             expanded = showChannelMenu,
                             onDismissRequest = { showChannelMenu = false }) {
+                            if (isBroadcaster || isModForActive) {
+                                DropdownMenuItem(
+                                    text = { Text(LocalStrings.current.mainViewersList) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Filled.Person,
+                                            null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        showChannelMenu = false; onEvent(MainEvent.ShowChattersPanel)
+                                    }
+                                )
+                            }
                             DropdownMenuItem(
-                                text = { Text(LocalStrings.current.mainViewersList) },
+                                text = {
+                                    Text(
+                                        if (channelMuted)
+                                            LocalStrings.current.unmuteMentionsForChannel
+                                        else
+                                            LocalStrings.current.muteMentionsForChannel
+                                    )
+                                },
                                 leadingIcon = {
                                     Icon(
-                                        Icons.Filled.Person,
+                                        if (channelMuted) Icons.Filled.Notifications
+                                        else Icons.Outlined.NotificationsOff,
                                         null,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 },
                                 onClick = {
-                                    showChannelMenu = false; onEvent(MainEvent.ShowChattersPanel)
+                                    showChannelMenu = false
+                                    if (channelMuted) {
+                                        onEvent(MainEvent.UnmuteMentionsChannel(activeLogin))
+                                        channelMuted = false
+                                    } else {
+                                        onEvent(MainEvent.MuteMentionsChannel(activeLogin))
+                                        channelMuted = true
+                                    }
                                 }
                             )
                         }
@@ -2385,9 +2464,7 @@ private fun ChannelTabBar(
         }
         Box(modifier = Modifier.fillMaxWidth()) {
             FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 channels.forEachIndexed { index: Int, channel: ChannelTab ->
                     val isActive = channel.login == activeLogin
@@ -2407,7 +2484,7 @@ private fun ChannelTabBar(
                                 ) else Modifier
                             )
                             .clickable { onSelect(channel.login) }
-                            .padding(start = 8.dp, end = 2.dp, top = 8.dp, bottom = 8.dp)
+                            .padding(start = 6.dp, end = 2.dp, top = 6.dp, bottom = 6.dp)
                             .onGloballyPositioned { coords ->
                                 val bounds = coords.boundsInRoot()
                                 tabCenter.value = Offset(

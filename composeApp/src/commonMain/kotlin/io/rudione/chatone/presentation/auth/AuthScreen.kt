@@ -291,6 +291,9 @@ private fun AuthContentState(
     onGuestClick: () -> Unit,
     onRetry: () -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
+
+
     LiquidGlassSurface(
         modifier = Modifier
             .padding(24.dp)
@@ -432,12 +435,17 @@ private fun AuthContentState(
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+
                         Spacer(modifier = Modifier.height(6.dp))
+
                         Text(
                             text = "t.me/rudionee",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                            textAlign = TextAlign.Start
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Start,
+                            modifier = Modifier.clickable {
+                                uriHandler.openUri("https://t.me/rudionee")
+                            }
                         )
                     }
                 }

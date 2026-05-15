@@ -117,6 +117,7 @@ interface AppStrings {
     val settingsBlockScroll: String
     val settingsBlockScrollDesc: String
     val settingsMessages: String
+    val settingsMessageSpacing: String
     val settingsAutoScroll: String
     val settingsShowTimestampsDesc: String
     val settingsTimestampFormat: String
@@ -129,10 +130,29 @@ interface AppStrings {
     val settingsShowDeletedMessagesDesc: String
     val settingsSmoothChat: String
     val settingsSmoothChatDesc: String
+    val settingsAlternateRowBg: String
+    val settingsAlternateRowBgDesc: String
+    val settingsBackupTitle: String
+    val settingsBackupDesc: String
+    val settingsBackupExportJson: String
+    val settingsBackupExportCsv: String
+    val settingsBackupExportXlsx: String
+    val settingsBackupImport: String
     val settingsPauseOnHover: String
     val settingsPauseOnHoverDesc: String
     val settingsHighlightRules: String
     val settingsHighlightRulesHint: String
+    val highlightRuleUsername: String
+    val highlightRuleWhispers: String
+    val highlightRuleSubscriptions: String
+    val highlightRuleFirstMessage: String
+    val highlightRuleSearchMatch: String
+    val highlightRuleMentionAccent: String
+    val highlightRuleChannelPoints: String
+    val rewardRedeemedPrefix: String
+    val rewardHighlightMyMessage: String
+    val rewardChannelPoints: String
+    val chatYouAreBanned: String
     val settingsChatControls: String
     val settingsPauseAutoScroll: String
     val settingsPauseAutoScrollDesc: String
@@ -409,6 +429,17 @@ interface AppStrings {
     val panelMentionsEmpty: String
     val panelMentionsHint: String
     val panelInChannel: String
+    val panelMentionsFilter: String
+    val panelMentionsFilterAll: String
+    val panelMentionsFilterUnread: String
+    val panelMentionsFilterToday: String
+    val panelMentionsFilterByUser: String
+    val panelMentionsFilterByChannel: String
+    val panelMentionsSort: String
+    val panelMentionsSortNewest: String
+    val panelMentionsSortOldest: String
+    val panelMentionsSortByUser: String
+    val panelMentionsSortByChannel: String
     val panelWhispers: String
     val panelWhispersEmpty: String
     val panelWhispersHint: String
@@ -428,7 +459,8 @@ interface AppStrings {
     val automodImport: String
     val automodExport: String
     val automodExportJson: String
-    val automodExportMd: String
+    val automodExportXlsx: String
+    val automodExportCsv: String
     val automodInstallStarter: String
     val automodAddRule: String
     val automodFilterAll: String
@@ -500,6 +532,18 @@ interface AppStrings {
     val chatRuleTypeEmotes: String
     val chatRuleTypeNewUser: String
     val chatRuleTypeDuplicate: String
+    val chatRuleTypeConsecutiveNumbers: String
+    val chatRuleTypeStreamOnline: String
+    val chatRuleTypeStreamOffline: String
+    val chatRuleTypeFirstMessageGreeting: String
+    val chatRuleTypeRaidWelcome: String
+    val chatRuleEventMessage: String
+    val chatRuleEventMessageDesc: String
+    val chatRuleEventRepeat: String
+    val chatRuleEventRepeatDesc: String
+    val chatRuleEventDelay: String
+    val chatRuleEventDelayDesc: String
+    val chatRuleChannelFilterAll: String
     val chatRuleEnabled: String
     val chatRuleDisabled: String
     val chatRuleDelete: String
@@ -520,12 +564,22 @@ interface AppStrings {
     val chatRuleCapsMinLengthDesc: String
     val chatRuleLinksAllowClips: String
     val chatRuleLinksAllowClipsDesc: String
+    val chatRuleLinksClipsSameChannelOnly: String
+    val chatRuleLinksClipsSameChannelOnlyDesc: String
+    val chatRuleLinksClipsAllowedChannels: String
+    val chatRuleLinksClipsAllowedChannelsDesc: String
     val chatRuleEmotesMax: String
     val chatRuleEmotesMaxDesc: String
     val chatRuleNewUserAccountAge: String
     val chatRuleNewUserAccountAgeDesc: String
     val chatRuleDuplicateMin: String
     val chatRuleDuplicateMinDesc: String
+    val chatRuleConsecutiveNumbers: String
+    val chatRuleConsecutiveNumbersDesc: String
+    val chatRuleLinksAllowedSites: String
+    val chatRuleLinksAllowedSitesDesc: String
+    val chatRuleLinksRequireHttps: String
+    val chatRuleLinksRequireHttpsDesc: String
     val chatRuleTimeoutDuration: String
     val chatRuleTimeoutDurationDesc: String
     val chatRuleActionDelete: String
@@ -566,6 +620,110 @@ interface AppStrings {
     val themeCreateTheme: String
     val themeAccentColor: String
     val themeFontPreview: String
+
+    val settingsTitleBarMode: String
+    val settingsTitleBarModeDesc: String
+    val settingsTitleBarDark: String
+    val settingsTitleBarLight: String
+    val settingsTitleBarAdaptive: String
+    val settingsTitleBarSystem: String
+
+    val blockUser: String
+    val unblockUser: String
+    val blockedUsers: String
+    val blockedUsersDesc: String
+    val blockedUsersEmpty: String
+    val blockedUsersShowMessages: String
+    val blockedUsersShowMessagesNever: String
+    val blockedUsersShowMessagesMod: String
+    val blockedUsersShowMessagesBroadcaster: String
+    val blockedUsersLoadError: String
+    val blockedUserAdded: String
+    val blockedUserRemoved: String
+    val profileBlock: String
+    val profileUnblock: String
+    val profileBlockConfirmTitle: String
+    val profileBlockConfirmText: String
+    val profileUnblockConfirmTitle: String
+    val profileUnblockConfirmText: String
+
+    val automodResolvedAllowed: String
+    val automodResolvedDenied: String
+
+    val muteMentionsForUser: String
+    val unmuteMentionsForUser: String
+    val muteMentionsForChannel: String
+    val unmuteMentionsForChannel: String
+    val muteMentionsForUserInChannel: String
+    val unmuteMentionsForUserInChannel: String
+    val mentionMutedUser: String
+    val mentionMutedChannel: String
+    val mentionsMuteRuleAdded: String
+    val mentionsMuteRuleRemoved: String
+    val mentionsMutes: String
+    val mentionsMutesDesc: String
+    val mentionsMutesEmpty: String
+    val mentionsMuteTypeUser: String
+    val mentionsMuteTypeChannel: String
+    val mentionsMuteTypeUserInChannel: String
+    val panelMentionsFilterByUserSearch: String
+
+    val emotePickerTabTwitch: String
+    val emotePickerFavoritesSection: String
+    val emotePickerSubsSection: String
+    val emotePickerAddFavorite: String
+    val emotePickerRemoveFavorite: String
+
+    val multiChatAddPanel: String
+    val multiChatClosePanel: String
+    val multiChatMaxPanels: String
+    val multiChatCompactMode: String
+    val multiChatDragHint: String
+    val multiChatOpenChannel: String
+    val multiChatChooseChannel: String
+    val multiChatNoChannelsToAdd: String
+    val multiChatAlreadyOpen: String
+    val multiChatPanelTitle: String
+
+    val accountsTitle: String
+    val accountsListTitle: String
+    val accountsActive: String
+    val accountsSwitchTo: String
+    val accountsAdd: String
+    val accountsRemove: String
+    val accountsRemoveConfirm: String
+    val accountsSetPrimary: String
+    val accountsCustomSettings: String
+    val accountsCustomSettingsDesc: String
+    val accountsUsesGlobal: String
+    val accountsUsesCustom: String
+    val accountsProxyTitle: String
+    val accountsProxyDesc: String
+    val accountsProxyEnabled: String
+    val accountsProxyType: String
+    val accountsProxyHost: String
+    val accountsProxyPort: String
+    val accountsProxyAuthOptional: String
+    val accountsProxyUsername: String
+    val accountsProxyPassword: String
+    val accountsProxyTest: String
+    val accountsProxyTestSuccess: String
+    val accountsProxyTestFailed: String
+    val accountsProxySaved: String
+    val accountsProxyInvalid: String
+    val accountsProxyTypeHttp: String
+    val accountsProxyTypeSocks5: String
+    val accountsSwitcherTitle: String
+    val accountsNoneAdded: String
+
+    val modActionBy: String
+    val modUnbannedBy: String
+    val modUntimedoutBy: String
+    val modModdedBy: String
+    val modUnmoddedBy: String
+    val modVippedBy: String
+    val modUnvippedBy: String
+    val modActionUnknown: String
 
     companion object {
         fun forLocale(locale: String): AppStrings = when (locale) {

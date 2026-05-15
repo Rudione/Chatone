@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +45,16 @@ fun EmoteGridItemFlyweight(
                 indication = if (LocalInspectionMode.current) null else LocalIndication.current,
                 interactionSource = interactionSource
             )
+            .pointerInput(onToggleFavorite) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.buttons.isSecondaryPressed) {
+                            onToggleFavorite()
+                        }
+                    }
+                }
+            }
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

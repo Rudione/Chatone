@@ -1,7 +1,9 @@
 package io.rudione.chatone.domain.model
 
+import androidx.compose.runtime.Immutable
 import io.rudione.chatone.util.MessageToken
 
+@Immutable
 sealed class DisplayMessage {
     abstract val id: String
     abstract val timestamp: Long
@@ -26,6 +28,8 @@ sealed class DisplayMessage {
         val isAction: Boolean,
         val isFirstMessage: Boolean = false,
         val isHighlighted: Boolean = false,
+        val customRewardId: String? = null,
+        val rewardName: String? = null,
         val isDeleted: Boolean = false,
         val rawMessage: ChatMessage? = null,
         val sevenTvPaint: SevenTvCosmetics.Paint? = null,
@@ -49,7 +53,8 @@ sealed class DisplayMessage {
         override val channel: String,
         val systemText: String,
         val innerMessage: PrivMsg? = null,
-        val noticeType: String = ""
+        val noticeType: String = "",
+        val announceColor: String? = null
     ) : DisplayMessage()
 
     data class ModerationMsg(
@@ -59,7 +64,8 @@ sealed class DisplayMessage {
         val text: String,
         val action: ModerationAction,
         val targetUser: String? = null,
-        val duration: Int? = null
+        val duration: Int? = null,
+        val moderatorLogin: String? = null
     ) : DisplayMessage() {
         enum class ModerationAction {
             BAN, TIMEOUT, DELETE, CLEAR, UNBAN
@@ -77,7 +83,9 @@ sealed class DisplayMessage {
         val displayName: String,
         val text: String,
         val color: String? = null,
-        val status: AutoModStatus = AutoModStatus.PENDING
+        val status: AutoModStatus = AutoModStatus.PENDING,
+        val reasonCategory: String? = null,
+        val reasonLevel: Int? = null
     ) : DisplayMessage() {
         enum class AutoModStatus { PENDING, ALLOWED, DENIED }
     }

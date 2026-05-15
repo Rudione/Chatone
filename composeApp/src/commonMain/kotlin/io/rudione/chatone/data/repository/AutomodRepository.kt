@@ -129,10 +129,15 @@ class AutomodRepository(private val database: ChatoneDatabase) {
             capsThresholdPercent = r.capsThresholdPercent.toLong(),
             capsMinLength = r.capsMinLength.toLong(),
             linksAllowClips = r.linksAllowClips.toLong(),
+            linksClipsSameChannelOnly = r.linksClipsSameChannelOnly.toLong(),
+            linksClipsAllowedChannels = r.linksClipsAllowedChannels.joinToString("\n"),
             emoteMaxCount = r.emoteMaxCount.toLong(),
             newAccountAgeDays = r.newAccountAgeDays.toLong(),
             duplicateMinLength = r.duplicateMinLength.toLong(),
-            timeoutSeconds = r.timeoutSeconds.toLong()
+            timeoutSeconds = r.timeoutSeconds.toLong(),
+            eventMessage = r.eventMessage,
+            eventRepeat = r.eventRepeat.toLong().coerceIn(1, 10),
+            eventDelaySeconds = r.eventDelaySeconds.toLong().coerceIn(0, 600)
         )
         reload()
     }
@@ -201,12 +206,19 @@ class AutomodRepository(private val database: ChatoneDatabase) {
         capsThresholdPercent = capsThresholdPercent.toInt(),
         capsMinLength = capsMinLength.toInt(),
         linksAllowClips = linksAllowClips == 1L,
+        linksClipsSameChannelOnly = linksClipsSameChannelOnly == 1L,
+        linksClipsAllowedChannels = linksClipsAllowedChannels.lines()
+            .map { it.trim().lowercase().removePrefix("#") }
+            .filter { it.isNotBlank() },
         emoteMaxCount = emoteMaxCount.toInt(),
         newAccountAgeDays = newAccountAgeDays.toInt(),
         duplicateMinLength = duplicateMinLength.toInt(),
         exemptMods = exemptMods == 1L,
         exemptVips = exemptVips == 1L,
         exemptSubs = exemptSubs == 1L,
+        eventMessage = eventMessage,
+        eventRepeat = eventRepeat.toInt().coerceIn(1, 10),
+        eventDelaySeconds = eventDelaySeconds.toInt().coerceIn(0, 600),
         createdAt = createdAt
     )
 }

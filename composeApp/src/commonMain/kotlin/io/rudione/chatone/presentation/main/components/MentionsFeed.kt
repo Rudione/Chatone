@@ -9,11 +9,19 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,8 +29,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.domain.model.MentionEntry
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.main.MainEvent
@@ -34,6 +45,10 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 
+enum class MentionFilter { ALL, UNREAD, TODAY, BY_USER, BY_CHANNEL }
+enum class MentionSort { NEWEST, OLDEST, BY_USER, BY_CHANNEL }
+
+
 @Composable
 fun MentionsFeed(
     state: MainState,
@@ -42,10 +57,46 @@ fun MentionsFeed(
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
+    var filter by remember { mutableStateOf(MentionFilter.ALL) }
+    var sort by remember { mutableStateOf(MentionSort.NEWEST) }
+    var showFilterMenu by remember { mutableStateOf(false) }
+    var userSearchQuery by remember { mutableStateOf("") }
+    var showUserSearchBar by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.showMentionsFeed) {
         if (state.showMentionsFeed) {
             listState.scrollToItem(index = 0)
+        }
+    }
+
+    val displayedMentions = remember(state.mentions, filter, sort, userSearchQuery) {
+        val now = Clock.System.now().toEpochMilliseconds()
+        val dayMs = 24L * 60L * 60L * 1000L
+        val preFiltered = when (filter) {
+            MentionFilter.ALL -> state.mentions
+            MentionFilter.UNREAD -> state.mentions.filter { !it.isRead }
+            MentionFilter.TODAY -> state.mentions.filter { now - it.timestamp < dayMs }
+            MentionFilter.BY_USER -> state.mentions
+            MentionFilter.BY_CHANNEL -> state.mentions
+        }
+        val filtered = if (userSearchQuery.isNotBlank()) {
+            preFiltered.filter {
+                it.fromUsername.contains(userSearchQuery, ignoreCase = true) ||
+                        it.fromDisplayName.contains(userSearchQuery, ignoreCase = true)
+            }
+        } else preFiltered
+        when {
+            filter == MentionFilter.BY_USER ->
+                filtered.sortedWith(compareBy({ it.fromUsername.lowercase() }, { -it.timestamp }))
+            filter == MentionFilter.BY_CHANNEL ->
+                filtered.sortedWith(compareBy({ it.channelLogin.lowercase() }, { -it.timestamp }))
+            sort == MentionSort.NEWEST -> filtered.sortedByDescending { it.timestamp }
+            sort == MentionSort.OLDEST -> filtered.sortedBy { it.timestamp }
+            sort == MentionSort.BY_USER ->
+                filtered.sortedWith(compareBy({ it.fromUsername.lowercase() }, { -it.timestamp }))
+            sort == MentionSort.BY_CHANNEL ->
+                filtered.sortedWith(compareBy({ it.channelLogin.lowercase() }, { -it.timestamp }))
+            else -> filtered
         }
     }
 
@@ -89,6 +140,36 @@ fun MentionsFeed(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
+                Box {
+                    IconButton(
+                        onClick = { showFilterMenu = true },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.FilterList, null,
+                            modifier = Modifier.size(16.dp),
+                            tint = if (filter != MentionFilter.ALL || sort != MentionSort.NEWEST)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (showFilterMenu) {
+                        Popup(
+                            alignment = Alignment.TopEnd,
+                            offset = IntOffset(0, 36),
+                            onDismissRequest = { showFilterMenu = false },
+                            properties = PopupProperties(focusable = true)
+                        ) {
+                            MentionFilterMenu(
+                                currentFilter = filter,
+                                currentSort = sort,
+                                onFilterChange = { filter = it },
+                                onSortChange = { sort = it },
+                                onDismiss = { showFilterMenu = false }
+                            )
+                        }
+                    }
+                }
                 if (state.unreadMentionsCount > 0) {
                     TextButton(
                         onClick = { onEvent(MainEvent.MarkAllMentionsRead) },
@@ -103,6 +184,17 @@ fun MentionsFeed(
                     }
                 }
                 IconButton(
+                    onClick = { showUserSearchBar = !showUserSearchBar; if (!showUserSearchBar) userSearchQuery = "" },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Search, null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (userSearchQuery.isNotBlank()) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(
                     onClick = { onEvent(MainEvent.HideMentionsFeed) },
                     modifier = Modifier.size(28.dp)
                 ) {
@@ -114,10 +206,49 @@ fun MentionsFeed(
                 }
             }
 
+            if (showUserSearchBar) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = userSearchQuery,
+                        onValueChange = { userSearchQuery = it },
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        placeholder = {
+                            Text(
+                                LocalStrings.current.panelMentionsFilterByUserSearch,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        leadingIcon = {
+                            Icon(Icons.Filled.Search, null, modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        trailingIcon = if (userSearchQuery.isNotEmpty()) {
+                            { IconButton(onClick = { userSearchQuery = "" }, modifier = Modifier.size(20.dp)) {
+                                Icon(Icons.Filled.Close, null, modifier = Modifier.size(12.dp)) }
+                            }
+                        } else null
+                    )
+                }
+            }
+
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
 
-            if (state.mentions.isEmpty()) {
+            if (displayedMentions.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxWidth().height(200.dp),
                     contentAlignment = Alignment.Center
@@ -147,7 +278,7 @@ fun MentionsFeed(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
-                    items(state.mentions, key = { it.messageId }) { entry ->
+                    items(displayedMentions, key = { it.messageId }) { entry ->
                         MentionRow(
                             entry = entry,
                             onClick = {
@@ -226,6 +357,106 @@ private fun MentionRow(entry: MentionEntry, onClick: () -> Unit) {
         modifier = Modifier.padding(horizontal = 14.dp),
         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)
     )
+}
+
+@Composable
+private fun MentionFilterMenu(
+    currentFilter: MentionFilter,
+    currentSort: MentionSort,
+    onFilterChange: (MentionFilter) -> Unit,
+    onSortChange: (MentionSort) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val s = LocalStrings.current
+    LiquidGlassSurface(
+        modifier = Modifier.width(240.dp),
+        shape = RoundedCornerShape(14.dp),
+        contentPadding = PaddingValues(0.dp),
+        glassIntensity = 0.96f,
+        backgroundAlphaHigh = 0.97f,
+        backgroundAlphaLow = 0.92f,
+        borderAlphaHigh = 0.22f,
+        borderAlphaLow = 0.08f
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            SectionLabel(s.panelMentionsFilter)
+            FilterMenuRow(s.panelMentionsFilterAll, currentFilter == MentionFilter.ALL) {
+                onFilterChange(MentionFilter.ALL); onDismiss()
+            }
+            FilterMenuRow(s.panelMentionsFilterUnread, currentFilter == MentionFilter.UNREAD) {
+                onFilterChange(MentionFilter.UNREAD); onDismiss()
+            }
+            FilterMenuRow(s.panelMentionsFilterToday, currentFilter == MentionFilter.TODAY) {
+                onFilterChange(MentionFilter.TODAY); onDismiss()
+            }
+            FilterMenuRow(s.panelMentionsFilterByUser, currentFilter == MentionFilter.BY_USER) {
+                onFilterChange(MentionFilter.BY_USER); onDismiss()
+            }
+            FilterMenuRow(s.panelMentionsFilterByChannel, currentFilter == MentionFilter.BY_CHANNEL) {
+                onFilterChange(MentionFilter.BY_CHANNEL); onDismiss()
+            }
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                color = Color.White.copy(alpha = 0.08f)
+            )
+            SectionLabel(s.panelMentionsSort)
+            FilterMenuRow(s.panelMentionsSortNewest, currentSort == MentionSort.NEWEST) {
+                onSortChange(MentionSort.NEWEST); onDismiss()
+            }
+            FilterMenuRow(s.panelMentionsSortOldest, currentSort == MentionSort.OLDEST) {
+                onSortChange(MentionSort.OLDEST); onDismiss()
+            }
+            FilterMenuRow(s.panelMentionsSortByUser, currentSort == MentionSort.BY_USER) {
+                onSortChange(MentionSort.BY_USER); onDismiss()
+            }
+            FilterMenuRow(s.panelMentionsSortByChannel, currentSort == MentionSort.BY_CHANNEL) {
+                onSortChange(MentionSort.BY_CHANNEL); onDismiss()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        fontSize = 10.sp,
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+    )
+}
+
+@Composable
+private fun FilterMenuRow(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (selected) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        if (selected) {
+            Icon(
+                Icons.Filled.Check,
+                null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
 }
 
 private fun parseHexColorMentions(hex: String?): Color? {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -17,14 +18,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import kotlinx.coroutines.delay
 
 @Composable
 fun MentionToast(
@@ -34,10 +34,10 @@ fun MentionToast(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scope = rememberCoroutineScope()
+    val isWhisper = channelLogin.startsWith("💬")
 
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(3500)
+        kotlinx.coroutines.delay(4000)
         onDismiss()
     }
 
@@ -56,18 +56,16 @@ fun MentionToast(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-           
             Icon(
-                Icons.Filled.Notifications,
+                if (isWhisper) Icons.Filled.MailOutline else Icons.Filled.Notifications,
                 contentDescription = null,
                 modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.primary
+                tint = if (isWhisper) Color(0xFF9B59B6) else MaterialTheme.colorScheme.primary
             )
 
-           
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "@$fromDisplayName в #$channelLogin",
+                    text = if (isWhisper) "💬 $fromDisplayName" else "@$fromDisplayName в #$channelLogin",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -83,7 +81,6 @@ fun MentionToast(
                 )
             }
 
-           
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier.size(24.dp)

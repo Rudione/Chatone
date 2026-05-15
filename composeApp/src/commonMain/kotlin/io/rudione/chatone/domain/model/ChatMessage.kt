@@ -23,7 +23,9 @@ data class ChatMessage(
     val isMention: Boolean = false,
     val isAction: Boolean = false,
     val isFirstMessage: Boolean = false,
-    val isHighlighted: Boolean = false
+    val isHighlighted: Boolean = false,
+    val customRewardId: String? = null,
+    val rewardName: String? = null
 )
 
 @Serializable

@@ -9,11 +9,22 @@ enum class ChatRuleType {
     LINKS,
     EMOTE_SPAM,
     NEW_ACCOUNT,
-    DUPLICATE_MESSAGE
+    DUPLICATE_MESSAGE,
+    CONSECUTIVE_NUMBERS,
+    STREAM_ONLINE,
+    STREAM_OFFLINE,
+    FIRST_MESSAGE_GREETING,
+    RAID_WELCOME
 }
 
 @Serializable
-enum class ChatRuleAction { DELETE, TIMEOUT, BAN }
+enum class ChatRuleAction { DELETE, TIMEOUT, BAN, SEND_MESSAGE }
+
+val ChatRuleType.isEventTrigger: Boolean
+    get() = this == ChatRuleType.STREAM_ONLINE ||
+            this == ChatRuleType.STREAM_OFFLINE ||
+            this == ChatRuleType.FIRST_MESSAGE_GREETING ||
+            this == ChatRuleType.RAID_WELCOME
 
 @Serializable
 data class ChatRule(
@@ -32,8 +43,14 @@ data class ChatRule(
     val capsMinLength: Int = 8,
 
     val linksAllowClips: Boolean = true,
+    val linksClipsSameChannelOnly: Boolean = false,
+    val linksClipsAllowedChannels: List<String> = emptyList(),
+    val linksAllowedSites: List<String> = emptyList(),
+    val linksRequireHttps: Boolean = true,
 
     val emoteMaxCount: Int = 8,
+
+    val consecutiveNumbersThreshold: Int = 8,
 
     val newAccountAgeDays: Int = 7,
 
@@ -42,6 +59,10 @@ data class ChatRule(
     val exemptMods: Boolean = true,
     val exemptVips: Boolean = true,
     val exemptSubs: Boolean = false,
+
+    val eventMessage: String = "",
+    val eventRepeat: Int = 1,
+    val eventDelaySeconds: Int = 0,
 
     val createdAt: Long = 0L
 ) {
@@ -52,6 +73,11 @@ data class ChatRule(
         ChatRuleType.EMOTE_SPAM -> "Emote spam: ≤$emoteMaxCount"
         ChatRuleType.NEW_ACCOUNT -> "New account: <$newAccountAgeDays d"
         ChatRuleType.DUPLICATE_MESSAGE -> "Duplicate messages"
+        ChatRuleType.CONSECUTIVE_NUMBERS -> "Consecutive numbers: ≥$consecutiveNumbersThreshold"
+        ChatRuleType.STREAM_ONLINE -> "On stream online: send ×$eventRepeat"
+        ChatRuleType.STREAM_OFFLINE -> "On stream offline: send ×$eventRepeat"
+        ChatRuleType.FIRST_MESSAGE_GREETING -> "Greet first-time chatters"
+        ChatRuleType.RAID_WELCOME -> "Welcome raids"
     }
     val scopeLabel: String get() = when (scope) {
         AutomodScope.GLOBAL -> "GLOBAL"

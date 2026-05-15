@@ -1,9 +1,11 @@
 package io.rudione.chatone.util
 
+import androidx.compose.runtime.Immutable
 import io.rudione.chatone.domain.model.ChannelEmotes
 import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.GenericEmote
 
+@Immutable
 sealed class MessageToken {
     data class Text(val text: String) : MessageToken()
     data class TwitchEmoteToken(

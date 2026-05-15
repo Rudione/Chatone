@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -36,10 +37,16 @@ class TwitchIrcClient(
     private var reconnectJob: Job? = null
     private var connectionJob: Job? = null
 
-    private val _messages = MutableSharedFlow<ChatMessage>(extraBufferCapacity = 128)
+    private val _messages = MutableSharedFlow<ChatMessage>(
+        extraBufferCapacity = 1024,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val messages: SharedFlow<ChatMessage> = _messages.asSharedFlow()
 
-    private val _events = MutableSharedFlow<IrcEvent>(extraBufferCapacity = 64)
+    private val _events = MutableSharedFlow<IrcEvent>(
+        extraBufferCapacity = 512,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val events: SharedFlow<IrcEvent> = _events.asSharedFlow()
 
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)

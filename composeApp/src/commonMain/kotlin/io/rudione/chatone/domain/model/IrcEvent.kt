@@ -70,7 +70,6 @@ sealed class IrcEvent {
         val userId: String
     ) : IrcEvent()
 
-    
     data class AutoModHeld(
         val channel: String,
         val msgId: String,
@@ -78,10 +77,45 @@ sealed class IrcEvent {
         val username: String,
         val displayName: String,
         val message: String,
-        val color: String? = null
+        val color: String? = null,
+        val reasonCategory: String? = null,
+        val reasonLevel: Int? = null
+    ) : IrcEvent()
+
+    data class AutoModResolved(
+        val channel: String,
+        val msgId: String,
+        val resolvedBy: String,
+        val action: String
     ) : IrcEvent()
 
     data class Connected(val channel: String) : IrcEvent()
     data class Reconnect(val reason: String = "Server requested reconnect") : IrcEvent()
     data class Error(val message: String) : IrcEvent()
+
+
+    data class ModeratorAction(
+        val channel: String,
+        val action: String,
+        val moderator: String,
+        val moderatorUserId: String? = null,
+        val target: String? = null,
+        val targetUserId: String? = null,
+        val duration: Int? = null,
+        val reason: String? = null,
+        val targetMessageId: String? = null
+    ) : IrcEvent() {
+        companion object {
+            const val ACTION_BAN = "ban"
+            const val ACTION_TIMEOUT = "timeout"
+            const val ACTION_UNBAN = "unban"
+            const val ACTION_UNTIMEOUT = "untimeout"
+            const val ACTION_DELETE = "delete"
+            const val ACTION_CLEAR = "clear"
+            const val ACTION_MOD = "mod"
+            const val ACTION_UNMOD = "unmod"
+            const val ACTION_VIP = "vip"
+            const val ACTION_UNVIP = "unvip"
+        }
+    }
 }

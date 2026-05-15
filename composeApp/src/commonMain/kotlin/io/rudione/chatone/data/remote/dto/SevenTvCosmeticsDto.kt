@@ -156,7 +156,32 @@ data class SevenTvEventBody(
     @SerialName("new") val new_: SevenTvEventValue? = null,
     val pushed: List<SevenTvEventPushedItem> = emptyList(),
     val pulled: List<SevenTvEventPulledItem> = emptyList(),
-    val updated: List<SevenTvEventUpdatedItem> = emptyList()
+    val updated: List<SevenTvEventUpdatedItem> = emptyList(),
+    @SerialName("object") val obj: SevenTvEventObject? = null
+)
+
+@Serializable
+data class SevenTvEventObject(
+    val id: String = "",
+    @SerialName("ref_id") val refId: String = "",
+    val kind: String = "",
+    val user: SevenTvEntitlementUser? = null
+)
+
+@Serializable
+data class SevenTvEntitlementUser(
+    val id: String = "",
+    val username: String = "",
+    @SerialName("display_name") val displayName: String = "",
+    val connections: List<SevenTvEntitlementConnection> = emptyList()
+)
+
+@Serializable
+data class SevenTvEntitlementConnection(
+    val id: String = "",
+    val platform: String = "",
+    val username: String = "",
+    @SerialName("display_name") val displayName: String = ""
 )
 
 @Serializable

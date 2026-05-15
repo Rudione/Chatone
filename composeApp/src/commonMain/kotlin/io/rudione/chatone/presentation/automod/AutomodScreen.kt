@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -109,7 +110,8 @@ fun AutomodScreen(
                                 chatRules = chatRules,
                                 onImport = onImport,
                                 onExportJson = { onExport("automod-rules.json", AutomodImportExport.toJson(wordRules, chatRules)) },
-                                onExportMd = { onExport("automod-rules.md", AutomodImportExport.toMarkdown(wordRules, chatRules)) },
+                                onExportXlsx = { onExport("automod-rules.xlsx", AutomodImportExport.toXlsx(wordRules, chatRules)) },
+                                onExportCsv = { onExport("automod-rules.csv", AutomodImportExport.toCsv(wordRules, chatRules)) },
                                 onInstallDefaults = {
                                     AutomodImportExport.defaultWordStarterPack().forEach { repository.upsert(it) }
                                     AutomodImportExport.defaultChatStarterPack().forEach { repository.upsertChatRule(it) }
@@ -156,7 +158,8 @@ fun AutomodScreen(
                         showImportExport = true, wordRules = wordRules, chatRules = chatRules,
                         onImport = onImport,
                         onExportJson = { onExport("automod-rules.json", AutomodImportExport.toJson(wordRules, chatRules)) },
-                        onExportMd = { onExport("automod-rules.md", AutomodImportExport.toMarkdown(wordRules, chatRules)) },
+                        onExportXlsx = { onExport("automod-rules.xlsx", AutomodImportExport.toXlsx(wordRules, chatRules)) },
+                        onExportCsv = { onExport("automod-rules.csv", AutomodImportExport.toCsv(wordRules, chatRules)) },
                         onInstallDefaults = {
                             AutomodImportExport.defaultWordStarterPack().forEach { repository.upsert(it) }
                             AutomodImportExport.defaultChatStarterPack().forEach { repository.upsertChatRule(it) }
@@ -188,7 +191,8 @@ private fun LeftHeader(
     chatRules: List<ChatRule>,
     onImport: () -> Unit,
     onExportJson: () -> Unit,
-    onExportMd: () -> Unit,
+    onExportXlsx: () -> Unit,
+    onExportCsv: () -> Unit,
     onInstallDefaults: () -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -219,7 +223,8 @@ private fun LeftHeader(
                     DropdownMenu(menuOpen, { menuOpen = false }) {
                         DropdownMenuItem({ Text(s.automodImport) }, { menuOpen = false; onImport() })
                         DropdownMenuItem({ Text(s.automodExportJson) }, { menuOpen = false; onExportJson() })
-                        DropdownMenuItem({ Text(s.automodExportMd) }, { menuOpen = false; onExportMd() })
+                        DropdownMenuItem({ Text(s.automodExportXlsx) }, { menuOpen = false; onExportXlsx() })
+                        DropdownMenuItem({ Text(s.automodExportCsv) }, { menuOpen = false; onExportCsv() })
                         HorizontalDivider()
                         DropdownMenuItem({ Text(s.automodInstallStarter) }, { menuOpen = false; onInstallDefaults() })
                     }
@@ -386,12 +391,42 @@ private fun ChatRuleListPane(
     selectedId: String?,
     onSelectId: (String?) -> Unit
 ) {
+    var filter by remember { mutableStateOf(AutomodFilter.ALL) }
+    var query by remember { mutableStateOf("") }
+    var channelFilter by remember { mutableStateOf<String?>(null) }
     val s = LocalStrings.current
-    val selected = rules.firstOrNull { it.id == selectedId }
 
-    LaunchedEffect(rules) {
-        if (selectedId == null || rules.none { it.id == selectedId })
-            onSelectId(rules.firstOrNull()?.id)
+    val knownChannels = remember(rules) {
+        rules.mapNotNull { it.channelLogin?.takeIf { c -> c.isNotBlank() } }
+            .map { it.lowercase() }
+            .distinct()
+            .sorted()
+    }
+
+    val filtered = remember(rules, filter, query, channelFilter) {
+        rules.filter { r ->
+            val mf = when (filter) {
+                AutomodFilter.ALL -> true
+                AutomodFilter.GLOBAL -> r.scope == AutomodScope.GLOBAL
+                AutomodFilter.LOCAL -> r.scope == AutomodScope.LOCAL
+            }
+            val cf = channelFilter?.let {
+                r.scope == AutomodScope.LOCAL && r.channelLogin.equals(it, ignoreCase = true)
+            } ?: true
+            val q = query.trim()
+            mf && cf && (q.isEmpty()
+                    || r.displayLabel.contains(q, true)
+                    || r.eventMessage.contains(q, true)
+                    || r.channelLogin?.contains(q, true) == true
+                    || r.type.name.contains(q, true)
+                    || r.action.name.contains(q, true))
+        }
+    }
+    val selected = filtered.firstOrNull { it.id == selectedId }
+
+    LaunchedEffect(filtered) {
+        if (selectedId == null || filtered.none { it.id == selectedId })
+            onSelectId(filtered.firstOrNull()?.id)
     }
 
     if (!wide && selected != null) {
@@ -407,25 +442,56 @@ private fun ChatRuleListPane(
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("${rules.size} ${s.automodTabChatRules.lowercase()}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(selected = filter == AutomodFilter.ALL, onClick = { filter = AutomodFilter.ALL },
+                label = { Text(s.automodFilterAll) })
+            FilterChip(selected = filter == AutomodFilter.GLOBAL, onClick = { filter = AutomodFilter.GLOBAL },
+                label = { Text(s.automodFilterGlobal) })
+            FilterChip(selected = filter == AutomodFilter.LOCAL, onClick = { filter = AutomodFilter.LOCAL },
+                label = { Text(s.automodFilterLocal) })
+            Spacer(Modifier.weight(1f))
             FilledIconButton(onClick = {
-                val fresh = ChatRule(id = AutomodImportExport.newId(), type = ChatRuleType.SPAM_RATE,
-                    createdAt = Clock.System.now().toEpochMilliseconds())
+                val fresh = ChatRule(
+                    id = AutomodImportExport.newId(),
+                    type = ChatRuleType.SPAM_RATE,
+                    scope = if (filter == AutomodFilter.LOCAL) AutomodScope.LOCAL else AutomodScope.GLOBAL,
+                    channelLogin = if (filter == AutomodFilter.LOCAL) currentChannelLogin?.lowercase() else null,
+                    createdAt = Clock.System.now().toEpochMilliseconds()
+                )
                 repository.upsertChatRule(fresh)
                 onSelectId(fresh.id)
             }, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Filled.Add, "Add", modifier = Modifier.size(18.dp))
             }
         }
-        if (rules.isEmpty()) {
+        Md3SearchBar(query, { query = it }, s.automodSearchPlaceholder)
+        if (knownChannels.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FilterChip(
+                    selected = channelFilter == null,
+                    onClick = { channelFilter = null },
+                    label = { Text(s.chatRuleChannelFilterAll) }
+                )
+                knownChannels.forEach { ch ->
+                    FilterChip(
+                        selected = channelFilter == ch,
+                        onClick = { channelFilter = if (channelFilter == ch) null else ch },
+                        label = { Text("#$ch") }
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        if (filtered.isEmpty()) {
             EmptyHint(s.chatRuleNoRules, s.chatRuleNoRulesHint, Modifier.fillMaxSize())
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                items(rules, key = { it.id }) { rule ->
+                items(filtered, key = { it.id }) { rule ->
                     ChatRuleRow(
                         rule = rule,
                         selected = rule.id == selectedId && wide,
@@ -606,6 +672,7 @@ private fun ChatRuleRow(rule: ChatRule, selected: Boolean, onClick: () -> Unit, 
                     ChatRuleAction.DELETE -> "delete"
                     ChatRuleAction.TIMEOUT -> "timeout ${rule.timeoutSeconds}s"
                     ChatRuleAction.BAN -> "ban"
+                    ChatRuleAction.SEND_MESSAGE -> "send message"
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -655,13 +722,23 @@ private fun ChatRuleDetailContent(
                 ChatRuleType.LINKS to s.chatRuleTypeLinks,
                 ChatRuleType.EMOTE_SPAM to s.chatRuleTypeEmotes,
                 ChatRuleType.NEW_ACCOUNT to s.chatRuleTypeNewUser,
-                ChatRuleType.DUPLICATE_MESSAGE to s.chatRuleTypeDuplicate
+                ChatRuleType.DUPLICATE_MESSAGE to s.chatRuleTypeDuplicate,
+                ChatRuleType.CONSECUTIVE_NUMBERS to s.chatRuleTypeConsecutiveNumbers,
+                ChatRuleType.STREAM_ONLINE to s.chatRuleTypeStreamOnline,
+                ChatRuleType.STREAM_OFFLINE to s.chatRuleTypeStreamOffline,
+                ChatRuleType.FIRST_MESSAGE_GREETING to s.chatRuleTypeFirstMessageGreeting,
+                ChatRuleType.RAID_WELCOME to s.chatRuleTypeRaidWelcome
             )
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 types.chunked(2).forEach { chunk ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         chunk.forEach { (type, label) ->
-                            TypeChip(label, rule.type == type, Modifier.weight(1f)) { onChange(rule.copy(type = type)) }
+                            TypeChip(label, rule.type == type, Modifier.weight(1f)) {
+                                val newAction = if (type.isEventTrigger) ChatRuleAction.SEND_MESSAGE
+                                else if (rule.action == ChatRuleAction.SEND_MESSAGE) ChatRuleAction.DELETE
+                                else rule.action
+                                onChange(rule.copy(type = type, action = newAction))
+                            }
                         }
                         if (chunk.size == 1) Spacer(Modifier.weight(1f))
                     }
@@ -687,8 +764,58 @@ private fun ChatRuleDetailContent(
                         onChange(rule.copy(capsMinLength = it.toInt().coerceIn(1, 500)))
                     }
                 }
-                ChatRuleType.LINKS -> Md3Toggle(s.chatRuleLinksAllowClips, s.chatRuleLinksAllowClipsDesc, rule.linksAllowClips) {
-                    onChange(rule.copy(linksAllowClips = it))
+                ChatRuleType.LINKS -> {
+                    Md3Toggle(s.chatRuleLinksAllowClips, s.chatRuleLinksAllowClipsDesc, rule.linksAllowClips) {
+                        onChange(rule.copy(linksAllowClips = it))
+                    }
+                    if (rule.linksAllowClips) {
+                        Md3Toggle(
+                            s.chatRuleLinksClipsSameChannelOnly,
+                            s.chatRuleLinksClipsSameChannelOnlyDesc,
+                            rule.linksClipsSameChannelOnly
+                        ) { onChange(rule.copy(linksClipsSameChannelOnly = it)) }
+                        if (rule.linksClipsSameChannelOnly) {
+                            var clipChansText by remember(rule.id) {
+                                mutableStateOf(rule.linksClipsAllowedChannels.joinToString("\n"))
+                            }
+                            OutlinedTextField(
+                                value = clipChansText,
+                                onValueChange = { v ->
+                                    clipChansText = v
+                                    val chans = v.lines()
+                                        .map { it.trim().lowercase().removePrefix("#") }
+                                        .filter { it.isNotBlank() }
+                                    onChange(rule.copy(linksClipsAllowedChannels = chans))
+                                },
+                                label = { Text(s.chatRuleLinksClipsAllowedChannels) },
+                                supportingText = { Text(s.chatRuleLinksClipsAllowedChannelsDesc) },
+                                modifier = Modifier.fillMaxWidth(),
+                                minLines = 2,
+                                maxLines = 6,
+                                textStyle = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    Md3Toggle(s.chatRuleLinksRequireHttps, s.chatRuleLinksRequireHttpsDesc, rule.linksRequireHttps) {
+                        onChange(rule.copy(linksRequireHttps = it))
+                    }
+                    var sitesText by remember(rule.id) {
+                        mutableStateOf(rule.linksAllowedSites.joinToString("\n"))
+                    }
+                    OutlinedTextField(
+                        value = sitesText,
+                        onValueChange = { v ->
+                            sitesText = v
+                            val sites = v.lines().map { it.trim().lowercase() }.filter { it.isNotBlank() }
+                            onChange(rule.copy(linksAllowedSites = sites))
+                        },
+                        label = { Text(s.chatRuleLinksAllowedSites) },
+                        supportingText = { Text(s.chatRuleLinksAllowedSitesDesc) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        maxLines = 6,
+                        textStyle = MaterialTheme.typography.bodySmall
+                    )
                 }
                 ChatRuleType.EMOTE_SPAM -> Md3NumberField(s.chatRuleEmotesMax, rule.emoteMaxCount.toLong(), s.chatRuleEmotesMaxDesc) {
                     onChange(rule.copy(emoteMaxCount = it.toInt().coerceIn(1, 200)))
@@ -699,18 +826,44 @@ private fun ChatRuleDetailContent(
                 ChatRuleType.DUPLICATE_MESSAGE -> Md3NumberField(s.chatRuleDuplicateMin, rule.duplicateMinLength.toLong(), s.chatRuleDuplicateMinDesc) {
                     onChange(rule.copy(duplicateMinLength = it.toInt().coerceIn(1, 500)))
                 }
+                ChatRuleType.CONSECUTIVE_NUMBERS -> Md3NumberField(s.chatRuleConsecutiveNumbers, rule.consecutiveNumbersThreshold.toLong(), s.chatRuleConsecutiveNumbersDesc) {
+                    onChange(rule.copy(consecutiveNumbersThreshold = it.toInt().coerceIn(2, 100)))
+                }
+                ChatRuleType.STREAM_ONLINE,
+                ChatRuleType.STREAM_OFFLINE,
+                ChatRuleType.FIRST_MESSAGE_GREETING,
+                ChatRuleType.RAID_WELCOME -> {
+                    OutlinedTextField(
+                        value = rule.eventMessage,
+                        onValueChange = { onChange(rule.copy(eventMessage = it)) },
+                        label = { Text(s.chatRuleEventMessage) },
+                        supportingText = { Text(s.chatRuleEventMessageDesc) },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        maxLines = 4,
+                        textStyle = MaterialTheme.typography.bodySmall
+                    )
+                    Md3NumberField(s.chatRuleEventRepeat, rule.eventRepeat.toLong(), s.chatRuleEventRepeatDesc) {
+                        onChange(rule.copy(eventRepeat = it.toInt().coerceIn(1, 10)))
+                    }
+                    Md3NumberField(s.chatRuleEventDelay, rule.eventDelaySeconds.toLong(), s.chatRuleEventDelayDesc) {
+                        onChange(rule.copy(eventDelaySeconds = it.toInt().coerceIn(0, 600)))
+                    }
+                }
             }
         }
 
-        DetailSection(s.chatRuleSectionAction) {
-            SegmentedRow {
-                Seg(s.chatRuleActionDelete, rule.action == ChatRuleAction.DELETE) { onChange(rule.copy(action = ChatRuleAction.DELETE)) }
-                Seg(s.chatRuleActionTimeout, rule.action == ChatRuleAction.TIMEOUT) { onChange(rule.copy(action = ChatRuleAction.TIMEOUT)) }
-                Seg(s.chatRuleActionBan, rule.action == ChatRuleAction.BAN) { onChange(rule.copy(action = ChatRuleAction.BAN)) }
-            }
-            if (rule.action == ChatRuleAction.TIMEOUT) {
-                TimeInputField(s.chatRuleTimeoutDuration, rule.timeoutSeconds) {
-                    onChange(rule.copy(timeoutSeconds = it.coerceIn(1, 1_209_600)))
+        if (!rule.type.isEventTrigger) {
+            DetailSection(s.chatRuleSectionAction) {
+                SegmentedRow {
+                    Seg(s.chatRuleActionDelete, rule.action == ChatRuleAction.DELETE) { onChange(rule.copy(action = ChatRuleAction.DELETE)) }
+                    Seg(s.chatRuleActionTimeout, rule.action == ChatRuleAction.TIMEOUT) { onChange(rule.copy(action = ChatRuleAction.TIMEOUT)) }
+                    Seg(s.chatRuleActionBan, rule.action == ChatRuleAction.BAN) { onChange(rule.copy(action = ChatRuleAction.BAN)) }
+                }
+                if (rule.action == ChatRuleAction.TIMEOUT) {
+                    TimeInputField(s.chatRuleTimeoutDuration, rule.timeoutSeconds) {
+                        onChange(rule.copy(timeoutSeconds = it.coerceIn(1, 1_209_600)))
+                    }
                 }
             }
         }
@@ -997,6 +1150,11 @@ private fun chatRuleTypeColor(type: ChatRuleType): Color = when (type) {
     ChatRuleType.EMOTE_SPAM -> Color(0xFFBA68C8)
     ChatRuleType.NEW_ACCOUNT -> Color(0xFFFF8A65)
     ChatRuleType.DUPLICATE_MESSAGE -> Color(0xFF90A4AE)
+    ChatRuleType.CONSECUTIVE_NUMBERS -> Color(0xFFF48FB1)
+    ChatRuleType.STREAM_ONLINE -> Color(0xFF66BB6A)
+    ChatRuleType.STREAM_OFFLINE -> Color(0xFFE57373)
+    ChatRuleType.FIRST_MESSAGE_GREETING -> Color(0xFFFFD54F)
+    ChatRuleType.RAID_WELCOME -> Color(0xFF7E57C2)
 }
 
 @Composable

@@ -134,7 +134,14 @@ object IrcMessageParser {
 
 
         val isFirstMessage = tags["first-msg"] == "1"
-        val isHighlighted = tags["msg-id"] == "highlighted-message"
+        val msgIdTag = tags["msg-id"]
+        val customRewardId = tags["custom-reward-id"]?.takeIf { it.isNotBlank() }
+        val isHighlighted = msgIdTag == "highlighted-message" || customRewardId != null
+        val rewardName = when {
+            msgIdTag == "highlighted-message" -> "Highlight My Message"
+            customRewardId != null -> "Channel Points Reward"
+            else -> null
+        }
 
         val isAction = messageText.startsWith("\u0001ACTION ") && messageText.endsWith("\u0001")
         val finalMessage = if (isAction) {
@@ -163,7 +170,9 @@ object IrcMessageParser {
             isMention = false,
             isAction = isAction,
             isFirstMessage = isFirstMessage,
-            isHighlighted = isHighlighted
+            isHighlighted = isHighlighted,
+            customRewardId = customRewardId,
+            rewardName = rewardName
         )
     }
 

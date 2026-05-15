@@ -12,11 +12,32 @@ import kotlinx.datetime.Clock
 
 @Stable
 object EmoteAnimationCache {
+    private const val MAX_ENTRIES = 2048
+
     private val animationStates: SnapshotStateMap<String, Animatable<Float, *>> = mutableStateMapOf()
     private val tooltipTimings: SnapshotStateMap<String, Long> = mutableStateMapOf()
+    private val accessOrder = LinkedHashSet<String>()
     private val mutex = Mutex()
 
     private val animationSpecs: SnapshotStateMap<String, AnimationSpec<Float>> = mutableStateMapOf()
+
+    private fun touch(emoteId: String) {
+        accessOrder.remove(emoteId)
+        accessOrder.add(emoteId)
+        if (accessOrder.size > MAX_ENTRIES) {
+            val toEvict = accessOrder.size - MAX_ENTRIES
+            val iter = accessOrder.iterator()
+            var removed = 0
+            while (removed < toEvict && iter.hasNext()) {
+                val key = iter.next()
+                iter.remove()
+                animationStates.remove(key)
+                animationSpecs.remove(key)
+                tooltipTimings.remove(key)
+                removed++
+            }
+        }
+    }
 
     fun getOrCreateAnimation(
         emoteId: String,
@@ -24,6 +45,7 @@ object EmoteAnimationCache {
         animationSpec: AnimationSpec<Float> = tween(durationMillis = 150)
     ): Animatable<Float, *> {
         animationSpecs[emoteId] = animationSpec
+        touch(emoteId)
         return animationStates.getOrPut(emoteId) {
             Animatable(initialValue)
         }
@@ -53,10 +75,14 @@ object EmoteAnimationCache {
     fun clear(emoteId: String) {
         animationStates.remove(emoteId)
         tooltipTimings.remove(emoteId)
+        animationSpecs.remove(emoteId)
+        accessOrder.remove(emoteId)
     }
 
     fun clearAll() {
         animationStates.clear()
         tooltipTimings.clear()
+        animationSpecs.clear()
+        accessOrder.clear()
     }
 }

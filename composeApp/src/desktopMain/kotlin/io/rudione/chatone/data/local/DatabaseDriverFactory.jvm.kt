@@ -68,6 +68,11 @@ actual class DatabaseDriverFactory {
         addColIfMissing("newAccountAgeDays",      "INTEGER NOT NULL DEFAULT 7")
         addColIfMissing("duplicateMinLength",     "INTEGER NOT NULL DEFAULT 8")
         addColIfMissing("timeoutSeconds",         "INTEGER NOT NULL DEFAULT 60")
+        addColIfMissing("linksClipsSameChannelOnly", "INTEGER NOT NULL DEFAULT 0")
+        addColIfMissing("linksClipsAllowedChannels", "TEXT NOT NULL DEFAULT ''")
+        addColIfMissing("eventMessage",           "TEXT NOT NULL DEFAULT ''")
+        addColIfMissing("eventRepeat",            "INTEGER NOT NULL DEFAULT 1")
+        addColIfMissing("eventDelaySeconds",      "INTEGER NOT NULL DEFAULT 0")
 
         runCatching {
             driver.execute(null,

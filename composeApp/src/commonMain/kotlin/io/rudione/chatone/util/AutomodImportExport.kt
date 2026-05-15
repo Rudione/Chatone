@@ -45,51 +45,119 @@ object AutomodImportExport {
             )
         )
 
-    fun toMarkdown(wordRules: List<AutomodRule>, chatRules: List<ChatRule> = emptyList()): String = buildString {
-        appendLine("# Chatone Automod Export")
-        appendLine()
-        appendLine("Exported at: ${Clock.System.now()}")
-        appendLine("Word rules: ${wordRules.size}  |  Chat rules: ${chatRules.size}")
-        appendLine()
-
-        if (wordRules.isNotEmpty()) {
-            appendLine("## Word Filters")
-            appendLine()
-            appendLine("| TYPE | CHANNEL | PATTERN | ALTERNATES | ACTION | TIMEOUT(ms) | REGEX | WHOLE WORD | CASE | FREQ | WINDOW(ms) | EXEMPT MOD/SUB/VIP | ENABLED | NOTE |")
-            appendLine("|------|---------|---------|-----------|--------|-------------|-------|-----------|------|------|------------|-------------------|---------|------|")
-            wordRules.forEach { r ->
-                appendLine("| ${r.scope.name} | ${r.channelLogin ?: "-"} | ${esc(r.pattern)} | ${esc(r.alternates.joinToString("; "))} " +
-                        "| ${r.action.name} | ${r.timeoutMs} | ${r.isRegex} | ${r.wholeWord} | ${r.caseSensitive} " +
-                        "| ${r.frequencyThreshold} | ${r.frequencyWindowMs} | ${r.exemptMods}/${r.exemptSubs}/${r.exemptVips} " +
-                        "| ${r.enabled} | ${esc(r.note)} |")
-            }
-            appendLine()
+    fun toCsv(wordRules: List<AutomodRule>, chatRules: List<ChatRule> = emptyList()): String = buildString {
+        appendLine("# WORD FILTERS")
+        appendLine("id\tscope\tchannel\tpattern\talternates\taction\ttimeoutMs\tisRegex\twholeWord\tcaseSensitive\tfrequencyThreshold\tfrequencyWindowMs\texemptMods\texemptSubs\texemptVips\tenabled\tnote")
+        wordRules.forEach { r ->
+            appendLine(listOf(
+                r.id, r.scope.name, r.channelLogin ?: "", esc(r.pattern),
+                r.alternates.joinToString(";"), r.action.name, r.timeoutMs,
+                r.isRegex, r.wholeWord, r.caseSensitive,
+                r.frequencyThreshold, r.frequencyWindowMs,
+                r.exemptMods, r.exemptSubs, r.exemptVips, r.enabled, esc(r.note)
+            ).joinToString("\t"))
         }
+        appendLine()
+        appendLine("# CHAT RULES")
+        appendLine("id\ttype\tscope\tchannel\taction\ttimeoutSeconds\tspamMaxMessages\tspamWindowSeconds\tcapsThresholdPercent\tcapsMinLength\tlinksAllowClips\tlinksAllowedSites\tlinksRequireHttps\temoteMaxCount\tnewAccountAgeDays\tduplicateMinLength\tconsecutiveNumbersThreshold\texemptMods\texemptVips\texemptSubs\tenabled")
+        chatRules.forEach { r ->
+            appendLine(listOf(
+                r.id, r.type.name, r.scope.name, r.channelLogin ?: "",
+                r.action.name, r.timeoutSeconds,
+                r.spamMaxMessages, r.spamWindowSeconds,
+                r.capsThresholdPercent, r.capsMinLength,
+                r.linksAllowClips, r.linksAllowedSites.joinToString(";"), r.linksRequireHttps,
+                r.emoteMaxCount, r.newAccountAgeDays, r.duplicateMinLength, r.consecutiveNumbersThreshold,
+                r.exemptMods, r.exemptVips, r.exemptSubs, r.enabled
+            ).joinToString("\t"))
+        }
+    }
 
-        if (chatRules.isNotEmpty()) {
-            appendLine("## Chat Rules")
-            appendLine()
-            appendLine("| TYPE | SCOPE | CHANNEL | ACTION | TIMEOUT(s) | CONFIG | EXEMPT MOD/VIP/SUB | ENABLED |")
-            appendLine("|------|-------|---------|--------|------------|--------|-------------------|---------|")
-            chatRules.forEach { r ->
-                val cfg = when (r.type) {
-                    ChatRuleType.SPAM_RATE -> "${r.spamMaxMessages}msg/${r.spamWindowSeconds}s"
-                    ChatRuleType.ALL_CAPS -> "${r.capsThresholdPercent}% caps, min ${r.capsMinLength}"
-                    ChatRuleType.LINKS -> "allowClips=${r.linksAllowClips}"
-                    ChatRuleType.EMOTE_SPAM -> "max ${r.emoteMaxCount} emotes"
-                    ChatRuleType.NEW_ACCOUNT -> "<${r.newAccountAgeDays}d"
-                    ChatRuleType.DUPLICATE_MESSAGE -> "min ${r.duplicateMinLength} chars"
+    fun toXlsx(wordRules: List<AutomodRule>, chatRules: List<ChatRule> = emptyList()): String =
+        buildXlsxContent(wordRules, chatRules)
+
+
+    fun fromCsv(text: String): ImportResult {
+        val lines = text.lines()
+        val wordRules = mutableListOf<AutomodRule>()
+        val chatRules = mutableListOf<ChatRule>()
+        var section = ""
+        var headerIndices = mapOf<String, Int>()
+        for (line in lines) {
+            when {
+                line.startsWith("# WORD FILTERS") -> { section = "word"; headerIndices = mapOf() }
+                line.startsWith("# CHAT RULES") -> { section = "chat"; headerIndices = mapOf() }
+                line.startsWith("id\t") -> {
+                    headerIndices = line.split("\t").mapIndexed { i, h -> h to i }.toMap()
                 }
-                appendLine("| ${r.type.name} | ${r.scope.name} | ${r.channelLogin ?: "-"} | ${r.action.name} | ${r.timeoutSeconds} | $cfg | ${r.exemptMods}/${r.exemptVips}/${r.exemptSubs} | ${r.enabled} |")
+                line.isBlank() || line.startsWith("#") -> {}
+                else -> {
+                    val cols = line.split("\t")
+                    fun col(name: String) = headerIndices[name]?.let { cols.getOrNull(it) }?.trim() ?: ""
+                    if (section == "word" && headerIndices.isNotEmpty()) {
+                        runCatching {
+                            wordRules.add(AutomodRule(
+                                id = col("id").ifBlank { newId() },
+                                scope = runCatching { AutomodScope.valueOf(col("scope")) }.getOrDefault(AutomodScope.GLOBAL),
+                                channelLogin = col("channel").ifBlank { null },
+                                pattern = col("pattern"),
+                                alternates = col("alternates").split(";").map { it.trim() }.filter { it.isNotBlank() },
+                                action = runCatching { AutomodAction.valueOf(col("action")) }.getOrDefault(AutomodAction.DELETE),
+                                timeoutMs = col("timeoutMs").toLongOrNull() ?: 600_000L,
+                                isRegex = col("isRegex").toBoolean(),
+                                wholeWord = col("wholeWord").toBoolean(),
+                                caseSensitive = col("caseSensitive").toBoolean(),
+                                frequencyThreshold = col("frequencyThreshold").toIntOrNull() ?: 0,
+                                frequencyWindowMs = col("frequencyWindowMs").toLongOrNull() ?: 30_000L,
+                                exemptMods = col("exemptMods").toBooleanStrictOrNull() ?: true,
+                                exemptSubs = col("exemptSubs").toBooleanStrictOrNull() ?: false,
+                                exemptVips = col("exemptVips").toBooleanStrictOrNull() ?: true,
+                                enabled = col("enabled").toBooleanStrictOrNull() ?: true,
+                                note = col("note"),
+                                createdAt = 0L, updatedAt = 0L
+                            ))
+                        }
+                    } else if (section == "chat" && headerIndices.isNotEmpty()) {
+                        runCatching {
+                            chatRules.add(ChatRule(
+                                id = col("id").ifBlank { newId() },
+                                type = runCatching { ChatRuleType.valueOf(col("type")) }.getOrDefault(ChatRuleType.SPAM_RATE),
+                                scope = runCatching { AutomodScope.valueOf(col("scope")) }.getOrDefault(AutomodScope.GLOBAL),
+                                channelLogin = col("channel").ifBlank { null },
+                                action = runCatching { ChatRuleAction.valueOf(col("action")) }.getOrDefault(ChatRuleAction.DELETE),
+                                timeoutSeconds = col("timeoutSeconds").toIntOrNull() ?: 60,
+                                spamMaxMessages = col("spamMaxMessages").toIntOrNull() ?: 5,
+                                spamWindowSeconds = col("spamWindowSeconds").toIntOrNull() ?: 10,
+                                capsThresholdPercent = col("capsThresholdPercent").toIntOrNull() ?: 70,
+                                capsMinLength = col("capsMinLength").toIntOrNull() ?: 8,
+                                linksAllowClips = col("linksAllowClips").toBooleanStrictOrNull() ?: true,
+                                linksAllowedSites = col("linksAllowedSites").split(";").map { it.trim() }.filter { it.isNotBlank() },
+                                linksRequireHttps = col("linksRequireHttps").toBooleanStrictOrNull() ?: true,
+                                emoteMaxCount = col("emoteMaxCount").toIntOrNull() ?: 8,
+                                newAccountAgeDays = col("newAccountAgeDays").toIntOrNull() ?: 7,
+                                duplicateMinLength = col("duplicateMinLength").toIntOrNull() ?: 8,
+                                consecutiveNumbersThreshold = col("consecutiveNumbersThreshold").toIntOrNull() ?: 8,
+                                exemptMods = col("exemptMods").toBooleanStrictOrNull() ?: true,
+                                exemptVips = col("exemptVips").toBooleanStrictOrNull() ?: true,
+                                exemptSubs = col("exemptSubs").toBooleanStrictOrNull() ?: false,
+                                enabled = col("enabled").toBooleanStrictOrNull() ?: true,
+                                createdAt = 0L
+                            ))
+                        }
+                    }
+                }
             }
         }
+        return ImportResult(wordRules, chatRules)
     }
 
 
     fun fromJson(text: String): ImportResult {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return ImportResult(emptyList(), emptyList())
-
+        if (trimmed.startsWith("# WORD FILTERS") || trimmed.startsWith("# CHAT RULES") || trimmed.startsWith("id\t")) {
+            return fromCsv(trimmed)
+        }
         return runCatching {
             val file = json.decodeFromString(AutomodExportFile.serializer(), trimmed)
             val words = (file.wordRules + file.rules)
@@ -160,6 +228,14 @@ object AutomodImportExport {
                 id = newId(), type = ChatRuleType.LINKS,
                 scope = AutomodScope.GLOBAL,
                 linksAllowClips = true,
+                linksRequireHttps = true,
+                action = ChatRuleAction.DELETE,
+                enabled = false, createdAt = now
+            ),
+            ChatRule(
+                id = newId(), type = ChatRuleType.CONSECUTIVE_NUMBERS,
+                scope = AutomodScope.GLOBAL,
+                consecutiveNumbersThreshold = 8,
                 action = ChatRuleAction.DELETE,
                 enabled = false, createdAt = now
             )

@@ -36,6 +36,7 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.EmoteAnimationCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Codec
@@ -44,7 +45,10 @@ import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 
 
-private val animatedCache = ConcurrentHashMap<String, AnimatedFrames>()
+private val animatedCache = object : LinkedHashMap<String, AnimatedFrames>(64, 0.75f, true) {
+    override fun removeEldestEntry(eldest: Map.Entry<String, AnimatedFrames>) = size > 150
+}
+private val animatedCacheLock = java.util.concurrent.locks.ReentrantReadWriteLock()
 private val staticUrls = ConcurrentHashMap.newKeySet<String>()
 
 private data class AnimatedFrames(
@@ -92,19 +96,15 @@ fun EmoteTooltip(emote: GenericEmote) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-           
             AnimatedEmoteImageCore(
                 url = emote.url2x.ifEmpty { emote.url1x },
                 contentDescription = emote.code,
-                modifier = Modifier.sizeIn(
-                    minWidth = 80.dp,
-                    minHeight = 80.dp,
-                    maxWidth = 160.dp,
-                    maxHeight = 160.dp
-                )
+                modifier = Modifier
+                    .widthIn(min = 80.dp, max = 240.dp)
+                    .heightIn(min = 40.dp, max = 120.dp)
             )
 
-           
+
             Text(
                 text = emote.code,
                 style = MaterialTheme.typography.titleSmall,
@@ -112,7 +112,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-           
+
             if (emote.originalName.isNotEmpty() && emote.originalName != emote.code) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
@@ -138,7 +138,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 }
             }
 
-           
+
             if (emote.authorName.isNotEmpty()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -158,7 +158,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 }
             }
 
-           
+
             val (providerLabel, providerColor) = when (emote.provider) {
                 EmoteProvider.SEVEN_TV -> "7TV" to Color(0xFF0288D1)
                 EmoteProvider.BTTV -> "BTTV" to Color(0xFF43A047)
@@ -178,7 +178,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                 )
             }
 
-           
+
             if (emote.provider == EmoteProvider.SEVEN_TV) {
                 Text(
                     text = "Right-click to open on 7TV",
@@ -208,7 +208,10 @@ fun AnimatedEmoteImageCore(
 
         withContext(Dispatchers.IO) {
             try {
-                val cached = animatedCache[url]
+                val cached = animatedCacheLock.readLock().let { lock ->
+                    lock.lock()
+                    try { animatedCache[url] } finally { lock.unlock() }
+                }
                 if (cached != null) {
                     animData = cached
                     return@withContext
@@ -237,7 +240,10 @@ fun AnimatedEmoteImageCore(
                         bmp.toComposeImageBitmap()
                     }
                     val result = AnimatedFrames(frames, durations)
-                    animatedCache[url] = result
+                    animatedCacheLock.writeLock().let { lock ->
+                        lock.lock()
+                        try { animatedCache[url] = result } finally { lock.unlock() }
+                    }
                     animData = result
                 } else {
                     staticUrls.add(url)
@@ -269,8 +275,9 @@ fun AnimatedEmoteImageCore(
     val data = animData
     if (data != null && data.frames.isNotEmpty()) {
         LaunchedEffect(data) {
-            while (true) {
-                delay(data.durations[currentFrame].toLong())
+            while (isActive) {
+                val frameDuration = data.durations.getOrElse(currentFrame) { 100 }
+                delay(frameDuration.toLong())
                 currentFrame = (currentFrame + 1) % data.frames.size
             }
         }
@@ -280,8 +287,8 @@ fun AnimatedEmoteImageCore(
             modifier = modifier.alpha(entranceProgress)
         )
     } else {
-       
-       
+
+
         AsyncImage(
             model = url,
             contentDescription = contentDescription,

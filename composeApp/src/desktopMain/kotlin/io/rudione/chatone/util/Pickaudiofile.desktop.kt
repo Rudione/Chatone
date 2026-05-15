@@ -1,27 +1,30 @@
-
 package io.rudione.chatone.util
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
-import javax.swing.JFileChooser
-import javax.swing.filechooser.FileNameExtensionFilter
 
-actual fun pickAudioFile(): String? {
-    val parent = Frame.getFrames().firstOrNull { it.isVisible && it.isDisplayable }
-    val restore = withAlwaysOnTopSuspended(parent)
-    try {
-        val chooser = JFileChooser(File(System.getProperty("user.home"))).apply {
-            dialogTitle = "Select Mention Sound"
-            fileSelectionMode = JFileChooser.FILES_ONLY
-            isAcceptAllFileFilterUsed = false
-            addChoosableFileFilter(
-                FileNameExtensionFilter("Audio files (WAV, OGG)", "wav", "ogg")
-            )
+actual suspend fun pickAudioFile(): String? = withContext(Dispatchers.IO) {
+    runCatching {
+        val parent = Frame.getFrames().firstOrNull { it.isVisible && it.isDisplayable }
+        val restore = withAlwaysOnTopSuspended(parent)
+        try {
+            val dialog = FileDialog(parent, "Select Mention Sound", FileDialog.LOAD).apply {
+                val exts = setOf("wav", "ogg", "mp3", "aiff", "aif")
+                if (System.getProperty("os.name", "").lowercase().contains("win")) {
+                    file = "*.wav;*.ogg;*.mp3;*.aiff;*.aif"
+                } else {
+                    setFilenameFilter { _, name -> name.substringAfterLast('.').lowercase() in exts }
+                }
+                isVisible = true
+            }
+            val dir = dialog.directory ?: return@runCatching null
+            val name = dialog.file ?: return@runCatching null
+            File(dir, name).absolutePath
+        } finally {
+            restore()
         }
-        return if (chooser.showOpenDialog(parent) == JFileChooser.APPROVE_OPTION) {
-            chooser.selectedFile?.absolutePath
-        } else null
-    } finally {
-        restore()
-    }
+    }.getOrNull()
 }

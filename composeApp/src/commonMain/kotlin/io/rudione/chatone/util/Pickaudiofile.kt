@@ -1,3 +1,3 @@
 package io.rudione.chatone.util
 
-expect fun pickAudioFile(): String?
+expect suspend fun pickAudioFile(): String?

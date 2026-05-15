@@ -9,6 +9,7 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.rudione.chatone.data.remote.dto.SevenTvEventMessage
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.serialization.encodeToString
@@ -37,9 +38,13 @@ class SevenTvEventApi(
     private var heartbeatJob: Job? = null
     private var receiveJob: Job? = null
     private val subscribedSets = mutableSetOf<String>()
+    private val subscribedTwitchChannels = mutableSetOf<String>()
 
 
-    private val _emoteSetUpdates = MutableSharedFlow<EmoteSetUpdateEvent>(extraBufferCapacity = 64)
+    private val _emoteSetUpdates = MutableSharedFlow<EmoteSetUpdateEvent>(
+        extraBufferCapacity = 256,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val emoteSetUpdates: SharedFlow<EmoteSetUpdateEvent> = _emoteSetUpdates
 
     sealed class EmoteSetUpdateEvent {
@@ -63,6 +68,17 @@ class SevenTvEventApi(
             val oldName: String,
             val newName: String,
             val actorName: String
+        ) : EmoteSetUpdateEvent()
+
+        data class PersonalEmoteSetGranted(
+            val twitchUserId: String,
+            val twitchUsername: String,
+            val emoteSetId: String
+        ) : EmoteSetUpdateEvent()
+
+        data class PersonalEmoteSetRevoked(
+            val twitchUserId: String,
+            val emoteSetId: String
         ) : EmoteSetUpdateEvent()
     }
 
@@ -97,6 +113,30 @@ class SevenTvEventApi(
         subscribedSets.remove(emoteSetId)
     }
 
+    fun subscribeToTwitchChannel(twitchChannelId: String) {
+        if (twitchChannelId.isBlank() || twitchChannelId in subscribedTwitchChannels) return
+        subscribedTwitchChannels.add(twitchChannelId)
+
+        scope.launch {
+            val types = listOf("entitlement.create", "entitlement.delete", "cosmetic.create")
+            for (type in types) {
+                val msg = """
+                    {"op":$OP_SUBSCRIBE,"d":{"type":"$type","condition":{"ctx":"channel","platform":"TWITCH","id":"$twitchChannelId"}}}
+                """.trimIndent()
+                try {
+                    session?.send(Frame.Text(msg))
+                } catch (e: Exception) {
+                    Napier.e("Failed to subscribe $type for channel $twitchChannelId: ${e.message}", tag = TAG)
+                }
+            }
+            Napier.d("Subscribed to channel entitlements: $twitchChannelId", tag = TAG)
+        }
+    }
+
+    fun unsubscribeFromTwitchChannel(twitchChannelId: String) {
+        subscribedTwitchChannels.remove(twitchChannelId)
+    }
+
     private fun startReceiving() {
         receiveJob?.cancel()
         receiveJob = scope.launch {
@@ -123,8 +163,15 @@ class SevenTvEventApi(
                     startHeartbeat(interval)
                     Napier.d("7TV EventAPI hello, heartbeat interval: ${interval}ms", tag = TAG)
 
-                    subscribedSets.toList().forEach { setId ->
+                    val setsToResub = subscribedSets.toList()
+                    val channelsToResub = subscribedTwitchChannels.toList()
+                    subscribedSets.clear()
+                    subscribedTwitchChannels.clear()
+                    setsToResub.forEach { setId ->
                         scope.launch { subscribeToEmoteSet(setId) }
+                    }
+                    channelsToResub.forEach { channelId ->
+                        scope.launch { subscribeToTwitchChannel(channelId) }
                     }
                 }
                 OP_DISPATCH -> handleDispatch(message)
@@ -138,6 +185,21 @@ class SevenTvEventApi(
     private fun handleDispatch(message: SevenTvEventMessage) {
         val data = message.d ?: return
         val body = data.body ?: return
+
+        when (data.type) {
+            "entitlement.create" -> {
+                handleEntitlement(body, granted = true)
+                return
+            }
+            "entitlement.delete" -> {
+                handleEntitlement(body, granted = false)
+                return
+            }
+            "cosmetic.create" -> {
+                return
+            }
+        }
+
         val emoteSetId = data.condition["object_id"] ?: body.id
         val actorName = body.actor?.displayName ?: body.actor?.username ?: "Unknown"
 
@@ -191,6 +253,34 @@ class SevenTvEventApi(
         }
     }
 
+    private fun handleEntitlement(body: io.rudione.chatone.data.remote.dto.SevenTvEventBody, granted: Boolean) {
+        val obj = body.obj ?: return
+        if (!obj.kind.equals("EMOTE_SET", ignoreCase = true)) return
+        val emoteSetId = obj.refId.ifBlank { return }
+        val twitchConnections = obj.user?.connections.orEmpty()
+            .filter { it.platform.equals("TWITCH", ignoreCase = true) }
+        if (twitchConnections.isEmpty()) return
+
+        for (conn in twitchConnections) {
+            val twitchId = conn.id.ifBlank { continue }
+            scope.launch {
+                _emoteSetUpdates.emit(
+                    if (granted)
+                        EmoteSetUpdateEvent.PersonalEmoteSetGranted(
+                            twitchUserId = twitchId,
+                            twitchUsername = conn.username,
+                            emoteSetId = emoteSetId
+                        )
+                    else
+                        EmoteSetUpdateEvent.PersonalEmoteSetRevoked(
+                            twitchUserId = twitchId,
+                            emoteSetId = emoteSetId
+                        )
+                )
+            }
+        }
+    }
+
     private fun startHeartbeat(intervalMs: Long) {
         heartbeatJob?.cancel()
         heartbeatJob = scope.launch {
@@ -220,6 +310,7 @@ class SevenTvEventApi(
         session?.close()
         session = null
         subscribedSets.clear()
+        subscribedTwitchChannels.clear()
         Napier.d("Disconnected from 7TV EventAPI", tag = TAG)
     }
 }

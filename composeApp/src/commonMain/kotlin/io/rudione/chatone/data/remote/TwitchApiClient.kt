@@ -21,6 +21,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.rudione.chatone.data.remote.dto.*
 import io.rudione.chatone.util.Result
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -518,6 +519,124 @@ class TwitchApiClient(
             Result.Success(Unit)
         } catch (e: Exception) {
             Napier.e("Failed to send shoutout: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun createEventSubSubscription(
+        accessToken: String,
+        type: String,
+        version: String,
+        condition: Map<String, String>,
+        sessionId: String
+    ): Result<Unit> {
+        return try {
+            val body = buildJsonObject {
+                put("type", JsonPrimitive(type))
+                put("version", JsonPrimitive(version))
+                put("condition", buildJsonObject {
+                    condition.forEach { (k, v) -> put(k, JsonPrimitive(v)) }
+                })
+                put("transport", buildJsonObject {
+                    put("method", JsonPrimitive("websocket"))
+                    put("session_id", JsonPrimitive(sessionId))
+                })
+            }
+            httpClient.post("$baseUrl/eventsub/subscriptions") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to create EventSub subscription [$type]: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun getAutoModSettings(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String
+    ): Result<JsonObject> {
+        return try {
+            val response = httpClient.get("$baseUrl/moderation/automod/settings") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("moderator_id", moderatorId)
+            }.body<JsonObject>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Napier.e("Failed to get AutoMod settings: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun updateAutoModSettings(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        levels: Map<String, Int>
+    ): Result<Unit> {
+        return try {
+            httpClient.put("$baseUrl/moderation/automod/settings") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("moderator_id", moderatorId)
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    levels.forEach { (k, v) -> put(k, JsonPrimitive(v)) }
+                })
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to update AutoMod settings: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun updateUserChatColor(accessToken: String, userId: String, color: String): Result<Unit> {
+        return try {
+            httpClient.put("$baseUrl/chat/color") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("user_id", userId)
+                parameter("color", color)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to update chat color: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun warnUser(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        userId: String,
+        reason: String
+    ): Result<Unit> {
+        return try {
+            httpClient.post("$baseUrl/moderation/warnings") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(ContentType.Application.Json)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("moderator_id", moderatorId)
+                setBody(buildJsonObject {
+                    put("data", buildJsonObject {
+                        put("user_id", userId)
+                        put("reason", reason)
+                    })
+                })
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to warn user: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
     }

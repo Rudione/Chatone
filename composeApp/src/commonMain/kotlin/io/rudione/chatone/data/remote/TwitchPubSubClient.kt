@@ -12,12 +12,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -29,7 +31,10 @@ class TwitchPubSubClient(
     private val PUBSUB_URL = "wss://pubsub-edge.twitch.tv/v1"
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val _events = MutableSharedFlow<IrcEvent>(extraBufferCapacity = 64)
+    private val _events = MutableSharedFlow<IrcEvent>(
+        extraBufferCapacity = 512,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val events: SharedFlow<IrcEvent> = _events
 
     private var connectionJob: Job? = null
@@ -69,17 +74,27 @@ class TwitchPubSubClient(
                     Napier.d("Connecting to PubSub...", tag = TAG)
                     httpClient.webSocket(PUBSUB_URL) {
                         session = this
-                        val topic = "automod-queue.$currentUserId.$currentChannelId"
-                        val listenMsg = """{"type":"LISTEN","data":{"topics":["$topic"],"auth_token":"$currentToken"}}"""
-                        send(Frame.Text(listenMsg))
-                        Napier.d("Subscribed to PubSub topic: $topic", tag = TAG)
+                        val automodTopic = "automod-queue.$currentUserId.$currentChannelId"
+                        val modActionsTopic = "chat_moderator_actions.$currentUserId.$currentChannelId"
+
+
+                        val automodListen =
+                            """{"type":"LISTEN","nonce":"automod","data":{"topics":["$automodTopic"],"auth_token":"$currentToken"}}"""
+                        send(Frame.Text(automodListen))
+                        Napier.d("Subscribed to PubSub topic: $automodTopic", tag = TAG)
+
+                        val modActionsListen =
+                            """{"type":"LISTEN","nonce":"modactions","data":{"topics":["$modActionsTopic"],"auth_token":"$currentToken"}}"""
+                        send(Frame.Text(modActionsListen))
+                        Napier.d("Subscribed to PubSub topic: $modActionsTopic", tag = TAG)
 
                         pingJob = scope.launch {
                             while (isActive) {
                                 delay(60_000L)
                                 try {
                                     send(Frame.Text("{\"type\":\"PING\"}"))
-                                } catch (_: Exception) {}
+                                } catch (_: Exception) {
+                                }
                             }
                         }
 
@@ -115,24 +130,99 @@ class TwitchPubSubClient(
                     Napier.d("PubSub server requested reconnect", tag = TAG)
                     reconnect()
                 }
+
                 "RESPONSE" -> {
                     val error = obj["error"]?.jsonPrimitive?.content
                     if (!error.isNullOrEmpty()) {
                         Napier.e("PubSub LISTEN error: $error", tag = TAG)
                     }
                 }
+
                 "MESSAGE" -> {
                     val dataObj = obj["data"]?.jsonObject ?: return
                     val topic = dataObj["topic"]?.jsonPrimitive?.content ?: return
                     val messageStr = dataObj["message"]?.jsonPrimitive?.content ?: return
 
-                    if (topic.startsWith("automod-queue.")) {
-                        handleAutoModMessage(messageStr)
+                    when {
+                        topic.startsWith("automod-queue.") -> handleAutoModMessage(messageStr)
+                        topic.startsWith("chat_moderator_actions.") -> handleModActionMessage(messageStr)
                     }
                 }
             }
         } catch (e: Exception) {
             Napier.e("PubSub parse error: ${e.message}", tag = TAG)
+        }
+    }
+
+    private fun handleModActionMessage(messageStr: String) {
+        try {
+            val outer = json.parseToJsonElement(messageStr).jsonObject
+            val data = outer["data"]?.jsonObject ?: outer
+            val rawAction = data["moderation_action"]?.jsonPrimitive?.content
+                ?: data["type"]?.jsonPrimitive?.content
+                ?: return
+            val moderator = data["created_by"]?.jsonPrimitive?.content
+                ?: data["moderator"]?.jsonObject?.get("login")?.jsonPrimitive?.content
+                ?: return
+            val moderatorUserId = data["created_by_user_id"]?.jsonPrimitive?.content
+                ?: data["moderator"]?.jsonObject?.get("user_id")?.jsonPrimitive?.content
+            val args = data["args"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+            val targetUserId = data["target_user_id"]?.jsonPrimitive?.content
+                ?: data["target"]?.jsonObject?.get("user_id")?.jsonPrimitive?.content
+            val target = args.firstOrNull()
+                ?: data["target_user_login"]?.jsonPrimitive?.content
+                ?: data["target"]?.jsonObject?.get("login")?.jsonPrimitive?.content
+
+            val action = when (rawAction.lowercase()) {
+                "ban" -> IrcEvent.ModeratorAction.ACTION_BAN
+                "timeout" -> IrcEvent.ModeratorAction.ACTION_TIMEOUT
+                "unban" -> IrcEvent.ModeratorAction.ACTION_UNBAN
+                "untimeout" -> IrcEvent.ModeratorAction.ACTION_UNTIMEOUT
+                "delete", "delete_notification" -> IrcEvent.ModeratorAction.ACTION_DELETE
+                "clear", "clear_chat" -> IrcEvent.ModeratorAction.ACTION_CLEAR
+                "mod" -> IrcEvent.ModeratorAction.ACTION_MOD
+                "unmod" -> IrcEvent.ModeratorAction.ACTION_UNMOD
+                "vip", "add_vip" -> IrcEvent.ModeratorAction.ACTION_VIP
+                "unvip", "remove_vip" -> IrcEvent.ModeratorAction.ACTION_UNVIP
+                else -> rawAction.lowercase()
+            }
+
+            val duration = if (action == IrcEvent.ModeratorAction.ACTION_TIMEOUT) {
+                args.getOrNull(1)?.toIntOrNull()
+            } else null
+
+            val reason = when (action) {
+                IrcEvent.ModeratorAction.ACTION_BAN,
+                IrcEvent.ModeratorAction.ACTION_UNBAN -> args.getOrNull(1)
+                IrcEvent.ModeratorAction.ACTION_TIMEOUT -> args.getOrNull(2)
+                else -> null
+            }
+
+            val targetMessageId = if (action == IrcEvent.ModeratorAction.ACTION_DELETE) {
+                args.getOrNull(2) ?: args.getOrNull(1)
+            } else null
+
+            Napier.d(
+                "ModAction: $action by $moderator on ${target ?: "-"} dur=$duration", tag = TAG
+            )
+
+            scope.launch {
+                _events.emit(
+                    IrcEvent.ModeratorAction(
+                        channel = currentChannelId,
+                        action = action,
+                        moderator = moderator,
+                        moderatorUserId = moderatorUserId,
+                        target = target,
+                        targetUserId = targetUserId,
+                        duration = duration,
+                        reason = reason,
+                        targetMessageId = targetMessageId
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Napier.e("ModAction parse error: ${e.message}", e, tag = TAG)
         }
     }
 
@@ -144,21 +234,85 @@ class TwitchPubSubClient(
             if (msgType != "automod_caught_message") return
 
             val data = msgObj["data"]?.jsonObject ?: return
-            val msgId = data["message_id"]?.jsonPrimitive?.content ?: return
-            val contentObj = data["message"]?.jsonObject
+
+            val status = data["status"]?.jsonPrimitive?.content
+            if (status == "ALLOWED" || status == "DENIED") {
+                val msgId = data["message"]?.jsonObject?.get("id")?.jsonPrimitive?.content
+                    ?: data["message_id"]?.jsonPrimitive?.content
+                    ?: return
+                val resolvedBy = data["resolver_login"]?.jsonPrimitive?.content
+                    ?: data["moderator"]?.jsonObject?.get("login")?.jsonPrimitive?.content
+                    ?: "a moderator"
+                Napier.d("AutoMod resolved by $resolvedBy: msgId=$msgId status=$status", tag = TAG)
+                scope.launch {
+                    _events.emit(
+                        IrcEvent.AutoModResolved(
+                            channel = currentChannelId,
+                            msgId = msgId,
+                            resolvedBy = resolvedBy,
+                            action = status
+                        )
+                    )
+                }
+                return
+            }
+
+            val messageObj = data["message"]?.jsonObject
+
+            val msgId = messageObj?.get("id")?.jsonPrimitive?.content
+                ?: data["message_id"]?.jsonPrimitive?.content
+                ?: return
+
+            val contentObj = messageObj?.get("content")?.jsonObject
             val text = contentObj?.get("text")?.jsonPrimitive?.content
-                ?: contentObj?.get("content")?.jsonPrimitive?.content
+                ?: messageObj?.get("text")?.jsonPrimitive?.content
+                ?: data["message"]?.jsonPrimitive?.content
                 ?: ""
 
-            val senderObj = data["sender"]?.jsonObject
+            val senderObj = messageObj?.get("sender")?.jsonObject
+                ?: data["sender"]?.jsonObject
             val userId = senderObj?.get("user_id")?.jsonPrimitive?.content ?: ""
             val login = senderObj?.get("login")?.jsonPrimitive?.content ?: ""
             val displayName = senderObj?.get("display_name")?.jsonPrimitive?.content ?: login
             val color = senderObj?.get("chat_color")?.jsonPrimitive?.content
 
+            var reasonCategory: String? = data["content_category"]?.jsonPrimitive?.content
+            var reasonLevel: Int? = data["content_level"]?.jsonPrimitive?.content?.toIntOrNull()
+
+            if (reasonCategory == null) {
+                try {
+                    val classArr = data["content_classification"]?.jsonArray
+                    if (classArr != null && classArr.isNotEmpty()) {
+                        var maxLevel = -1
+                        classArr.forEach { item ->
+                            try {
+                                val itemObj = item.jsonObject
+                                val cat = itemObj["category"]?.jsonPrimitive?.content
+                                val lvl = itemObj["level"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                                if (cat != null && lvl > maxLevel) {
+                                    maxLevel = lvl
+                                    reasonCategory = cat
+                                    reasonLevel = lvl
+                                }
+                            } catch (_: Exception) {
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+
+            if (reasonCategory == null) {
+                reasonCategory = data["reason"]?.jsonPrimitive?.content
+                    ?: data["reason_code"]?.jsonPrimitive?.content
+            }
+
             val channel = currentChannelId
 
-            Napier.d("AutoMod held: msgId=$msgId user=$login text=$text", tag = TAG)
+            Napier.d(
+                "AutoMod held: msgId=$msgId user=$login text='$text' reason=$reasonCategory/$reasonLevel",
+                tag = TAG
+            )
 
             scope.launch {
                 _events.emit(
@@ -169,7 +323,9 @@ class TwitchPubSubClient(
                         username = login,
                         displayName = displayName,
                         message = text,
-                        color = color
+                        color = color,
+                        reasonCategory = reasonCategory,
+                        reasonLevel = reasonLevel
                     )
                 )
             }

@@ -27,6 +27,7 @@ import kotlinx.serialization.json.Json
 
 enum class PauseHotkeyMode { TOGGLE, HOLD }
 enum class InlineImageMode { ON, OFF, BLUR }
+enum class TitleBarMode { DARK, LIGHT, ADAPTIVE, SYSTEM }
 
 data class SettingsState(
     val darkTheme: Boolean = true,
@@ -43,7 +44,9 @@ data class SettingsState(
         HighlightRule.USERNAME_RULE.copy(pattern = ""),
         HighlightRule.WHISPER_RULE,
         HighlightRule.SUBSCRIPTION_RULE,
-        HighlightRule.FIRST_MESSAGE_RULE
+        HighlightRule.FIRST_MESSAGE_RULE,
+        HighlightRule.SEARCH_MATCH_RULE,
+        HighlightRule.CHANNEL_POINTS_RULE
     ),
     val mentionSoundEnabled: Boolean = true,
     val mentionSoundVolume: Float = 0.8f,
@@ -69,6 +72,7 @@ data class SettingsState(
     val macros: List<Macro> = emptyList(),
     val showChatHeader: Boolean = true,
     val smoothChatEnabled: Boolean = false,
+    val alternateRowBackground: Boolean = false,
     val showDefaultDeleteButton: Boolean = true,
     val showDefaultTimeoutButton: Boolean = true,
     val showDefaultBanButton: Boolean = true,
@@ -81,12 +85,24 @@ data class SettingsState(
     val showThemeCreator: Boolean = false,
     val themeCreatorSeedColor: Int? = null,
     val language: String = "en",
+    val fontFamilyName: String = "Default",
+    val fontStyleItalic: Boolean = false,
+    val fontUnderline: Boolean = false,
+    val fontStrikethrough: Boolean = false,
+    val customFontPaths: List<String> = emptyList(),
+    val messageSpacing: MessageSpacing = MessageSpacing.LOW,
+    val titleBarMode: TitleBarMode = TitleBarMode.DARK,
+    val showBlockedMode: Int = 0,
+    val blockedUsernames: List<String> = emptyList(),
+    val isLoadingBlockedUsers: Boolean = false,
+    val blockedLoadError: String? = null,
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
     enum class LinkOpenMode { DEFAULT, INCOGNITO }
     enum class EmoteSize { SMALL, MEDIUM, LARGE }
     enum class FontSize { SMALL, MEDIUM, LARGE }
     enum class ChannelNavigation { TAB_BAR, MINI_RAIL, BOTH }
+    enum class MessageSpacing { NONE, LOW, MEDIUM, HIGH }
 
     val pinnedMacros: List<Macro>
         get() = macros.filter { it.pinnedIndex in 0..4 }.sortedBy { it.pinnedIndex }.take(5)
@@ -108,6 +124,20 @@ sealed class SettingsEvent : UiEvent {
     data class OnFontSizeChanged(val size: SettingsState.FontSize) : SettingsEvent()
     data class OnUiScaleChanged(val scale: Float) : SettingsEvent()
     data class OnLanguageChanged(val code: String) : SettingsEvent()
+
+    data class OnFontFamilyChanged(val name: String) : SettingsEvent()
+    data class OnFontItalicChanged(val italic: Boolean) : SettingsEvent()
+    data class OnFontUnderlineChanged(val underline: Boolean) : SettingsEvent()
+    data class OnFontStrikethroughChanged(val strikethrough: Boolean) : SettingsEvent()
+    data class OnAddCustomFontPath(val path: String) : SettingsEvent()
+    data class OnRemoveCustomFontPath(val path: String) : SettingsEvent()
+    data class OnMessageSpacingChanged(val spacing: SettingsState.MessageSpacing) : SettingsEvent()
+    data class OnTitleBarModeChanged(val mode: TitleBarMode) : SettingsEvent()
+    data class OnShowBlockedModeChanged(val mode: Int) : SettingsEvent()
+    object OnLoadBlockedUsers : SettingsEvent()
+    data class OnUnblockUserFromSettings(val username: String, val userId: String) : SettingsEvent()
+    data class BlockedUsersLoaded(val usernames: List<String>) : SettingsEvent()
+    data class BlockedUsersLoadFailed(val error: String) : SettingsEvent()
     data class OnDefaultTimeoutChanged(val duration: Int) : SettingsEvent()
     data class OnConfirmModActionsChanged(val confirm: Boolean) : SettingsEvent()
     data class OnChannelNavigationChanged(val navigation: SettingsState.ChannelNavigation) :
@@ -151,12 +181,14 @@ sealed class SettingsEvent : UiEvent {
     data class OnPinMacro(val macroId: String, val slotIndex: Int) : SettingsEvent()
 
     data class OnSmoothChatEnabledChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnAlternateRowBackgroundChanged(val enabled: Boolean) : SettingsEvent()
     data class OnDisableScrollOnAltChanged(val enabled: Boolean) : SettingsEvent()
     data class OnLinkOpenModeChanged(val mode: SettingsState.LinkOpenMode) : SettingsEvent()
     data class OnAccentColorChanged(val index: Int) : SettingsEvent()
     data class OnSaveCustomTheme(val theme: CustomThemeConfig) : SettingsEvent()
     data class OnDeleteCustomTheme(val themeId: String) : SettingsEvent()
     data class OnApplyCustomTheme(val themeId: String?) : SettingsEvent()
+    data class OnImportSettingsText(val text: String) : SettingsEvent()
 }
 
 sealed class SettingsEffect : UIEffect {
@@ -170,7 +202,7 @@ class SettingsViewModel(
     private val getFirstValidAccountUseCase: GetFirstValidAccountUseCase
 ) : BaseViewModel<SettingsState, SettingsEvent, SettingsEffect>(loadInitialState()) {
     companion object {
-        private val settings = Settings()
+        val settings: Settings = Settings()
         private const val KEY_DARK_THEME = "dark_theme"
         private const val KEY_TIMESTAMP_FORMAT = "timestamp_format"
         private const val KEY_SHOW_DELETED = "show_deleted"
@@ -178,6 +210,12 @@ class SettingsViewModel(
         private const val KEY_EMOTE_SIZE = "emote_size"
         private const val KEY_SHOW_BADGES = "show_badges"
         private const val KEY_FONT_SIZE = "font_size"
+        private const val KEY_FONT_FAMILY = "font_family_name"
+        private const val KEY_FONT_ITALIC = "font_italic"
+        private const val KEY_FONT_UNDERLINE = "font_underline"
+        private const val KEY_FONT_STRIKETHROUGH = "font_strikethrough"
+        private const val KEY_CUSTOM_FONT_PATHS = "custom_font_paths"
+        private const val KEY_MESSAGE_SPACING = "message_spacing"
         private const val KEY_DEFAULT_TIMEOUT = "default_timeout"
         private const val KEY_CONFIRM_MOD = "confirm_mod_actions"
         private const val KEY_CHANNEL_NAV = "channel_navigation"
@@ -204,15 +242,24 @@ class SettingsViewModel(
         private const val KEY_MACROS = "macros"
         private const val KEY_SHOW_CHAT_HEADER = "show_chat_header"
         private const val KEY_SMOOTH_CHAT = "smooth_chat_enabled"
+        private const val KEY_ALTERNATE_ROW_BG = "alternate_row_bg"
         private const val KEY_SHOW_DEFAULT_DELETE = "show_default_delete"
         private const val KEY_SHOW_DEFAULT_TIMEOUT = "show_default_timeout"
         private const val KEY_SHOW_DEFAULT_BAN = "show_default_ban"
         private const val KEY_DISABLE_SCROLL_ON_ALT = "disable_scroll_on_alt"
         private const val KEY_LINK_OPEN_MODE = "link_open_mode"
         private const val KEY_ACCENT_COLOR_INDEX = "accent_color_index"
+        private const val KEY_TITLE_BAR_MODE = "title_bar_mode"
+        private const val KEY_SHOW_BLOCKED_MODE = "show_blocked_mode"
         private val json = Json { ignoreUnknownKeys = true }
         private val _effects = MutableSharedFlow<SettingsEffect>()
         val effects = _effects.asSharedFlow()
+
+        private val _changeBroadcast = MutableSharedFlow<Long>(extraBufferCapacity = 16)
+        val changeBroadcast = _changeBroadcast.asSharedFlow()
+        private fun emitChange() {
+            _changeBroadcast.tryEmit(Clock.System.now().toEpochMilliseconds())
+        }
 
         fun loadInitialState(): SettingsState {
             val rules = try {
@@ -231,7 +278,9 @@ class SettingsViewModel(
                 val j = settings.getStringOrNull(KEY_ALL_MOD_BUTTONS)
                 if (j != null) json.decodeFromString<List<ModActionButton>>(j)
                 else null
-            } catch (_: Exception) { null }
+            } catch (_: Exception) {
+                null
+            }
             val macros = try {
                 val j = settings.getStringOrNull(KEY_MACROS)
                 if (j != null) json.decodeFromString<List<Macro>>(j) else emptyList()
@@ -245,7 +294,8 @@ class SettingsViewModel(
             } catch (_: Exception) {
                 emptyList()
             }
-            val activeThemeId = settings.getStringOrNull(KEY_ACTIVE_THEME_ID)?.takeIf { it.isNotBlank() }
+            val activeThemeId =
+                settings.getStringOrNull(KEY_ACTIVE_THEME_ID)?.takeIf { it.isNotBlank() }
             val activeCustomTheme = activeThemeId?.let { id -> customThemes.find { it.id == id } }
             val wallpaperDisplayConfig = WallpaperDisplayConfig.fromJson(
                 settings.getStringOrNull(WallpaperDisplayConfig.SETTINGS_KEY)
@@ -282,7 +332,12 @@ class SettingsViewModel(
                         0
                     )
                 ) ?: SettingsState.ChannelNavigation.TAB_BAR,
-                highlightRules = rules ?: SettingsState().highlightRules,
+                highlightRules = run {
+                    val defaults = SettingsState().highlightRules
+                    val loaded = (rules ?: defaults).filter { it.id != "mention_accent" }
+                    val loadedIds = loaded.map { it.id }.toSet()
+                    loaded + defaults.filter { it.id !in loadedIds }
+                },
                 mentionSoundEnabled = settings.getBoolean(KEY_MENTION_SOUND, true),
                 mentionSoundVolume = settings.getFloat(KEY_MENTION_VOLUME, 0.8f),
                 customMentionSoundPath = settings.getStringOrNull(KEY_CUSTOM_SOUND_PATH) ?: "",
@@ -309,15 +364,21 @@ class SettingsViewModel(
                 macros = macros,
                 showChatHeader = settings.getBoolean(KEY_SHOW_CHAT_HEADER, true),
                 smoothChatEnabled = settings.getBoolean(KEY_SMOOTH_CHAT, false),
+                alternateRowBackground = settings.getBoolean(KEY_ALTERNATE_ROW_BG, false),
                 showDefaultDeleteButton = settings.getBoolean(KEY_SHOW_DEFAULT_DELETE, true),
                 showDefaultTimeoutButton = settings.getBoolean(KEY_SHOW_DEFAULT_TIMEOUT, true),
                 showDefaultBanButton = settings.getBoolean(KEY_SHOW_DEFAULT_BAN, true),
                 disableScrollOnAlt = settings.getBoolean(KEY_DISABLE_SCROLL_ON_ALT, true),
                 linkOpenMode = try {
                     SettingsState.LinkOpenMode.valueOf(
-                        settings.getString(KEY_LINK_OPEN_MODE, SettingsState.LinkOpenMode.DEFAULT.name)
+                        settings.getString(
+                            KEY_LINK_OPEN_MODE,
+                            SettingsState.LinkOpenMode.DEFAULT.name
+                        )
                     )
-                } catch (_: Exception) { SettingsState.LinkOpenMode.DEFAULT },
+                } catch (_: Exception) {
+                    SettingsState.LinkOpenMode.DEFAULT
+                },
                 accentColorIndex = settings.getInt(KEY_ACCENT_COLOR_INDEX, 0),
                 allModButtons = allModBtns ?: run {
                     val defaults = ModActionButton.defaultOrderedList()
@@ -327,12 +388,39 @@ class SettingsViewModel(
                 customThemes = customThemes,
                 activeCustomThemeId = activeThemeId,
                 activeCustomTheme = activeCustomTheme,
+                fontFamilyName = settings.getString(KEY_FONT_FAMILY, "Default"),
+                fontStyleItalic = settings.getBoolean(KEY_FONT_ITALIC, false),
+                fontUnderline = settings.getBoolean(KEY_FONT_UNDERLINE, false),
+                fontStrikethrough = settings.getBoolean(KEY_FONT_STRIKETHROUGH, false),
+                customFontPaths = try {
+                    val j = settings.getStringOrNull(KEY_CUSTOM_FONT_PATHS)
+                    if (j != null) json.decodeFromString<List<String>>(j) else emptyList()
+                } catch (_: Exception) {
+                    emptyList()
+                },
+                messageSpacing = SettingsState.MessageSpacing.entries.getOrNull(
+                    settings.getInt(KEY_MESSAGE_SPACING, SettingsState.MessageSpacing.LOW.ordinal)
+                ) ?: SettingsState.MessageSpacing.LOW,
+                titleBarMode = try {
+                    TitleBarMode.valueOf(settings.getString(KEY_TITLE_BAR_MODE, TitleBarMode.DARK.name))
+                } catch (_: Exception) { TitleBarMode.DARK },
+                showBlockedMode = settings.getInt(KEY_SHOW_BLOCKED_MODE, 0),
             )
         }
     }
 
     init {
         subscribeToEvents()
+        viewModelScope.launch {
+            changeBroadcast.collect { _ ->
+                super.update { loadInitialState() }
+            }
+        }
+    }
+
+    override fun update(updater: (SettingsState) -> SettingsState) {
+        super.update(updater)
+        emitChange()
     }
 
     override suspend fun onEvent(event: SettingsEvent) {
@@ -343,6 +431,7 @@ class SettingsViewModel(
                     event.enabled
                 ); update { it.copy(darkTheme = event.enabled) }
             }
+
             is SettingsEvent.OnActiveCustomThemeIdChanged -> {
                 update { it.copy(activeCustomThemeId = event.themeId) }
             }
@@ -351,6 +440,7 @@ class SettingsViewModel(
                 settings.putString("custom_themes_json", event.json)
                 update { it.copy(customThemesJson = event.json) }
             }
+
             is SettingsEvent.OnShowChatHeaderChanged -> {
                 settings.putBoolean(KEY_SHOW_CHAT_HEADER, event.show)
                 update { it.copy(showChatHeader = event.show) }
@@ -363,6 +453,7 @@ class SettingsViewModel(
                     )
                 }
             }
+
             is SettingsEvent.OnClearCacheClicked -> {
                 viewModelScope.launch {
                     try {
@@ -373,6 +464,7 @@ class SettingsViewModel(
                     AppRestarter.restart(delayMs = 300L)
                 }
             }
+
             is SettingsEvent.OnLogoutClicked -> {
                 viewModelScope.launch {
                     try {
@@ -387,7 +479,8 @@ class SettingsViewModel(
                         try {
                             val account = getFirstValidAccountUseCase()
                             account?.let { authRepository.deleteAccount(it.userId) }
-                        } catch (_: Exception) {}
+                        } catch (_: Exception) {
+                        }
                     }
                     AppRestarter.restart(delayMs = 300L)
                 }
@@ -400,10 +493,20 @@ class SettingsViewModel(
             is SettingsEvent.OnCloseThemeCreator -> {
                 update { it.copy(showThemeCreator = false) }
             }
+
             is SettingsEvent.OnApplyCustomTheme -> {
                 saveCustomThemes(state.value.customThemes, event.themeId)
                 update { it.copy(activeCustomThemeId = event.themeId) }
             }
+
+            is SettingsEvent.OnImportSettingsText -> {
+                val backup = io.rudione.chatone.util.SettingsImportExport.fromJson(event.text)
+                if (backup != null) {
+                    io.rudione.chatone.util.SettingsImportExport.applyReplace(settings, backup)
+                    update { loadInitialState() }
+                }
+            }
+
             is SettingsEvent.OnCustomThemeApplied -> {
                 settings.putString(KEY_ACTIVE_THEME_ID, event.theme?.id ?: "")
 
@@ -415,6 +518,7 @@ class SettingsViewModel(
                     )
                 }
             }
+
             is SettingsEvent.OnDeleteCustomTheme -> {
                 val newThemes = state.value.customThemes.filter { it.id != event.themeId }
                 val newActiveId = if (state.value.activeCustomThemeId == event.themeId) null
@@ -428,6 +532,7 @@ class SettingsViewModel(
                     )
                 }
             }
+
             is SettingsEvent.OnShowDeletedChanged -> {
                 settings.putBoolean(KEY_SHOW_DELETED, event.show); update {
                     it.copy(
@@ -449,6 +554,7 @@ class SettingsViewModel(
                     event.size.ordinal
                 ); update { it.copy(emoteSize = event.size) }
             }
+
             is SettingsEvent.OnSaveCustomTheme -> {
                 val newThemes = state.value.customThemes.toMutableList()
                 val existingIndex = newThemes.indexOfFirst { it.id == event.theme.id }
@@ -467,6 +573,7 @@ class SettingsViewModel(
                     )
                 }
             }
+
             is SettingsEvent.OnShowBadgesChanged -> {
                 settings.putBoolean(
                     KEY_SHOW_BADGES,
@@ -478,10 +585,74 @@ class SettingsViewModel(
                 settings.putFloat(KEY_UI_SCALE, event.scale.coerceIn(0.7f, 2.0f))
                 update { it.copy(uiScale = event.scale.coerceIn(0.7f, 2.0f)) }
             }
+
             is SettingsEvent.OnLanguageChanged -> {
                 settings.putString(KEY_LANGUAGE, event.code)
                 update { it.copy(language = event.code) }
             }
+
+            is SettingsEvent.OnFontFamilyChanged -> {
+                settings.putString(KEY_FONT_FAMILY, event.name)
+                update { it.copy(fontFamilyName = event.name) }
+            }
+
+            is SettingsEvent.OnFontItalicChanged -> {
+                settings.putBoolean(KEY_FONT_ITALIC, event.italic)
+                update { it.copy(fontStyleItalic = event.italic) }
+            }
+
+            is SettingsEvent.OnFontUnderlineChanged -> {
+                settings.putBoolean(KEY_FONT_UNDERLINE, event.underline)
+                update { it.copy(fontUnderline = event.underline) }
+            }
+
+            is SettingsEvent.OnFontStrikethroughChanged -> {
+                settings.putBoolean(KEY_FONT_STRIKETHROUGH, event.strikethrough)
+                update { it.copy(fontStrikethrough = event.strikethrough) }
+            }
+
+            is SettingsEvent.OnAddCustomFontPath -> {
+                val updated = (state.value.customFontPaths + event.path).distinct()
+                settings.putString(KEY_CUSTOM_FONT_PATHS, json.encodeToString(updated))
+                update { it.copy(customFontPaths = updated) }
+            }
+
+            is SettingsEvent.OnRemoveCustomFontPath -> {
+                val updated = state.value.customFontPaths.filter { it != event.path }
+                settings.putString(KEY_CUSTOM_FONT_PATHS, json.encodeToString(updated))
+                update { it.copy(customFontPaths = updated) }
+            }
+
+            is SettingsEvent.OnMessageSpacingChanged -> {
+                settings.putInt(KEY_MESSAGE_SPACING, event.spacing.ordinal)
+                update { it.copy(messageSpacing = event.spacing) }
+            }
+
+            is SettingsEvent.OnTitleBarModeChanged -> {
+                settings.putString(KEY_TITLE_BAR_MODE, event.mode.name)
+                update { it.copy(titleBarMode = event.mode) }
+            }
+            is SettingsEvent.OnShowBlockedModeChanged -> {
+                settings.putInt(KEY_SHOW_BLOCKED_MODE, event.mode)
+                update { it.copy(showBlockedMode = event.mode) }
+            }
+            is SettingsEvent.OnLoadBlockedUsers -> {
+                update { it.copy(isLoadingBlockedUsers = true, blockedLoadError = null) }
+            }
+            is SettingsEvent.BlockedUsersLoaded -> {
+                update { it.copy(blockedUsernames = event.usernames, isLoadingBlockedUsers = false) }
+            }
+            is SettingsEvent.BlockedUsersLoadFailed -> {
+                update { it.copy(isLoadingBlockedUsers = false, blockedLoadError = event.error) }
+            }
+            is SettingsEvent.OnUnblockUserFromSettings -> {
+                update { st ->
+                    st.copy(blockedUsernames = st.blockedUsernames.filter {
+                        !it.equals(event.username, ignoreCase = true)
+                    })
+                }
+            }
+
             is SettingsEvent.OnFontSizeChanged -> {
                 settings.putInt(
                     KEY_FONT_SIZE,
@@ -663,7 +834,8 @@ class SettingsViewModel(
             is SettingsEvent.OnRemoveModButton -> update { s ->
                 val n = s.customModButtons.filter { it.id != event.id }
                 saveModButtons(n)
-                val newAll = s.allModButtons.filter { it.id != event.id }.mapIndexed { i, b -> b.copy(sortOrder = i) }
+                val newAll = s.allModButtons.filter { it.id != event.id }
+                    .mapIndexed { i, b -> b.copy(sortOrder = i) }
                 saveAllModButtons(newAll)
                 s.copy(customModButtons = n, allModButtons = newAll)
             }
@@ -695,10 +867,12 @@ class SettingsViewModel(
                 settings.putBoolean(KEY_SHOW_DEFAULT_DELETE, event.show)
                 update { it.copy(showDefaultDeleteButton = event.show) }
             }
+
             is SettingsEvent.OnShowDefaultTimeoutChanged -> {
                 settings.putBoolean(KEY_SHOW_DEFAULT_TIMEOUT, event.show)
                 update { it.copy(showDefaultTimeoutButton = event.show) }
             }
+
             is SettingsEvent.OnShowDefaultBanChanged -> {
                 settings.putBoolean(KEY_SHOW_DEFAULT_BAN, event.show)
                 update { it.copy(showDefaultBanButton = event.show) }
@@ -727,6 +901,11 @@ class SettingsViewModel(
             is SettingsEvent.OnSmoothChatEnabledChanged -> {
                 settings.putBoolean(KEY_SMOOTH_CHAT, event.enabled)
                 update { it.copy(smoothChatEnabled = event.enabled) }
+            }
+
+            is SettingsEvent.OnAlternateRowBackgroundChanged -> {
+                settings.putBoolean(KEY_ALTERNATE_ROW_BG, event.enabled)
+                update { it.copy(alternateRowBackground = event.enabled) }
             }
 
             is SettingsEvent.OnDisableScrollOnAltChanged -> {

@@ -46,7 +46,12 @@ import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 @Composable
 fun ModerationSettingsSection(
     state: SettingsState,
-    onEvent: (SettingsEvent) -> Unit
+    onEvent: (SettingsEvent) -> Unit,
+    blockedUsernames: List<String> = emptyList(),
+    isLoadingBlockedUsers: Boolean = false,
+    blockedLoadError: String? = null,
+    onUnblockUser: (String) -> Unit = {},
+    onRefreshBlockedUsers: () -> Unit = {},
 ) {
     val extra = ChatoneTheme.extraColors
     val s = LocalStrings.current
@@ -60,6 +65,16 @@ fun ModerationSettingsSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+
+        BlockedUsersSection(
+            blockedUsernames = blockedUsernames,
+            showBlockedMode = state.showBlockedMode,
+            isLoadingBlockedUsers = isLoadingBlockedUsers,
+            loadError = blockedLoadError,
+            onShowBlockedModeChange = { onEvent(SettingsEvent.OnShowBlockedModeChanged(it)) },
+            onUnblockUser = onUnblockUser,
+            onRefresh = onRefreshBlockedUsers
+        )
 
         SettingsCard(title = s.modLocalAutomod) {
             Text(
@@ -128,6 +143,11 @@ private fun ModActionButtonsSection(
     }
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
+    LaunchedEffect(state.allModButtons) {
+        if (draggedIndex == null) {
+            orderedButtons = state.allModButtons.sortedBy { it.sortOrder }
+        }
+    }
     val s = LocalStrings.current
 
     SettingsCard(title = s.modModActionButtons) {

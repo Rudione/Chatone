@@ -31,7 +31,9 @@ import io.rudione.chatone.domain.model.ChatRuleAction
 import io.rudione.chatone.util.AutomodEngine
 import io.rudione.chatone.util.AutomodTarget
 import io.rudione.chatone.util.ChatRuleEngine
+import io.rudione.chatone.util.ChatRuleEventEngine
 import io.rudione.chatone.util.MessageTokenizer
+import io.rudione.chatone.util.SlashCommand
 import io.rudione.chatone.util.NotificationSoundPlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -77,7 +79,11 @@ data class ChatState(
 
     val pendingRaidTarget: String? = null,
     val pendingRaidTargetId: String? = null,
-    val pendingRaidStartedAt: Long = 0L
+    val pendingRaidStartedAt: Long = 0L,
+    val isBanned: Boolean = false,
+    val banReason: String? = null,
+    val blockedUserIds: Set<String> = emptySet(),
+    val showBlockedMode: Int = 0
 ) : UiState {
     val canModerate: Boolean get() = isMod || isBroadcaster
 }
@@ -144,6 +150,9 @@ sealed class ChatEvent : UiEvent {
     data class OnDenyAutoModMessage(val msgId: String) : ChatEvent()
     object OnToggleEmotePicker : ChatEvent()
     object OnRefreshChannel : ChatEvent()
+    data class OnBlockUser(val targetUserId: String, val targetLogin: String) : ChatEvent()
+    data class OnUnblockUser(val targetUserId: String, val targetLogin: String) : ChatEvent()
+    data class OnSetShowBlockedMode(val mode: Int) : ChatEvent()
 }
 
 sealed class ChatEffect : UIEffect {
@@ -182,13 +191,54 @@ class ChatViewModel(
 
 
     private val maxMessages: Int
-        get() = SettingsViewModel.loadInitialState().scrollbackLimit.coerceIn(100, 5000)
+        get() = cachedSettings().scrollbackLimit.coerceIn(100, 5000)
+
+    @Volatile private var _cachedSettings: io.rudione.chatone.presentation.settings.SettingsState? = null
+    private val settingsLock = Any()
+    private fun cachedSettings(): io.rudione.chatone.presentation.settings.SettingsState {
+        val s = _cachedSettings
+        if (s != null) return s
+        return synchronized(settingsLock) {
+            _cachedSettings ?: SettingsViewModel.loadInitialState().also { _cachedSettings = it }
+        }
+    }
+    private fun invalidateSettingsCache() { _cachedSettings = null }
 
     private val channelMessageCache = mutableMapOf<String, List<DisplayMessage>>()
     private val channelRoomStateCache = mutableMapOf<String, RoomState>()
     private val channelIdCache = mutableMapOf<String, String>()
     private val channelModCache = mutableMapOf<String, Boolean>()
     private var currentUserBadgeRaw: String = ""
+
+    private var retokenizeDebounceJob: kotlinx.coroutines.Job? = null
+    private fun scheduleRetokenize(delayMs: Long = 150L) {
+        retokenizeDebounceJob?.cancel()
+        retokenizeDebounceJob = viewModelScope.launch {
+            delay(delayMs)
+            retokenizeMessages()
+        }
+    }
+
+
+    private val pendingRetokenizeUsers = mutableSetOf<String>()
+    private val pendingRetokenizeLock = Any()
+    private var retokenizeUsersJob: kotlinx.coroutines.Job? = null
+    private fun scheduleRetokenizeForUsers(userIds: Collection<String>, delayMs: Long = 250L) {
+        if (userIds.isEmpty()) return
+        synchronized(pendingRetokenizeLock) {
+            pendingRetokenizeUsers.addAll(userIds)
+            if (retokenizeUsersJob?.isActive == true) return
+            retokenizeUsersJob = viewModelScope.launch {
+                delay(delayMs)
+                val snapshot = synchronized(pendingRetokenizeLock) {
+                    val s = pendingRetokenizeUsers.toSet()
+                    pendingRetokenizeUsers.clear()
+                    s
+                }
+                if (snapshot.isNotEmpty()) retokenizeMessagesForUsers(snapshot)
+            }
+        }
+    }
 
     private val isSendingMessage = atomic(false)
     private var lastMessageSentAt: Long = 0L
@@ -216,7 +266,7 @@ class ChatViewModel(
         messageText: String,
         currentUserLogin: String
     ): HighlightMatch? {
-        val settings = SettingsViewModel.loadInitialState()
+        val settings = cachedSettings()
         val rules = settings.highlightRules.filter { it.enabled }
 
 
@@ -364,6 +414,9 @@ class ChatViewModel(
             is ChatEvent.OnExecuteMacro -> executeMacro(event.macro)
             is ChatEvent.OnAllowAutoModMessage -> handleAutoMod(event.msgId, "ALLOW")
             is ChatEvent.OnDenyAutoModMessage -> handleAutoMod(event.msgId, "DENY")
+            is ChatEvent.OnBlockUser -> handleBlockUser(event.targetUserId, event.targetLogin)
+            is ChatEvent.OnUnblockUser -> handleUnblockUser(event.targetUserId, event.targetLogin)
+            is ChatEvent.OnSetShowBlockedMode -> update { it.copy(showBlockedMode = event.mode) }
             ChatEvent.OnToggleEmotePicker -> {
                 update { state ->
                     state.copy(
@@ -378,15 +431,14 @@ class ChatViewModel(
         }
     }
 
-    /**
-     * Refreshes the current channel: clears emote/badge caches and reloads
-     * everything from scratch — equivalent to Twitch /refresh but local.
-     */
+
     private fun refreshChannel() {
         val s = state.value
         val channelLogin = s.channelLogin
         val channelId = s.channelId
         if (channelLogin.isEmpty()) return
+
+        invalidateSettingsCache()
 
         viewModelScope.launch {
             emoteRepository.invalidateChannel(channelLogin)
@@ -415,8 +467,7 @@ class ChatViewModel(
         val s = state.value
         if (s.currentAccessToken.isEmpty() || s.currentUserId.isEmpty()) return
         viewModelScope.launch {
-            val result =
-                apiClient.manageAutoModMessage(s.currentAccessToken, s.currentUserId, msgId, action)
+
             val newStatus =
                 if (action == "ALLOW") DisplayMessage.AutoModMsg.AutoModStatus.ALLOWED else DisplayMessage.AutoModMsg.AutoModStatus.DENIED
             update { state ->
@@ -424,12 +475,51 @@ class ChatViewModel(
                     if (dm is DisplayMessage.AutoModMsg && dm.msgId == msgId) dm.copy(status = newStatus) else dm
                 })
             }
+
+            val result =
+                apiClient.manageAutoModMessage(s.currentAccessToken, s.currentUserId, msgId, action)
             if (result is io.rudione.chatone.util.Result.Error) {
                 sendEffect(ChatEffect.ShowError("AutoMod action failed: ${result.exception.message}"))
+            }
+
+            kotlinx.coroutines.delay(800L)
+            update { state ->
+                state.copy(messages = state.messages.filter { dm ->
+                    !(dm is DisplayMessage.AutoModMsg && dm.msgId == msgId)
+                })
             }
         }
     }
 
+
+
+    private fun handleBlockUser(targetUserId: String, targetLogin: String) {
+        val s = state.value
+        if (s.currentAccessToken.isEmpty()) return
+        viewModelScope.launch {
+            val result = apiClient.blockUser(s.currentAccessToken, targetUserId)
+            if (result is io.rudione.chatone.util.Result.Success) {
+                update { it.copy(blockedUserIds = it.blockedUserIds + targetUserId) }
+                systemNotice(s.channelLogin, "Blocked $targetLogin")
+            } else {
+                sendEffect(ChatEffect.ShowError("Failed to block $targetLogin"))
+            }
+        }
+    }
+
+    private fun handleUnblockUser(targetUserId: String, targetLogin: String) {
+        val s = state.value
+        if (s.currentAccessToken.isEmpty()) return
+        viewModelScope.launch {
+            val result = apiClient.unblockUser(s.currentAccessToken, targetUserId)
+            if (result is io.rudione.chatone.util.Result.Success) {
+                update { it.copy(blockedUserIds = it.blockedUserIds - targetUserId) }
+                systemNotice(s.channelLogin, "Unblocked $targetLogin")
+            } else {
+                sendEffect(ChatEffect.ShowError("Failed to unblock $targetLogin"))
+            }
+        }
+    }
 
     private fun navigateHistory(up: Boolean) {
         val s = state.value
@@ -491,10 +581,11 @@ class ChatViewModel(
         }
 
         val cachedMessages = run {
-
             val seen = mutableSetOf<String>()
             (channelMessageCache[key] ?: emptyList()).filter { seen.add(it.id) }
         }
+        messageIdSet.clear()
+        cachedMessages.mapTo(messageIdSet) { it.id }
         val cachedRoomState = channelRoomStateCache[key] ?: RoomState()
         val cachedChannelId = channelIdCache[key] ?: ""
 
@@ -525,10 +616,12 @@ class ChatViewModel(
                 mentionCount = 0,
                 replyingTo = null,
                 pinnedMessage = null,
-                currentAccessToken = if (accessToken.isNotEmpty()) accessToken else it.currentAccessToken,
-                currentUserId = if (userId.isNotEmpty()) userId else it.currentUserId,
-                currentUserLogin = if (userLogin.isNotEmpty()) userLogin else it.currentUserLogin,
-                currentDisplayName = if (userDisplayName.isNotEmpty()) userDisplayName else it.currentDisplayName,
+                isBanned = false,
+                banReason = "",
+                currentAccessToken = accessToken.ifEmpty { it.currentAccessToken },
+                currentUserId = userId.ifEmpty { it.currentUserId },
+                currentUserLogin = userLogin.ifEmpty { it.currentUserLogin },
+                currentDisplayName = userDisplayName.ifEmpty { it.currentDisplayName },
                 sentMessageHistory = emptyList(),
                 historyIndex = -1
             )
@@ -571,6 +664,28 @@ class ChatViewModel(
                     launch { checkAndSetModStatus(resolvedChannelId) }
                 }
                 launch { loadRecentMessages(channelLogin) }
+
+                launch {
+                    val s2 = state.value
+                    if (s2.currentAccessToken.isNotEmpty() && s2.currentUserId.isNotEmpty()
+                        && s2.blockedUserIds.isEmpty()
+                    ) {
+                        runCatching {
+                            val r = apiClient.getBlockedUsers(
+                                s2.currentAccessToken, s2.currentUserId, first = 100
+                            )
+                            if (r is io.rudione.chatone.util.Result.Success) {
+                                val ids = r.data.data.map { it.userId }.toSet()
+                                update { it.copy(blockedUserIds = ids) }
+                            }
+                        }.onFailure {
+                            Napier.w("Failed to load blocked users: ${it.message}", tag = TAG)
+                        }
+                    }
+                }
+
+                streamStatePoller?.cancel()
+                streamStatePoller = launch { pollStreamState(channelLogin) }
                 update { it.copy(isLoading = false) }
             } catch (e: Exception) {
                 Napier.e("Failed to initialize channel: ${e.message}", e, tag = TAG)
@@ -613,6 +728,12 @@ class ChatViewModel(
             if (channelId == userId) {
                 update { if (it.channelLogin == channelLogin) it.copy(isBroadcaster = true) else it }
                 retokenizeMessages()
+
+                val token = state.value.currentAccessToken
+                val uid = state.value.currentUserId
+                if (token.isNotEmpty() && uid.isNotEmpty()) {
+                    pubSubClient.connect(accessToken = token, userId = uid, channelId = channelId)
+                }
                 return
             }
 
@@ -626,6 +747,17 @@ class ChatViewModel(
                 if (isMod && !wasMod) {
                     Napier.d("isMod set via /moderation/channels for $channelLogin", tag = TAG)
                     retokenizeMessages()
+
+                    val token = state.value.currentAccessToken
+                    val uid = state.value.currentUserId
+                    if (token.isNotEmpty() && uid.isNotEmpty()) {
+                        pubSubClient.connect(
+                            accessToken = token,
+                            userId = uid,
+                            channelId = channelId
+                        )
+                        Napier.d("PubSub connected (deferred) for mod $channelLogin", tag = TAG)
+                    }
                 }
             }
 
@@ -767,6 +899,7 @@ class ChatViewModel(
                 try {
                     val emoteSetId = emoteRepository.getSevenTvEmoteSetId(channelLogin)
                     if (emoteSetId != null) sevenTvEventApi.subscribeToEmoteSet(emoteSetId)
+                    sevenTvEventApi.subscribeToTwitchChannel(channelId)
                 } catch (e: Exception) {
                     Napier.w("Failed to subscribe to 7TV events: ${e.message}", tag = TAG)
                 }
@@ -800,7 +933,8 @@ class ChatViewModel(
     private fun chatMessageToDisplay(message: ChatMessage): DisplayMessage.PrivMsg {
         val channelEmotes = emoteRepository.getResolvedEmotes(message.channelName)
         val personalEmotes = emoteRepository.getCachedPersonalEmotes(message.userId)
-        val tokens = MessageTokenizer.tokenize(message, channelEmotes, personalEmotes = personalEmotes)
+        val tokens =
+            MessageTokenizer.tokenize(message, channelEmotes, personalEmotes = personalEmotes)
         val resolvedBadges = badgeRepository.resolveBadges(message.badges, message.channelId)
         val cosmetics = sevenTvCosmeticsClient.getCachedCosmetics(message.userId)
         val safeId = message.id.ifEmpty { uniqueId("msg") }
@@ -823,6 +957,8 @@ class ChatViewModel(
             isAction = message.isAction,
             isFirstMessage = message.isFirstMessage,
             isHighlighted = message.isHighlighted,
+            customRewardId = message.customRewardId,
+            rewardName = message.rewardName,
             rawMessage = message,
             sevenTvPaint = cosmetics?.paint,
             sevenTvBadge = cosmetics?.badge
@@ -859,11 +995,20 @@ class ChatViewModel(
                         }
                     }
                     val userId = message.userId
+
+                    if (userId.isNotEmpty()) {
+                        runCatching {
+                            io.rudione.chatone.di.GlobalDi.tryGet<io.rudione.chatone.data.repository.EnrichedPersonalEmoteBackfiller>()?.request(userId)
+                        }
+                    }
                     if (userId.isNotEmpty() && !emoteRepository.hasAttemptedPersonalEmotes(userId)) {
                         launch {
                             try {
                                 val personal = emoteRepository.loadPersonalEmotes(userId)
                                 if (personal.isNotEmpty()) {
+
+
+                                    kotlinx.coroutines.delay(50)
                                     update { st ->
                                         val channelEmotes =
                                             emoteRepository.getResolvedEmotes(st.channelLogin)
@@ -885,6 +1030,29 @@ class ChatViewModel(
                             } catch (_: Exception) {
                             }
                         }
+                    } else if (userId.isNotEmpty()) {
+                        val cached = emoteRepository.getCachedPersonalEmotes(userId)
+                        if (cached.isNotEmpty()) {
+                            val incomingId = message.id
+                            launch {
+                                delay(50)
+                                update { st ->
+                                    val channelEmotes =
+                                        emoteRepository.getResolvedEmotes(st.channelLogin)
+                                    val idx = st.messages.indexOfFirst { it.id == incomingId }
+                                    if (idx < 0) return@update st
+                                    val dm = st.messages[idx]
+                                    if (dm !is DisplayMessage.PrivMsg || dm.rawMessage == null)
+                                        return@update st
+                                    val newTokens = MessageTokenizer.tokenize(
+                                        dm.rawMessage, channelEmotes, personalEmotes = cached
+                                    )
+                                    val newList = st.messages.toMutableList()
+                                    newList[idx] = dm.copy(tokens = newTokens)
+                                    st.copy(messages = newList)
+                                }
+                            }
+                        }
                     }
                     val displayMsg = chatMessageToDisplay(message)
                     val s = state.value
@@ -896,8 +1064,11 @@ class ChatViewModel(
 
                         val resolvedEchoBadges = if (message.badges.isNotEmpty()) {
 
-                            currentUserBadgeRaw = message.badges.joinToString(",") { "${it.id}/${it.version}" }
-                            badgeRepository.resolveBadges(message.badges, message.channelId.ifEmpty { null })
+                            currentUserBadgeRaw =
+                                message.badges.joinToString(",") { "${it.id}/${it.version}" }
+                            badgeRepository.resolveBadges(
+                                message.badges,
+                                message.channelId.ifEmpty { null })
                         } else null
 
                         var patched = false
@@ -912,7 +1083,8 @@ class ChatViewModel(
 
                                 alreadyExists = true
                                 if (resolvedEchoBadges != null) {
-                                    val existing = st.messages[existingIdx] as DisplayMessage.PrivMsg
+                                    val existing =
+                                        st.messages[existingIdx] as DisplayMessage.PrivMsg
                                     val updated = existing.copy(badges = resolvedEchoBadges)
                                     val newList = st.messages.toMutableList()
                                     newList[existingIdx] = updated
@@ -940,11 +1112,17 @@ class ChatViewModel(
                             } else st
                         }
                         if (alreadyExists) {
-                            Napier.d("IRC echo for already-known $incomingId, skipping duplicate", tag = TAG)
+                            Napier.d(
+                                "IRC echo for already-known $incomingId, skipping duplicate",
+                                tag = TAG
+                            )
                             return@collect
                         }
                         if (patched) {
-                            Napier.d("IRC echo patched → $incomingId with ${message.badges.size} badges", tag = TAG)
+                            Napier.d(
+                                "IRC echo patched → $incomingId with ${message.badges.size} badges",
+                                tag = TAG
+                            )
                             return@collect
                         }
 
@@ -973,11 +1151,15 @@ class ChatViewModel(
                             )
                         ) return@update state
 
-                        if (state.messages.any { it.id == finalMsg.id }) {
+                        if (!messageIdSet.add(finalMsg.id)) {
                             return@update state
                         }
 
                         val newMessages = (state.messages + finalMsg).takeLast(maxMessages)
+                        if (newMessages.size < state.messages.size + 1) {
+                            val evicted = state.messages.size + 1 - newMessages.size
+                            state.messages.take(evicted).forEach { messageIdSet.remove(it.id) }
+                        }
                         state.copy(
                             messages = newMessages,
                             messagesSeq = state.messagesSeq + 1,
@@ -985,6 +1167,16 @@ class ChatViewModel(
                         )
                     }
                     sendEffect(ChatEffect.ScrollToBottom)
+
+                    if (!isOwnMessage && message.isFirstMessage) {
+                        ChatRuleEventEngine.fireFirstMessage(
+                            scope = viewModelScope,
+                            channelLogin = s.channelLogin,
+                            username = message.displayName.ifEmpty { message.username },
+                            rules = automodRepository.chatRules.value,
+                            send = { text -> sendBotMessage(text) }
+                        )
+                    }
 
                     if (matchResult != null) {
 
@@ -995,7 +1187,7 @@ class ChatViewModel(
                             )
                         )
                         if (matchResult.playSound) {
-                            val settings = SettingsViewModel.loadInitialState()
+                            val settings = cachedSettings()
                             if (settings.customMentionSoundPath.isNotBlank()) {
                                 NotificationSoundPlayer.playMentionSound(
                                     settings.mentionSoundVolume,
@@ -1027,7 +1219,7 @@ class ChatViewModel(
                                 )
                             )
                             if (matchResult.playSound) {
-                                val settings = SettingsViewModel.loadInitialState()
+                                val settings = cachedSettings()
                                 if (settings.customMentionSoundPath.isNotBlank()) {
                                     NotificationSoundPlayer.playMentionSound(
                                         settings.mentionSoundVolume,
@@ -1051,32 +1243,72 @@ class ChatViewModel(
                 when (event) {
                     is IrcEvent.Notice -> {
                         if (event.channel.equals(channelLogin, ignoreCase = true)) {
-                            addMessage(
-                                DisplayMessage.SystemMsg(
-                                    id = uniqueId("notice"),
-                                    timestamp = Clock.System.now().toEpochMilliseconds(),
-                                    channel = event.channel, text = event.message,
-                                    type = DisplayMessage.SystemMsg.SystemType.NOTICE
-                                )
+                            val isBanNotice = event.msgId in setOf(
+                                "msg_banned",
+                                "msg_channel_suspended",
+                                "msg_requires_verified_phone_number"
                             )
+                            if (isBanNotice) {
+                                update { it.copy(isBanned = true, banReason = event.message) }
+                            } else {
+                                addMessage(
+                                    DisplayMessage.SystemMsg(
+                                        id = uniqueId("notice"),
+                                        timestamp = Clock.System.now().toEpochMilliseconds(),
+                                        channel = event.channel, text = event.message,
+                                        type = DisplayMessage.SystemMsg.SystemType.NOTICE
+                                    )
+                                )
+                            }
                         }
                     }
 
                     is IrcEvent.UserNotice -> {
                         if (event.channel.equals(channelLogin, ignoreCase = true)) {
+                            val isAnnouncement =
+                                (event.msgId ?: "").equals("announcement", ignoreCase = true)
+                            val announceColor =
+                                event.tags["msg-param-color"]?.takeIf { it.isNotBlank() }
+                            val rawInner = event.message?.let { chatMessageToDisplay(it) }
+                            val inner = if (rawInner != null) {
+                                val baseId =
+                                    if (rawInner.id.isNotEmpty()) "inner_${rawInner.id}" else uniqueId(
+                                        "inner"
+                                    )
+                                if (isAnnouncement) {
+                                    rawInner.copy(
+                                        id = baseId,
+                                        isHighlighted = false,
+                                        isMention = false,
+                                        isFirstMessage = false,
+                                        highlightColor = null
+                                    )
+                                } else rawInner.copy(id = baseId)
+                            } else null
                             addMessage(
                                 DisplayMessage.UserNoticeMsg(
                                     id = uniqueId("usernotice"),
                                     timestamp = Clock.System.now().toEpochMilliseconds(),
                                     channel = event.channel, systemText = event.systemMsg,
-                                    innerMessage = event.message?.let {
-                                        chatMessageToDisplay(it).let { dm ->
-                                            dm.copy(id = if (dm.id.isNotEmpty()) "inner_${dm.id}" else uniqueId("inner"))
-                                        }
-                                    },
-                                    noticeType = event.msgId ?: ""
+                                    innerMessage = inner,
+                                    noticeType = event.msgId ?: "",
+                                    announceColor = announceColor
                                 )
                             )
+                            if ((event.msgId ?: "").equals("raid", ignoreCase = true)) {
+                                val raider = event.tags["msg-param-displayName"]
+                                    ?: event.tags["login"] ?: ""
+                                val viewers =
+                                    event.tags["msg-param-viewerCount"]?.toIntOrNull() ?: 0
+                                ChatRuleEventEngine.fireRaid(
+                                    scope = viewModelScope,
+                                    channelLogin = state.value.channelLogin,
+                                    raiderLogin = raider,
+                                    viewers = viewers,
+                                    rules = automodRepository.chatRules.value,
+                                    send = { text -> sendBotMessage(text) }
+                                )
+                            }
                         }
                     }
 
@@ -1087,14 +1319,24 @@ class ChatViewModel(
                             if (isActive) {
                                 val action =
                                     if (event.banDuration != null) DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT else DisplayMessage.ModerationMsg.ModerationAction.BAN
-                                val text =
-                                    if (event.banDuration != null) "${event.targetUser} was timed out for ${event.banDuration}s" else "${event.targetUser} was banned"
+                                val targetUserId = event.tags["target-user-id"]
+                                val modLogin = event.tags["moderator-login"]
+                                    ?: event.tags["created-by"]
+                                    ?: consumePendingModerator(event.targetUser, targetUserId)
+                                val text = buildString {
+                                    if (event.banDuration != null)
+                                        append("${event.targetUser} was timed out for ${event.banDuration}s")
+                                    else
+                                        append("${event.targetUser} was banned")
+                                    if (!modLogin.isNullOrBlank()) append(" by $modLogin")
+                                }
                                 addMessage(
                                     DisplayMessage.ModerationMsg(
                                         id = uniqueId("mod"),
                                         timestamp = Clock.System.now().toEpochMilliseconds(),
                                         channel = event.channel, text = text, action = action,
-                                        targetUser = event.targetUser, duration = event.banDuration
+                                        targetUser = event.targetUser, duration = event.banDuration,
+                                        moderatorLogin = modLogin
                                     )
                                 )
                                 update { state ->
@@ -1130,7 +1372,8 @@ class ChatViewModel(
 
                     is IrcEvent.ClearMsg -> {
                         val eventKey = event.channel.removePrefix("#").lowercase()
-                        if (event.channel.equals(channelLogin, ignoreCase = true)) {
+                        val isActive = event.channel.equals(channelLogin, ignoreCase = true)
+                        if (isActive) {
                             update { state ->
                                 state.copy(messages = state.messages.map { dm ->
                                     if (dm is DisplayMessage.PrivMsg && dm.id == event.targetMessageId) dm.copy(
@@ -1145,6 +1388,33 @@ class ChatViewModel(
                                     isDeleted = true
                                 ) else dm
                             }
+                        if (isActive) {
+                            val targetLogin = event.login.takeIf { it.isNotBlank() }
+                                ?: state.value.messages
+                                    .filterIsInstance<DisplayMessage.PrivMsg>()
+                                    .firstOrNull { it.id == event.targetMessageId }
+                                    ?.username
+                            val modLogin = consumePendingDeleteModerator(event.targetMessageId)
+                            val text = buildString {
+                                if (!targetLogin.isNullOrBlank()) {
+                                    append("Message from $targetLogin was deleted")
+                                } else {
+                                    append("A message was deleted")
+                                }
+                                if (!modLogin.isNullOrBlank()) append(" by $modLogin")
+                            }
+                            addMessage(
+                                DisplayMessage.ModerationMsg(
+                                    id = uniqueId("del"),
+                                    timestamp = Clock.System.now().toEpochMilliseconds(),
+                                    channel = event.channel,
+                                    text = text,
+                                    action = DisplayMessage.ModerationMsg.ModerationAction.DELETE,
+                                    targetUser = targetLogin,
+                                    moderatorLogin = modLogin
+                                )
+                            )
+                        }
                     }
 
                     is IrcEvent.RoomState -> {
@@ -1226,7 +1496,6 @@ class ChatViewModel(
                                 update { st ->
 
 
-
                                     val targetIndex = st.messages.indexOfLast { dm ->
                                         dm is DisplayMessage.PrivMsg &&
                                                 dm.id.startsWith("local_") &&
@@ -1258,6 +1527,14 @@ class ChatViewModel(
                                     tag = TAG
                                 )
                                 retokenizeMessages()
+                                val s2 = state.value
+                                if (s2.channelId.isNotEmpty() && s2.currentAccessToken.isNotEmpty() && s2.currentUserId.isNotEmpty()) {
+                                    pubSubClient.connect(
+                                        accessToken = s2.currentAccessToken,
+                                        userId = s2.currentUserId,
+                                        channelId = s2.channelId
+                                    )
+                                }
                             }
                         }
                     }
@@ -1289,7 +1566,9 @@ class ChatViewModel(
                                     username = event.username,
                                     displayName = event.displayName,
                                     text = event.message,
-                                    color = event.color
+                                    color = event.color,
+                                    reasonCategory = event.reasonCategory,
+                                    reasonLevel = event.reasonLevel
                                 )
                             )
                         }
@@ -1307,9 +1586,10 @@ class ChatViewModel(
                 val s = state.value
                 when (event) {
                     is IrcEvent.AutoModHeld -> {
-                        if ((event.channel == s.channelId || event.channel.equals(s.channelLogin, ignoreCase = true))
-                            && s.canModerate
-                        ) {
+                        val channelMatch = event.channel == s.channelId
+                                || event.channel.equals(s.channelLogin, ignoreCase = true)
+                                || event.channel.equals("#${s.channelLogin}", ignoreCase = true)
+                        if (channelMatch) {
                             val alreadyShown = s.messages.any {
                                 it is DisplayMessage.AutoModMsg && it.msgId == event.msgId
                             }
@@ -1324,14 +1604,122 @@ class ChatViewModel(
                                         username = event.username,
                                         displayName = event.displayName,
                                         text = event.message,
-                                        color = event.color
+                                        color = event.color,
+                                        reasonCategory = event.reasonCategory,
+                                        reasonLevel = event.reasonLevel
                                     )
                                 )
                             }
                         }
                     }
+
+                    is IrcEvent.AutoModResolved -> {
+                        val channelMatch = event.channel == s.channelId
+                                || event.channel.equals(s.channelLogin, ignoreCase = true)
+                                || event.channel.equals("#${s.channelLogin}", ignoreCase = true)
+                        if (channelMatch) {
+                            update { st ->
+                                st.copy(messages = st.messages.filter { dm ->
+                                    !(dm is DisplayMessage.AutoModMsg && dm.msgId == event.msgId)
+                                })
+                            }
+                            val noticeText = if (event.action == "ALLOWED")
+                                "${event.resolvedBy}'s message was approved"
+                            else
+                                "${event.resolvedBy}'s message was denied"
+                            systemNotice(s.channelLogin, noticeText)
+                        }
+                    }
+
+                    is IrcEvent.ModeratorAction -> {
+                        val channelMatch = event.channel == s.channelId
+                                || event.channel.equals(s.channelLogin, ignoreCase = true)
+                                || event.channel.equals("#${s.channelLogin}", ignoreCase = true)
+                        if (channelMatch) handleModeratorAction(event)
+                    }
+
                     else -> {}
                 }
+            }
+        }
+    }
+
+    private fun handleModeratorAction(event: IrcEvent.ModeratorAction) {
+        when (event.action) {
+            IrcEvent.ModeratorAction.ACTION_BAN,
+            IrcEvent.ModeratorAction.ACTION_TIMEOUT,
+            IrcEvent.ModeratorAction.ACTION_UNBAN,
+            IrcEvent.ModeratorAction.ACTION_UNTIMEOUT -> {
+
+                if (!event.targetUserId.isNullOrBlank()) {
+                    rememberPendingModerator(event.targetUserId, event.moderator)
+                } else if (!event.target.isNullOrBlank()) {
+
+                    val matched = state.value.messages
+                        .filterIsInstance<DisplayMessage.PrivMsg>()
+                        .lastOrNull { it.username.equals(event.target, ignoreCase = true) }
+                        ?.userId
+                    if (!matched.isNullOrBlank()) {
+                        rememberPendingModerator(matched, event.moderator)
+                    }
+                }
+
+
+                if (event.action == IrcEvent.ModeratorAction.ACTION_UNBAN ||
+                    event.action == IrcEvent.ModeratorAction.ACTION_UNTIMEOUT
+                ) {
+                    val target = event.target ?: "—"
+                    val text = if (event.action == IrcEvent.ModeratorAction.ACTION_UNBAN) {
+                        "$target was unbanned by ${event.moderator}"
+                    } else {
+                        "$target was untimed out by ${event.moderator}"
+                    }
+                    addMessage(
+                        DisplayMessage.ModerationMsg(
+                            id = uniqueId("modact"),
+                            timestamp = Clock.System.now().toEpochMilliseconds(),
+                            channel = "#${state.value.channelLogin}",
+                            text = text,
+                            action = DisplayMessage.ModerationMsg.ModerationAction.UNBAN,
+                            targetUser = event.target,
+                            moderatorLogin = event.moderator
+                        )
+                    )
+                }
+            }
+
+            IrcEvent.ModeratorAction.ACTION_DELETE -> {
+                if (!event.targetMessageId.isNullOrBlank()) {
+                    rememberPendingDeleteModerator(event.targetMessageId, event.moderator)
+                }
+            }
+
+            IrcEvent.ModeratorAction.ACTION_MOD,
+            IrcEvent.ModeratorAction.ACTION_UNMOD,
+            IrcEvent.ModeratorAction.ACTION_VIP,
+            IrcEvent.ModeratorAction.ACTION_UNVIP -> {
+                val target = event.target ?: "—"
+                val text = when (event.action) {
+                    IrcEvent.ModeratorAction.ACTION_MOD -> "$target was modded by ${event.moderator}"
+                    IrcEvent.ModeratorAction.ACTION_UNMOD -> "$target was unmodded by ${event.moderator}"
+                    IrcEvent.ModeratorAction.ACTION_VIP -> "$target was made VIP by ${event.moderator}"
+                    else -> "$target is no longer VIP by ${event.moderator}"
+                }
+                addMessage(
+                    DisplayMessage.ModerationMsg(
+                        id = uniqueId("modact"),
+                        timestamp = Clock.System.now().toEpochMilliseconds(),
+                        channel = "#${state.value.channelLogin}",
+                        text = text,
+                        action = DisplayMessage.ModerationMsg.ModerationAction.UNBAN,
+                        targetUser = event.target,
+                        moderatorLogin = event.moderator
+                    )
+                )
+            }
+
+            IrcEvent.ModeratorAction.ACTION_CLEAR -> {
+
             }
         }
     }
@@ -1340,7 +1728,10 @@ class ChatViewModel(
         viewModelScope.launch {
             sevenTvEventApi.emoteSetUpdates.collect { event ->
                 val channelLogin = state.value.channelLogin
-                val text = when (event) {
+
+
+
+                val noticeText: String? = when (event) {
                     is SevenTvEventApi.EmoteSetUpdateEvent.EmoteAdded ->
                         "[7TV] ${event.actorName} added ${event.emoteName}"
 
@@ -1349,15 +1740,20 @@ class ChatViewModel(
 
                     is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRenamed ->
                         "[7TV] ${event.actorName} renamed ${event.oldName} → ${event.newName}"
+
+                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetGranted,
+                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetRevoked -> null
                 }
-                addMessage(
-                    DisplayMessage.SystemMsg(
-                        id = uniqueId("7tv"),
-                        timestamp = Clock.System.now().toEpochMilliseconds(),
-                        channel = channelLogin, text = text,
-                        type = DisplayMessage.SystemMsg.SystemType.NOTICE
+                if (noticeText != null) {
+                    addMessage(
+                        DisplayMessage.SystemMsg(
+                            id = uniqueId("7tv"),
+                            timestamp = Clock.System.now().toEpochMilliseconds(),
+                            channel = channelLogin, text = noticeText,
+                            type = DisplayMessage.SystemMsg.SystemType.NOTICE
+                        )
                     )
-                )
+                }
 
 
                 when (event) {
@@ -1374,42 +1770,130 @@ class ChatViewModel(
                                         url3x = "https://cdn.7tv.app/emote/${event.emoteId}/4x.webp",
                                         provider = io.rudione.chatone.domain.model.EmoteProvider.SEVEN_TV
                                     )
-                                emoteRepository.patchChannelEmote(channelLogin, emote)
-                                if (state.value.channelLogin == channelLogin) retokenizeMessages()
+                                if (emoteRepository.isPersonalEmoteSet(event.emoteSetId)) {
+                                    emoteRepository.patchPersonalSet(event.emoteSetId, emote)
+                                    val affected =
+                                        emoteRepository.usersForPersonalSet(event.emoteSetId)
+                                    if (state.value.channelLogin == channelLogin && affected.isNotEmpty()) {
+                                        scheduleRetokenizeForUsers(affected)
+                                    }
+                                } else {
+                                    emoteRepository.patchChannelEmote(channelLogin, emote)
+                                    if (state.value.channelLogin == channelLogin) scheduleRetokenize()
+                                }
                             } catch (_: Exception) {
                             }
                         }
                     }
 
                     is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRemoved -> {
-                        emoteRepository.removeChannelEmote(
-                            channelLogin,
-                            event.emoteId,
-                            event.emoteName
-                        )
-                        if (state.value.channelLogin == channelLogin) retokenizeMessages()
+                        if (emoteRepository.isPersonalEmoteSet(event.emoteSetId)) {
+                            emoteRepository.removeFromPersonalSet(
+                                event.emoteSetId, event.emoteId, event.emoteName
+                            )
+                            val affected = emoteRepository.usersForPersonalSet(event.emoteSetId)
+                            if (state.value.channelLogin == channelLogin && affected.isNotEmpty()) {
+                                scheduleRetokenizeForUsers(affected)
+                            }
+                        } else {
+                            emoteRepository.removeChannelEmote(
+                                channelLogin,
+                                event.emoteId,
+                                event.emoteName
+                            )
+                            if (state.value.channelLogin == channelLogin) scheduleRetokenize()
+                        }
                     }
 
                     is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRenamed -> {
-                        emoteRepository.renameChannelEmote(
-                            channelLogin,
-                            event.emoteId,
-                            event.newName
-                        )
-                        if (state.value.channelLogin == channelLogin) retokenizeMessages()
+                        if (emoteRepository.isPersonalEmoteSet(event.emoteSetId)) {
+                            emoteRepository.renameInPersonalSet(
+                                event.emoteSetId, event.emoteId, event.newName
+                            )
+                            val affected = emoteRepository.usersForPersonalSet(event.emoteSetId)
+                            if (state.value.channelLogin == channelLogin && affected.isNotEmpty()) {
+                                scheduleRetokenizeForUsers(affected)
+                            }
+                        } else {
+                            emoteRepository.renameChannelEmote(
+                                channelLogin,
+                                event.emoteId,
+                                event.newName
+                            )
+                            if (state.value.channelLogin == channelLogin) scheduleRetokenize()
+                        }
+                    }
+
+                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetGranted -> {
+                        launch {
+                            try {
+                                val emotes = emoteRepository.grantPersonalEmoteSet(
+                                    twitchUserId = event.twitchUserId,
+                                    emoteSetId = event.emoteSetId
+                                )
+
+
+                                sevenTvEventApi.subscribeToEmoteSet(event.emoteSetId)
+                                if (!emotes.isNullOrEmpty() &&
+                                    state.value.channelLogin == channelLogin
+                                ) {
+                                    scheduleRetokenizeForUsers(setOf(event.twitchUserId))
+                                }
+                            } catch (e: Exception) {
+                                Napier.w(
+                                    "Failed to grant personal set ${event.emoteSetId} for ${event.twitchUserId}: ${e.message}",
+                                    tag = TAG
+                                )
+                            }
+                        }
+                    }
+
+                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetRevoked -> {
+                        emoteRepository.revokePersonalEmoteSet(event.twitchUserId, event.emoteSetId)
+                        if (state.value.channelLogin == channelLogin) {
+                            scheduleRetokenizeForUsers(setOf(event.twitchUserId))
+                        }
                     }
                 }
             }
         }
     }
 
-    private fun addMessage(msg: DisplayMessage) {
+
+    private fun retokenizeMessagesForUsers(userIds: Set<String>) {
+        if (userIds.isEmpty()) return
         update { state ->
-            if (state.messages.any { it.id == msg.id }) return@update state
-            state.copy(
-                messages = (state.messages + msg).takeLast(maxMessages),
-                messagesSeq = state.messagesSeq + 1
-            )
+            val channelLogin = state.channelLogin
+            if (channelLogin.isEmpty()) return@update state
+            val channelEmotes = emoteRepository.getResolvedEmotes(channelLogin)
+            state.copy(messages = state.messages.map { msg ->
+                if (msg is DisplayMessage.PrivMsg &&
+                    msg.userId in userIds &&
+                    msg.rawMessage != null
+                ) {
+                    val personal = emoteRepository.getCachedPersonalEmotes(msg.userId)
+                    val newTokens = MessageTokenizer.tokenize(
+                        msg.rawMessage,
+                        channelEmotes,
+                        personalEmotes = personal
+                    )
+                    msg.copy(tokens = newTokens)
+                } else msg
+            })
+        }
+    }
+
+    private val messageIdSet = LinkedHashSet<String>(512)
+
+    private fun addMessage(msg: DisplayMessage) {
+        if (!messageIdSet.add(msg.id)) return
+        update { state ->
+            val newList = (state.messages + msg).takeLast(maxMessages)
+            if (newList.size < state.messages.size + 1) {
+                val evicted = state.messages.size + 1 - newList.size
+                state.messages.take(evicted).forEach { messageIdSet.remove(it.id) }
+            }
+            state.copy(messages = newList, messagesSeq = state.messagesSeq + 1)
         }
         sendEffect(ChatEffect.ScrollToBottom)
     }
@@ -1526,33 +2010,10 @@ class ChatViewModel(
 
         viewModelScope.launch {
             try {
-                if (message.startsWith("/w ")) {
-                    val parts = message.removePrefix("/w ").split(" ", limit = 2)
-                    if (parts.size == 2) {
-                        val targetUser = parts[0]
-                        val whisperMsg = parts[1]
-                        val targetMsg = s.messages.filterIsInstance<DisplayMessage.PrivMsg>()
-                            .firstOrNull { it.username.equals(targetUser, ignoreCase = true) }
-                        if (targetMsg != null && s.currentAccessToken.isNotEmpty()) {
-                            val result = apiClient.sendWhisper(
-                                accessToken = s.currentAccessToken,
-                                fromUserId = s.currentUserId,
-                                toUserId = targetMsg.userId,
-                                message = whisperMsg
-                            )
-                            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to send whisper"))
-                        } else {
-                            sendViaHelixOnly(channelLogin, message, keepText, s)
-                        }
-                        lastMessageSentAt = Clock.System.now().toEpochMilliseconds()
-                        lastSentBaseText = message
-                        return@launch
-                    }
-                }
-
-                if (message.startsWith("/")) {
-                    sendViaIrc(channelLogin, message, s)
+                val parsed = SlashCommand.parse(message)
+                if (parsed != null) {
                     update { st -> if (!keepText) st.copy(messageInput = "") else st }
+                    runSlashCommand(parsed, channelLogin, s)
                     lastMessageSentAt = Clock.System.now().toEpochMilliseconds()
                     return@launch
                 }
@@ -1583,7 +2044,365 @@ class ChatViewModel(
         }
     }
 
-    /** Send a message via IRC — required for slash commands like /ban /timeout /clear */
+
+    private suspend fun resolveUserId(login: String): String? {
+        if (login.isBlank()) return null
+        val s = state.value
+
+        val cached = s.messages.filterIsInstance<DisplayMessage.PrivMsg>()
+            .firstOrNull { it.username.equals(login, ignoreCase = true) }
+            ?.userId
+            ?.takeIf { it.isNotBlank() }
+        if (cached != null) return cached
+        if (s.currentAccessToken.isEmpty()) return null
+        val res = apiClient.getUsers(s.currentAccessToken, logins = listOf(login.lowercase()))
+        return if (res is io.rudione.chatone.util.Result.Success) {
+            res.data.data.firstOrNull()?.id
+        } else null
+    }
+
+    private fun systemNotice(channelLogin: String, text: String) {
+        addMessage(
+            DisplayMessage.SystemMsg(
+                id = uniqueId("cmd"),
+                timestamp = Clock.System.now().toEpochMilliseconds(),
+                channel = channelLogin,
+                text = text,
+                type = DisplayMessage.SystemMsg.SystemType.NOTICE
+            )
+        )
+    }
+
+    @Suppress("LongMethod")
+    private suspend fun runSlashCommand(
+        cmd: SlashCommand.Parsed,
+        channelLogin: String,
+        s: ChatState
+    ) {
+        val token = s.currentAccessToken
+        val broadcasterId = s.channelId
+        val moderatorId = s.currentUserId
+
+        suspend fun requireMod(): Boolean {
+            if (s.canModerate) return true
+            sendEffect(ChatEffect.ShowError("Mod-only command"))
+            return false
+        }
+
+        when (cmd) {
+            is SlashCommand.Parsed.Ban -> {
+                if (!requireMod()) return
+                val targetId = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                rememberPendingModerator(targetId, s.currentUserLogin)
+                val r = apiClient.banUser(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    targetId,
+                    duration = null,
+                    reason = cmd.reason
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to ban ${cmd.targetLogin}"))
+            }
+
+            is SlashCommand.Parsed.Timeout -> {
+                if (!requireMod()) return
+                val targetId = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                rememberPendingModerator(targetId, s.currentUserLogin)
+                val r = apiClient.banUser(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    targetId,
+                    duration = cmd.seconds,
+                    reason = cmd.reason
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to timeout ${cmd.targetLogin}"))
+            }
+
+            is SlashCommand.Parsed.Unban -> {
+                if (!requireMod()) return
+                val targetId = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                val r = apiClient.unbanUser(token, broadcasterId, moderatorId, targetId)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to unban ${cmd.targetLogin}"))
+            }
+
+            is SlashCommand.Parsed.Clear -> {
+                if (!requireMod()) return
+                val r = apiClient.clearChat(token, broadcasterId, moderatorId)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to clear chat"))
+            }
+
+            is SlashCommand.Parsed.Raid -> {
+                if (!s.isBroadcaster && !s.isMod) return sendEffect(ChatEffect.ShowError("Broadcaster/editor command"))
+                val targetId = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("Channel not found: ${cmd.targetLogin}"))
+                val r = apiClient.startRaid(token, broadcasterId, targetId)
+                if (r.isError) {
+                    sendEffect(ChatEffect.ShowError("Failed to start raid"))
+                } else {
+
+                    update {
+                        it.copy(
+                            pendingRaidTarget = cmd.targetLogin,
+                            pendingRaidTargetId = targetId,
+                            pendingRaidStartedAt = kotlinx.datetime.Clock.System.now()
+                                .toEpochMilliseconds()
+                        )
+                    }
+                }
+            }
+
+            is SlashCommand.Parsed.UnRaid -> {
+                if (!s.isBroadcaster && !s.isMod) return sendEffect(ChatEffect.ShowError("Broadcaster/editor command"))
+                val r = apiClient.cancelRaid(token, broadcasterId)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to cancel raid"))
+                else update {
+                    it.copy(
+                        pendingRaidTarget = null,
+                        pendingRaidTargetId = null,
+                        pendingRaidStartedAt = 0L
+                    )
+                }
+            }
+
+            is SlashCommand.Parsed.Pin -> {
+                if (!requireMod()) return
+
+                val msgId = cmd.messageId.trim()
+                val found = state.value.messages
+                    .filterIsInstance<DisplayMessage.PrivMsg>()
+                    .firstOrNull { it.id == msgId || it.id.endsWith(msgId) }
+                if (found != null) {
+                    update { it.copy(pinnedMessage = found) }
+                } else {
+                    sendEffect(ChatEffect.ShowError("Message not found. Use the pin button in the message context menu."))
+                }
+            }
+
+            is SlashCommand.Parsed.Unpin -> {
+                if (!requireMod()) return
+                update { it.copy(pinnedMessage = null) }
+            }
+
+            is SlashCommand.Parsed.Announce -> {
+                if (!requireMod()) return
+                val r = apiClient.sendAnnouncement(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    cmd.text,
+                    cmd.color
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to send announcement"))
+            }
+
+            is SlashCommand.Parsed.Slow -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("slow_mode" to true, "slow_mode_wait_time" to cmd.seconds)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to set slow-mode"))
+            }
+
+            SlashCommand.Parsed.SlowOff -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("slow_mode" to false)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable slow-mode"))
+            }
+
+            is SlashCommand.Parsed.Followers -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("follower_mode" to true, "follower_mode_duration" to cmd.seconds / 60)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to set follower-mode"))
+            }
+
+            SlashCommand.Parsed.FollowersOff -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("follower_mode" to false)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable follower-mode"))
+            }
+
+            SlashCommand.Parsed.SubsOnly -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("subscriber_mode" to true)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to enable sub-only"))
+            }
+
+            SlashCommand.Parsed.SubsOnlyOff -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("subscriber_mode" to false)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable sub-only"))
+            }
+
+            SlashCommand.Parsed.EmoteOnly -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("emote_mode" to true)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to enable emote-only"))
+            }
+
+            SlashCommand.Parsed.EmoteOnlyOff -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("emote_mode" to false)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable emote-only"))
+            }
+
+            SlashCommand.Parsed.UniqueOn -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("unique_chat_mode" to true)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to enable unique-chat"))
+            }
+
+            SlashCommand.Parsed.UniqueOff -> {
+                if (!requireMod()) return
+                val r = apiClient.updateChatSettings(
+                    token,
+                    broadcasterId,
+                    moderatorId,
+                    mapOf("unique_chat_mode" to false)
+                )
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable unique-chat"))
+            }
+
+            is SlashCommand.Parsed.Vip -> {
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Broadcaster-only command"))
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                val r = apiClient.addVip(token, broadcasterId, tid)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to add VIP"))
+            }
+
+            is SlashCommand.Parsed.UnVip -> {
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Broadcaster-only command"))
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                val r = apiClient.removeVip(token, broadcasterId, tid)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to remove VIP"))
+            }
+
+            is SlashCommand.Parsed.Mod -> {
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Broadcaster-only command"))
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                val r = apiClient.addModerator(token, broadcasterId, tid)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to add mod"))
+            }
+
+            is SlashCommand.Parsed.UnMod -> {
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Broadcaster-only command"))
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                val r = apiClient.removeModerator(token, broadcasterId, tid)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to remove mod"))
+            }
+
+            is SlashCommand.Parsed.Shoutout -> {
+                if (!requireMod()) return
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                val r = apiClient.sendShoutout(token, broadcasterId, tid, moderatorId)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to send shoutout"))
+            }
+
+            is SlashCommand.Parsed.Color -> {
+                val r = apiClient.updateUserChatColor(token, moderatorId, cmd.value)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to change color"))
+            }
+
+            is SlashCommand.Parsed.Warn -> {
+                if (!requireMod()) return
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                val r = apiClient.warnUser(token, broadcasterId, moderatorId, tid, cmd.reason)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to warn user"))
+            }
+
+            is SlashCommand.Parsed.Me -> {
+
+                sendViaHelixOnly(channelLogin, cmd.text, keepText = false, s)
+            }
+
+            is SlashCommand.Parsed.Whisper -> {
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                val r = apiClient.sendWhisper(token, moderatorId, tid, cmd.text)
+                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to send whisper"))
+            }
+
+            is SlashCommand.Parsed.Block -> {
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                handleBlockUser(tid, cmd.targetLogin)
+            }
+
+            is SlashCommand.Parsed.Unblock -> {
+                val tid = resolveUserId(cmd.targetLogin)
+                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                handleUnblockUser(tid, cmd.targetLogin)
+            }
+
+            SlashCommand.Parsed.Help -> {
+                val supported =
+                    SlashCommand.ALL.joinToString("\n") { "${it.usage} — ${it.description}" }
+                systemNotice(channelLogin, "Supported commands:\n$supported")
+            }
+
+            is SlashCommand.Parsed.Unknown -> {
+                sendEffect(ChatEffect.ShowError("Unknown command: /${cmd.name}. Type /help for a list."))
+            }
+
+            is SlashCommand.Parsed.BadUsage -> {
+                sendEffect(ChatEffect.ShowError("Usage: ${cmd.usage}"))
+            }
+        }
+    }
+
     private suspend fun sendViaIrc(channelLogin: String, message: String, s: ChatState) {
         try {
             sendMessageUseCase(channelLogin, message)
@@ -1678,7 +2497,8 @@ class ChatViewModel(
                                 dm is DisplayMessage.PrivMsg && dm.id == localId
                             }
                             if (idx != -1) {
-                                val patched = (st.messages[idx] as DisplayMessage.PrivMsg).copy(id = realId)
+                                val patched =
+                                    (st.messages[idx] as DisplayMessage.PrivMsg).copy(id = realId)
                                 val newMessages = st.messages.toMutableList()
                                 newMessages[idx] = patched
                                 st.copy(messages = newMessages)
@@ -1687,11 +2507,16 @@ class ChatViewModel(
                         Napier.d("Message sent via Helix, patched $localId → $realId", tag = TAG)
                     }
                 }
+
                 is io.rudione.chatone.util.Result.Error -> {
-                    Napier.w("Helix send failed: ${helixResult.exception.message}, message still shown locally", tag = TAG)
+                    Napier.w(
+                        "Helix send failed: ${helixResult.exception.message}, message still shown locally",
+                        tag = TAG
+                    )
 
 
                 }
+
                 is io.rudione.chatone.util.Result.Loading -> {}
             }
         } else {
@@ -1717,6 +2542,120 @@ class ChatViewModel(
         update { it.copy(modModeEnabled = !it.modModeEnabled) }
     }
 
+
+
+
+    private var streamStatePoller: kotlinx.coroutines.Job? = null
+    private val previousStreamLive = mutableMapOf<String, Boolean>()
+
+    private suspend fun sendBotMessage(text: String) {
+        val s = state.value
+        if (text.isBlank() || s.channelLogin.isEmpty()) return
+        try {
+            if (s.currentAccessToken.isNotEmpty() && s.channelId.isNotEmpty() && s.currentUserId.isNotEmpty()) {
+                apiClient.sendChatMessage(
+                    accessToken = s.currentAccessToken,
+                    broadcasterId = s.channelId,
+                    senderId = s.currentUserId,
+                    message = text
+                )
+            } else {
+                sendMessageUseCase(s.channelLogin, text)
+            }
+        } catch (e: Exception) {
+            Napier.w("sendBotMessage failed: ${e.message}", tag = TAG)
+        }
+    }
+
+    private suspend fun pollStreamState(channelLogin: String) {
+        try {
+
+            var seeded = false
+            while (true) {
+                val s = state.value
+                if (s.channelLogin != channelLogin) return
+                val token = s.currentAccessToken
+                if (token.isNotEmpty()) {
+                    val result = apiClient.getStreams(token, userLogins = listOf(channelLogin))
+                    if (result is io.rudione.chatone.util.Result.Success) {
+                        val isLive = result.data.data.isNotEmpty()
+                        val key = channelLogin.lowercase()
+                        val prev = previousStreamLive[key]
+                        previousStreamLive[key] = isLive
+                        if (seeded && prev != null && prev != isLive) {
+                            val rules = automodRepository.chatRules.value
+                            if (isLive) {
+                                ChatRuleEventEngine.fireStreamOnline(
+                                    scope = viewModelScope,
+                                    channelLogin = channelLogin,
+                                    rules = rules,
+                                    send = { text -> sendBotMessage(text) }
+                                )
+                            } else {
+                                ChatRuleEventEngine.fireStreamOffline(
+                                    scope = viewModelScope,
+                                    channelLogin = channelLogin,
+                                    rules = rules,
+                                    send = { text -> sendBotMessage(text) }
+                                )
+                            }
+                        }
+                        seeded = true
+                    }
+                }
+                kotlinx.coroutines.delay(120_000L)
+            }
+        } catch (_: kotlinx.coroutines.CancellationException) {
+
+        } catch (e: Exception) {
+            Napier.w("Stream poller error: ${e.message}", tag = TAG)
+        }
+    }
+
+    private val pendingModerationActors = mutableMapOf<String, Pair<String, Long>>()
+    private val pendingDeleteActors = mutableMapOf<String, Pair<String, Long>>()
+    private val MOD_ACTOR_TTL_MS = 15_000L
+
+    private fun rememberPendingModerator(targetUserId: String, moderatorLogin: String) {
+        if (targetUserId.isBlank() || moderatorLogin.isBlank()) return
+        pendingModerationActors[targetUserId] =
+            moderatorLogin to Clock.System.now().toEpochMilliseconds()
+    }
+
+    private fun rememberPendingDeleteModerator(messageId: String, moderatorLogin: String) {
+        if (messageId.isBlank() || moderatorLogin.isBlank()) return
+        pendingDeleteActors[messageId] = moderatorLogin to Clock.System.now().toEpochMilliseconds()
+    }
+
+    private fun consumePendingDeleteModerator(messageId: String): String? {
+        if (messageId.isBlank()) return null
+        val now = Clock.System.now().toEpochMilliseconds()
+        val stale = pendingDeleteActors.filter { now - it.value.second > MOD_ACTOR_TTL_MS }.keys
+        stale.forEach { pendingDeleteActors.remove(it) }
+        return pendingDeleteActors.remove(messageId)?.first
+    }
+
+    private fun consumePendingModerator(targetLogin: String?, targetUserId: String?): String? {
+        val now = Clock.System.now().toEpochMilliseconds()
+
+        val stale = pendingModerationActors.filter { now - it.value.second > MOD_ACTOR_TTL_MS }.keys
+        stale.forEach { pendingModerationActors.remove(it) }
+        if (!targetUserId.isNullOrBlank()) {
+            pendingModerationActors.remove(targetUserId)?.let { return it.first }
+        }
+
+        if (!targetLogin.isNullOrBlank()) {
+            val matchedUserId = state.value.messages
+                .filterIsInstance<DisplayMessage.PrivMsg>()
+                .lastOrNull { it.username.equals(targetLogin, ignoreCase = true) }
+                ?.userId
+            if (!matchedUserId.isNullOrBlank()) {
+                pendingModerationActors.remove(matchedUserId)?.let { return it.first }
+            }
+        }
+        return null
+    }
+
     private fun timeoutUser(userId: String, duration: Int) {
         val s = state.value
         if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
@@ -1729,6 +2668,7 @@ class ChatViewModel(
                 duration
             )
             if (result.isError) sendEffect(ChatEffect.ShowError("Failed to timeout user"))
+            else rememberPendingModerator(userId, s.currentUserLogin)
         }
     }
 
@@ -1739,6 +2679,7 @@ class ChatViewModel(
             val result =
                 apiClient.banUser(s.currentAccessToken, s.channelId, s.currentUserId, userId)
             if (result.isError) sendEffect(ChatEffect.ShowError("Failed to ban user"))
+            else rememberPendingModerator(userId, s.currentUserLogin)
         }
     }
 
@@ -1746,6 +2687,8 @@ class ChatViewModel(
         val s = state.value
         if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
 
+        val actorLogin = s.currentUserLogin
+        if (actorLogin.isNotBlank()) rememberPendingDeleteModerator(messageId, actorLogin)
 
         val cacheKey = s.channelLogin.lowercase()
         update { st ->
@@ -1795,14 +2738,21 @@ class ChatViewModel(
                     .lastOrNull { it.userId == userId }
                     ?.username
                     ?: userId
+                val showActor = s.canModerate
+                val actor = s.currentUserLogin
+                val text = buildString {
+                    append("$targetLogin was unbanned")
+                    if (showActor && actor.isNotBlank()) append(" by $actor")
+                }
                 addMessage(
                     DisplayMessage.ModerationMsg(
                         id = uniqueId("unban"),
                         timestamp = Clock.System.now().toEpochMilliseconds(),
                         channel = "#${s.channelLogin}",
-                        text = "$targetLogin was unbanned",
+                        text = text,
                         action = DisplayMessage.ModerationMsg.ModerationAction.UNBAN,
-                        targetUser = targetLogin
+                        targetUser = targetLogin,
+                        moderatorLogin = if (showActor) actor.takeIf { it.isNotBlank() } else null
                     )
                 )
             }
@@ -2102,25 +3052,33 @@ class ChatViewModel(
         if (wordVerdict != null) {
             val noticeText = buildString {
                 append("Automod [${wordVerdict.rule.scopeLabel}] ")
-                append(when (wordVerdict.action) {
-                    AutomodAction.DELETE -> "deleted"
-                    AutomodAction.TIMEOUT -> "timed out (${wordVerdict.timeoutSeconds}s)"
-                    AutomodAction.BAN -> "banned"
-                })
+                append(
+                    when (wordVerdict.action) {
+                        AutomodAction.DELETE -> "deleted"
+                        AutomodAction.TIMEOUT -> "timed out (${wordVerdict.timeoutSeconds}s)"
+                        AutomodAction.BAN -> "banned"
+                    }
+                )
                 append(" @${message.displayName.ifEmpty { message.username }}: matched \"${wordVerdict.matchedPattern}\"")
             }
             when (wordVerdict.action) {
                 AutomodAction.DELETE -> if (message.id.isNotEmpty()) deleteMessage(message.id)
-                AutomodAction.TIMEOUT -> if (message.userId.isNotEmpty()) timeoutUser(message.userId, wordVerdict.timeoutSeconds)
+                AutomodAction.TIMEOUT -> if (message.userId.isNotEmpty()) timeoutUser(
+                    message.userId,
+                    wordVerdict.timeoutSeconds
+                )
+
                 AutomodAction.BAN -> if (message.userId.isNotEmpty()) banUser(message.userId)
             }
-            addMessage(DisplayMessage.SystemMsg(
-                id = uniqueId("automod"),
-                timestamp = Clock.System.now().toEpochMilliseconds(),
-                channel = s.channelLogin,
-                text = noticeText,
-                type = DisplayMessage.SystemMsg.SystemType.NOTICE
-            ))
+            addMessage(
+                DisplayMessage.SystemMsg(
+                    id = uniqueId("automod"),
+                    timestamp = Clock.System.now().toEpochMilliseconds(),
+                    channel = s.channelLogin,
+                    text = noticeText,
+                    type = DisplayMessage.SystemMsg.SystemType.NOTICE
+                )
+            )
             return
         }
 
@@ -2142,24 +3100,34 @@ class ChatViewModel(
 
         val chatNoticeText = buildString {
             append("ChatRule [${chatVerdict.rule.scopeLabel}] ")
-            append(when (chatVerdict.action) {
-                ChatRuleAction.DELETE -> "deleted"
-                ChatRuleAction.TIMEOUT -> "timed out (${chatVerdict.timeoutSeconds}s)"
-                ChatRuleAction.BAN -> "banned"
-            })
+            append(
+                when (chatVerdict.action) {
+                    ChatRuleAction.DELETE -> "deleted"
+                    ChatRuleAction.TIMEOUT -> "timed out (${chatVerdict.timeoutSeconds}s)"
+                    ChatRuleAction.BAN -> "banned"
+                    ChatRuleAction.SEND_MESSAGE -> "responded"
+                }
+            )
             append(" @${message.displayName.ifEmpty { message.username }}: ${chatVerdict.reason}")
         }
         when (chatVerdict.action) {
             ChatRuleAction.DELETE -> if (message.id.isNotEmpty()) deleteMessage(message.id)
-            ChatRuleAction.TIMEOUT -> if (message.userId.isNotEmpty()) timeoutUser(message.userId, chatVerdict.timeoutSeconds)
+            ChatRuleAction.TIMEOUT -> if (message.userId.isNotEmpty()) timeoutUser(
+                message.userId,
+                chatVerdict.timeoutSeconds
+            )
+
             ChatRuleAction.BAN -> if (message.userId.isNotEmpty()) banUser(message.userId)
+            ChatRuleAction.SEND_MESSAGE -> Unit
         }
-        addMessage(DisplayMessage.SystemMsg(
-            id = uniqueId("chatrule"),
-            timestamp = Clock.System.now().toEpochMilliseconds(),
-            channel = s.channelLogin,
-            text = chatNoticeText,
-            type = DisplayMessage.SystemMsg.SystemType.NOTICE
-        ))
+        addMessage(
+            DisplayMessage.SystemMsg(
+                id = uniqueId("chatrule"),
+                timestamp = Clock.System.now().toEpochMilliseconds(),
+                channel = s.channelLogin,
+                text = chatNoticeText,
+                type = DisplayMessage.SystemMsg.SystemType.NOTICE
+            )
+        )
     }
 }

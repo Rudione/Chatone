@@ -31,10 +31,15 @@ CREATE TABLE IF NOT EXISTS AutomodRuleEntity (
     capsThresholdPercent INTEGER NOT NULL DEFAULT 70,
     capsMinLength INTEGER NOT NULL DEFAULT 8,
     linksAllowClips INTEGER NOT NULL DEFAULT 1,
+    linksClipsSameChannelOnly INTEGER NOT NULL DEFAULT 0,
+    linksClipsAllowedChannels TEXT NOT NULL DEFAULT '',
     emoteMaxCount INTEGER NOT NULL DEFAULT 8,
     newAccountAgeDays INTEGER NOT NULL DEFAULT 7,
     duplicateMinLength INTEGER NOT NULL DEFAULT 8,
-    timeoutSeconds INTEGER NOT NULL DEFAULT 60
+    timeoutSeconds INTEGER NOT NULL DEFAULT 60,
+    eventMessage TEXT NOT NULL DEFAULT '',
+    eventRepeat INTEGER NOT NULL DEFAULT 1,
+    eventDelaySeconds INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_automod_scope    ON AutomodRuleEntity(scope);
@@ -72,8 +77,10 @@ INSERT OR REPLACE INTO AutomodRuleEntity(
     chatRuleType,
     spamMaxMessages, spamWindowSeconds,
     capsThresholdPercent, capsMinLength,
-    linksAllowClips, emoteMaxCount, newAccountAgeDays, duplicateMinLength,
-    timeoutSeconds
+    linksAllowClips, linksClipsSameChannelOnly, linksClipsAllowedChannels,
+    emoteMaxCount, newAccountAgeDays, duplicateMinLength,
+    timeoutSeconds,
+    eventMessage, eventRepeat, eventDelaySeconds
 ) VALUES (?, 'CHAT', ?, ?,
     '', '', 0, 0, 0,
     ?, ?, 0, 60000,
@@ -81,8 +88,10 @@ INSERT OR REPLACE INTO AutomodRuleEntity(
     ?,
     ?, ?,
     ?, ?,
-    ?, ?, ?, ?,
-    ?);
+    ?, ?, ?,
+    ?, ?, ?,
+    ?,
+    ?, ?, ?);
 
 getAllChatRules:
 SELECT * FROM AutomodRuleEntity WHERE ruleKind = 'CHAT'

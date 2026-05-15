@@ -26,7 +26,9 @@ import io.rudione.chatone.presentation.loading.LoadingScreen
 import io.rudione.chatone.presentation.main.MainScreen
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.theme.ChatFontSettings
 import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
@@ -35,6 +37,9 @@ import io.rudione.chatone.util.WallpaperLoader
 import io.rudione.chatone.util.createAnimatedImageLoader
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.util.resolveFontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextDecoration
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -50,7 +55,8 @@ fun App(
     darkTheme: Boolean = true,
     onAlwaysOnTopChanged: (Boolean) -> Unit = {},
     onThemeChanged: ((Boolean) -> Unit)? = null,
-    onDominantColorChanged: ((Color?) -> Unit)? = null
+    onDominantColorChanged: ((Color?) -> Unit)? = null,
+    onTitleBarModeChanged: ((TitleBarMode) -> Unit)? = null
 ) {
     val customThemeManager: CustomThemeManager = koinInject()
     val activeCustomTheme by customThemeManager.currentTheme.collectAsState()
@@ -79,6 +85,10 @@ fun App(
 
         LaunchedEffect(settingsState.alwaysOnTop) {
             onAlwaysOnTopChanged(settingsState.alwaysOnTop)
+        }
+
+        LaunchedEffect(settingsState.titleBarMode) {
+            onTitleBarModeChanged?.invoke(settingsState.titleBarMode)
         }
 
 
@@ -169,6 +179,30 @@ fun App(
         val currentStrings = remember(settingsState.language) {
             AppStrings.forLocale(settingsState.language)
         }
+        val chatFontSettings = remember(
+            settingsState.fontFamilyName,
+            settingsState.fontStyleItalic,
+            settingsState.fontUnderline,
+            settingsState.fontStrikethrough,
+            settingsState.customFontPaths
+        ) {
+            val ff = resolveFontFamily(settingsState.fontFamilyName, settingsState.customFontPaths)
+            val dec = when {
+                settingsState.fontUnderline && settingsState.fontStrikethrough ->
+                    TextDecoration.combine(listOf(TextDecoration.Underline, TextDecoration.LineThrough))
+                settingsState.fontUnderline -> TextDecoration.Underline
+                settingsState.fontStrikethrough -> TextDecoration.LineThrough
+                else -> null
+            }
+            ChatFontSettings(
+                fontFamily = ff,
+                fontFamilyName = settingsState.fontFamilyName,
+                fontStyle = if (settingsState.fontStyleItalic) FontStyle.Italic else FontStyle.Normal,
+                textDecoration = dec,
+                underline = settingsState.fontUnderline,
+                strikethrough = settingsState.fontStrikethrough
+            )
+        }
         CompositionLocalProvider(
             LocalStrings provides currentStrings,
             LocalWallpaperController provides wallpaperController,
@@ -181,7 +215,8 @@ fun App(
             ChatoneTheme(
                 darkTheme = true,
                 accentColorIndex = settingsState.accentColorIndex,
-                customTheme = activeCustomTheme
+                customTheme = activeCustomTheme,
+                fontSettings = chatFontSettings
             ) {
                 Box(
                     modifier = androidx.compose.ui.Modifier

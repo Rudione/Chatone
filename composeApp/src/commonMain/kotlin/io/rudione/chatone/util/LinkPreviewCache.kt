@@ -30,11 +30,17 @@ data class LinkPreview(
     val viewCount: String? = null,
     val duration: String? = null,
     val isYouTube: Boolean = false,
-    val isImage: Boolean = false
+    val isImage: Boolean = false,
+    val mediaType: MediaType = MediaType.UNKNOWN,
+    val fileSize: String? = null,
+    val fileExtension: String? = null
 ) {
     val isEmpty: Boolean
         get() = title.isNullOrBlank() && description.isNullOrBlank() &&
-                imageUrl.isNullOrBlank() && channelName.isNullOrBlank() && !isImage
+                imageUrl.isNullOrBlank() && channelName.isNullOrBlank() &&
+                !isImage && mediaType == MediaType.UNKNOWN
+
+    enum class MediaType { UNKNOWN, IMAGE, AUDIO, VIDEO, DOCUMENT, ARCHIVE }
 }
 
 @Serializable
@@ -100,7 +106,29 @@ object LinkPreviewCache {
 
         try {
             if (isDirectImageUrl(url)) {
-                val preview = LinkPreview(imageUrl = url, isImage = true)
+                val preview = LinkPreview(imageUrl = url, isImage = true, mediaType = LinkPreview.MediaType.IMAGE)
+                withContext(NonCancellable) { put(url, preview) }
+                return preview
+            }
+
+            if (isDirectAudioUrl(url)) {
+                val ext = url.substringAfterLast(".").substringBefore("?").lowercase()
+                val preview = LinkPreview(
+                    mediaType = LinkPreview.MediaType.AUDIO,
+                    fileExtension = ext,
+                    title = url.substringAfterLast("/").substringBefore("?")
+                )
+                withContext(NonCancellable) { put(url, preview) }
+                return preview
+            }
+
+            if (isDirectVideoUrl(url)) {
+                val ext = url.substringAfterLast(".").substringBefore("?").lowercase()
+                val preview = LinkPreview(
+                    mediaType = LinkPreview.MediaType.VIDEO,
+                    fileExtension = ext,
+                    title = url.substringAfterLast("/").substringBefore("?")
+                )
                 withContext(NonCancellable) { put(url, preview) }
                 return preview
             }
@@ -112,15 +140,42 @@ object LinkPreviewCache {
                 }.let { resp ->
                     if (!resp.status.isSuccess()) return@let ""
                     val ct = resp.headers[HttpHeaders.ContentType] ?: ""
-                    if (ct.startsWith("image/", ignoreCase = true)) {
-                        val imgPreview = LinkPreview(imageUrl = url, isImage = true)
-                        withContext(NonCancellable) { put(url, imgPreview) }
-                        return imgPreview
+                    val cl = resp.headers[HttpHeaders.ContentLength]
+                    val fileSizeStr = cl?.toLongOrNull()?.let { formatBytes(it) }
+
+                    when {
+                        ct.startsWith("image/", ignoreCase = true) -> {
+                            val imgPreview = LinkPreview(imageUrl = url, isImage = true,
+                                mediaType = LinkPreview.MediaType.IMAGE, fileSize = fileSizeStr)
+                            withContext(NonCancellable) { put(url, imgPreview) }
+                            return imgPreview
+                        }
+                        ct.startsWith("audio/", ignoreCase = true) -> {
+                            val ext = ct.substringAfter("/").substringBefore(";").trim()
+                            val audioPreview = LinkPreview(
+                                mediaType = LinkPreview.MediaType.AUDIO,
+                                fileExtension = ext.ifBlank { null },
+                                fileSize = fileSizeStr,
+                                title = url.substringAfterLast("/").substringBefore("?")
+                            )
+                            withContext(NonCancellable) { put(url, audioPreview) }
+                            return audioPreview
+                        }
+                        ct.startsWith("video/", ignoreCase = true) -> {
+                            val ext = ct.substringAfter("/").substringBefore(";").trim()
+                            val videoPreview = LinkPreview(
+                                mediaType = LinkPreview.MediaType.VIDEO,
+                                fileExtension = ext.ifBlank { null },
+                                fileSize = fileSizeStr,
+                                title = url.substringAfterLast("/").substringBefore("?")
+                            )
+                            withContext(NonCancellable) { put(url, videoPreview) }
+                            return videoPreview
+                        }
+                        !ct.contains("html", ignoreCase = true) &&
+                                !ct.contains("xml", ignoreCase = true) &&
+                                ct.isNotEmpty() -> return@let ""
                     }
-                    if (!ct.contains("html", ignoreCase = true) &&
-                        !ct.contains("xml", ignoreCase = true) &&
-                        ct.isNotEmpty()
-                    ) return@let ""
                     val body = resp.bodyAsText()
                     if (body.length > MAX_BODY_BYTES) body.take(MAX_BODY_BYTES) else body
                 }
@@ -169,6 +224,26 @@ object LinkPreviewCache {
         return l.endsWith(".png") || l.endsWith(".jpg") || l.endsWith(".jpeg") ||
                 l.endsWith(".gif") || l.endsWith(".webp") || l.endsWith(".bmp") ||
                 l.endsWith(".svg")
+    }
+
+    private fun isDirectAudioUrl(url: String): Boolean {
+        val l = url.lowercase().substringBefore("?")
+        return l.endsWith(".mp3") || l.endsWith(".ogg") || l.endsWith(".wav") ||
+                l.endsWith(".flac") || l.endsWith(".aac") || l.endsWith(".m4a") ||
+                l.endsWith(".opus") || l.endsWith(".wma")
+    }
+
+    private fun isDirectVideoUrl(url: String): Boolean {
+        val l = url.lowercase().substringBefore("?")
+        return l.endsWith(".mp4") || l.endsWith(".webm") || l.endsWith(".mkv") ||
+                l.endsWith(".avi") || l.endsWith(".mov") || l.endsWith(".m4v")
+    }
+
+    internal fun formatBytes(bytes: Long): String = when {
+        bytes < 1024 -> "$bytes B"
+        bytes < 1024 * 1024 -> "%.1f KB".format(bytes / 1024.0)
+        bytes < 1024 * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024))
+        else -> "%.1f GB".format(bytes / (1024.0 * 1024 * 1024))
     }
 
     private val META_TAG = Regex(

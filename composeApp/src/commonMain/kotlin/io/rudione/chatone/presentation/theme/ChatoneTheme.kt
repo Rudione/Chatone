@@ -5,10 +5,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+data class ChatFontSettings(
+    val fontFamily: FontFamily = FontFamily.Default,
+    val fontFamilyName: String = "Default",
+    val fontStyle: FontStyle = FontStyle.Normal,
+    val textDecoration: TextDecoration? = null,
+    val strikethrough: Boolean = false,
+    val underline: Boolean = false
+)
+
+val LocalChatFont = compositionLocalOf { ChatFontSettings() }
 
 val FirstMessageColor = Color(0xFF7B2FBE)
 
@@ -258,6 +272,7 @@ fun ChatoneTheme(
     darkTheme: Boolean = true,  
     accentColorIndex: Int = 0,
     customTheme: CustomThemeConfig? = null,
+    fontSettings: ChatFontSettings = ChatFontSettings(),
     content: @Composable () -> Unit
 ) {
    
@@ -285,10 +300,29 @@ fun ChatoneTheme(
         mentionHighlight = accentHint.copy(alpha = 0.14f)
     )
 
-    CompositionLocalProvider(LocalChatoneColors provides extraColors) {
+    CompositionLocalProvider(
+        LocalChatoneColors provides extraColors,
+        LocalChatFont provides fontSettings
+    ) {
+        val ff = fontSettings.fontFamily
+        val typography = if (ff == FontFamily.Default) ChatoneTypography else ChatoneTypography.copy(
+            displayLarge  = ChatoneTypography.displayLarge.copy(fontFamily = ff),
+            headlineLarge = ChatoneTypography.headlineLarge.copy(fontFamily = ff),
+            headlineMedium = ChatoneTypography.headlineMedium.copy(fontFamily = ff),
+            headlineSmall = ChatoneTypography.headlineSmall.copy(fontFamily = ff),
+            titleLarge    = ChatoneTypography.titleLarge.copy(fontFamily = ff),
+            titleMedium   = ChatoneTypography.titleMedium.copy(fontFamily = ff),
+            titleSmall    = ChatoneTypography.titleSmall.copy(fontFamily = ff),
+            bodyLarge     = ChatoneTypography.bodyLarge.copy(fontFamily = ff),
+            bodyMedium    = ChatoneTypography.bodyMedium.copy(fontFamily = ff),
+            bodySmall     = ChatoneTypography.bodySmall.copy(fontFamily = ff),
+            labelLarge    = ChatoneTypography.labelLarge.copy(fontFamily = ff),
+            labelMedium   = ChatoneTypography.labelMedium.copy(fontFamily = ff),
+            labelSmall    = ChatoneTypography.labelSmall.copy(fontFamily = ff),
+        )
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = ChatoneTypography,
+            typography = typography,
             shapes = ChatoneShapes,
             content = content
         )
