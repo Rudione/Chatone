@@ -84,6 +84,8 @@ fun UserProfilePopup(
     onUnvip: () -> Unit = {},
     onWhisper: () -> Unit = {},
     onDetach: (() -> Unit)? = null,
+    channelLogin: String = "",
+    mentionMuteRepository: io.rudione.chatone.data.repository.MentionMuteRepository? = null,
     onDismiss: () -> Unit
 ) {
     val noteRepository: UserNoteRepository = koinInject()
@@ -261,7 +263,10 @@ fun UserProfilePopup(
                         onUnmod = onUnmod,
                         onVip = onVip,
                         onUnvip = onUnvip,
-                        onDismiss = onDismiss
+                        onDismiss = onDismiss,
+                        channelLogin = channelLogin,
+                        mentionMuteRepository = mentionMuteRepository,
+                        username = username
                     )
 
                     1 -> MessagesTab(
@@ -305,7 +310,10 @@ internal fun UsercardTab(
     onUnmod: () -> Unit,
     onVip: () -> Unit,
     onUnvip: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    channelLogin: String = "",
+    username: String = "",
+    mentionMuteRepository: io.rudione.chatone.data.repository.MentionMuteRepository? = null
 ) {
     Column(modifier = Modifier.padding(16.dp)) {
         if (fetchedCreatedAt.isNotEmpty()) {
@@ -340,135 +348,223 @@ internal fun UsercardTab(
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             Spacer(Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    Icons.Outlined.Edit,
-                    null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    LocalStrings.current.profileNote,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.weight(1f))
-                if (noteText.isNotEmpty()) {
-                    TextButton(
-                        onClick = { clipboardManager.setText(AnnotatedString(noteText)) },
-                        modifier = Modifier.height(24.dp),
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                    ) {
-                        Text(
-                            LocalStrings.current.profileNoteCopy,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    IconButton(
-                        onClick = onShowDeleteConfirmation,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Delete,
-                            null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
+
+            var noteExpanded by remember { mutableStateOf(noteText.isNotEmpty()) }
+
+            if (noteText.isNotEmpty() || noteExpanded) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        Icons.Outlined.Edit,
+                        null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        LocalStrings.current.profileNote,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (noteText.isNotEmpty()) {
+                        TextButton(
+                            onClick = { clipboardManager.setText(AnnotatedString(noteText)) },
+                            modifier = Modifier.height(24.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                LocalStrings.current.profileNoteCopy,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        IconButton(
+                            onClick = onShowDeleteConfirmation,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Delete,
+                                null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
-            }
-            Spacer(Modifier.height(4.dp))
-            OutlinedTextField(
-                value = noteText,
-                onValueChange = { newText ->
-                    onNoteChange(newText)
-                    if (newText.isNotBlank()) noteRepository.saveNote(userId, newText)
-                    else if (newText.isEmpty()) noteRepository.deleteNote(userId)
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 16.dp, max = 72.dp),
-                placeholder = {
-                    Text(
-                        LocalStrings.current.profileNotePlaceholder,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                },
-                textStyle = MaterialTheme.typography.bodySmall,
-                shape = RoundedCornerShape(8.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                )
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-        Spacer(Modifier.height(8.dp))
-
-        TextButton(
-            onClick = { onWhisper(); onDismiss() }, modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            Icon(Icons.Outlined.MailOutline, null, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(LocalStrings.current.profileSendWhisper, modifier = Modifier.weight(1f))
-        }
-
-        if (!isBroadcaster) {
-            var showBlockConfirm by remember { mutableStateOf(false) }
-            if (showBlockConfirm) {
-                val confirmTitle = if (isBlocked)
-                    LocalStrings.current.profileUnblockConfirmTitle
-                else
-                    LocalStrings.current.profileBlockConfirmTitle
-                val confirmText = ""
-                AlertDialog(
-                    onDismissRequest = { showBlockConfirm = false },
-                    title = { Text(confirmTitle, style = MaterialTheme.typography.titleSmall) },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            if (isBlocked) onUnblock() else onBlock()
-                            showBlockConfirm = false
-                            onDismiss()
-                        }, colors = ButtonDefaults.textButtonColors(
-                            contentColor = if (isBlocked) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.error
-                        )) {
-                            Text(if (isBlocked) LocalStrings.current.unblockUser else LocalStrings.current.blockUser)
-                        }
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = noteText,
+                    onValueChange = { newText ->
+                        onNoteChange(newText)
+                        if (newText.isNotBlank()) noteRepository.saveNote(userId, newText)
+                        else if (newText.isEmpty()) noteRepository.deleteNote(userId)
                     },
-                    dismissButton = {
-                        TextButton(onClick = { showBlockConfirm = false }) {
-                            Text(LocalStrings.current.cancel)
-                        }
-                    }
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 16.dp, max = 72.dp),
+                    placeholder = {
+                        Text(
+                            LocalStrings.current.profileNotePlaceholder,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    },
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                )
+            } else {
+                TextButton(
+                    onClick = { noteExpanded = true },
+                    modifier = Modifier.height(28.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(13.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        LocalStrings.current.profileNote,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+        }
+
+        if (mentionMuteRepository != null && username.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            Spacer(Modifier.height(6.dp))
+
+            var isMutedGlobally by remember(username) {
+                mutableStateOf(mentionMuteRepository.isUserMuted(username))
+            }
+            var isMutedInChannel by remember(username, channelLogin) {
+                mutableStateOf(
+                    if (channelLogin.isNotEmpty()) mentionMuteRepository.isUserMutedInChannel(username, channelLogin)
+                    else false
                 )
             }
-            TextButton(
-                onClick = { showBlockConfirm = true },
+
+            val s = LocalStrings.current
+
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = if (isBlocked) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                )
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    if (isBlocked) Icons.Outlined.LockOpen else Icons.Outlined.Block,
-                    null, modifier = Modifier.size(16.dp)
+                Checkbox(
+                    checked = isMutedGlobally,
+                    onCheckedChange = { checked ->
+                        isMutedGlobally = checked
+                        if (checked) mentionMuteRepository.muteUser(username)
+                        else mentionMuteRepository.unmuteUser(username)
+                    },
+                    modifier = Modifier.size(20.dp)
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
-                    if (isBlocked) LocalStrings.current.profileUnblock else LocalStrings.current.profileBlock,
+                    s.profileMuteNotificationsGlobally,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            if (channelLogin.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = isMutedInChannel,
+                        onCheckedChange = { checked ->
+                            isMutedInChannel = checked
+                            if (checked) mentionMuteRepository.muteUserInChannel(username, channelLogin)
+                            else mentionMuteRepository.unmuteUserInChannel(username, channelLogin)
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        s.profileMuteNotificationsInChannel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        Spacer(Modifier.height(6.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            OutlinedButton(
+                onClick = { onWhisper(); onDismiss() },
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                Icon(Icons.Outlined.MailOutline, null, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(LocalStrings.current.profileSendWhisper, style = MaterialTheme.typography.labelSmall)
+            }
+
+            if (!isBroadcaster) {
+                var showBlockConfirm by remember { mutableStateOf(false) }
+                if (showBlockConfirm) {
+                    val confirmTitle = if (isBlocked)
+                        LocalStrings.current.profileUnblockConfirmTitle
+                    else
+                        LocalStrings.current.profileBlockConfirmTitle
+                    AlertDialog(
+                        onDismissRequest = { showBlockConfirm = false },
+                        title = { Text(confirmTitle, style = MaterialTheme.typography.titleSmall) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                if (isBlocked) onUnblock() else onBlock()
+                                showBlockConfirm = false
+                                onDismiss()
+                            }, colors = ButtonDefaults.textButtonColors(
+                                contentColor = if (isBlocked) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.error
+                            )) {
+                                Text(if (isBlocked) LocalStrings.current.unblockUser else LocalStrings.current.blockUser)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showBlockConfirm = false }) {
+                                Text(LocalStrings.current.cancel)
+                            }
+                        }
+                    )
+                }
+                OutlinedButton(
+                    onClick = { showBlockConfirm = true },
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (isBlocked) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
+                    )
+                ) {
+                    Icon(
+                        if (isBlocked) Icons.Outlined.LockOpen else Icons.Outlined.Block,
+                        null, modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (isBlocked) LocalStrings.current.profileUnblock else LocalStrings.current.profileBlock,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
             }
         }
 
@@ -861,7 +957,8 @@ fun UserProfileContent(
                 onUnmod = onUnmod,
                 onVip = onVip,
                 onUnvip = onUnvip,
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                username = msg.username
             )
 
             1 -> MessagesTab(

@@ -11,7 +11,8 @@ data class HighlightRule(
     val playSound: Boolean = true,
     val showInMentions: Boolean = true,
     val color: Long = 0xFFFF6B6B,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val matchSubstring: Boolean = false
 ) {
     companion object {
         val USERNAME_RULE = HighlightRule(

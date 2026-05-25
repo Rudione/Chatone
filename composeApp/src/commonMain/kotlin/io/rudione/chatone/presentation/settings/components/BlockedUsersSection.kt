@@ -146,12 +146,19 @@ fun BlockedUsersSection(
                 )
             }
             blockedUsernames.isEmpty() -> {
-                Text(
-                    s.blockedUsersEmpty,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Text(
+                        s.blockedUsersEmpty,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        s.blockedUsersEmptyHint,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
             }
             else -> {
                 LazyColumn(

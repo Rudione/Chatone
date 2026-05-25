@@ -1,6 +1,7 @@
 package io.rudione.chatone.presentation.chat.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -75,7 +76,17 @@ internal fun MessageInput(
     onTabEmote: (Int) -> Unit = {},
     onTabMention: (Int) -> Unit = {},
     onConfirmEmoteTab: () -> Unit = {},
-    onConfirmMentionTab: () -> Unit = {}
+    onConfirmMentionTab: () -> Unit = {},
+    hidePlaceholder: Boolean = false,
+    hideEmojiButton: Boolean = false,
+    placeholderText: String? = null,
+    showSlashCompletions: Boolean = false,
+    slashCount: Int = 0,
+    slashTabIndex: Int = -1,
+    onTabSlash: (Int) -> Unit = {},
+    onConfirmSlashTab: () -> Unit = {},
+    glowIntensity: Float = 0f,
+    glowTriggerTs: Long = 0L
 ) {
     val MAX_CHARS = 500
     val WARN_CHARS = 480
@@ -190,12 +201,30 @@ internal fun MessageInput(
         modifier = modifier.fillMaxWidth()
     ) {
 
+        val glowAnim = remember { Animatable(0f) }
+        LaunchedEffect(glowTriggerTs, glowIntensity) {
+            if (glowIntensity > 0f) {
+                glowAnim.snapTo(glowIntensity)
+                glowAnim.animateTo(
+                    targetValue = 0f,
+                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 5000)
+                )
+            }
+        }
+        val baseDividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+        val glowColor = MaterialTheme.colorScheme.primary
+        val glowAlpha = glowAnim.value.coerceIn(0f, 1f)
+        val glowStripHeight = (1f + glowAlpha * 4f).dp
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(0.5.dp)
+                .height(glowStripHeight)
                 .background(
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                    if (glowAlpha > 0.01f) {
+                        glowColor.copy(alpha = glowAlpha)
+                    } else {
+                        baseDividerColor
+                    }
                 )
         )
 
@@ -310,50 +339,53 @@ internal fun MessageInput(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
 
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(emojiContainerColor)
-                                    .border(
-                                        width = if (isFocused) 0.7.dp else 0.dp,
-                                        color = if (isFocused) {
-                                            primaryCol.copy(alpha = 0.16f)
-                                        } else {
-                                            Color.Transparent
-                                        },
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .clickable(
-                                        interactionSource = remember {
-                                            MutableInteractionSource()
-                                        },
-                                        indication = null,
-                                        enabled = enabled,
-                                        onClick = onEmotePickerClick
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            if (!hideEmojiButton) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(emojiContainerColor)
+                                        .border(
+                                            width = if (isFocused) 0.7.dp else 0.dp,
+                                            color = if (isFocused) {
+                                                primaryCol.copy(alpha = 0.16f)
+                                            } else {
+                                                Color.Transparent
+                                            },
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable(
+                                            interactionSource = remember {
+                                                MutableInteractionSource()
+                                            },
+                                            indication = null,
+                                            enabled = enabled,
+                                            onClick = onEmotePickerClick
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
 
-                                Icon(
-                                    painter = painterResource(Res.drawable.emoji_icon),
-                                    contentDescription = "Emotes",
-                                    modifier = Modifier.size(21.dp),
-                                    tint = if (enabled) {
-                                        if (isFocused) {
-                                            primaryCol
+                                    Icon(
+                                        painter = painterResource(Res.drawable.emoji_icon),
+                                        contentDescription = "Emotes",
+                                        modifier = Modifier.size(21.dp),
+                                        tint = if (enabled) {
+                                            if (isFocused) {
+                                                primaryCol
+                                            } else {
+                                                primaryCol.copy(alpha = 0.68f)
+                                            }
                                         } else {
-                                            primaryCol.copy(alpha = 0.68f)
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)
                                         }
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)
-                                    }
+                                    )
+                                }
+
+                                Spacer(
+                                    modifier = Modifier.width(4.dp)
                                 )
                             }
-
-                            Spacer(
-                                modifier = Modifier.width(4.dp)
-                            )
 
                             BasicTextField(
                                 value = tfv,
@@ -382,6 +414,16 @@ internal fun MessageInput(
                                                     !event.isAltPressed -> {
 
                                                 when {
+
+                                                    showSlashCompletions &&
+                                                            slashCount > 0 -> {
+
+                                                        val next =
+                                                            if (slashTabIndex < 0) 0
+                                                            else (slashTabIndex + 1) % slashCount
+
+                                                        onTabSlash(next)
+                                                    }
 
                                                     showEmoteCompletions &&
                                                             emoteCount > 0 -> {
@@ -412,6 +454,12 @@ internal fun MessageInput(
                                                     !event.isShiftPressed -> {
 
                                                 when {
+
+                                                    showSlashCompletions &&
+                                                            slashTabIndex >= 0 -> {
+                                                        onConfirmSlashTab()
+                                                        true
+                                                    }
 
                                                     showEmoteCompletions &&
                                                             emoteTabIndex >= 0 -> {
@@ -563,10 +611,10 @@ internal fun MessageInput(
                                 cursorBrush = SolidColor(primaryCol),
                                 decorationBox = { inner ->
 
-                                    if (tfv.text.isEmpty()) {
+                                    if (tfv.text.isEmpty() && !hidePlaceholder) {
 
                                         Text(
-                                            s.chatPlaceholder,
+                                            placeholderText ?: s.chatPlaceholder,
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme
                                                 .onSurfaceVariant
@@ -585,12 +633,13 @@ internal fun MessageInput(
                             )
 
                             Spacer(
-                                modifier = Modifier.width(6.dp)
+                                modifier = Modifier.width(0.dp)
                             )
 
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(end = 4.dp)
                             ) {
 
                                 Box(
@@ -600,12 +649,12 @@ internal fun MessageInput(
                                             scaleX = sendScale
                                             scaleY = sendScale
                                         }
-                                        .clip(RoundedCornerShape(10.dp))
+                                        .clip(RoundedCornerShape(16.dp))
                                         .background(sendContainerColor)
                                         .border(
                                             width = if (canSend) 1.dp else 0.dp,
                                             color = primaryCol.copy(alpha = 0.22f),
-                                            shape = RoundedCornerShape(10.dp)
+                                            shape = RoundedCornerShape(16.dp)
                                         )
                                         .clickable(
                                             interactionSource = remember {

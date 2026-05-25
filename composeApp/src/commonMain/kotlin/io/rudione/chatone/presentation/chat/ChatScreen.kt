@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -174,6 +176,7 @@ import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.presentation.chat.components.LinkHoverPopup
 import io.rudione.chatone.presentation.chat.components.ChatSearchBar
 import io.rudione.chatone.presentation.chat.components.MessageInput
+import io.rudione.chatone.presentation.chat.components.SlashCommandSuggestionsRow
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
@@ -187,6 +190,7 @@ import io.rudione.chatone.presentation.theme.FirstMessageColor
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.presentation.theme.chatPaneBackgroundColor
+import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.luminance
 import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
@@ -227,6 +231,7 @@ fun ChatScreen(
     wallpaper: WallpaperState,
     mentionMuteRepository: MentionMuteRepository? = null,
     renderBackground: Boolean = true,
+    isMultiChat: Boolean = false,
     viewModel: ChatViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -356,12 +361,20 @@ fun ChatScreen(
                     }
                 }
 
+                ChatEffect.FocusChatInput -> {
+                    try {
+                        inputFocusRequester.requestFocus()
+                    } catch (_: Throwable) {
+                    }
+                }
+
                 is ChatEffect.MentionDetected -> {
                     val mentionChannel = effect.channelLogin
                     val currentChannel = viewModel.state.value.channelLogin
                     val isActiveChannel = mentionChannel.equals(currentChannel, ignoreCase = true)
                     val senderLogin = effect.message?.username ?: ""
-                    val isMuted = mentionMuteRepository?.isMuted(senderLogin, mentionChannel) == true
+                    val isMuted =
+                        mentionMuteRepository?.isMuted(senderLogin, mentionChannel) == true
 
                     if (!isActiveChannel && !isMuted) {
                         if (settingsState.mentionSoundEnabled) {
@@ -394,6 +407,28 @@ fun ChatScreen(
                         )
                         onMentionReceived(entry)
                     }
+                }
+
+                is ChatEffect.OpenUserProfile -> {
+                    val syntheticMsg = DisplayMessage.PrivMsg(
+                        id = "profile_${effect.userId.ifEmpty { effect.username }}",
+                        timestamp = Clock.System.now().toEpochMilliseconds(),
+                        channel = state.channelLogin,
+                        userId = effect.userId,
+                        username = effect.username,
+                        displayName = effect.displayName,
+                        tokens = emptyList(),
+                        color = effect.color,
+                        badges = emptyList(),
+                        isModerator = false,
+                        isSubscriber = false,
+                        isVip = false,
+                        isBroadcaster = false,
+                        isMention = false,
+                        isAction = false
+                    )
+                    profilePopupMessage = syntheticMsg
+                    profilePopupUserId = effect.userId
                 }
             }
         }
@@ -449,6 +484,22 @@ fun ChatScreen(
                 chatSearchVisible = !chatSearchVisible
                 if (!chatSearchVisible) chatSearchQuery = ""
                 return@handler true
+            }
+            if (event.type == KeyEventType.KeyDown) {
+                val commands = currentSettings.chatCommands
+                if (commands.isNotEmpty()) {
+                    val matched = commands.firstOrNull { cmd ->
+                        if (!cmd.enabled || cmd.hotkey.isBlank()) return@firstOrNull false
+                        val lower = cmd.hotkey.lowercase()
+                        val hasMod = "ctrl" in lower || "alt" in lower || "shift" in lower
+                        if (!hasMod) return@firstOrNull false
+                        pauseHotkeyMatches(event, cmd.hotkey)
+                    }
+                    if (matched != null) {
+                        viewModel.triggerCommandHotkey(matched)
+                        return@handler true
+                    }
+                }
             }
             val hotkey = currentSettings.pauseHotkey
             if (hotkey.isBlank()) return@handler false
@@ -565,7 +616,8 @@ fun ChatScreen(
                             )
                         },
                         onRefresh = { viewModel.sendEvent(ChatEvent.OnRefreshChannel) },
-                        isCompact = !isWideScreen
+                        isCompact = !isWideScreen,
+                        showMenuButton = !isWideScreen && !isMultiChat
                     )
                 }
             }
@@ -577,16 +629,13 @@ fun ChatScreen(
                     onUnpin = { viewModel.sendEvent(ChatEvent.OnUnpinMessage) })
             }
 
-            if ((state.isBroadcaster || state.isMod) && state.pendingRaidTarget != null) {
-                RaidBanner(
-                    targetLogin = state.pendingRaidTarget!!,
-                    startedAtMs = state.pendingRaidStartedAt,
-                    onCancel = { viewModel.sendEvent(ChatEvent.OnCancelRaid) },
-                    onRaidNow = {
-                        viewModel.sendEvent(ChatEvent.OnRaidNow)
-                    }
-                )
+            state.livePoll?.let { poll ->
+                io.rudione.chatone.presentation.chat.components.PollBanner(poll = poll)
             }
+            state.livePrediction?.let { pred ->
+                io.rudione.chatone.presentation.chat.components.PredictionBanner(prediction = pred)
+            }
+
 
             Box(
                 modifier = Modifier
@@ -649,10 +698,64 @@ fun ChatScreen(
                             enabled = settingsState.smoothChatEnabled,
                             stepMs = 90L
                         )
-                        val dedupedMessages = remember(visibleMessages) {
-                            val seen = HashSet<String>(visibleMessages.size)
-                            visibleMessages.filter { seen.add(it.id) }
+                        val showRepeatCounter = settingsState.showRepeatedMessageCounter
+                        val repeatWindowMs =
+                            (settingsState.repeatedMessageWindow.coerceAtLeast(1)) * 1000L
+                        val dedupedMessages =
+                            io.rudione.chatone.presentation.chat.rendering.rememberDedupedMessages(
+                                messages = visibleMessages,
+                                blockedUserIds = state.blockedUserIds,
+                                showBlockedMode = state.showBlockedMode
+                            )
+                        val userColorByLogin: Map<String, Color> = remember(state.messagesSeq) {
+                            buildMap {
+                                state.messages.asReversed()
+                                    .filterIsInstance<DisplayMessage.PrivMsg>()
+                                    .forEach { m ->
+                                        val key = m.username.lowercase()
+                                        if (key.isNotEmpty() && !containsKey(key)) {
+                                            val c = m.color?.let { hex ->
+                                                runCatching {
+                                                    val v = hex.removePrefix("#").toLong(16)
+                                                    Color(
+                                                        ((v shr 16) and 0xFF) / 255f,
+                                                        ((v shr 8) and 0xFF) / 255f,
+                                                        (v and 0xFF) / 255f
+                                                    )
+                                                }.getOrNull()
+                                            }
+                                            if (c != null) put(key, c)
+                                        }
+                                    }
+                            }
                         }
+                        val repeatCountByMsgId: Map<String, Int> =
+                            remember(dedupedMessages, showRepeatCounter, repeatWindowMs) {
+                                if (!showRepeatCounter) emptyMap()
+                                else buildMap {
+                                    val recent = ArrayDeque<Triple<String, Long, String>>()
+                                    for (m in dedupedMessages) {
+                                        if (m !is DisplayMessage.PrivMsg) continue
+                                        val ts = m.timestamp
+                                        val norm = m.tokens.joinToString("") { tok ->
+                                            when (tok) {
+                                                is MessageToken.Text -> tok.text
+                                                is MessageToken.TwitchEmoteToken -> tok.name
+                                                is MessageToken.ThirdPartyEmoteToken -> tok.emote.code
+                                                is MessageToken.Link -> tok.displayText
+                                                is MessageToken.Mention -> "@${tok.username}"
+                                            }
+                                        }.trim().lowercase()
+                                        if (norm.isEmpty()) continue
+                                        while (recent.isNotEmpty() && ts - recent.first().second > repeatWindowMs) {
+                                            recent.removeFirst()
+                                        }
+                                        val n = recent.count { it.first == norm } + 1
+                                        if (n > 1) put(m.id, n)
+                                        recent.addLast(Triple(norm, ts, m.id))
+                                    }
+                                }
+                            }
                         key(channelLogin) {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 LazyColumn(
@@ -707,6 +810,7 @@ fun ChatScreen(
                                                 showModActions = state.modModeEnabled,
                                                 timestampFormat = settingsState.timestampFormat,
                                                 showBadges = settingsState.showBadges,
+                                                repeatCount = repeatCountByMsgId[message.id] ?: 1,
                                                 isMod = state.canModerate || message.isBroadcaster,
                                                 currentUserId = state.currentUserId,
                                                 emoteSize = settingsState.emoteSize,
@@ -771,18 +875,40 @@ fun ChatScreen(
                                                     )
                                                 },
                                                 onMentionClick = { mentionedUsername ->
-
+                                                    val cleanLogin =
+                                                        mentionedUsername.removePrefix("@")
                                                     val mentionedMsg = state.messages
                                                         .filterIsInstance<DisplayMessage.PrivMsg>()
                                                         .lastOrNull {
                                                             it.username.equals(
-                                                                mentionedUsername.removePrefix("@"),
+                                                                cleanLogin,
                                                                 ignoreCase = true
                                                             )
                                                         }
                                                     if (mentionedMsg != null) {
                                                         profilePopupMessage = mentionedMsg
                                                         profilePopupUserId = mentionedMsg.userId
+                                                    } else {
+                                                        val placeholder = DisplayMessage.PrivMsg(
+                                                            id = "synthetic_${cleanLogin}",
+                                                            timestamp = kotlinx.datetime.Clock.System.now()
+                                                                .toEpochMilliseconds(),
+                                                            channel = state.channelLogin,
+                                                            userId = "",
+                                                            username = cleanLogin.lowercase(),
+                                                            displayName = cleanLogin,
+                                                            tokens = emptyList(),
+                                                            color = null,
+                                                            badges = emptyList(),
+                                                            isModerator = false,
+                                                            isSubscriber = false,
+                                                            isVip = false,
+                                                            isBroadcaster = false,
+                                                            isMention = false,
+                                                            isAction = false
+                                                        )
+                                                        profilePopupMessage = placeholder
+                                                        profilePopupUserId = ""
                                                     }
                                                 },
                                                 onReply = {
@@ -845,7 +971,8 @@ fun ChatScreen(
                                                     )
                                                 },
                                                 searchHighlightQuery = chatSearchQuery,
-                                                highlightRules = settingsState.highlightRules
+                                                highlightRules = settingsState.highlightRules,
+                                                userColorByLogin = userColorByLogin
                                             )
 
                                             is DisplayMessage.SystemMsg -> SystemMsgItem(message)
@@ -1086,6 +1213,28 @@ fun ChatScreen(
                 )
             }
 
+            val slashSuggestions = remember(state.messageInput, state.isMod, state.isBroadcaster) {
+                io.rudione.chatone.util.SlashCommand.suggest(
+                    state.messageInput,
+                    isMod = state.isMod || state.canModerate,
+                    isBroadcaster = state.isBroadcaster
+                )
+            }
+            var slashTabIndex by remember { mutableStateOf(-1) }
+            LaunchedEffect(slashSuggestions) {
+                slashTabIndex = if (slashSuggestions.isNotEmpty()) 0 else -1
+            }
+            if (slashSuggestions.isNotEmpty()) {
+                SlashCommandSuggestionsRow(
+                    commands = slashSuggestions,
+                    selectedIndex = slashTabIndex,
+                    onPick = { name ->
+                        viewModel.sendEvent(ChatEvent.OnMessageInputChanged("/$name "))
+                        slashTabIndex = -1
+                        inputFocusRequester.requestFocus()
+                    }
+                )
+            }
             MessageInput(
                 value = state.messageInput,
                 onValueChange = {
@@ -1125,7 +1274,29 @@ fun ChatScreen(
                     viewModel.sendEvent(ChatEvent.OnSelectMentionCompletion(state.mentionCompletions[idx]))
                     mentionTabIndex = -1
                     inputFocusRequester.requestFocus()
-                }
+                },
+                hidePlaceholder = settingsState.hideChatInputPlaceholder,
+                hideEmojiButton = settingsState.hideEmojiButton,
+                placeholderText = when {
+                    state.isBanned -> "You are banned" + (state.banReason?.let { " — $it" }
+                        ?: "") + " in #${state.channelLogin}"
+
+                    state.channelLogin.isNotEmpty() -> "Send a message in #${state.channelLogin}"
+                    else -> null
+                },
+                showSlashCompletions = slashSuggestions.isNotEmpty(),
+                slashCount = slashSuggestions.size,
+                slashTabIndex = slashTabIndex,
+                onTabSlash = { slashTabIndex = it },
+                onConfirmSlashTab = {
+                    val idx = slashTabIndex.coerceIn(0, slashSuggestions.lastIndex)
+                    val name = slashSuggestions[idx].name
+                    viewModel.sendEvent(ChatEvent.OnMessageInputChanged("/$name "))
+                    slashTabIndex = -1
+                    inputFocusRequester.requestFocus()
+                },
+                glowIntensity = if (settingsState.chatInputEventGlow) state.inputGlowIntensity else 0f,
+                glowTriggerTs = state.inputGlowTriggerTs
             )
         }
 
@@ -1166,10 +1337,11 @@ fun ChatScreen(
 
     if (state.isEmotePickerVisible) {
         val resolvedEmotes = emoteRepository.getResolvedEmotes(channelLogin)
-        val pickerPersonalEmotes = remember(state.currentUserId) {
-            if (state.currentUserId.isNotEmpty())
+        val pickerPersonalEmotes = remember(state.currentUserId, state.twitchSubscriberEmotes) {
+            val sevenTv = if (state.currentUserId.isNotEmpty())
                 emoteRepository.getCachedPersonalEmotes(state.currentUserId)
             else emptyList()
+            (sevenTv + state.twitchSubscriberEmotes).distinctBy { "${it.provider.name}_${it.id}" }
         }
 
         Box(
@@ -1247,6 +1419,8 @@ fun ChatScreen(
                     profilePopupMessage = null
                     profilePopupUserId = null
                 },
+                channelLogin = channelLogin,
+                mentionMuteRepository = mentionMuteRepository,
                 onDismiss = { profilePopupMessage = null; profilePopupUserId = null }
             )
         }
@@ -1362,6 +1536,7 @@ private fun ChatTopBar(
     onExecuteMacro: (Macro) -> Unit = {},
     onRefresh: () -> Unit = {},
     isCompact: Boolean = false,
+    showMenuButton: Boolean = false,
 ) {
     val topBarWallpaper = LocalWallpaperController.current.state
     val topBarBlur = topBarWallpaper.panelColorConfig.topBarBlurRadius
@@ -1380,7 +1555,7 @@ private fun ChatTopBar(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isCompact) {
+                    if (showMenuButton) {
                         IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
                             Icon(
                                 Icons.Filled.Menu,
@@ -1418,117 +1593,119 @@ private fun ChatTopBar(
                             .weight(1f, fill = true)
                             .horizontalScroll(toolbarScrollState)
                             .then(
-                                io.rudione.chatone.presentation.chat.multichat.horizontalMouseWheelScrollModifier(toolbarScrollState)
+                                io.rudione.chatone.presentation.chat.multichat.horizontalMouseWheelScrollModifier(
+                                    toolbarScrollState
+                                )
                             ),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.End
                     ) {
-                    var refreshSpinning by remember { mutableStateOf(false) }
-                    val refreshRotation by animateFloatAsState(
-                        targetValue = if (refreshSpinning) 360f else 0f,
-                        animationSpec = tween(500),
-                        finishedListener = { refreshSpinning = false }
-                    )
-                    IconButton(
-                        onClick = {
-                            refreshSpinning = true
-                            onRefresh()
-                        },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Refresh,
-                            contentDescription = "Refresh",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp).rotate(refreshRotation)
+                        var refreshSpinning by remember { mutableStateOf(false) }
+                        val refreshRotation by animateFloatAsState(
+                            targetValue = if (refreshSpinning) 360f else 0f,
+                            animationSpec = tween(500),
+                            finishedListener = { refreshSpinning = false }
                         )
-                    }
-                    io.rudione.chatone.presentation.chat.multichat.ChatTopBarAddPanelButton(
-                        currentChannel = channelLogin
-                    )
-                    if (isMod) {
+                        IconButton(
+                            onClick = {
+                                refreshSpinning = true
+                                onRefresh()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Refresh,
+                                contentDescription = "Refresh",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp).rotate(refreshRotation)
+                            )
+                        }
+                        io.rudione.chatone.presentation.chat.multichat.ChatTopBarAddPanelButton(
+                            currentChannel = channelLogin
+                        )
+                        if (isMod) {
 
-                        if (pinnedMacros.isNotEmpty()) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(end = 4.dp)
-                            ) {
-                                pinnedMacros.forEach { macro ->
-                                    io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
-                                        tooltip = macro.name.ifBlank { macro.icon }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(32.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(
-                                                    MaterialTheme.colorScheme.primaryContainer.copy(
-                                                        alpha = 0.5f
-                                                    )
-                                                )
-                                                .border(
-                                                    0.5.dp,
-                                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                                                    RoundedCornerShape(8.dp)
-                                                )
-                                                .clickable { onExecuteMacro(macro) },
-                                            contentAlignment = Alignment.Center
+                            if (pinnedMacros.isNotEmpty()) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(end = 4.dp)
+                                ) {
+                                    pinnedMacros.forEach { macro ->
+                                        io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
+                                            tooltip = macro.name.ifBlank { macro.icon }
                                         ) {
-                                            Text(
-                                                macro.icon,
-                                                style = MaterialTheme.typography.labelSmall
-                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(
+                                                        MaterialTheme.colorScheme.primaryContainer.copy(
+                                                            alpha = 0.5f
+                                                        )
+                                                    )
+                                                    .border(
+                                                        0.5.dp,
+                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                                        RoundedCornerShape(8.dp)
+                                                    )
+                                                    .clickable { onExecuteMacro(macro) },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    macro.icon,
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
-                            tooltip = "Mod Mode"
-                        ) {
-                            FilledIconToggleButton(
-                                checked = modModeEnabled,
-                                onCheckedChange = { onToggleModMode() },
-                                modifier = Modifier.size(36.dp),
-                                colors = IconButtonDefaults.filledIconToggleButtonColors(
-                                    checkedContainerColor = MaterialTheme.colorScheme.primary.copy(
-                                        alpha = 0.15f
-                                    ),
-                                    checkedContentColor = MaterialTheme.colorScheme.primary,
-                                    containerColor = Color.Transparent,
-                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
+                                tooltip = "Mod Mode"
                             ) {
-                                Icon(
-                                    painter = painterResource(Res.drawable.ic_sword),
-                                    contentDescription = "Mod Mode",
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                FilledIconToggleButton(
+                                    checked = modModeEnabled,
+                                    onCheckedChange = { onToggleModMode() },
+                                    modifier = Modifier.size(36.dp),
+                                    colors = IconButtonDefaults.filledIconToggleButtonColors(
+                                        checkedContainerColor = MaterialTheme.colorScheme.primary.copy(
+                                            alpha = 0.15f
+                                        ),
+                                        checkedContentColor = MaterialTheme.colorScheme.primary,
+                                        containerColor = Color.Transparent,
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                ) {
+                                    Icon(
+                                        painter = painterResource(Res.drawable.ic_sword),
+                                        contentDescription = "Mod Mode",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
+                                tooltip = "Mod Panel"
+                            ) {
+                                FilledIconToggleButton(
+                                    checked = modPanelOpen,
+                                    onCheckedChange = { onOpenModPanel() },
+                                    modifier = Modifier.size(36.dp),
+                                    colors = IconButtonDefaults.filledIconToggleButtonColors(
+                                        checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        containerColor = Color.Transparent,
+                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Build,
+                                        contentDescription = "Mod Panel",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
-                        io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
-                            tooltip = "Mod Panel"
-                        ) {
-                            FilledIconToggleButton(
-                                checked = modPanelOpen,
-                                onCheckedChange = { onOpenModPanel() },
-                                modifier = Modifier.size(36.dp),
-                                colors = IconButtonDefaults.filledIconToggleButtonColors(
-                                    checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    containerColor = Color.Transparent,
-                                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            ) {
-                                Icon(
-                                    Icons.Outlined.Build,
-                                    contentDescription = "Mod Panel",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
                     }
                 }
                 val roomChips = buildList {
@@ -1602,6 +1779,8 @@ fun PrivMsgItem(
     highlightRules: List<io.rudione.chatone.domain.model.HighlightRule> = emptyList(),
     zebraTint: Color = Color.Transparent,
     extraVerticalPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    repeatCount: Int = 1,
+    userColorByLogin: Map<String, Color> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     val extraColors = ChatoneTheme.extraColors
@@ -1770,9 +1949,63 @@ fun PrivMsgItem(
                 mentionColor = mentionColor,
                 backgroundColor = backgroundColor,
                 hasAccentBar = hasAccentBar,
-                s = s
+                s = s,
+                userColorByLogin = userColorByLogin
             )
         } else {
+            val replyParentNameOuter = message.rawMessage?.replyParentDisplayName
+            val replyParentBodyOuter = message.rawMessage?.replyParentMsgBody
+            val replyParentLoginOuter = message.rawMessage?.replyParentUserLogin
+            if (replyParentNameOuter != null && replyParentBodyOuter != null) {
+                val parentColor = replyParentLoginOuter?.lowercase()?.let { userColorByLogin[it] }
+                    ?: replyParentLoginOuter?.let { stableUserColor(it.lowercase()) }
+                    ?: MaterialTheme.colorScheme.onSurfaceVariant
+                DisableSelection {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 2.dp, end = 4.dp, top = 1.dp, bottom = 1.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Reply,
+                            contentDescription = null,
+                            modifier = Modifier.size(11.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text(
+                            text = buildAnnotatedString {
+                                pushStringAnnotation("mention", "@$replyParentLoginOuter")
+                                withStyle(
+                                    SpanStyle(
+                                        color = parentColor,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                ) { append("@$replyParentNameOuter") }
+                                pop()
+                                withStyle(
+                                    SpanStyle(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                            alpha = 0.65f
+                                        )
+                                    )
+                                ) { append(": $replyParentBodyOuter") }
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontSize = 10.sp,
+                            modifier = Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                replyParentLoginOuter?.let { login -> onMentionClick("@$login") }
+                            }
+                        )
+                    }
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
@@ -2050,10 +2283,15 @@ fun PrivMsgItem(
                                 is MessageToken.Mention -> {
 
                                     pushStringAnnotation("mention", token.username)
+                                    val mentionedLogin = token.username
+                                        .removePrefix("@")
+                                        .lowercase()
+                                    val mentionColor = userColorByLogin[mentionedLogin]
+                                        ?: stableUserColor(mentionedLogin)
                                     withStyle(
                                         SpanStyle(
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.SemiBold
+                                            color = mentionColor,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     ) { append(token.username) }
                                     pop()
@@ -2093,7 +2331,21 @@ fun PrivMsgItem(
                     }
                     SelectionContainer {
                         Text(
-                            text = annotatedString,
+                            text = buildAnnotatedString {
+                                append(annotatedString)
+                                if (repeatCount > 1) {
+                                    append("  ")
+                                    withStyle(
+                                        SpanStyle(
+                                            color = mentionColor,
+                                            fontWeight = FontWeight.Bold,
+                                            background = mentionColor.copy(alpha = 0.12f)
+                                        )
+                                    ) {
+                                        append(" ×$repeatCount ")
+                                    }
+                                }
+                            },
                             inlineContent = inlineContent,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontSize = when (chatFontSizeSp) {
@@ -2485,128 +2737,161 @@ private fun CompactMessageLayout(
     mentionColor: Color,
     backgroundColor: Color,
     hasAccentBar: Boolean,
-    s: io.rudione.chatone.presentation.theme.i18n.AppStrings
+    s: AppStrings,
+    userColorByLogin: Map<String, Color> = emptyMap()
 ) {
     var prefixWidthPx by remember { mutableStateOf(0f) }
-
     val dynamicTopPadding = (chatFontSizeSp * 0.067f).dp
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        CompactMessageContentWithIndent(
-            message = message,
-            emoteSize = emoteSize,
-            chatFontSizeSp = chatFontSizeSp,
-            isMod = isMod,
-            onUsernameClick = onUsernameClick,
-            onRightClickUsername = onRightClickUsername,
-            onMentionClick = onMentionClick,
-            onReply = onReply,
-            onCopyText = onCopyText,
-            onPin = onPin,
-            mentionColor = mentionColor,
-            backgroundColor = backgroundColor,
-            hasAccentBar = hasAccentBar,
-            s = s,
-            prefixWidthPx = prefixWidthPx
-        )
-
-        Row(
-            modifier = Modifier
-                .wrapContentWidth()
-                .onSizeChanged { prefixWidthPx = it.width.toFloat() }
-                .padding(top = dynamicTopPadding),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (showModActions) {
-                val canAct = canActOnUser(
-                    actorIsBroadcaster = actorIsBroadcaster, actorIsMod = actorCanModerate,
-                    targetIsBroadcaster = message.isBroadcaster, targetIsMod = message.isModerator,
-                    targetIsVip = message.isVip, targetIsSubscriber = message.isSubscriber,
-                    actorIsGrandMod = false, targetIsGrandMod = message.isGrandMod
-                )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        val replyParentName = message.rawMessage?.replyParentDisplayName
+        val replyParentBody = message.rawMessage?.replyParentMsgBody
+        val replyParentLogin = message.rawMessage?.replyParentUserLogin
+        if (replyParentName != null && replyParentBody != null && replyParentLogin != null) {
+            val parentColor = userColorByLogin[replyParentLogin.lowercase()]
+                ?: stableUserColor(replyParentLogin.lowercase())
+                ?: MaterialTheme.colorScheme.onSurfaceVariant
+            DisableSelection {
                 Row(
-                    modifier = Modifier.padding(end = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(0.dp),
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(start = 2.dp, end = 4.dp, top = 1.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val orderedButtons = if (allModButtons.isNotEmpty()) {
-                        allModButtons.sortedBy { it.sortOrder }
-                    } else {
-                        ModActionButton.defaultOrderedList() + customModButtons
-                    }
-                    orderedButtons.forEach { btn ->
-                        if (!btn.enabled) return@forEach
-                        when (btn.id) {
-                            "default_delete" -> {
-                                if (showDefaultDeleteButton && (canAct || isOwnMessage)) {
-                                    ModActionIconBtn(
-                                        icon = Icons.Outlined.Delete,
-                                        label = "Del",
-                                        tint = extraColors.modDelete,
-                                        onClick = onDelete
+                    Icon(
+                        Icons.AutoMirrored.Filled.Reply,
+                        contentDescription = null,
+                        modifier = Modifier.size(10.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        text = buildAnnotatedString {
+                            pushStringAnnotation("mention", "@$replyParentLogin")
+                            withStyle(
+                                SpanStyle(
+                                    color = parentColor,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            ) { append("@$replyParentName") }
+                            pop()
+                            withStyle(
+                                SpanStyle(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                        alpha = 0.6f
                                     )
-                                }
-                            }
+                                )
+                            ) { append(": $replyParentBody") }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 9.sp,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onMentionClick("@$replyParentLogin") }
+                    )
+                }
+            }
+        }
 
-                            "default_timeout" -> {
-                                if (showDefaultTimeoutButton && canAct && !isOwnMessage) {
-                                    ModActionIconBtn(
-                                        icon = Icons.Outlined.Refresh,
-                                        label = "10m",
-                                        tint = extraColors.modTimeout,
-                                        onClick = onTimeout,
-                                        visible = false
-                                    )
-                                }
-                            }
+        Box(modifier = Modifier.fillMaxWidth()) {
+            CompactMessageContentWithIndent(
+                message = message,
+                emoteSize = emoteSize,
+                chatFontSizeSp = chatFontSizeSp,
+                isMod = isMod,
+                onUsernameClick = onUsernameClick,
+                onRightClickUsername = onRightClickUsername,
+                onMentionClick = onMentionClick,
+                onReply = onReply,
+                onCopyText = onCopyText,
+                onPin = onPin,
+                mentionColor = mentionColor,
+                backgroundColor = backgroundColor,
+                hasAccentBar = hasAccentBar,
+                s = s,
+                prefixWidthPx = prefixWidthPx,
+                userColorByLogin = userColorByLogin
+            )
+            Row(
+                modifier = Modifier
+                    .wrapContentWidth()
+                    .onSizeChanged { prefixWidthPx = it.width.toFloat() }
+                    .padding(top = dynamicTopPadding),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showModActions) {
+                    val canAct = canActOnUser(
+                        actorIsBroadcaster = actorIsBroadcaster,
+                        actorIsMod = actorCanModerate,
+                        targetIsBroadcaster = message.isBroadcaster,
+                        targetIsMod = message.isModerator,
+                        targetIsVip = message.isVip,
+                        targetIsSubscriber = message.isSubscriber,
+                        actorIsGrandMod = false,
+                        targetIsGrandMod = message.isGrandMod
+                    )
+                    Row(
+                        modifier = Modifier.padding(end = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(0.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val orderedButtons =
+                            if (allModButtons.isNotEmpty()) allModButtons.sortedBy { it.sortOrder } else ModActionButton.defaultOrderedList() + customModButtons
+                        orderedButtons.forEach { btn ->
+                            if (!btn.enabled) return@forEach
+                            when (btn.id) {
+                                "default_delete" -> if (showDefaultDeleteButton && (canAct || isOwnMessage)) ModActionIconBtn(
+                                    icon = Icons.Outlined.Delete,
+                                    label = "Del",
+                                    tint = extraColors.modDelete,
+                                    onClick = onDelete
+                                )
 
-                            "default_ban" -> {
-                                if (showDefaultBanButton && canAct && !isOwnMessage) {
-                                    ModActionIconBtn(
-                                        icon = Icons.Filled.Close,
-                                        label = s.chatBanUser,
-                                        tint = extraColors.modBan,
-                                        onClick = onBan
-                                    )
-                                }
-                            }
+                                "default_timeout" -> if (showDefaultTimeoutButton && canAct && !isOwnMessage) ModActionIconBtn(
+                                    icon = Icons.Outlined.Refresh,
+                                    label = "10m",
+                                    tint = extraColors.modTimeout,
+                                    onClick = onTimeout,
+                                    visible = false
+                                )
 
-                            else -> {
-                                if (showCustomModButtons && canAct && !isOwnMessage) {
-                                    ModActionIconBtn(
-                                        icon = Icons.Outlined.Refresh,
-                                        label = btn.displayLabel,
-                                        tint = extraColors.modTimeout,
-                                        onClick = { onCustomTimeout(btn.durationSeconds) },
-                                        visible = false
-                                    )
-                                }
+                                "default_ban" -> if (showDefaultBanButton && canAct && !isOwnMessage) ModActionIconBtn(
+                                    icon = Icons.Filled.Close,
+                                    label = s.chatBanUser,
+                                    tint = extraColors.modBan,
+                                    onClick = onBan
+                                )
+
+                                else -> if (showCustomModButtons && canAct && !isOwnMessage) ModActionIconBtn(
+                                    icon = Icons.Outlined.Refresh,
+                                    label = btn.displayLabel,
+                                    tint = extraColors.modTimeout,
+                                    onClick = { onCustomTimeout(btn.durationSeconds) },
+                                    visible = false
+                                )
                             }
                         }
                     }
                 }
-            }
-
-            if (showTimestamp) {
-                Text(
-                    formatTimestamp(message.timestamp, timestampFormat),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.padding(top = 4.dp, end = 5.dp)
-                )
-            }
-
-            if (hasBadges && showBadges) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    modifier = Modifier.padding(top = 2.dp, end = 4.dp)
-                ) {
-                    message.badges.forEach { badge ->
-                        if (badge.imageUrl.isNotEmpty()) {
-                            io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
-                                tooltip = badge.tooltip.ifBlank { badge.id }
-                            ) {
+                if (showTimestamp) {
+                    Text(
+                        formatTimestamp(message.timestamp, timestampFormat),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(top = 4.dp, end = 5.dp)
+                    )
+                }
+                if (hasBadges && showBadges) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        modifier = Modifier.padding(top = 2.dp, end = 4.dp)
+                    ) {
+                        message.badges.forEach { badge ->
+                            if (badge.imageUrl.isNotEmpty()) io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
+                                tooltip = badge.tooltip.ifBlank { badge.id }) {
                                 AsyncImage(
                                     model = badge.imageUrl,
                                     contentDescription = badge.tooltip,
@@ -2614,13 +2899,10 @@ private fun CompactMessageLayout(
                                 )
                             }
                         }
-                    }
-                    message.sevenTvBadge?.let { stvBadge ->
-                        val badgeUrl = stvBadge.url2x.ifEmpty { stvBadge.url1x }
-                        if (badgeUrl.isNotEmpty()) {
-                            io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
-                                tooltip = stvBadge.tooltip.ifBlank { "7TV Badge" }
-                            ) {
+                        message.sevenTvBadge?.let { stvBadge ->
+                            val badgeUrl = stvBadge.url2x.ifEmpty { stvBadge.url1x }
+                            if (badgeUrl.isNotEmpty()) io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox(
+                                tooltip = stvBadge.tooltip.ifBlank { "7TV Badge" }) {
                                 AsyncImage(
                                     model = badgeUrl,
                                     contentDescription = stvBadge.tooltip,
@@ -2651,17 +2933,19 @@ private fun CompactMessageContentWithIndent(
     mentionColor: Color,
     backgroundColor: Color,
     hasAccentBar: Boolean,
-    s: io.rudione.chatone.presentation.theme.i18n.AppStrings,
-    prefixWidthPx: Float
+    s: AppStrings,
+    prefixWidthPx: Float,
+    userColorByLogin: Map<String, Color> = emptyMap()
 ) {
     val emoteSizeSp = when (emoteSize) {
-        SettingsState.EmoteSize.SMALL -> 20.sp; SettingsState.EmoteSize.MEDIUM -> 28.sp; SettingsState.EmoteSize.LARGE -> 36.sp
+        SettingsState.EmoteSize.SMALL -> 20.sp
+        SettingsState.EmoteSize.MEDIUM -> 28.sp
+        SettingsState.EmoteSize.LARGE -> 36.sp
     }
     val userColor = parseColor(message.color) ?: MaterialTheme.colorScheme.primary
     val inlineContent = mutableMapOf<String, InlineTextContent>()
     val emoteKeyMap = mutableMapOf<String, GenericEmote>()
     var emoteCounter = 0
-
     val annotatedString = buildAnnotatedString {
         if (message.isDeleted) {
             pushStringAnnotation("username", message.userId)
@@ -2671,10 +2955,15 @@ private fun CompactMessageContentWithIndent(
                     fontWeight = FontWeight.Bold
                 )
             ) { append(message.displayName) }
-            pop(); append(": ")
+            pop()
+            append(": ")
             val originalText = message.tokens.joinToString("") {
                 when (it) {
-                    is MessageToken.Text -> it.text; is MessageToken.TwitchEmoteToken -> it.name; is MessageToken.ThirdPartyEmoteToken -> it.emote.code; is MessageToken.Link -> it.displayText; is MessageToken.Mention -> it.username
+                    is MessageToken.Text -> it.text
+                    is MessageToken.TwitchEmoteToken -> it.name
+                    is MessageToken.ThirdPartyEmoteToken -> it.emote.code
+                    is MessageToken.Link -> it.displayText
+                    is MessageToken.Mention -> it.username
                 }
             }
             withStyle(
@@ -2682,22 +2971,26 @@ private fun CompactMessageContentWithIndent(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
                     textDecoration = TextDecoration.LineThrough
                 )
-            ) { append(originalText.ifEmpty { "message deleted" }) }
+            ) {
+                append(originalText.ifEmpty { "message deleted" })
+            }
         } else {
             pushStringAnnotation("username", message.userId)
-            if (message.isAction) withStyle(
-                SpanStyle(
-                    color = userColor,
-                    fontStyle = FontStyle.Italic,
-                    fontWeight = FontWeight.SemiBold
-                )
-            ) { append(message.displayName); append(" ") }
-            else {
+            if (message.isAction) {
+                withStyle(
+                    SpanStyle(
+                        color = userColor,
+                        fontStyle = FontStyle.Italic,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                ) { append(message.displayName); append(" ") }
+            } else {
                 withStyle(SpanStyle(color = userColor, fontWeight = FontWeight.Bold)) {
                     append(
                         message.displayName
                     )
-                }; append(": ")
+                }
+                append(": ")
             }
             pop()
             val messageColor = if (message.isAction) userColor else Color.Unspecified
@@ -2713,10 +3006,9 @@ private fun CompactMessageContentWithIndent(
                     }
 
                     is MessageToken.TwitchEmoteToken -> {
-                        val key = "emote_${emoteCounter++}"; appendInlineContent(
-                            key,
-                            token.name
-                        ); inlineContent[key] = InlineTextContent(
+                        val key = "emote_${emoteCounter++}"
+                        appendInlineContent(key, token.name)
+                        inlineContent[key] = InlineTextContent(
                             Placeholder(
                                 emoteSizeSp,
                                 emoteSizeSp,
@@ -2732,14 +3024,15 @@ private fun CompactMessageContentWithIndent(
                     }
 
                     is MessageToken.ThirdPartyEmoteToken -> {
-                        val key = "emote_${emoteCounter++}"; appendInlineContent(
-                            key,
-                            token.emote.code
-                        ); val (emoteW, emoteH) = computeEmoteDisplaySize(
+                        val key = "emote_${emoteCounter++}"
+                        appendInlineContent(key, token.emote.code)
+                        val (emoteW, emoteH) = computeEmoteDisplaySize(
                             token.emote.width,
                             token.emote.height,
                             emoteSizeSp
-                        ); emoteKeyMap[key] = token.emote; inlineContent[key] = InlineTextContent(
+                        )
+                        emoteKeyMap[key] = token.emote
+                        inlineContent[key] = InlineTextContent(
                             Placeholder(
                                 emoteW,
                                 emoteH,
@@ -2751,44 +3044,45 @@ private fun CompactMessageContentWithIndent(
                                     emote = token.emote,
                                     modifier = Modifier.fillMaxSize(),
                                     onShowContextMenu = null
-                                ); token.overlays.forEach { overlay ->
-                                EmoteImageWithTooltip(
-                                    emote = overlay,
-                                    modifier = Modifier.fillMaxSize(),
-                                    onShowContextMenu = {})
-                            }
+                                )
+                                token.overlays.forEach { overlay ->
+                                    EmoteImageWithTooltip(
+                                        emote = overlay,
+                                        modifier = Modifier.fillMaxSize(),
+                                        onShowContextMenu = {})
+                                }
                             }
                         }
                     }
 
                     is MessageToken.Link -> {
-                        pushStringAnnotation(
-                            "url",
-                            token.url
-                        ); withStyle(
+                        pushStringAnnotation("url", token.url)
+                        withStyle(
                             SpanStyle(
                                 color = MaterialTheme.colorScheme.primary,
                                 textDecoration = TextDecoration.Underline
                             )
-                        ) { append(token.displayText) }; pop()
+                        ) { append(token.displayText) }
+                        pop()
                     }
 
                     is MessageToken.Mention -> {
-                        pushStringAnnotation(
-                            "mention",
-                            token.username
-                        ); withStyle(
+                        pushStringAnnotation("mention", token.username)
+                        val mentionedLogin = token.username.removePrefix("@").lowercase()
+                        val mentionColorReal =
+                            userColorByLogin[mentionedLogin] ?: stableUserColor(mentionedLogin)
+                        withStyle(
                             SpanStyle(
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
+                                color = mentionColorReal,
+                                fontWeight = FontWeight.Bold
                             )
-                        ) { append(token.username) }; pop()
+                        ) { append(token.username) }
+                        pop()
                     }
                 }
             }
         }
     }
-
     var showContextMenu by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
     var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
@@ -2806,16 +3100,13 @@ private fun CompactMessageContentWithIndent(
                         modifier = Modifier.clip(RoundedCornerShape(3.dp))
                             .background(FirstMessageColor.copy(alpha = 0.18f))
                             .padding(horizontal = 4.dp, vertical = 2.dp)
-                    ) {
-                    }
+                    ) { }
                 }
                 Spacer(Modifier.height(1.dp))
             }
         }
-
         val density = LocalDensity.current
         val prefixIndent = with(density) { prefixWidthPx.toSp() }
-
         SelectionContainer {
             Text(
                 text = annotatedString,
@@ -2889,10 +3180,7 @@ private fun CompactMessageContentWithIndent(
                                         }
                                     }
 
-                                    PointerEventType.Exit -> {
-                                        hoveredUrl = null
-                                    }
-
+                                    PointerEventType.Exit -> hoveredUrl = null
                                     else -> {}
                                 }
                                 if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
@@ -2924,7 +3212,6 @@ private fun CompactMessageContentWithIndent(
                 onTextLayout = { textLayoutResult = it }
             )
         }
-
         hoveredUrl?.let { url ->
             Popup(
                 popupPositionProvider = object : PopupPositionProvider {
@@ -2950,11 +3237,8 @@ private fun CompactMessageContentWithIndent(
                     dismissOnClickOutside = false,
                     clippingEnabled = false
                 )
-            ) {
-                LinkHoverPopup(url = url)
-            }
+            ) { LinkHoverPopup(url = url) }
         }
-
         if (showContextMenu) {
             Popup(
                 alignment = Alignment.TopStart,
@@ -2997,13 +3281,12 @@ private fun CompactMessageContentWithIndent(
                             icon = Icons.Outlined.CopyAll,
                             iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                             onClick = {
-                                showContextMenu = false
+                                showContextMenu = false;
                                 val rawText = message.tokens.joinToString("") {
                                     when (it) {
                                         is MessageToken.Text -> it.text; is MessageToken.TwitchEmoteToken -> it.name; is MessageToken.ThirdPartyEmoteToken -> it.emote.code; is MessageToken.Link -> it.displayText; is MessageToken.Mention -> it.username
                                     }
-                                }
-                                clipboardManager.setText(AnnotatedString(rawText))
+                                }; clipboardManager.setText(AnnotatedString(rawText))
                             })
                     }
                 }

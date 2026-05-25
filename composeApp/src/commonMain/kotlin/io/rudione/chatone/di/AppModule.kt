@@ -51,6 +51,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
@@ -95,6 +96,7 @@ val networkModule = module {
     }
 
     single { TwitchPubSubClient(httpClient = get(), scope = get()) }
+    single { io.rudione.chatone.data.repository.MentionMuteRepository() }
 
     single { PlatformAuthHandler() }
     single { RecentMessagesClient(httpClient = get()) }
@@ -290,7 +292,7 @@ val settingsModule = module {
 val viewModelModule = module {
     viewModelOf(::AuthViewModel)
     viewModelOf(::ChatViewModel)
-    viewModelOf(::SettingsViewModel)
+    viewModel { SettingsViewModel(get(), get(), get(), get()) }
     viewModelOf(::MainViewModel)
 }
 

@@ -137,7 +137,9 @@ class AutomodRepository(private val database: ChatoneDatabase) {
             timeoutSeconds = r.timeoutSeconds.toLong(),
             eventMessage = r.eventMessage,
             eventRepeat = r.eventRepeat.toLong().coerceIn(1, 10),
-            eventDelaySeconds = r.eventDelaySeconds.toLong().coerceIn(0, 600)
+            eventDelaySeconds = r.eventDelaySeconds.toLong().coerceIn(0, 600),
+            linksRequireHttps = r.linksRequireHttps.toLong(),
+            linksAllowedSites = r.linksAllowedSites.joinToString("\n")
         )
         reload()
     }
@@ -209,6 +211,10 @@ class AutomodRepository(private val database: ChatoneDatabase) {
         linksClipsSameChannelOnly = linksClipsSameChannelOnly == 1L,
         linksClipsAllowedChannels = linksClipsAllowedChannels.lines()
             .map { it.trim().lowercase().removePrefix("#") }
+            .filter { it.isNotBlank() },
+        linksRequireHttps = linksRequireHttps == 1L,
+        linksAllowedSites = linksAllowedSites.lines()
+            .map { it.trim().lowercase() }
             .filter { it.isNotBlank() },
         emoteMaxCount = emoteMaxCount.toInt(),
         newAccountAgeDays = newAccountAgeDays.toInt(),

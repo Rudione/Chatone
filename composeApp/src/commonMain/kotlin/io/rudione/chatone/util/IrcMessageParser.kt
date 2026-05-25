@@ -150,6 +150,13 @@ object IrcMessageParser {
             messageText
         }
 
+        fun unescape(v: String?): String? = v?.replace("\\s", " ")?.replace("\\\\", "\\")
+        val replyParentId = tags["reply-parent-msg-id"]?.takeIf { it.isNotBlank() }
+        val replyParentLogin = tags["reply-parent-user-login"]?.takeIf { it.isNotBlank() }
+        val replyParentName = unescape(tags["reply-parent-display-name"])?.takeIf { it.isNotBlank() }
+            ?: replyParentLogin
+        val replyParentBody = unescape(tags["reply-parent-msg-body"])
+
         return ChatMessage(
             id = messageId,
             channelId = tags["room-id"] ?: "",
@@ -172,7 +179,11 @@ object IrcMessageParser {
             isFirstMessage = isFirstMessage,
             isHighlighted = isHighlighted,
             customRewardId = customRewardId,
-            rewardName = rewardName
+            rewardName = rewardName,
+            replyParentMsgId = replyParentId,
+            replyParentUserLogin = replyParentLogin,
+            replyParentDisplayName = replyParentName,
+            replyParentMsgBody = replyParentBody
         )
     }
 

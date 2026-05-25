@@ -64,6 +64,7 @@ object SettingsImportExport {
         "custom_mod_buttons",
         "all_mod_buttons_v2",
         "macros",
+        "chat_commands",
         "show_chat_header",
         "smooth_chat_enabled",
         "alternate_row_bg",

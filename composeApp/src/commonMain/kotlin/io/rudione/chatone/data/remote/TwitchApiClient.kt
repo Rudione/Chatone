@@ -23,6 +23,7 @@ import io.rudione.chatone.data.remote.dto.*
 import io.rudione.chatone.util.Result
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.decodeFromString
@@ -335,7 +336,7 @@ class TwitchApiClient(
         }
     }
 
-    
+
     suspend fun sendChatMessage(
         accessToken: String,
         broadcasterId: String,
@@ -364,7 +365,7 @@ class TwitchApiClient(
             }
             val rawText = response.bodyAsText()
             Napier.v("sendChatMessage response: $rawText", tag = TAG)
-           
+
             val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
             val body = json.decodeFromString<SendChatMessageResponse>(rawText)
             val data = body.data.firstOrNull()
@@ -507,6 +508,158 @@ class TwitchApiClient(
         }
     }
 
+    suspend fun createPoll(
+        accessToken: String,
+        broadcasterId: String,
+        title: String,
+        choices: List<String>,
+        durationSeconds: Int,
+        channelPointsVotingEnabled: Boolean = false,
+        channelPointsPerVote: Int = 0
+    ): Result<PollData> {
+        return try {
+            val body = buildJsonObject {
+                put("broadcaster_id", JsonPrimitive(broadcasterId))
+                put("title", JsonPrimitive(title))
+                put("choices", buildJsonArray {
+                    choices.forEach { c -> add(buildJsonObject { put("title", JsonPrimitive(c)) }) }
+                })
+                put("duration", JsonPrimitive(durationSeconds))
+                if (channelPointsVotingEnabled) {
+                    put("channel_points_voting_enabled", JsonPrimitive(true))
+                    put("channel_points_per_vote", JsonPrimitive(channelPointsPerVote))
+                }
+            }
+            val resp = httpClient.post("$baseUrl/polls") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }.body<io.rudione.chatone.data.remote.dto.PollsResponse>()
+            resp.data.firstOrNull()?.let { Result.Success(it) }
+                ?: Result.Error(Exception("Empty poll response"))
+        } catch (e: Exception) {
+            Napier.e("createPoll failed: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun endPoll(
+        accessToken: String,
+        broadcasterId: String,
+        pollId: String,
+        status: String
+    ): Result<Unit> {
+        return try {
+            val body = buildJsonObject {
+                put("broadcaster_id", JsonPrimitive(broadcasterId))
+                put("id", JsonPrimitive(pollId))
+                put("status", JsonPrimitive(status))
+            }
+            httpClient.patch("$baseUrl/polls") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("endPoll failed: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun getActivePoll(
+        accessToken: String,
+        broadcasterId: String
+    ): Result<io.rudione.chatone.data.remote.dto.PollData?> {
+        return try {
+            val resp = httpClient.get("$baseUrl/polls") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("first", 1)
+            }.body<PollsResponse>()
+            Result.Success(resp.data.firstOrNull { it.status == "ACTIVE" })
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+
+    suspend fun createPrediction(
+        accessToken: String,
+        broadcasterId: String,
+        title: String,
+        outcomes: List<String>,
+        predictionWindowSeconds: Int
+    ): Result<PredictionData> {
+        return try {
+            val body = buildJsonObject {
+                put("broadcaster_id", JsonPrimitive(broadcasterId))
+                put("title", JsonPrimitive(title))
+                put("outcomes", buildJsonArray {
+                    outcomes.forEach { o -> add(buildJsonObject { put("title", JsonPrimitive(o)) }) }
+                })
+                put("prediction_window", JsonPrimitive(predictionWindowSeconds))
+            }
+            val resp = httpClient.post("$baseUrl/predictions") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }.body<io.rudione.chatone.data.remote.dto.PredictionsResponse>()
+            resp.data.firstOrNull()?.let { Result.Success(it) }
+                ?: Result.Error(Exception("Empty prediction response"))
+        } catch (e: Exception) {
+            Napier.e("createPrediction failed: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun endPrediction(
+        accessToken: String,
+        broadcasterId: String,
+        predictionId: String,
+        status: String,
+        winningOutcomeId: String? = null
+    ): Result<Unit> {
+        return try {
+            val body = buildJsonObject {
+                put("broadcaster_id", JsonPrimitive(broadcasterId))
+                put("id", JsonPrimitive(predictionId))
+                put("status", JsonPrimitive(status))
+                if (winningOutcomeId != null) put("winning_outcome_id", JsonPrimitive(winningOutcomeId))
+            }
+            httpClient.patch("$baseUrl/predictions") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("endPrediction failed: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun getActivePrediction(
+        accessToken: String,
+        broadcasterId: String
+    ): Result<PredictionData?> {
+        return try {
+            val resp = httpClient.get("$baseUrl/predictions") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("first", 5)
+            }.body<PredictionsResponse>()
+            Result.Success(resp.data.firstOrNull { it.status == "ACTIVE" || it.status == "LOCKED" })
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
+
     suspend fun sendShoutout(accessToken: String, fromBroadcasterId: String, toBroadcasterId: String, moderatorId: String): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/chat/shoutouts") {
@@ -594,6 +747,35 @@ class TwitchApiClient(
             Result.Success(Unit)
         } catch (e: Exception) {
             Napier.e("Failed to update AutoMod settings: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    @kotlinx.serialization.Serializable
+    private data class ChatColorEntry(
+        @kotlinx.serialization.SerialName("user_id") val userId: String,
+        @kotlinx.serialization.SerialName("user_login") val userLogin: String = "",
+        @kotlinx.serialization.SerialName("color") val color: String = ""
+    )
+
+    @kotlinx.serialization.Serializable
+    private data class ChatColorResponse(val data: List<ChatColorEntry> = emptyList())
+
+    /**
+     * Returns the user's current chat color as a hex string (e.g. "#38D7FF"), or null if Twitch
+     * hasn't assigned one yet. Used to pre-populate the local-echo colour when sending a message
+     * before the IRC USERSTATE tag has arrived in a freshly-joined channel.
+     */
+    suspend fun getUserChatColor(accessToken: String, userId: String): Result<String?> {
+        return try {
+            val resp = httpClient.get("$baseUrl/chat/color") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("user_id", userId)
+            }.body<ChatColorResponse>()
+            Result.Success(resp.data.firstOrNull()?.color?.takeIf { it.isNotBlank() })
+        } catch (e: Exception) {
+            Napier.w("Failed to fetch chat color for $userId: ${e.message}", tag = TAG)
             Result.Error(e)
         }
     }
@@ -825,6 +1007,21 @@ class TwitchApiClient(
             Result.Success(Unit)
         } catch (e: Exception) {
             Napier.e("Failed to manage automod message: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun getUserEmotes(accessToken: String, userId: String, broadcasterId: String? = null): Result<UserEmotesResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/chat/emotes/user") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("user_id", userId)
+                if (broadcasterId != null) parameter("broadcaster_id", broadcasterId)
+            }.body<UserEmotesResponse>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Napier.w("Failed to get user emotes: ${e.message}", tag = TAG)
             Result.Error(e)
         }
     }

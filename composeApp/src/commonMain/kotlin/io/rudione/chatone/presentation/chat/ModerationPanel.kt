@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Send
@@ -23,14 +24,21 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.HowToVote
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +48,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,6 +82,14 @@ fun ModerationPanel(
     var announcementColor by remember { mutableStateOf("primary") }
     var showRaid by remember { mutableStateOf(false) }
     var raidTarget by remember { mutableStateOf("") }
+    var showPoll by remember { mutableStateOf(false) }
+    var pollTitle by remember { mutableStateOf("") }
+    var pollChoicesText by remember { mutableStateOf("") }
+    var pollDurationSec by remember { mutableStateOf("60") }
+    var showPrediction by remember { mutableStateOf(false) }
+    var predictionTitle by remember { mutableStateOf("") }
+    var predictionOutcomesText by remember { mutableStateOf("") }
+    var predictionWindowSec by remember { mutableStateOf("120") }
     var showPin by remember { mutableStateOf(false) }
     var pinText by remember { mutableStateOf("") }
     var showShoutout by remember { mutableStateOf(false) }
@@ -259,6 +274,12 @@ fun ModerationPanel(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 ModPanelButton(
+                    label = "Automod",
+                    icon = Icons.Outlined.Build,
+                    tint = MaterialTheme.colorScheme.primary
+                ) { onOpenLocalAutomod() }
+
+                ModPanelButton(
                     label = "Clear",
                     icon = Icons.Outlined.Delete,
                     tint = extra.modDelete
@@ -271,8 +292,6 @@ fun ModerationPanel(
                     isToggled = showAnnouncement
                 ) { showAnnouncement = !showAnnouncement }
 
-                
-
                 ModPanelButton(
                     label = "Raid",
                     icon = Icons.Filled.PlayArrow,
@@ -280,13 +299,20 @@ fun ModerationPanel(
                     isToggled = showRaid
                 ) { showRaid = !showRaid }
 
-                ModPanelButton(
-                    label = "Automod",
-                    icon = Icons.Outlined.Build,
-                    tint = MaterialTheme.colorScheme.primary
-                ) { onOpenLocalAutomod() }
+                /*ModPanelButton(
+                    label = "Poll",
+                    icon = Icons.Outlined.HowToVote,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    isToggled = showPoll
+                ) { showPoll = !showPoll }
 
-                
+                ModPanelButton(
+                    label = "Predict",
+                    icon = Icons.Outlined.TrendingUp,
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    isToggled = showPrediction
+                ) { showPrediction = !showPrediction }*/
+
 
                 
             }
@@ -414,8 +440,174 @@ fun ModerationPanel(
                 )
             }
 
+            AnimatedVisibility(
+                visible = showPoll,
+                enter = expandVertically(tween(200)) + fadeIn(tween(150)),
+                exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
+            ) {
+                PollPredictionForm(
+                    title = pollTitle,
+                    onTitleChange = { pollTitle = it },
+                    duration = pollDurationSec,
+                    onDurationChange = { pollDurationSec = it.filter { c -> c.isDigit() }.take(4) },
+                    durationLabel = "Duration (sec, 15–1800)",
+                    options = pollChoicesText,
+                    onOptionsChange = { pollChoicesText = it },
+                    optionsLabel = "Choices (one per line, 2–5)",
+                    submitLabel = "Start poll",
+                    submitColor = MaterialTheme.colorScheme.secondary,
+                    onSubmit = {
+                        val duration = pollDurationSec.toIntOrNull()?.coerceIn(15, 1800) ?: 60
+                        val choices = pollChoicesText.lines().map { it.trim() }.filter { it.isNotEmpty() }.take(5)
+                        if (pollTitle.isNotBlank() && choices.size >= 2) {
+                            onSendRawCommand("/poll $duration ${pollTitle.trim()} | ${choices.joinToString(" | ")}")
+                            pollTitle = ""
+                            pollChoicesText = ""
+                            showPoll = false
+                        }
+                    }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = showPrediction,
+                enter = expandVertically(tween(200)) + fadeIn(tween(150)),
+                exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
+            ) {
+                PollPredictionForm(
+                    title = predictionTitle,
+                    onTitleChange = { predictionTitle = it },
+                    duration = predictionWindowSec,
+                    onDurationChange = { predictionWindowSec = it.filter { c -> c.isDigit() }.take(4) },
+                    durationLabel = "Window (sec, 30–1800)",
+                    options = predictionOutcomesText,
+                    onOptionsChange = { predictionOutcomesText = it },
+                    optionsLabel = "Outcomes (one per line, 2–10)",
+                    submitLabel = "Start prediction",
+                    submitColor = MaterialTheme.colorScheme.tertiary,
+                    onSubmit = {
+                        val window = predictionWindowSec.toIntOrNull()?.coerceIn(30, 1800) ?: 120
+                        val outcomes = predictionOutcomesText.lines().map { it.trim() }.filter { it.isNotEmpty() }.take(10)
+                        if (predictionTitle.isNotBlank() && outcomes.size >= 2) {
+                            onSendRawCommand("/prediction $window ${predictionTitle.trim()} | ${outcomes.joinToString(" | ")}")
+                            predictionTitle = ""
+                            predictionOutcomesText = ""
+                            showPrediction = false
+                        }
+                    }
+                )
+            }
+
             Spacer(Modifier.height(4.dp))
         }
+    }
+}
+
+@Composable
+private fun PollPredictionForm(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    duration: String,
+    onDurationChange: (String) -> Unit,
+    durationLabel: String,
+    options: String,
+    onOptionsChange: (String) -> Unit,
+    optionsLabel: String,
+    submitLabel: String,
+    submitColor: Color,
+    onSubmit: () -> Unit,
+    maxOptions: Int = 5
+) {
+    val rows = remember(options) {
+        val initial = options.lines().filter { it.isNotEmpty() }
+        val seed = if (initial.size >= 2) initial else (initial + List(2 - initial.size) { "" })
+        mutableStateListOf<String>().apply { addAll(seed) }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        OutlinedTextField(
+            value = title,
+            onValueChange = onTitleChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Title") },
+            singleLine = true,
+            shape = RoundedCornerShape(10.dp)
+        )
+        OutlinedTextField(
+            value = duration,
+            onValueChange = onDurationChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(durationLabel) },
+            singleLine = true,
+            shape = RoundedCornerShape(10.dp),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
+        Text(
+            optionsLabel,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        rows.forEachIndexed { idx, value ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { v ->
+                        rows[idx] = v
+                        onOptionsChange(rows.joinToString("\n"))
+                    },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("Option ${idx + 1}") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp)
+                )
+                if (rows.size > 2) {
+                    IconButton(onClick = {
+                        rows.removeAt(idx)
+                        onOptionsChange(rows.joinToString("\n"))
+                    }) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Remove option",
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+        if (rows.size < maxOptions) {
+            FilledTonalButton(
+                onClick = {
+                    rows.add("")
+                    onOptionsChange(rows.joinToString("\n"))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = submitColor.copy(alpha = 0.10f),
+                    contentColor = submitColor
+                )
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("Add option", fontWeight = FontWeight.Medium)
+            }
+        }
+        FilledTonalButton(
+            onClick = onSubmit,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = submitColor.copy(alpha = 0.2f),
+                contentColor = submitColor
+            )
+        ) { Text(submitLabel, fontWeight = FontWeight.SemiBold) }
     }
 }
 

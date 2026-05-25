@@ -7,7 +7,9 @@ import io.rudione.chatone.base.BaseViewModel
 import io.rudione.chatone.base.UIEffect
 import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
+import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.AuthRepository
+import io.rudione.chatone.domain.model.ChatCommand
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.ModActionButton
@@ -20,6 +22,7 @@ import io.rudione.chatone.util.AppRestarter
 import io.rudione.chatone.util.WallpaperLoader
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.serialization.encodeToString
@@ -96,6 +99,14 @@ data class SettingsState(
     val blockedUsernames: List<String> = emptyList(),
     val isLoadingBlockedUsers: Boolean = false,
     val blockedLoadError: String? = null,
+    val hideChatInputPlaceholder: Boolean = false,
+    val hideEmojiButton: Boolean = false,
+    val chatInputEventGlow: Boolean = true,
+    val showRepeatedMessageCounter: Boolean = false,
+    val repeatedMessageWindow: Int = 30,
+    val savedTimeoutReason: String = "",
+    val savedBanReason: String = "",
+    val chatCommands: List<ChatCommand> = emptyList(),
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
     enum class LinkOpenMode { DEFAULT, INCOGNITO }
@@ -146,6 +157,15 @@ sealed class SettingsEvent : UiEvent {
     data class OnHighlightRuleToggled(val ruleId: String, val enabled: Boolean) : SettingsEvent()
     data class OnHighlightRuleSoundToggled(val ruleId: String, val playSound: Boolean) :
         SettingsEvent()
+    data class OnHighlightRuleSubstringToggled(val ruleId: String, val matchSubstring: Boolean) :
+        SettingsEvent()
+    data class OnHideChatPlaceholderChanged(val hide: Boolean) : SettingsEvent()
+    data class OnHideEmojiButtonChanged(val hide: Boolean) : SettingsEvent()
+    data class OnChatInputGlowChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnShowRepeatedCounterChanged(val show: Boolean) : SettingsEvent()
+    data class OnRepeatedWindowChanged(val seconds: Int) : SettingsEvent()
+    data class OnSavedTimeoutReasonChanged(val text: String) : SettingsEvent()
+    data class OnSavedBanReasonChanged(val text: String) : SettingsEvent()
 
     data class OnHighlightRuleColorChanged(val ruleId: String, val color: Long) : SettingsEvent()
     data class OnAddHighlightRule(val pattern: String) : SettingsEvent()
@@ -189,6 +209,10 @@ sealed class SettingsEvent : UiEvent {
     data class OnDeleteCustomTheme(val themeId: String) : SettingsEvent()
     data class OnApplyCustomTheme(val themeId: String?) : SettingsEvent()
     data class OnImportSettingsText(val text: String) : SettingsEvent()
+
+    data class OnAddChatCommand(val command: ChatCommand) : SettingsEvent()
+    data class OnUpdateChatCommand(val command: ChatCommand) : SettingsEvent()
+    data class OnRemoveChatCommand(val id: String) : SettingsEvent()
 }
 
 sealed class SettingsEffect : UIEffect {
@@ -199,7 +223,8 @@ sealed class SettingsEffect : UIEffect {
 class SettingsViewModel(
     private val wallpaperLoader: WallpaperLoader,
     private val authRepository: AuthRepository,
-    private val getFirstValidAccountUseCase: GetFirstValidAccountUseCase
+    private val getFirstValidAccountUseCase: GetFirstValidAccountUseCase,
+    private val twitchApiClient: TwitchApiClient? = null
 ) : BaseViewModel<SettingsState, SettingsEvent, SettingsEffect>(loadInitialState()) {
     companion object {
         val settings: Settings = Settings()
@@ -240,6 +265,7 @@ class SettingsViewModel(
         private const val KEY_CUSTOM_MOD_BUTTONS = "custom_mod_buttons"
         private const val KEY_ALL_MOD_BUTTONS = "all_mod_buttons_v2"
         private const val KEY_MACROS = "macros"
+        private const val KEY_CHAT_COMMANDS = "chat_commands"
         private const val KEY_SHOW_CHAT_HEADER = "show_chat_header"
         private const val KEY_SMOOTH_CHAT = "smooth_chat_enabled"
         private const val KEY_ALTERNATE_ROW_BG = "alternate_row_bg"
@@ -251,6 +277,13 @@ class SettingsViewModel(
         private const val KEY_ACCENT_COLOR_INDEX = "accent_color_index"
         private const val KEY_TITLE_BAR_MODE = "title_bar_mode"
         private const val KEY_SHOW_BLOCKED_MODE = "show_blocked_mode"
+        private const val KEY_HIDE_CHAT_PLACEHOLDER = "hide_chat_input_placeholder"
+        private const val KEY_HIDE_EMOJI_BUTTON = "hide_emoji_button"
+        private const val KEY_CHAT_INPUT_GLOW = "chat_input_event_glow"
+        private const val KEY_SHOW_REPEAT_COUNTER = "show_repeated_message_counter"
+        private const val KEY_REPEAT_WINDOW = "repeated_message_window"
+        private const val KEY_SAVED_TIMEOUT_REASON = "saved_timeout_reason"
+        private const val KEY_SAVED_BAN_REASON = "saved_ban_reason"
         private val json = Json { ignoreUnknownKeys = true }
         private val _effects = MutableSharedFlow<SettingsEffect>()
         val effects = _effects.asSharedFlow()
@@ -284,6 +317,13 @@ class SettingsViewModel(
             val macros = try {
                 val j = settings.getStringOrNull(KEY_MACROS)
                 if (j != null) json.decodeFromString<List<Macro>>(j) else emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            val chatCommands = try {
+                val j = settings.getStringOrNull(KEY_CHAT_COMMANDS)
+                if (j != null) json.decodeFromString<List<ChatCommand>>(j) else emptyList()
             } catch (_: Exception) {
                 emptyList()
             }
@@ -405,6 +445,14 @@ class SettingsViewModel(
                     TitleBarMode.valueOf(settings.getString(KEY_TITLE_BAR_MODE, TitleBarMode.DARK.name))
                 } catch (_: Exception) { TitleBarMode.DARK },
                 showBlockedMode = settings.getInt(KEY_SHOW_BLOCKED_MODE, 0),
+                hideChatInputPlaceholder = settings.getBoolean(KEY_HIDE_CHAT_PLACEHOLDER, false),
+                hideEmojiButton = settings.getBoolean(KEY_HIDE_EMOJI_BUTTON, false),
+                chatInputEventGlow = settings.getBoolean(KEY_CHAT_INPUT_GLOW, true),
+                showRepeatedMessageCounter = settings.getBoolean(KEY_SHOW_REPEAT_COUNTER, false),
+                repeatedMessageWindow = settings.getInt(KEY_REPEAT_WINDOW, 30),
+                savedTimeoutReason = settings.getString(KEY_SAVED_TIMEOUT_REASON, ""),
+                savedBanReason = settings.getString(KEY_SAVED_BAN_REASON, ""),
+                chatCommands = chatCommands,
             )
         }
     }
@@ -413,7 +461,15 @@ class SettingsViewModel(
         subscribeToEvents()
         viewModelScope.launch {
             changeBroadcast.collect { _ ->
-                super.update { loadInitialState() }
+                super.update { current ->
+                    loadInitialState().copy(
+                        showThemeCreator = current.showThemeCreator,
+                        themeCreatorSeedColor = current.themeCreatorSeedColor,
+                        isLoadingBlockedUsers = current.isLoadingBlockedUsers,
+                        blockedUsernames = current.blockedUsernames,
+                        blockedLoadError = current.blockedLoadError
+                    )
+                }
             }
         }
     }
@@ -638,6 +694,49 @@ class SettingsViewModel(
             }
             is SettingsEvent.OnLoadBlockedUsers -> {
                 update { it.copy(isLoadingBlockedUsers = true, blockedLoadError = null) }
+                viewModelScope.launch {
+                    try {
+                        val api = twitchApiClient
+                        if (api == null) {
+                            update { it.copy(isLoadingBlockedUsers = false, blockedLoadError = "API not available") }
+                            return@launch
+                        }
+                        val accounts = authRepository.getAccounts().first()
+                        if (accounts.isEmpty()) {
+                            update { it.copy(isLoadingBlockedUsers = false, blockedLoadError = "Not logged in") }
+                            return@launch
+                        }
+                        val aggregated = linkedSetOf<String>()
+                        var anySuccess = false
+                        var lastError: String? = null
+                        for (account in accounts) {
+                            val validatedUserId = runCatching {
+                                val v = api.validateToken(account.accessToken)
+                                if (v is io.rudione.chatone.util.Result.Success) v.data.userId else account.userId
+                            }.getOrDefault(account.userId)
+                            val result = api.getBlockedUsers(account.accessToken, validatedUserId, first = 100)
+                            when (result) {
+                                is io.rudione.chatone.util.Result.Success -> {
+                                    anySuccess = true
+                                    result.data.data.forEach { aggregated.add(it.userLogin) }
+                                }
+                                is io.rudione.chatone.util.Result.Error -> {
+                                    lastError = result.exception.message ?: "Failed to load"
+                                }
+                                else -> {}
+                            }
+                        }
+                        update {
+                            it.copy(
+                                blockedUsernames = aggregated.toList().sorted(),
+                                isLoadingBlockedUsers = false,
+                                blockedLoadError = if (anySuccess) null else lastError
+                            )
+                        }
+                    } catch (e: Exception) {
+                        update { it.copy(isLoadingBlockedUsers = false, blockedLoadError = e.message ?: "Failed to load") }
+                    }
+                }
             }
             is SettingsEvent.BlockedUsersLoaded -> {
                 update { it.copy(blockedUsernames = event.usernames, isLoadingBlockedUsers = false) }
@@ -650,6 +749,32 @@ class SettingsViewModel(
                     st.copy(blockedUsernames = st.blockedUsernames.filter {
                         !it.equals(event.username, ignoreCase = true)
                     })
+                }
+                viewModelScope.launch {
+                    try {
+                        val api = twitchApiClient ?: return@launch
+                        val accounts = authRepository.getAccounts().first()
+                        if (accounts.isEmpty()) return@launch
+
+                        var targetId: String? = event.userId.takeIf { it.isNotBlank() }
+                        val resolver = accounts.first()
+                        if (targetId.isNullOrEmpty()) {
+                            val r = api.getUsers(resolver.accessToken, logins = listOf(event.username))
+                            if (r is io.rudione.chatone.util.Result.Success) {
+                                targetId = r.data.data.firstOrNull()?.id
+                            }
+                        }
+                        val id = targetId
+                        if (id.isNullOrEmpty()) {
+                            update { it.copy(blockedLoadError = "Could not resolve user id for ${event.username}") }
+                            return@launch
+                        }
+                        accounts.forEach { acc ->
+                            runCatching { api.unblockUser(acc.accessToken, id) }
+                        }
+                    } catch (e: Exception) {
+                        update { it.copy(blockedLoadError = e.message ?: "Failed to unblock") }
+                    }
                 }
             }
 
@@ -696,6 +821,44 @@ class SettingsViewModel(
                     s.highlightRules.map { if (it.id == event.ruleId) it.copy(playSound = event.playSound) else it }; saveHighlightRules(
                 n
             ); s.copy(highlightRules = n)
+            }
+
+            is SettingsEvent.OnHighlightRuleSubstringToggled -> update { s ->
+                val n = s.highlightRules.map {
+                    if (it.id == event.ruleId) it.copy(matchSubstring = event.matchSubstring) else it
+                }
+                saveHighlightRules(n)
+                s.copy(highlightRules = n)
+            }
+
+            is SettingsEvent.OnHideChatPlaceholderChanged -> {
+                settings.putBoolean(KEY_HIDE_CHAT_PLACEHOLDER, event.hide)
+                update { it.copy(hideChatInputPlaceholder = event.hide) }
+            }
+            is SettingsEvent.OnHideEmojiButtonChanged -> {
+                settings.putBoolean(KEY_HIDE_EMOJI_BUTTON, event.hide)
+                update { it.copy(hideEmojiButton = event.hide) }
+            }
+            is SettingsEvent.OnChatInputGlowChanged -> {
+                settings.putBoolean(KEY_CHAT_INPUT_GLOW, event.enabled)
+                update { it.copy(chatInputEventGlow = event.enabled) }
+            }
+            is SettingsEvent.OnShowRepeatedCounterChanged -> {
+                settings.putBoolean(KEY_SHOW_REPEAT_COUNTER, event.show)
+                update { it.copy(showRepeatedMessageCounter = event.show) }
+            }
+            is SettingsEvent.OnRepeatedWindowChanged -> {
+                val v = event.seconds.coerceIn(5, 300)
+                settings.putInt(KEY_REPEAT_WINDOW, v)
+                update { it.copy(repeatedMessageWindow = v) }
+            }
+            is SettingsEvent.OnSavedTimeoutReasonChanged -> {
+                settings.putString(KEY_SAVED_TIMEOUT_REASON, event.text)
+                update { it.copy(savedTimeoutReason = event.text) }
+            }
+            is SettingsEvent.OnSavedBanReasonChanged -> {
+                settings.putString(KEY_SAVED_BAN_REASON, event.text)
+                update { it.copy(savedBanReason = event.text) }
             }
 
             is SettingsEvent.OnHighlightRuleColorChanged -> update { s ->
@@ -933,8 +1096,26 @@ class SettingsViewModel(
                 }
                 saveMacros(n); s.copy(macros = n)
             }
+
+            is SettingsEvent.OnAddChatCommand -> update { s ->
+                val n = s.chatCommands + event.command
+                saveChatCommands(n); s.copy(chatCommands = n)
+            }
+
+            is SettingsEvent.OnUpdateChatCommand -> update { s ->
+                val n = s.chatCommands.map { if (it.id == event.command.id) event.command else it }
+                saveChatCommands(n); s.copy(chatCommands = n)
+            }
+
+            is SettingsEvent.OnRemoveChatCommand -> update { s ->
+                val n = s.chatCommands.filter { it.id != event.id }
+                saveChatCommands(n); s.copy(chatCommands = n)
+            }
         }
     }
+
+    private fun saveChatCommands(commands: List<ChatCommand>) =
+        settings.putString(KEY_CHAT_COMMANDS, json.encodeToString(commands))
 
     private fun saveCustomThemes(themes: List<CustomThemeConfig>, activeId: String?) {
         settings.putString(KEY_CUSTOM_THEMES, json.encodeToString(themes))

@@ -120,8 +120,20 @@ object MessageTokenizer {
                 BARE_LINK_REGEX.matches(word) -> {
                     tokens.add(MessageToken.Link("https://$word", word))
                 }
-                currentUsername != null && word.equals("@$currentUsername", ignoreCase = true) -> {
-                    tokens.add(MessageToken.Mention(word))
+                word.startsWith("@") && word.length >= 4 -> {
+                    val core = word.removePrefix("@")
+                    val endIdx = core.indexOfFirst { c ->
+                        !(c.isLetterOrDigit() || c == '_')
+                    }.let { if (it < 0) core.length else it }
+                    if (endIdx >= 3) {
+                        val login = core.substring(0, endIdx)
+                        tokens.add(MessageToken.Mention("@$login"))
+                        if (endIdx < core.length) {
+                            tokens.add(MessageToken.Text(core.substring(endIdx)))
+                        }
+                    } else {
+                        tokens.add(MessageToken.Text(word))
+                    }
                 }
                 else -> {
                     tokens.add(MessageToken.Text(word))

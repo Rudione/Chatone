@@ -19,6 +19,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -166,7 +169,9 @@ class TwitchPubSubClient(
                 ?: return
             val moderatorUserId = data["created_by_user_id"]?.jsonPrimitive?.content
                 ?: data["moderator"]?.jsonObject?.get("user_id")?.jsonPrimitive?.content
-            val args = data["args"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+            val args = (data["args"] as? JsonArray)
+                ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+                ?: emptyList()
             val targetUserId = data["target_user_id"]?.jsonPrimitive?.content
                 ?: data["target"]?.jsonObject?.get("user_id")?.jsonPrimitive?.content
             val target = args.firstOrNull()

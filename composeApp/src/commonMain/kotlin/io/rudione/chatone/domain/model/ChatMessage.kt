@@ -25,7 +25,11 @@ data class ChatMessage(
     val isFirstMessage: Boolean = false,
     val isHighlighted: Boolean = false,
     val customRewardId: String? = null,
-    val rewardName: String? = null
+    val rewardName: String? = null,
+    val replyParentMsgId: String? = null,
+    val replyParentUserLogin: String? = null,
+    val replyParentDisplayName: String? = null,
+    val replyParentMsgBody: String? = null,
 )
 
 @Serializable

@@ -66,16 +66,6 @@ fun ModerationSettingsSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
 
-        BlockedUsersSection(
-            blockedUsernames = blockedUsernames,
-            showBlockedMode = state.showBlockedMode,
-            isLoadingBlockedUsers = isLoadingBlockedUsers,
-            loadError = blockedLoadError,
-            onShowBlockedModeChange = { onEvent(SettingsEvent.OnShowBlockedModeChanged(it)) },
-            onUnblockUser = onUnblockUser,
-            onRefresh = onRefreshBlockedUsers
-        )
-
         SettingsCard(title = s.modLocalAutomod) {
             Text(
                 s.modLocalAutomodDesc,
@@ -107,6 +97,10 @@ fun ModerationSettingsSection(
             }
         }
 
+        ModActionButtonsSection(state = state, onEvent = onEvent)
+
+        MacrosSection(state = state, onEvent = onEvent)
+
         SettingsCard(title = s.modDefaultTimeoutDuration) {
             val options = listOf(
                 60 to "1m", 300 to "5m", 600 to "10m",
@@ -124,9 +118,31 @@ fun ModerationSettingsSection(
             }
         }
 
-        ModActionButtonsSection(state = state, onEvent = onEvent)
-
-        MacrosSection(state = state, onEvent = onEvent)
+        SettingsCard(title = s.modSavedReasonsTitle) {
+            Text(
+                s.modSavedReasonsDesc,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            OutlinedTextField(
+                value = state.savedTimeoutReason,
+                onValueChange = { onEvent(SettingsEvent.OnSavedTimeoutReasonChanged(it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(s.modSavedTimeoutReasonLabel) },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.savedBanReason,
+                onValueChange = { onEvent(SettingsEvent.OnSavedBanReasonChanged(it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(s.modSavedBanReasonLabel) },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp)
+            )
+        }
     }
 }
 
@@ -1282,7 +1298,13 @@ fun SettingsCard(
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
-        tonalElevation = 1.dp,
+        tonalElevation = 4.dp,
+        shadowElevation = 2.dp,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        ),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

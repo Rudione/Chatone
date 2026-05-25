@@ -39,7 +39,9 @@ CREATE TABLE IF NOT EXISTS AutomodRuleEntity (
     timeoutSeconds INTEGER NOT NULL DEFAULT 60,
     eventMessage TEXT NOT NULL DEFAULT '',
     eventRepeat INTEGER NOT NULL DEFAULT 1,
-    eventDelaySeconds INTEGER NOT NULL DEFAULT 0
+    eventDelaySeconds INTEGER NOT NULL DEFAULT 0,
+    linksRequireHttps INTEGER NOT NULL DEFAULT 1,
+    linksAllowedSites TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_automod_scope    ON AutomodRuleEntity(scope);
@@ -80,7 +82,8 @@ INSERT OR REPLACE INTO AutomodRuleEntity(
     linksAllowClips, linksClipsSameChannelOnly, linksClipsAllowedChannels,
     emoteMaxCount, newAccountAgeDays, duplicateMinLength,
     timeoutSeconds,
-    eventMessage, eventRepeat, eventDelaySeconds
+    eventMessage, eventRepeat, eventDelaySeconds,
+    linksRequireHttps, linksAllowedSites
 ) VALUES (?, 'CHAT', ?, ?,
     '', '', 0, 0, 0,
     ?, ?, 0, 60000,
@@ -91,7 +94,8 @@ INSERT OR REPLACE INTO AutomodRuleEntity(
     ?, ?, ?,
     ?, ?, ?,
     ?,
-    ?, ?, ?);
+    ?, ?, ?,
+    ?, ?);
 
 getAllChatRules:
 SELECT * FROM AutomodRuleEntity WHERE ruleKind = 'CHAT'

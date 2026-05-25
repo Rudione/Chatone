@@ -169,3 +169,17 @@ internal fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
     "right" -> key == Key.DirectionRight
     else -> if (name.length == 1) key.keyCode == name[0].uppercaseChar().code.toLong() else false
 }
+
+
+internal fun stableUserColor(login: String): Color {
+    val palette = longArrayOf(
+        0xFFFF4A80L, 0xFF1E90FFL, 0xFF2ECC71L, 0xFFFF7F50L,
+        0xFF9B59B6L, 0xFFF1C40F, 0xFF00CED1L, 0xFFFF6B6BL,
+        0xFF8A2BE2L, 0xFF20C997L, 0xFFFFA500L, 0xFFD9534FL
+    )
+    val key = login.lowercase()
+    var h = 0
+    for (c in key) h = (h * 31 + c.code)
+    val idx = ((h.toLong() and 0x7FFFFFFFL) % palette.size).toInt()
+    return Color(palette[idx] or 0xFF000000L)
+}

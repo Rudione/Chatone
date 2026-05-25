@@ -33,8 +33,11 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -47,6 +50,7 @@ import chatone.composeapp.generated.resources.chatbubbles_outline
 import chatone.composeapp.generated.resources.icon
 import chatone.composeapp.generated.resources.images
 import chatone.composeapp.generated.resources.images_outline
+import chatone.composeapp.generated.resources.key_outline
 import chatone.composeapp.generated.resources.keyboard_24_filled
 import chatone.composeapp.generated.resources.keyboard_24_regular
 import chatone.composeapp.generated.resources.musical_notes_outline
@@ -71,6 +75,8 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.presentation.theme.ExpressivePalettes
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
+import io.rudione.chatone.presentation.theme.LocalWallpaperController
+import androidx.compose.runtime.CompositionLocalProvider
 import io.rudione.chatone.util.BuildConfig
 import io.rudione.chatone.util.NotificationSoundPlayer
 import io.rudione.chatone.util.WallpaperLoader
@@ -104,6 +110,7 @@ private enum class SettingsSection(
     HIGHLIGHTS("Highlights", Res.drawable.star_filled, Res.drawable.star_outlined),
     BACKGROUND("Background", Res.drawable.wallpaper_filled, Res.drawable.wallpaper_outlined),
     HOTKEYS("Hotkeys", Res.drawable.keyboard_24_filled, Res.drawable.keyboard_24_regular),
+    COMMANDS("Commands", Res.drawable.key_outline, Res.drawable.key_outline),
     MODERATION("Moderation", Res.drawable.shield_filled, Res.drawable.shield_outlined),
     ACCOUNT("Account", Res.drawable.person_filled, Res.drawable.person_filled),
     ABOUT("About", Res.drawable.panel_left_key_16_regular, null);
@@ -115,6 +122,7 @@ private enum class SettingsSection(
         HIGHLIGHTS -> s.sectionHighlights
         BACKGROUND -> s.sectionBackground
         HOTKEYS -> s.sectionHotkeys
+        COMMANDS -> s.sectionCommands
         MODERATION -> s.settingsModeration
         ACCOUNT -> s.settingsAccount
         ABOUT -> s.settingsAbout
@@ -135,6 +143,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val customThemeManager: CustomThemeManager = LocalCustomThemeManager.current
+    val wallpaperController = LocalWallpaperController.current
     val s = LocalStrings.current
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
@@ -203,27 +212,33 @@ fun SettingsScreen(
                 dismissOnClickOutside = true,
             )
         ) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth(0.92f)
-                    .fillMaxHeight(0.88f),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 16.dp,
-                shadowElevation = 32.dp
+            CompositionLocalProvider(
+                LocalWallpaperController provides wallpaperController,
+                LocalCustomThemeManager provides customThemeManager,
+                LocalStrings provides s
             ) {
-                ThemeSettingsScreen(
-                    onNavigateBack = {
-                        viewModel.sendEvent(SettingsEvent.OnCloseThemeCreator)
-                    },
-                    onThemeApplied = {
-                        val active = customThemeManager.currentTheme.value
-                        viewModel.sendEvent(SettingsEvent.OnCustomThemeApplied(active))
-                    },
-                    settingsViewModel = viewModel,
-                    customThemeManager = customThemeManager,
-                    initialSeedColor = state.themeCreatorSeedColor
-                )
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .fillMaxHeight(0.88f),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 16.dp,
+                    shadowElevation = 32.dp
+                ) {
+                    ThemeSettingsScreen(
+                        onNavigateBack = {
+                            viewModel.sendEvent(SettingsEvent.OnCloseThemeCreator)
+                        },
+                        onThemeApplied = {
+                            val active = customThemeManager.currentTheme.value
+                            viewModel.sendEvent(SettingsEvent.OnCustomThemeApplied(active))
+                        },
+                        settingsViewModel = viewModel,
+                        customThemeManager = customThemeManager,
+                        initialSeedColor = state.themeCreatorSeedColor
+                    )
+                }
             }
         }
     }
@@ -240,7 +255,124 @@ private fun SettingsDialogContent(
 ) {
     val s = LocalStrings.current
     var selectedSection by remember { mutableStateOf(SettingsSection.APPEARANCE) }
+    var searchQuery by remember { mutableStateOf("") }
     val extra = ChatoneTheme.extraColors
+
+    val sectionKeywords: Map<SettingsSection, List<String>> = remember {
+        mapOf(
+            SettingsSection.APPEARANCE to listOf(
+                "appearance", "theme", "color", "dark", "light", "font", "size", "scale", "ui",
+                "ui scale", "font size", "font family", "font style", "title bar", "titlebar",
+                "language", "locale", "compact", "density", "expressive", "palette", "accent",
+                "corner radius", "rounding", "elevation", "transparency", "opacity", "glass", "blur",
+                "sidebar", "menu", "animation", "ripple", "high contrast",
+                "внешний вид", "тема", "цвет", "темная", "светлая", "шрифт", "размер", "масштаб",
+                "масштаб интерфейса", "размер шрифта", "семейство шрифтов", "стиль шрифта",
+                "заголовок окна", "язык", "локаль", "компактный", "плотность", "палитра",
+                "акцент", "скругление", "тень", "прозрачность", "стекло", "размытие",
+                "боковая панель", "анимация", "контраст"
+            ),
+            SettingsSection.CHAT to listOf(
+                "chat", "message", "timestamp", "badge", "emote", "scroll", "deleted",
+                "message density", "line spacing", "username color", "readable colors",
+                "compact mode", "alternate background", "stripes", "inline images", "link preview",
+                "image height", "image preview", "blur images", "emoji", "autocomplete",
+                "command suggestions", "translate", "mentions", "pause", "pause hotkey", "auto scroll",
+                "channel points", "warning", "raid", "raid countdown", "show timestamps", "12h", "24h",
+                "deleted messages", "removed messages", "moderator actions", "show moderator",
+                "spoof", "send as web", "platform badge",
+                "чат", "сообщение", "время", "бейдж", "эмоут", "скролл", "удаленные",
+                "плотность сообщений", "межстрочный интервал", "цвет имени", "читаемые цвета",
+                "компактный режим", "чередование фона", "встроенные изображения", "превью ссылок",
+                "высота изображения", "размытие изображений", "эмодзи", "автозаполнение",
+                "подсказки команд", "перевод", "упоминания", "пауза", "автоскролл",
+                "поинты канала", "предупреждения", "рейд", "обратный отсчет рейда",
+                "показывать время", "удаленные сообщения", "действия модератора"
+            ),
+            SettingsSection.NOTIFICATIONS to listOf(
+                "notification", "sound", "mention", "alert", "mute", "ping",
+                "volume", "notification sound", "custom sound", "mention sound",
+                "system notifications", "tray", "tray notifications", "live notifications",
+                "follow notifications", "do not disturb", "dnd", "quiet hours",
+                "уведомление", "звук", "упоминание", "тишина", "пинг",
+                "громкость", "звук уведомлений", "свой звук", "звук упоминаний",
+                "системные уведомления", "трей", "уведомления в трее", "лайв уведомления",
+                "уведомления подписки", "не беспокоить", "тихие часы"
+            ),
+            SettingsSection.HIGHLIGHTS to listOf(
+                "highlight", "keyword", "rule", "color", "regex",
+                "highlight color", "highlight rule", "add highlight", "case sensitive",
+                "whole word", "background color", "blink", "sound on highlight",
+                "хайлайт", "ключевое слово", "правило", "цвет", "регулярка",
+                "цвет хайлайта", "правило хайлайта", "добавить хайлайт", "регистр",
+                "целое слово", "фоновый цвет", "мигание", "звук при хайлайте"
+            ),
+            SettingsSection.BACKGROUND to listOf(
+                "background", "wallpaper", "image", "blur", "wallpaper opacity",
+                "blur amount", "background color", "tint", "noise", "video wallpaper",
+                "gradient", "fit", "cover", "stretch",
+                "фон", "обои", "картинка", "размытие", "прозрачность обоев",
+                "степень размытия", "цвет фона", "оттенок", "шум", "видео обои",
+                "градиент", "вписать", "растянуть"
+            ),
+            SettingsSection.HOTKEYS to listOf(
+                "hotkey", "shortcut", "keyboard", "keybind", "binding",
+                "pause hotkey", "send message", "open settings", "switch panel",
+                "next panel", "previous panel", "reset hotkey",
+                "горячие клавиши", "сочетание", "клавиатура", "клавиша", "привязка",
+                "клавиша паузы", "отправка сообщения", "открыть настройки", "переключение панели",
+                "следующая панель", "предыдущая панель", "сбросить клавишу"
+            ),
+            SettingsSection.COMMANDS to listOf(
+                "command", "commands", "trigger", "alias", "shortcut", "replace", "expand",
+                "auto reply", "phrase", "abbreviation", "expander",
+                "команда", "команды", "триггер", "алиас", "сокращение", "подмена", "замена",
+                "автоответ", "фраза", "расширение"
+            ),
+            SettingsSection.MODERATION to listOf(
+                "moderation", "mod", "ban", "timeout", "automod", "macro",
+                "default timeout", "timeout duration", "ban reason", "custom reason",
+                "mod actions", "mod buttons", "moderator buttons", "macros", "custom macros",
+                "local automod", "chat rules", "rule trigger", "saved reasons",
+                "repeated message", "nuke", "blocked term", "blockterm", "bot badge",
+                "модерация", "мод", "бан", "таймаут", "автомод", "макрос",
+                "стандартный таймаут", "длительность таймаута", "причина бана", "своя причина",
+                "действия модератора", "кнопки мода", "макросы", "локальный автомод",
+                "правила чата", "сохраненные причины", "повторные сообщения", "ньюк",
+                "блок слова", "бот бейдж"
+            ),
+            SettingsSection.ACCOUNT to listOf(
+                "account", "login", "token", "auth", "profile", "proxy",
+                "add account", "remove account", "primary account", "logout", "clear cache",
+                "switch account", "multi account", "account proxy", "blocked users",
+                "blocked", "block list", "ignore", "ignored", "unblock",
+                "аккаунт", "логин", "токен", "авторизация", "профиль", "прокси",
+                "добавить аккаунт", "удалить аккаунт", "основной аккаунт", "выйти", "очистить кеш",
+                "переключить аккаунт", "несколько аккаунтов", "прокси аккаунта",
+                "заблокированные", "блок лист", "игнор", "игнорированные", "разблокировать"
+            ),
+            SettingsSection.ABOUT to listOf(
+                "about", "version", "info", "backup", "export", "import", "restore",
+                "changelog", "license", "credits", "donate", "support", "github",
+                "settings backup", "settings export", "settings import",
+                "о программе", "версия", "информация", "бекап", "экспорт", "импорт",
+                "восстановить", "история изменений", "лицензия", "поддержка",
+                "бекап настроек", "экспорт настроек", "импорт настроек"
+            )
+        )
+    }
+
+    val filteredSections = remember(searchQuery) {
+        if (searchQuery.isBlank()) SettingsSection.entries.toList()
+        else {
+            val q = searchQuery.trim().lowercase()
+            SettingsSection.entries.filter { section ->
+                section.label.lowercase().contains(q) ||
+                        section.localizedLabel(s).lowercase().contains(q) ||
+                        (sectionKeywords[section]?.any { it.contains(q) } == true)
+            }
+        }
+    }
 
     Surface(
         modifier = Modifier
@@ -287,6 +419,54 @@ private fun SettingsDialogContent(
                 HorizontalDivider(color = extra.cardBorder)
                 Spacer(Modifier.height(8.dp))
 
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                        .heightIn(min = 52.dp),
+                    placeholder = {
+                        Text(
+                            s.settingsSearchPlaceholder,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.Search, null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    },
+                    trailingIcon = if (searchQuery.isNotEmpty()) {
+                        {
+                            IconButton(
+                                onClick = { searchQuery = "" },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close, null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else null,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                )
+
+                Spacer(Modifier.height(6.dp))
+
                 val navScrollState = rememberScrollState()
                 Box(modifier = Modifier.weight(1f)) {
                     Column(
@@ -297,12 +477,22 @@ private fun SettingsDialogContent(
                             .padding(end = 6.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        SettingsSection.entries.forEach { section ->
-                            SidebarNavItem(
-                                section = section,
-                                isSelected = selectedSection == section,
-                                onClick = { selectedSection = section }
+                        if (filteredSections.isEmpty()) {
+                            Text(
+                                s.settingsSearchNoResults,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
                             )
+                        } else {
+                            filteredSections.forEach { section ->
+                                SidebarNavItem(
+                                    section = section,
+                                    isSelected = selectedSection == section,
+                                    onClick = { selectedSection = section; searchQuery = "" },
+                                    highlightQuery = searchQuery
+                                )
+                            }
                         }
                     }
                     SettingsThinScrollbarScroll(
@@ -323,14 +513,16 @@ private fun SettingsDialogContent(
                 }
             }
 
-            SectionContentLazy(
-                section = selectedSection,
-                state = state,
-                onThemeChanged = onThemeChanged,
-                viewModel = viewModel,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                onOpenThemeCreator = onOpenThemeCreator
-            )
+            CompositionLocalProvider(LocalSettingsSearch provides searchQuery) {
+                SectionContentLazy(
+                    section = selectedSection,
+                    state = state,
+                    onThemeChanged = onThemeChanged,
+                    viewModel = viewModel,
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    onOpenThemeCreator = onOpenThemeCreator
+                )
+            }
         }
     }
 }
@@ -464,7 +656,12 @@ private fun SettingsFullScreen(
 }
 
 @Composable
-private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClick: () -> Unit) {
+private fun SidebarNavItem(
+    section: SettingsSection,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    highlightQuery: String = ""
+) {
     val s = LocalStrings.current
     val bg by animateColorAsState(
         if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
@@ -492,8 +689,36 @@ private fun SidebarNavItem(section: SettingsSection, isSelected: Boolean, onClic
             modifier = Modifier.size(18.dp),
             tint = contentColor
         )
+        val label = section.localizedLabel(s)
+        val q = highlightQuery.trim()
+        val annotated = remember(label, q) {
+            buildAnnotatedString {
+                if (q.isEmpty()) {
+                    append(label)
+                } else {
+                    val lowerLabel = label.lowercase()
+                    val lowerQ = q.lowercase()
+                    var i = 0
+                    while (i < label.length) {
+                        val idx = lowerLabel.indexOf(lowerQ, i)
+                        if (idx < 0) {
+                            append(label.substring(i))
+                            break
+                        }
+                        if (idx > i) append(label.substring(i, idx))
+                        withStyle(
+                            SpanStyle(
+                                background = androidx.compose.ui.graphics.Color(0xFFFFEE58).copy(alpha = 0.55f),
+                                fontWeight = FontWeight.Bold
+                            )
+                        ) { append(label.substring(idx, idx + q.length)) }
+                        i = idx + q.length
+                    }
+                }
+            }
+        }
         Text(
-            section.localizedLabel(s),
+            annotated,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             color = contentColor,
@@ -553,6 +778,7 @@ private fun SectionContentLazy(
                 SettingsSection.HIGHLIGHTS -> highlightLazyItems(state, viewModel)
                 SettingsSection.BACKGROUND -> backgroundLazyItems(state, viewModel)
                 SettingsSection.HOTKEYS -> hotkeyLazyItems(state, viewModel)
+                SettingsSection.COMMANDS -> commandsLazyItems(state, viewModel)
                 SettingsSection.MODERATION -> moderationLazyItems(state, viewModel)
                 SettingsSection.ABOUT -> aboutLazyItems(viewModel)
             }
@@ -603,6 +829,10 @@ private fun SectionContentColumn(
                 SettingsSection.HIGHLIGHTS -> HighlightContent(state, viewModel)
                 SettingsSection.BACKGROUND -> BackgroundContent(state, viewModel)
                 SettingsSection.HOTKEYS -> HotkeyContent(state, viewModel)
+                SettingsSection.COMMANDS -> io.rudione.chatone.presentation.settings.components.ChatCommandsSection(
+                    state = state,
+                    onEvent = { viewModel.sendEvent(it) }
+                )
                 SettingsSection.MODERATION -> ModerationContent(state, viewModel)
                 SettingsSection.ACCOUNT -> AccountContent(viewModel)
                 SettingsSection.ABOUT -> AboutContent(viewModel)
@@ -887,6 +1117,37 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
             }
         }
     }
+    item {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsChatInputGroup) {
+            SwitchRow(
+                s.settingsHidePlaceholder, s.settingsHidePlaceholderDesc,
+                state.hideChatInputPlaceholder
+            ) { vm.sendEvent(SettingsEvent.OnHideChatPlaceholderChanged(it)) }
+            RowDivider()
+            SwitchRow(
+                s.settingsHideEmojiButton, s.settingsHideEmojiButtonDesc,
+                state.hideEmojiButton
+            ) { vm.sendEvent(SettingsEvent.OnHideEmojiButtonChanged(it)) }
+            RowDivider()
+            SwitchRow(
+                s.settingsChatInputGlow, s.settingsChatInputGlowDesc,
+                state.chatInputEventGlow
+            ) { vm.sendEvent(SettingsEvent.OnChatInputGlowChanged(it)) }
+            RowDivider()
+            SwitchRow(
+                s.settingsShowRepeatedCounter, s.settingsShowRepeatedCounterDesc,
+                state.showRepeatedMessageCounter
+            ) { vm.sendEvent(SettingsEvent.OnShowRepeatedCounterChanged(it)) }
+            if (state.showRepeatedMessageCounter) {
+                RowDivider()
+                SliderRow(
+                    s.settingsRepeatedWindow, state.repeatedMessageWindow, 5f..120f, 11,
+                    s.settingsSecondsUnit.replace("{0}", state.repeatedMessageWindow.toString())
+                ) { vm.sendEvent(SettingsEvent.OnRepeatedWindowChanged(it.toInt())) }
+            }
+        }
+    }
 }
 
 private fun LazyListScope.notificationLazyItems(state: SettingsState, vm: SettingsViewModel) {
@@ -926,6 +1187,7 @@ private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsV
                     )
                 )
             },
+            onSubstringToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSubstringToggled(rule.id, it)) },
             onRemove = if (!rule.id.startsWith("custom_")) null else {
                 { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
             }
@@ -1017,14 +1279,16 @@ private fun LazyListScope.moderationLazyItems(state: SettingsState, vm: Settings
     item {
         ModerationSettingsSection(
             state = state,
-            onEvent = { vm.sendEvent(it) },
-            blockedUsernames = state.blockedUsernames,
-            isLoadingBlockedUsers = state.isLoadingBlockedUsers,
-            blockedLoadError = state.blockedLoadError,
-            onUnblockUser = { username ->
-                vm.sendEvent(SettingsEvent.OnUnblockUserFromSettings(username, ""))
-            },
-            onRefreshBlockedUsers = { vm.sendEvent(SettingsEvent.OnLoadBlockedUsers) }
+            onEvent = { vm.sendEvent(it) }
+        )
+    }
+}
+
+private fun LazyListScope.commandsLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item {
+        io.rudione.chatone.presentation.settings.components.ChatCommandsSection(
+            state = state,
+            onEvent = { vm.sendEvent(it) }
         )
     }
 }
@@ -1134,6 +1398,7 @@ private fun AccountSectionBody(
 @Composable
 private fun AccountContent(viewModel: SettingsViewModel) {
     val s = LocalStrings.current
+    val state by viewModel.state.collectAsState()
     val accountManager = org.koin.compose.koinInject<io.rudione.chatone.presentation.account.AccountManager>()
     val accountActions = org.koin.compose.koinInject<io.rudione.chatone.presentation.account.AccountActions>()
     val accountLoader = org.koin.compose.koinInject<io.rudione.chatone.presentation.account.AccountListLoader>()
@@ -1157,6 +1422,22 @@ private fun AccountContent(viewModel: SettingsViewModel) {
             onClearCache = { viewModel.sendEvent(SettingsEvent.OnClearCacheClicked) }
         )
     }
+    LaunchedEffect(Unit) {
+        if (state.blockedUsernames.isEmpty() && !state.isLoadingBlockedUsers) {
+            viewModel.sendEvent(SettingsEvent.OnLoadBlockedUsers)
+        }
+    }
+    io.rudione.chatone.presentation.settings.components.BlockedUsersSection(
+        blockedUsernames = state.blockedUsernames,
+        showBlockedMode = state.showBlockedMode,
+        isLoadingBlockedUsers = state.isLoadingBlockedUsers,
+        loadError = state.blockedLoadError,
+        onShowBlockedModeChange = { viewModel.sendEvent(SettingsEvent.OnShowBlockedModeChanged(it)) },
+        onUnblockUser = { username ->
+            viewModel.sendEvent(SettingsEvent.OnUnblockUserFromSettings(username, ""))
+        },
+        onRefresh = { viewModel.sendEvent(SettingsEvent.OnLoadBlockedUsers) }
+    )
 
     if (showTokenDialog) {
         io.rudione.chatone.presentation.account.AccountAddDialog(
@@ -1494,14 +1775,7 @@ private fun ModerationContent(state: SettingsState, vm: SettingsViewModel) {
         Column(modifier = Modifier.padding(12.dp)) {
             ModerationSettingsSection(
                 state = state,
-                onEvent = { vm.sendEvent(it) },
-                blockedUsernames = state.blockedUsernames,
-                isLoadingBlockedUsers = state.isLoadingBlockedUsers,
-                blockedLoadError = state.blockedLoadError,
-                onUnblockUser = { username ->
-                    vm.sendEvent(SettingsEvent.OnUnblockUserFromSettings(username, ""))
-                },
-                onRefreshBlockedUsers = { vm.sendEvent(SettingsEvent.OnLoadBlockedUsers) }
+                onEvent = { vm.sendEvent(it) }
             )
         }
     }
@@ -1978,8 +2252,8 @@ private fun BackupCard(vm: SettingsViewModel) {
 private fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         if (title != null) {
-            Text(
-                title,
+            HighlightedSettingsText(
+                text = title,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 letterSpacing = 0.8.sp,
@@ -2154,8 +2428,8 @@ private fun SwitchRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            if (subtitle != null) Text(
+            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyLarge)
+            if (subtitle != null) HighlightedSettingsText(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2180,8 +2454,8 @@ private fun ListRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge)
-                Text(
+                HighlightedSettingsText(title, style = MaterialTheme.typography.bodyLarge)
+                HighlightedSettingsText(
                     value,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2220,8 +2494,8 @@ private fun DropdownRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(label, style = MaterialTheme.typography.bodyLarge)
-                Text(
+                HighlightedSettingsText(label, style = MaterialTheme.typography.bodyLarge)
+                HighlightedSettingsText(
                     description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2254,7 +2528,7 @@ private fun SliderRow(
 ) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.bodyLarge)
+            HighlightedSettingsText(label, style = MaterialTheme.typography.bodyLarge)
             Text(
                 valueLabel,
                 style = MaterialTheme.typography.bodySmall,
@@ -2278,7 +2552,7 @@ private fun SliderRow(
 ) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyLarge)
             Text(
                 valueLabel,
                 style = MaterialTheme.typography.bodySmall,
@@ -2309,6 +2583,7 @@ private fun HightlightRuleCard(
     onToggle: (Boolean) -> Unit,
     onSoundToggle: (Boolean) -> Unit,
     onColorChange: (Long) -> Unit = {},
+    onSubstringToggle: ((Boolean) -> Unit)? = null,
     onRemove: (() -> Unit)?
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
@@ -2380,6 +2655,33 @@ private fun HightlightRuleCard(
                             null,
                             modifier = Modifier.size(13.dp),
                             tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+            if (onSubstringToggle != null && !rule.isRegex && rule.id.startsWith("custom_")) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSubstringToggle(!rule.matchSubstring) }
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = rule.matchSubstring,
+                        onCheckedChange = { onSubstringToggle(it) },
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            LocalStrings.current.highlightRuleSubstring,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                        Text(
+                            LocalStrings.current.highlightRuleSubstringDesc,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -2963,7 +3265,7 @@ private fun FontStyleChip(
         else
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f),
         border = if (active)
-            androidx.compose.foundation.BorderStroke(
+            BorderStroke(
                 1.dp,
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             )
@@ -2983,4 +3285,65 @@ private fun FontStyleChip(
             )
         }
     }
+}
+
+/**
+ * Holds the active settings search query so that nested row labels can render a subtle highlight
+ * for matching substrings. Default empty string = no highlight.
+ */
+private val LocalSettingsSearch = androidx.compose.runtime.compositionLocalOf { "" }
+
+/**
+ * Text wrapper used inside SettingsGroup / row helpers. When the global settings search query
+ * has a non-empty match inside `text`, the matched substring gets a light yellow background.
+ * Otherwise renders as a plain Text.
+ */
+@Composable
+private fun HighlightedSettingsText(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: androidx.compose.ui.text.TextStyle = androidx.compose.material3.LocalTextStyle.current,
+    color: Color = Color.Unspecified,
+    fontWeight: FontWeight? = null,
+    letterSpacing: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip
+) {
+    val q = LocalSettingsSearch.current.trim()
+    val annotated = remember(text, q) {
+        if (q.isEmpty() || q.length < 2) {
+            buildAnnotatedString { append(text) }
+        } else {
+            val lowerText = text.lowercase()
+            val lowerQ = q.lowercase()
+            buildAnnotatedString {
+                var i = 0
+                while (i < text.length) {
+                    val idx = lowerText.indexOf(lowerQ, i)
+                    if (idx < 0) {
+                        append(text.substring(i))
+                        break
+                    }
+                    if (idx > i) append(text.substring(i, idx))
+                    withStyle(
+                        SpanStyle(
+                            background = Color(0xFFFFEE58).copy(alpha = 0.25f),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    ) { append(text.substring(idx, idx + q.length)) }
+                    i = idx + q.length
+                }
+            }
+        }
+    }
+    Text(
+        text = annotated,
+        modifier = modifier,
+        style = style,
+        color = color,
+        fontWeight = fontWeight,
+        letterSpacing = letterSpacing,
+        maxLines = maxLines,
+        overflow = overflow
+    )
 }

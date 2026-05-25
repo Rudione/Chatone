@@ -1235,13 +1235,18 @@ class MainViewModel(
 
                 if (state.value.mentions.any { it.messageId == entry.messageId }) return@collect
 
+                val isMuted = mentionMuteRepository.isMuted(
+                    userLogin = entry.fromUsername,
+                    channelLogin = entry.channelLogin
+                )
+
                 val activeChannel = state.value.activeChannelLogin?.lowercase()
                 val isActiveChannel = channelLogin == activeChannel
 
                 update { st ->
                     st.copy(
                         mentions = (listOf(entry) + st.mentions).take(200),
-                        unreadMentionsCount = st.unreadMentionsCount + 1,
+                        unreadMentionsCount = if (isMuted) st.unreadMentionsCount else st.unreadMentionsCount + 1,
 
                         openChannels = if (isActiveChannel) st.openChannels else st.openChannels.map {
                             if (it.login == channelLogin) it.copy(unreadCount = it.unreadCount + 1) else it
@@ -1261,13 +1266,15 @@ class MainViewModel(
                 viewModelScope.launch { mentionRepository.saveMention(entry) }
 
 
-                sendEffect(
-                    MainEffect.MentionToast(
-                        channelLogin = channelLogin,
-                        fromDisplayName = message.displayName,
-                        text = message.message.take(100)
+                if (!isMuted) {
+                    sendEffect(
+                        MainEffect.MentionToast(
+                            channelLogin = channelLogin,
+                            fromDisplayName = message.displayName,
+                            text = message.message.take(100)
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -1356,8 +1363,17 @@ class MainViewModel(
                 } catch (_: Exception) {
                     false
                 }
-            } else {
+            } else if (rule.matchSubstring) {
                 text.contains(pattern, ignoreCase = !rule.caseSensitive)
+            } else {
+                val opts =
+                    if (rule.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
+                try {
+                    Regex("(?<![\\p{L}\\p{N}_])${Regex.escape(pattern)}(?![\\p{L}\\p{N}_])", opts)
+                        .containsMatchIn(text)
+                } catch (_: Exception) {
+                    text.equals(pattern, ignoreCase = !rule.caseSensitive)
+                }
             }
             if (matches) return true
         }

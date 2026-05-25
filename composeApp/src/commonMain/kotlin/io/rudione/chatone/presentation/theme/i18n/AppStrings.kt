@@ -100,6 +100,30 @@ interface AppStrings {
     val sectionHighlights: String
     val sectionBackground: String
     val sectionHotkeys: String
+    val sectionCommands: String
+    val settingsCommandsTitle: String
+    val settingsCommandsDesc: String
+    val settingsCommandsAdd: String
+    val settingsCommandsEdit: String
+    val settingsCommandsEmpty: String
+    val settingsCommandsTrigger: String
+    val settingsCommandsTriggerHint: String
+    val settingsCommandsTypeText: String
+    val settingsCommandsTypeMacro: String
+    val settingsCommandsReplacement: String
+    val settingsCommandsReplacementHint: String
+    val settingsCommandsPickMacro: String
+    val settingsCommandsCreateMacro: String
+    val settingsCommandsWholeOnly: String
+    val settingsCommandsWholeOnlyShort: String
+    val settingsCommandsWholeOnlyDesc: String
+    val settingsCommandsSendImmediately: String
+    val settingsCommandsSendImmediatelyDesc: String
+    val settingsCommandsHotkey: String
+    val settingsCommandsHotkeyHint: String
+    val settingsCommandsPickToEdit: String
+    val settingsCommandsColCommand: String
+    val settingsCommandsColHotkey: String
 
     val settingsTheme: String
     val settingsDisplay: String
@@ -145,6 +169,25 @@ interface AppStrings {
     val highlightRuleUsername: String
     val highlightRuleWhispers: String
     val highlightRuleSubscriptions: String
+    val highlightRuleSubstring: String
+    val highlightRuleSubstringDesc: String
+    val settingsChatInputGroup: String
+    val settingsHidePlaceholder: String
+    val settingsHidePlaceholderDesc: String
+    val settingsHideEmojiButton: String
+    val settingsHideEmojiButtonDesc: String
+    val settingsChatInputGlow: String
+    val settingsChatInputGlowDesc: String
+    val settingsShowRepeatedCounter: String
+    val settingsShowRepeatedCounterDesc: String
+    val settingsRepeatedWindow: String
+    val settingsSecondsUnit: String
+    val modSavedReasonsTitle: String
+    val modSavedReasonsDesc: String
+    val modSavedTimeoutReasonLabel: String
+    val modSavedBanReasonLabel: String
+    val pinnedExperimentalGqlEnable: String
+    val pinnedExperimentalGqlDesc: String
     val highlightRuleFirstMessage: String
     val highlightRuleSearchMatch: String
     val highlightRuleMentionAccent: String
@@ -633,6 +676,7 @@ interface AppStrings {
     val blockedUsers: String
     val blockedUsersDesc: String
     val blockedUsersEmpty: String
+    val blockedUsersEmptyHint: String
     val blockedUsersShowMessages: String
     val blockedUsersShowMessagesNever: String
     val blockedUsersShowMessagesMod: String
@@ -724,6 +768,11 @@ interface AppStrings {
     val modVippedBy: String
     val modUnvippedBy: String
     val modActionUnknown: String
+
+    val settingsSearchPlaceholder: String
+    val settingsSearchNoResults: String
+    val profileMuteNotificationsGlobally: String
+    val profileMuteNotificationsInChannel: String
 
     companion object {
         fun forLocale(locale: String): AppStrings = when (locale) {

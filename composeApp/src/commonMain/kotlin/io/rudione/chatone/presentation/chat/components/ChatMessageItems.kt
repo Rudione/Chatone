@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -222,6 +223,8 @@ internal fun AutoModMsgItem(
         borderAlphaHigh = 0.25f,
         borderAlphaLow = 0.10f
     ) {
+      BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val compactActions = maxWidth < 320.dp
         Column(
             modifier = Modifier.fillMaxWidth().background(bgColor)
                 .padding(horizontal = 10.dp, vertical = 8.dp)
@@ -268,7 +271,7 @@ internal fun AutoModMsgItem(
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING) {
+                if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING && !compactActions) {
                     TextButton(
                         onClick = onAllow,
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
@@ -292,6 +295,68 @@ internal fun AutoModMsgItem(
                             LocalStrings.current.automodDeny,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+            if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING && compactActions) {
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val allowBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    val denyBg = MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(allowBg)
+                            .clickable(onClick = onAllow)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = LocalStrings.current.automodAllow,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            LocalStrings.current.automodAllow,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(denyBg)
+                            .clickable(onClick = onDeny)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = LocalStrings.current.automodDeny,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            LocalStrings.current.automodDeny,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -336,5 +401,6 @@ internal fun AutoModMsgItem(
                 }
             }
         }
+      }
     }
 }

@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -93,6 +94,7 @@ import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
 import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
 import io.rudione.chatone.presentation.account.AccountManager
 import io.rudione.chatone.data.repository.AuthRepository
+import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
 import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
@@ -168,8 +170,6 @@ fun MainScreen(
             }
         }
     }
-
-
 
     if (state.showSettings && !isWideScreenForSettings) {
         DetachedSettingsWindow(
@@ -262,6 +262,7 @@ fun MainScreen(
                         wallpaper = wallpaper,
                         mentionMuteRepository = viewModel.mentionMuteRepository,
                         renderBackground = false,
+                        isMultiChat = state.openChannels.size > 1,
                         viewModel = perPanelViewModel
                     )
                 }
@@ -374,6 +375,10 @@ fun MainScreen(
                                     },
                                     onReorder = { from: Int, to: Int ->
                                         viewModel.sendEvent(MainEvent.ReorderChannels(from, to))
+                                    },
+                                    folders = state.folders,
+                                    onMoveToFolder = { login, folderId ->
+                                        viewModel.sendEvent(MainEvent.MoveChannelToFolder(login, folderId))
                                     }
                                 )
                                 if (wallpaper.isActive) {
@@ -436,6 +441,10 @@ fun MainScreen(
                                 },
                                 onReorder = { from: Int, to: Int ->
                                     viewModel.sendEvent(MainEvent.ReorderChannels(from, to))
+                                },
+                                folders = state.folders,
+                                onMoveToFolder = { login, folderId ->
+                                    viewModel.sendEvent(MainEvent.MoveChannelToFolder(login, folderId))
                                 }
                             )
                             if (wallpaper.isActive) {
@@ -692,6 +701,7 @@ private fun MiniRail(
     var railDropTargetLogin by remember { mutableStateOf<String?>(null) }
     val s = LocalStrings.current
     val railItemCenters = remember { mutableStateMapOf<String, Float>() }
+    val miniRailCollapsedFolders = remember { mutableStateListOf<String>() }
     val tooltipOffsetYPx = with(density) { 28.dp.roundToPx() }
 
     LiquidGlassSurface(
@@ -744,19 +754,117 @@ private fun MiniRail(
                         }
                     }
             ) {
+                val railNodes: List<Any> = run {
+                    val out = mutableListOf<Any>()
+                    val openByKey = state.openChannels.associateBy { it.login.lowercase().removePrefix("#") }
+                    val emitted = mutableSetOf<String>()
+                    state.folders.forEach { f ->
+                        out.add(f)
+                        if (f.id !in miniRailCollapsedFolders) {
+                            f.channels.forEach { fc ->
+                                val key = fc.login.lowercase().removePrefix("#")
+                                openByKey[key]?.let { out.add(it) }
+                                emitted.add(key)
+                            }
+                        } else {
+                            f.channels.forEach { emitted.add(it.login.lowercase().removePrefix("#")) }
+                        }
+                    }
+                    state.openChannels.forEach { ch ->
+                        val key = ch.login.lowercase().removePrefix("#")
+                        if (key !in emitted) out.add(ch)
+                    }
+                    out
+                }
+                val channelFolderTint: Map<String, Color> = run {
+                    val map = mutableMapOf<String, Color>()
+                    state.folders.forEach { f ->
+                        val tint = runCatching {
+                            Color(f.color.removePrefix("#").toLong(16) or 0xFF000000L)
+                        }.getOrDefault(Color(0xFF9146FF))
+                        f.channels.forEach { fc ->
+                            map[fc.login.lowercase().removePrefix("#")] = tint
+                        }
+                    }
+                    map
+                }
                 items(
-                    state.openChannels,
-                    key = { channel: ChannelTab -> channel.login }) { channel ->
+                    railNodes,
+                    key = { node ->
+                        when (node) {
+                            is ChannelFolder -> "rail_folder_${node.id}"
+                            is ChannelTab -> "rail_ch_${node.login}"
+                            else -> node.hashCode().toString()
+                        }
+                    }
+                ) { node ->
+                    if (node is ChannelFolder) {
+                        val folder = node
+                        val isCollapsed = folder.id in miniRailCollapsedFolders
+                        val parsedColor = runCatching {
+                            Color(folder.color.removePrefix("#").toLong(16) or 0xFF000000L)
+                        }.getOrDefault(Color(0xFF9146FF))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .width(38.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    if (isCollapsed) miniRailCollapsedFolders.remove(folder.id)
+                                    else miniRailCollapsedFolders.add(folder.id)
+                                }
+                                .padding(vertical = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(parsedColor.copy(alpha = 0.18f))
+                                    .border(1.dp, parsedColor.copy(alpha = 0.6f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(
+                                        Res.drawable.folder_outline
+                                    ),
+                                    contentDescription = folder.name,
+                                    tint = parsedColor,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                            Spacer(Modifier.height(1.dp))
+                            Text(
+                                text = folder.name.take(5),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = parsedColor,
+                                fontSize = 8.sp,
+                                maxLines = 1
+                            )
+                        }
+                        return@items
+                    }
+                    val channel = node as ChannelTab
                     val isActive = channel.login == state.activeChannelLogin
                     var showTooltip by remember { mutableStateOf(false) }
                     var tooltipOffset by remember { mutableStateOf(IntOffset.Zero) }
                     val isDraggedItem = railDragLogin == channel.login
                     val isDragTarget = railDropTargetLogin == channel.login && !isDraggedItem
                     val itemCenterX = remember { mutableStateOf(0f) }
+                    val folderTint = channelFolderTint[channel.login.lowercase().removePrefix("#")]
 
                     Box(
                         modifier = Modifier
                             .size(38.dp)
+                            .then(
+                                if (folderTint != null) Modifier.drawBehind {
+                                    val lineHeight = 2.dp.toPx()
+                                    drawRect(
+                                        color = folderTint,
+                                        topLeft = Offset(0f, size.height - lineHeight),
+                                        size = androidx.compose.ui.geometry.Size(size.width, lineHeight)
+                                    )
+                                } else Modifier
+                            )
                             .onGloballyPositioned { coords ->
                                 val bounds = coords.boundsInRoot()
                                 val cx = bounds.left + bounds.width / 2f
@@ -1394,7 +1502,7 @@ private fun ChannelSidebar(
     state: MainState,
     onEvent: (MainEvent) -> Unit,
     isWideScreen: Boolean = false,
-    mentionMuteRepository: io.rudione.chatone.data.repository.MentionMuteRepository? = null
+    mentionMuteRepository: MentionMuteRepository? = null
 ) {
     val extra = ChatoneTheme.extraColors
     val density = LocalDensity.current
@@ -2435,8 +2543,31 @@ private fun ChannelTabBar(
     activeLogin: String?,
     onSelect: (String) -> Unit,
     onClose: (String) -> Unit,
-    onReorder: (Int, Int) -> Unit
+    onReorder: (Int, Int) -> Unit,
+    folders: List<ChannelFolder> = emptyList(),
+    onMoveToFolder: (channelLogin: String, folderId: String) -> Unit = { _, _ -> }
 ) {
+    data class FolderRef(val id: String, val name: String, val color: Color)
+    val folderByLogin: Map<String, FolderRef> = remember(folders) {
+        buildMap {
+            folders.forEach { f ->
+                val parsed = runCatching {
+                    Color(f.color.removePrefix("#").toLong(16) or 0xFF000000L)
+                }.getOrDefault(Color(0xFF9146FF))
+                val ref = FolderRef(f.id, f.name, parsed)
+                f.channels.forEach { ch ->
+                    put(ch.login.lowercase().removePrefix("#"), ref)
+                }
+            }
+        }
+    }
+    val collapsedFolders = remember { mutableStateListOf<String>() }
+    LaunchedEffect(folders, channels) {
+        io.github.aakira.napier.Napier.d(
+            "ChannelTabBar: folders=${folders.size} (${folders.joinToString { it.name + "[${it.channels.size}]" }}), channels=${channels.size}, mapped=${folderByLogin.size}",
+            tag = "ChannelTabBar"
+        )
+    }
     val extra = ChatoneTheme.extraColors
     val uriHandler = LocalUriHandler.current
 
@@ -2445,6 +2576,8 @@ private fun ChannelTabBar(
     var dropTargetIndex by remember { mutableStateOf<Int?>(null) }
 
     val tabCenters = remember { mutableStateListOf<Pair<Int, Offset>>() }
+    val folderChipBounds = remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+    var folderDropTargetId by remember { mutableStateOf<String?>(null) }
 
 
     val tabBarWallpaper = LocalWallpaperController.current.state
@@ -2463,12 +2596,91 @@ private fun ChannelTabBar(
             Box(modifier = Modifier.matchParentSize().background(tabBarColor))
         }
         Box(modifier = Modifier.fillMaxWidth()) {
+            val displayChannels: List<ChannelTab> = remember(channels, folders) {
+                val key = { ch: ChannelTab -> ch.login.lowercase().removePrefix("#") }
+                val foldered = folders.flatMap { f ->
+                    val ids = f.channels.map { it.login.lowercase().removePrefix("#") }.toSet()
+                    channels.filter { key(it) in ids }
+                }
+                val seen = foldered.map { key(it) }.toHashSet()
+                val unfoldered = channels.filter { key(it) !in seen }
+                foldered + unfoldered
+            }
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                channels.forEachIndexed { index: Int, channel: ChannelTab ->
-                    val isActive = channel.login == activeLogin
+                val folderRefByIndex: List<FolderRef?> = displayChannels.map { ch ->
+                    folderByLogin[ch.login.lowercase().removePrefix("#")]
+                }
+                val groupStarts: Map<Int, Boolean> = run {
+                    val starts = mutableMapOf<Int, Boolean>()
+                    var prev: String? = "__SENTINEL__"
+                    folderRefByIndex.forEachIndexed { idx, ref ->
+                        val cur = ref?.id
+                        if (cur != prev) {
+                            starts[idx] = true
+                            prev = cur
+                        }
+                    }
+                    starts
+                }
+                val groupSizes: Map<Int, Int> = run {
+                    val sizes = mutableMapOf<Int, Int>()
+                    var runStart = -1
+                    var runId: String? = "__SENTINEL__"
+                    var runCount = 0
+                    fun flush() {
+                        if (runStart >= 0) sizes[runStart] = runCount
+                    }
+                    folderRefByIndex.forEachIndexed { idx, ref ->
+                        val cur = ref?.id
+                        if (cur != runId) {
+                            flush()
+                            runStart = idx
+                            runId = cur
+                            runCount = 1
+                        } else {
+                            runCount += 1
+                        }
+                    }
+                    flush()
+                    sizes
+                }
 
+                displayChannels.forEachIndexed { index: Int, channel: ChannelTab ->
+                    val isActive = channel.login == activeLogin
+                    val folderInfo = folderRefByIndex[index]
+                    val isGroupStart = groupStarts[index] == true
+
+                    if (isGroupStart && folderInfo != null) {
+                        val isCollapsed = folderInfo.id in collapsedFolders
+                        val count = groupSizes[index] ?: 0
+                        TabBarFolderChip(
+                            name = folderInfo.name,
+                            color = folderInfo.color,
+                            count = count,
+                            isCollapsed = isCollapsed,
+                            onClick = {
+                                if (isCollapsed) collapsedFolders.remove(folderInfo.id)
+                                else collapsedFolders.add(folderInfo.id)
+                            },
+                            isDropTarget = folderDropTargetId == folderInfo.id,
+                            onPositioned = { rect -> folderChipBounds[folderInfo.id] = rect }
+                        )
+                    } else if (isGroupStart && folderInfo == null && index > 0) {
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp, vertical = 8.dp)
+                                .width(1.dp)
+                                .height(20.dp)
+                                .background(extra.cardBorder)
+                        )
+                    }
+
+                    if (folderInfo != null && folderInfo.id in collapsedFolders) {
+                        return@forEachIndexed
+                    }
 
                     val tabCenter = remember { mutableStateOf(Offset.Zero) }
 
@@ -2483,8 +2695,18 @@ private fun ChannelTabBar(
                                     RoundedCornerShape(6.dp)
                                 ) else Modifier
                             )
+                            .then(
+                                if (folderInfo != null) Modifier.drawBehind {
+                                    val stripeHeight = 2.dp.toPx()
+                                    drawRect(
+                                        color = folderInfo.color,
+                                        topLeft = Offset(0f, size.height - stripeHeight),
+                                        size = androidx.compose.ui.geometry.Size(size.width, stripeHeight)
+                                    )
+                                } else Modifier
+                            )
                             .clickable { onSelect(channel.login) }
-                            .padding(start = 6.dp, end = 2.dp, top = 6.dp, bottom = 6.dp)
+                            .padding(start = 6.dp, end = 2.dp, top = 3.dp, bottom = 3.dp)
                             .onGloballyPositioned { coords ->
                                 val bounds = coords.boundsInRoot()
                                 tabCenter.value = Offset(
@@ -2503,28 +2725,52 @@ private fun ChannelTabBar(
                                         dragOffset += delta
 
                                         val currentDragPos = tabCenter.value + dragOffset
-                                        dropTargetIndex =
-                                            tabCenters.minByOrNull { pair: Pair<Int, Offset> ->
-                                                hypot(
-                                                    currentDragPos.x - pair.second.x,
-                                                    currentDragPos.y - pair.second.y
-                                                )
-                                            }?.first
+
+                                        val hitFolderId = folderChipBounds.entries.firstOrNull { (_, rect) ->
+                                            rect.contains(currentDragPos)
+                                        }?.key
+                                        if (hitFolderId != null) {
+                                            folderDropTargetId = hitFolderId
+                                            dropTargetIndex = null
+                                        } else {
+                                            folderDropTargetId = null
+                                            dropTargetIndex =
+                                                tabCenters.minByOrNull { pair: Pair<Int, Offset> ->
+                                                    hypot(
+                                                        currentDragPos.x - pair.second.x,
+                                                        currentDragPos.y - pair.second.y
+                                                    )
+                                                }?.first
+                                        }
                                     },
                                     onDragEnd = {
-                                        val from = draggedIndex
-                                        val to = dropTargetIndex
-                                        if (from != null && to != null && from != to) {
-                                            onReorder(from, to)
+                                        val fromDisp = draggedIndex
+                                        val targetFolder = folderDropTargetId
+                                        val toDisp = dropTargetIndex
+                                        val fromLogin = fromDisp?.let { displayChannels.getOrNull(it)?.login }
+                                        val toLogin = toDisp?.let { displayChannels.getOrNull(it)?.login }
+                                        val fromOrig = fromLogin?.let { l -> channels.indexOfFirst { it.login == l } }
+                                            ?.takeIf { it >= 0 }
+                                        val toOrig = toLogin?.let { l -> channels.indexOfFirst { it.login == l } }
+                                            ?.takeIf { it >= 0 }
+                                        when {
+                                            fromLogin != null && targetFolder != null -> {
+                                                onMoveToFolder(fromLogin, targetFolder)
+                                            }
+                                            fromOrig != null && toOrig != null && fromOrig != toOrig -> {
+                                                onReorder(fromOrig, toOrig)
+                                            }
                                         }
                                         draggedIndex = null
                                         dragOffset = Offset.Zero
                                         dropTargetIndex = null
+                                        folderDropTargetId = null
                                     },
                                     onDragCancel = {
                                         draggedIndex = null
                                         dragOffset = Offset.Zero
                                         dropTargetIndex = null
+                                        folderDropTargetId = null
                                     }
                                 )
                             }
@@ -2593,6 +2839,25 @@ private fun ChannelTabBar(
                         }
                     }
                 }
+
+                if (draggedIndex != null) {
+                    val openFolderIds = folderRefByIndex.mapNotNull { it?.id }.toSet()
+                    folders.forEach { f ->
+                        if (f.id in openFolderIds) return@forEach
+                        val parsed = runCatching {
+                            Color(f.color.removePrefix("#").toLong(16) or 0xFF000000L)
+                        }.getOrDefault(Color(0xFF9146FF))
+                        TabBarFolderChip(
+                            name = f.name,
+                            color = parsed,
+                            count = 0,
+                            isCollapsed = true,
+                            onClick = { /* no-op */ },
+                            isDropTarget = folderDropTargetId == f.id,
+                            onPositioned = { rect -> folderChipBounds[f.id] = rect }
+                        )
+                    }
+                }
             }
 
 
@@ -2642,12 +2907,12 @@ private fun GradientButton(
     var hovered by remember { mutableStateOf(false) }
     val elevation by animateFloatAsState(
         targetValue = if (hovered) 8f else 2f,
-        animationSpec = androidx.compose.animation.core.tween(150),
+        animationSpec = tween(150),
         label = "btn_elevation"
     )
     val scale by animateFloatAsState(
         targetValue = if (hovered) 1.03f else 1f,
-        animationSpec = androidx.compose.animation.core.tween(150),
+        animationSpec = tween(150),
         label = "btn_scale"
     )
 
@@ -2667,8 +2932,8 @@ private fun GradientButton(
                     colors = if (hovered)
                         gradientColors.map { it.copy(alpha = (it.alpha + 0.1f).coerceAtMost(1f)) }
                     else gradientColors,
-                    start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                    end = androidx.compose.ui.geometry.Offset(
+                    start = Offset(0f, 0f),
+                    end = Offset(
                         Float.POSITIVE_INFINITY,
                         Float.POSITIVE_INFINITY
                     )
@@ -2702,7 +2967,11 @@ private fun GradientButton(
 }
 
 @Composable
-private fun EmptyState(isGuest: Boolean, onAddChannel: () -> Unit, onLogin: () -> Unit) {
+private fun EmptyState(
+    isGuest: Boolean,
+    onAddChannel: () -> Unit,
+    onLogin: () -> Unit
+) {
     val s = LocalStrings.current
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -2928,5 +3197,66 @@ private fun parseFolderColor(hex: String): Color {
         )
     } catch (e: Exception) {
         ChatoneColors.Violet400
+    }
+}
+
+@Composable
+private fun TabBarFolderChip(
+    name: String,
+    color: Color,
+    count: Int,
+    isCollapsed: Boolean,
+    onClick: () -> Unit,
+    isDropTarget: Boolean = false,
+    onPositioned: (androidx.compose.ui.geometry.Rect) -> Unit = {}
+) {
+    Row(
+        modifier = Modifier
+            .padding(start = 3.dp, end = 1.dp, top = 2.dp, bottom = 2.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                if (isDropTarget) color.copy(alpha = 0.4f)
+                else color.copy(alpha = 0.14f)
+            )
+            .then(
+                if (isDropTarget) Modifier.border(
+                    1.2.dp, color, RoundedCornerShape(6.dp)
+                ) else Modifier
+            )
+            .clickable(onClick = onClick)
+            .onGloballyPositioned { coords -> onPositioned(coords.boundsInRoot()) }
+            .padding(horizontal = 5.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Icon(
+            painter = painterResource(chatone.composeapp.generated.resources.Res.drawable.folder_outline),
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(11.dp)
+        )
+        Text(
+            name,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = color,
+            maxLines = 1,
+            fontSize = 10.sp
+        )
+        if (count > 0) {
+            Text(
+                "·$count",
+                style = MaterialTheme.typography.labelSmall,
+                color = color.copy(alpha = 0.7f),
+                fontSize = 9.sp
+            )
+        }
+        Icon(
+            if (isCollapsed) Icons.AutoMirrored.Filled.KeyboardArrowRight
+            else Icons.Filled.KeyboardArrowDown,
+            contentDescription = null,
+            tint = color.copy(alpha = 0.7f),
+            modifier = Modifier.size(10.dp)
+        )
     }
 }

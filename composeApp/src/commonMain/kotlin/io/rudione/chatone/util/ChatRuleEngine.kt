@@ -103,11 +103,8 @@ object ChatRuleEngine {
         val match = LINK_RE.find(text) ?: return null
         val url = match.value
 
-        if (rule.linksRequireHttps && !url.startsWith("https://", ignoreCase = true) && !url.startsWith("http://", ignoreCase = true)) {
-            return null
-        }
-        if (rule.linksRequireHttps && url.startsWith("http://", ignoreCase = true)) {
-        } else if (rule.linksRequireHttps && !HTTPS_RE.containsMatchIn(url)) {
+
+        if (rule.linksRequireHttps && url.startsWith("https://", ignoreCase = true)) {
             return null
         }
 

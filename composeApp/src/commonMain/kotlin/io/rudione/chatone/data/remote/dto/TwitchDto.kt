@@ -219,3 +219,79 @@ data class SendChatMessageDropReason(
     val code: String,
     val message: String
 )
+@Serializable
+data class UserEmotesResponse(
+    val data: List<UserEmoteData>,
+    val template: String = ""
+)
+
+@Serializable
+data class UserEmoteData(
+    val id: String,
+    val name: String,
+    @SerialName("emote_type") val emoteType: String = "",
+    @SerialName("emote_set_id") val emoteSetId: String = "",
+    @SerialName("owner_id") val ownerId: String = "",
+    val format: List<String> = emptyList(),
+    val scale: List<String> = emptyList(),
+    @SerialName("theme_mode") val themeMode: List<String> = emptyList()
+)
+
+
+@Serializable
+data class PollChoice(
+    val id: String = "",
+    val title: String = "",
+    val votes: Int = 0,
+    @SerialName("channel_points_votes") val channelPointsVotes: Int = 0,
+    @SerialName("bits_votes") val bitsVotes: Int = 0
+)
+
+@Serializable
+data class PollData(
+    val id: String,
+    @SerialName("broadcaster_id") val broadcasterId: String = "",
+    @SerialName("broadcaster_name") val broadcasterName: String = "",
+    @SerialName("broadcaster_login") val broadcasterLogin: String = "",
+    val title: String,
+    val choices: List<PollChoice> = emptyList(),
+    @SerialName("bits_voting_enabled") val bitsVotingEnabled: Boolean = false,
+    @SerialName("bits_per_vote") val bitsPerVote: Int = 0,
+    @SerialName("channel_points_voting_enabled") val channelPointsVotingEnabled: Boolean = false,
+    @SerialName("channel_points_per_vote") val channelPointsPerVote: Int = 0,
+    val status: String = "",
+    val duration: Int = 0,
+    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("ended_at") val endedAt: String? = null
+)
+
+@Serializable
+data class PollsResponse(val data: List<PollData> = emptyList())
+
+@Serializable
+data class PredictionOutcome(
+    val id: String = "",
+    val title: String = "",
+    val users: Int = 0,
+    @SerialName("channel_points") val channelPoints: Int = 0,
+    val color: String = "BLUE"
+)
+
+@Serializable
+data class PredictionData(
+    val id: String,
+    @SerialName("broadcaster_id") val broadcasterId: String = "",
+    @SerialName("broadcaster_name") val broadcasterName: String = "",
+    @SerialName("broadcaster_login") val broadcasterLogin: String = "",
+    val title: String,
+    @SerialName("winning_outcome_id") val winningOutcomeId: String? = null,
+    val outcomes: List<PredictionOutcome> = emptyList(),
+    @SerialName("prediction_window") val predictionWindow: Int = 0,
+    val status: String = "",
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("ended_at") val endedAt: String? = null,
+    @SerialName("locked_at") val lockedAt: String? = null
+)
+
+@Serializable
+data class PredictionsResponse(val data: List<PredictionData> = emptyList())
