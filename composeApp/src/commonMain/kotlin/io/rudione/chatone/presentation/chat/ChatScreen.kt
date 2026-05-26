@@ -816,6 +816,7 @@ fun ChatScreen(
                                                 emoteSize = settingsState.emoteSize,
                                                 customModButtons = settingsState.customModButtons,
                                                 allModButtons = settingsState.allModButtons,
+                                                modButtonsVersion = settingsState.modButtonsVersion,
                                                 extraVerticalPadding = when (settingsState.messageSpacing) {
                                                     SettingsState.MessageSpacing.NONE -> 0.dp
                                                     SettingsState.MessageSpacing.LOW -> 1.dp
@@ -1758,6 +1759,7 @@ fun PrivMsgItem(
     emoteSize: SettingsState.EmoteSize = SettingsState.EmoteSize.SMALL,
     customModButtons: List<ModActionButton> = emptyList(),
     allModButtons: List<ModActionButton> = emptyList(),
+    modButtonsVersion: Int = 0,
     showCustomModButtons: Boolean = true,
     showDefaultDeleteButton: Boolean = true,
     showDefaultTimeoutButton: Boolean = true,
@@ -1928,6 +1930,7 @@ fun PrivMsgItem(
                 emoteSize = emoteSize,
                 customModButtons = customModButtons,
                 allModButtons = allModButtons,
+                modButtonsVersion = modButtonsVersion,
                 showCustomModButtons = showCustomModButtons,
                 showDefaultDeleteButton = showDefaultDeleteButton,
                 showDefaultTimeoutButton = showDefaultTimeoutButton,
@@ -2031,60 +2034,68 @@ fun PrivMsgItem(
                                 targetIsGrandMod = message.isGrandMod
                             )
 
-                            Row(
-                                modifier = Modifier.padding(end = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(0.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val orderedButtons = if (allModButtons.isNotEmpty()) {
-                                    allModButtons.sortedBy { it.sortOrder }
-                                } else {
-                                    ModActionButton.defaultOrderedList() + customModButtons
-                                }
-                                orderedButtons.forEach { btn ->
-                                    if (!btn.enabled) return@forEach
-                                    when (btn.id) {
-                                        "default_delete" -> {
-                                            if (showDefaultDeleteButton && (canAct || isOwnMessage)) {
-                                                ModActionIconBtn(
-                                                    icon = Icons.Outlined.Delete, label = "Del",
-                                                    tint = extraColors.modDelete, onClick = onDelete
-                                                )
-                                            }
-                                        }
+                            val modOrderKey = "$modButtonsVersion:" + if (allModButtons.isNotEmpty())
+                                allModButtons.joinToString("|") { "${it.id}:${it.sortOrder}:${it.enabled}" }
+                            else
+                                customModButtons.joinToString("|") { it.id }
+                            key(modOrderKey) {
+                                Row(
+                                    modifier = Modifier.padding(end = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(0.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val orderedButtons = if (allModButtons.isNotEmpty()) {
+                                        allModButtons.sortedBy { it.sortOrder }
+                                    } else {
+                                        ModActionButton.defaultOrderedList() + customModButtons
+                                    }
+                                    orderedButtons.forEach { btn ->
+                                        if (!btn.enabled) return@forEach
+                                        key(btn.id) {
+                                            when (btn.id) {
+                                                "default_delete" -> {
+                                                    if (showDefaultDeleteButton && (canAct || isOwnMessage)) {
+                                                        ModActionIconBtn(
+                                                            icon = Icons.Outlined.Delete, label = "Del",
+                                                            tint = extraColors.modDelete, onClick = onDelete
+                                                        )
+                                                    }
+                                                }
 
-                                        "default_timeout" -> {
-                                            if (showDefaultTimeoutButton && canAct && !isOwnMessage) {
-                                                ModActionIconBtn(
-                                                    icon = Icons.Outlined.Refresh,
-                                                    label = "10m",
-                                                    tint = extraColors.modTimeout,
-                                                    onClick = onTimeout,
-                                                    visible = false
-                                                )
-                                            }
-                                        }
+                                                "default_timeout" -> {
+                                                    if (showDefaultTimeoutButton && canAct && !isOwnMessage) {
+                                                        ModActionIconBtn(
+                                                            icon = Icons.Outlined.Refresh,
+                                                            label = "10m",
+                                                            tint = extraColors.modTimeout,
+                                                            onClick = onTimeout,
+                                                            visible = false
+                                                        )
+                                                    }
+                                                }
 
-                                        "default_ban" -> {
-                                            if (showDefaultBanButton && canAct && !isOwnMessage) {
-                                                ModActionIconBtn(
-                                                    icon = Icons.Filled.Close,
-                                                    label = s.chatBanUser,
-                                                    tint = extraColors.modBan,
-                                                    onClick = onBan
-                                                )
-                                            }
-                                        }
+                                                "default_ban" -> {
+                                                    if (showDefaultBanButton && canAct && !isOwnMessage) {
+                                                        ModActionIconBtn(
+                                                            icon = Icons.Filled.Close,
+                                                            label = s.chatBanUser,
+                                                            tint = extraColors.modBan,
+                                                            onClick = onBan
+                                                        )
+                                                    }
+                                                }
 
-                                        else -> {
-                                            if (showCustomModButtons && canAct && !isOwnMessage) {
-                                                ModActionIconBtn(
-                                                    icon = Icons.Outlined.Refresh,
-                                                    label = btn.displayLabel,
-                                                    tint = extraColors.modTimeout,
-                                                    onClick = { onCustomTimeout(btn.durationSeconds) },
-                                                    visible = false
-                                                )
+                                                else -> {
+                                                    if (showCustomModButtons && canAct && !isOwnMessage) {
+                                                        ModActionIconBtn(
+                                                            icon = Icons.Outlined.Refresh,
+                                                            label = btn.displayLabel,
+                                                            tint = extraColors.modTimeout,
+                                                            onClick = { onCustomTimeout(btn.durationSeconds) },
+                                                            visible = false
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -2716,6 +2727,7 @@ private fun CompactMessageLayout(
     emoteSize: SettingsState.EmoteSize,
     customModButtons: List<ModActionButton>,
     allModButtons: List<ModActionButton>,
+    modButtonsVersion: Int = 0,
     showCustomModButtons: Boolean,
     showDefaultDeleteButton: Boolean,
     showDefaultTimeoutButton: Boolean,
@@ -2832,45 +2844,53 @@ private fun CompactMessageLayout(
                         actorIsGrandMod = false,
                         targetIsGrandMod = message.isGrandMod
                     )
-                    Row(
-                        modifier = Modifier.padding(end = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(0.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val orderedButtons =
-                            if (allModButtons.isNotEmpty()) allModButtons.sortedBy { it.sortOrder } else ModActionButton.defaultOrderedList() + customModButtons
-                        orderedButtons.forEach { btn ->
-                            if (!btn.enabled) return@forEach
-                            when (btn.id) {
-                                "default_delete" -> if (showDefaultDeleteButton && (canAct || isOwnMessage)) ModActionIconBtn(
-                                    icon = Icons.Outlined.Delete,
-                                    label = "Del",
-                                    tint = extraColors.modDelete,
-                                    onClick = onDelete
-                                )
+                    val compactModOrderKey = "$modButtonsVersion:" + if (allModButtons.isNotEmpty())
+                        allModButtons.joinToString("|") { "${it.id}:${it.sortOrder}:${it.enabled}" }
+                    else
+                        customModButtons.joinToString("|") { it.id }
+                    key(compactModOrderKey) {
+                        Row(
+                            modifier = Modifier.padding(end = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(0.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val orderedButtons =
+                                if (allModButtons.isNotEmpty()) allModButtons.sortedBy { it.sortOrder } else ModActionButton.defaultOrderedList() + customModButtons
+                            orderedButtons.forEach { btn ->
+                                if (!btn.enabled) return@forEach
+                                key(btn.id) {
+                                    when (btn.id) {
+                                        "default_delete" -> if (showDefaultDeleteButton && (canAct || isOwnMessage)) ModActionIconBtn(
+                                            icon = Icons.Outlined.Delete,
+                                            label = "Del",
+                                            tint = extraColors.modDelete,
+                                            onClick = onDelete
+                                        )
 
-                                "default_timeout" -> if (showDefaultTimeoutButton && canAct && !isOwnMessage) ModActionIconBtn(
-                                    icon = Icons.Outlined.Refresh,
-                                    label = "10m",
-                                    tint = extraColors.modTimeout,
-                                    onClick = onTimeout,
-                                    visible = false
-                                )
+                                        "default_timeout" -> if (showDefaultTimeoutButton && canAct && !isOwnMessage) ModActionIconBtn(
+                                            icon = Icons.Outlined.Refresh,
+                                            label = "10m",
+                                            tint = extraColors.modTimeout,
+                                            onClick = onTimeout,
+                                            visible = false
+                                        )
 
-                                "default_ban" -> if (showDefaultBanButton && canAct && !isOwnMessage) ModActionIconBtn(
-                                    icon = Icons.Filled.Close,
-                                    label = s.chatBanUser,
-                                    tint = extraColors.modBan,
-                                    onClick = onBan
-                                )
+                                        "default_ban" -> if (showDefaultBanButton && canAct && !isOwnMessage) ModActionIconBtn(
+                                            icon = Icons.Filled.Close,
+                                            label = s.chatBanUser,
+                                            tint = extraColors.modBan,
+                                            onClick = onBan
+                                        )
 
-                                else -> if (showCustomModButtons && canAct && !isOwnMessage) ModActionIconBtn(
-                                    icon = Icons.Outlined.Refresh,
-                                    label = btn.displayLabel,
-                                    tint = extraColors.modTimeout,
-                                    onClick = { onCustomTimeout(btn.durationSeconds) },
-                                    visible = false
-                                )
+                                        else -> if (showCustomModButtons && canAct && !isOwnMessage) ModActionIconBtn(
+                                            icon = Icons.Outlined.Refresh,
+                                            label = btn.displayLabel,
+                                            tint = extraColors.modTimeout,
+                                            onClick = { onCustomTimeout(btn.durationSeconds) },
+                                            visible = false
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

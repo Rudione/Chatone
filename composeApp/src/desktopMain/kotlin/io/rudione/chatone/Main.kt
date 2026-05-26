@@ -1,6 +1,9 @@
 package io.rudione.chatone
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -8,10 +11,13 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.icon
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.settings.TitleBarMode
+import io.rudione.chatone.presentation.window.ChatoneTitleBar
 import io.rudione.chatone.util.AutoUpdater
 import io.rudione.chatone.util.GlobalKeyDispatcher
 import io.rudione.chatone.util.WindowsTitleBar
@@ -20,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
 import org.koin.core.context.startKoin
 
 private const val WIN_X = "win_x"
@@ -31,6 +38,12 @@ private const val WIN_MAX = "win_maximized"
 private val NATIVE_BG = java.awt.Color(0x0A, 0x0A, 0x0F)
 
 private val DARK_CAPTION_COLOR = Color(0x0D, 0x0F, 0x1A)
+private val LIGHT_CAPTION_COLOR = Color(0xF0, 0xF0, 0xF5)
+
+private val osName: String = System.getProperty("os.name", "").lowercase()
+private val isMac: Boolean = osName.contains("mac")
+private val isWindows: Boolean = osName.contains("win")
+private val useCustomTitleBar: Boolean = !isMac
 
 fun main() {
     System.setProperty("apple.awt.application.appearance", "system")
@@ -97,11 +110,15 @@ fun main() {
         var dominantColor by remember { mutableStateOf<Color?>(null) }
         var titleBarMode by remember { mutableStateOf(initialSettings.titleBarMode) }
 
+        val appIcon = painterResource(Res.drawable.icon)
+
         Window(
             onCloseRequest = { exitApplication() },
-            title = "Chatone - Twitch Chat Client",
+            title = "Chatone",
             state = windowState,
             alwaysOnTop = alwaysOnTop,
+            undecorated = useCustomTitleBar,
+            icon = appIcon,
             onPreviewKeyEvent = { GlobalKeyDispatcher.dispatch(it) }
         ) {
             DisposableEffect(window) {
@@ -116,10 +133,12 @@ fun main() {
                                 "NSAppearanceNameDarkAqua"
                             )
                         }
-                        val (captionColor, useDark) = resolveTitleBar(
-                            initialSettings.titleBarMode, initialDark, null
-                        )
-                        WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
+                        if (!useCustomTitleBar) {
+                            val (captionColor, useDark) = resolveTitleBar(
+                                initialSettings.titleBarMode, initialDark, null
+                            )
+                            WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
+                        }
                     }
                 }
                 window.addWindowListener(listener)
@@ -127,16 +146,45 @@ fun main() {
             }
 
             LaunchedEffect(isDarkTheme, dominantColor, titleBarMode) {
-                val (captionColor, useDark) = resolveTitleBar(titleBarMode, isDarkTheme, dominantColor)
-                WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
+                if (!useCustomTitleBar) {
+                    val (captionColor, useDark) = resolveTitleBar(titleBarMode, isDarkTheme, dominantColor)
+                    WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
+                }
             }
 
-            App(
-                onAlwaysOnTopChanged = { alwaysOnTop = it },
-                onThemeChanged = { isDarkTheme = it },
-                onDominantColorChanged = { dominantColor = it },
-                onTitleBarModeChanged = { titleBarMode = it }
-            )
+            if (useCustomTitleBar) {
+                val (captionColor, _) = resolveTitleBar(titleBarMode, isDarkTheme, dominantColor)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    ChatoneTitleBar(
+                        title = "Chatone",
+                        icon = appIcon,
+                        background = captionColor,
+                        windowState = windowState,
+                        onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
+                        onToggleMaximize = {
+                            windowState.placement =
+                                if (windowState.placement == WindowPlacement.Maximized)
+                                    WindowPlacement.Floating
+                                else
+                                    WindowPlacement.Maximized
+                        },
+                        onClose = { exitApplication() }
+                    )
+                    App(
+                        onAlwaysOnTopChanged = { alwaysOnTop = it },
+                        onThemeChanged = { isDarkTheme = it },
+                        onDominantColorChanged = { dominantColor = it },
+                        onTitleBarModeChanged = { titleBarMode = it }
+                    )
+                }
+            } else {
+                App(
+                    onAlwaysOnTopChanged = { alwaysOnTop = it },
+                    onThemeChanged = { isDarkTheme = it },
+                    onDominantColorChanged = { dominantColor = it },
+                    onTitleBarModeChanged = { titleBarMode = it }
+                )
+            }
         }
     }
 }
@@ -147,22 +195,21 @@ private fun resolveTitleBar(
     dominantColor: Color?
 ): Pair<Color, Boolean> = when (mode) {
     TitleBarMode.DARK -> DARK_CAPTION_COLOR to true
-    TitleBarMode.LIGHT -> Color(0xF0, 0xF0, 0xF5) to false
+    TitleBarMode.LIGHT -> LIGHT_CAPTION_COLOR to false
     TitleBarMode.ADAPTIVE -> {
         val blended = dominantColor?.let { blendWithDark(it, isDarkTheme) }
-            ?: if (isDarkTheme) DARK_CAPTION_COLOR else Color(0xF0, 0xF0, 0xF5)
+            ?: if (isDarkTheme) DARK_CAPTION_COLOR else LIGHT_CAPTION_COLOR
         blended to isDarkTheme
     }
     TitleBarMode.SYSTEM -> {
         val systemDark = isSystemDarkMode()
-        val color = if (systemDark) DARK_CAPTION_COLOR else Color(0xF0, 0xF0, 0xF5)
+        val color = if (systemDark) DARK_CAPTION_COLOR else LIGHT_CAPTION_COLOR
         color to systemDark
     }
 }
 
 private fun isSystemDarkMode(): Boolean = runCatching {
-    val osName = System.getProperty("os.name", "").lowercase()
-    if (osName.contains("win")) {
+    if (isWindows) {
         val proc = Runtime.getRuntime().exec(
             arrayOf("reg", "query",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",

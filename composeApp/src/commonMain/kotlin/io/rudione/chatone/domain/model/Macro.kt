@@ -1,14 +1,18 @@
 package io.rudione.chatone.domain.model
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ModActionButton(
     val id: String,
     val durationSeconds: Int,
     val label: String = "",
     val enabled: Boolean = true,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val sortOrder: Int = 0
 ) {
     val isDefault: Boolean get() = id in listOf("default_delete", "default_timeout", "default_ban")

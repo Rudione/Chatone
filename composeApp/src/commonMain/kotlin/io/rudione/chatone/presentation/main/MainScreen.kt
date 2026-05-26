@@ -2671,9 +2671,9 @@ private fun ChannelTabBar(
                     } else if (isGroupStart && folderInfo == null && index > 0) {
                         Box(
                             modifier = Modifier
-                                .padding(horizontal = 4.dp, vertical = 8.dp)
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
                                 .width(1.dp)
-                                .height(20.dp)
+                                .height(14.dp)
                                 .background(extra.cardBorder)
                         )
                     }

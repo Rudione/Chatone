@@ -997,11 +997,11 @@ class TwitchApiClient(
             httpClient.post("$baseUrl/moderation/automod/message") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(kotlinx.serialization.json.buildJsonObject {
-                    put("user_id", kotlinx.serialization.json.JsonPrimitive(userId))
-                    put("msg_id", kotlinx.serialization.json.JsonPrimitive(msgId))
-                    put("action", kotlinx.serialization.json.JsonPrimitive(action))
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("user_id", JsonPrimitive(userId))
+                    put("msg_id", JsonPrimitive(msgId))
+                    put("action", JsonPrimitive(action))
                 })
             }
             Result.Success(Unit)

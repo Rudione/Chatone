@@ -72,6 +72,7 @@ data class SettingsState(
         ModActionButton.DEFAULT_TIMEOUT,
         ModActionButton.DEFAULT_BAN
     ),
+    val modButtonsVersion: Int = 0,
     val macros: List<Macro> = emptyList(),
     val showChatHeader: Boolean = true,
     val smoothChatEnabled: Boolean = false,
@@ -462,12 +463,20 @@ class SettingsViewModel(
         viewModelScope.launch {
             changeBroadcast.collect { _ ->
                 super.update { current ->
+                    // allModButtons and customModButtons are always saved to Settings on every change,
+                    // so we read them fresh from loadInitialState() to ensure the chat view
+                    // immediately reflects reorder changes. Other in-memory-only fields are
+                    // preserved from current state.
                     loadInitialState().copy(
                         showThemeCreator = current.showThemeCreator,
                         themeCreatorSeedColor = current.themeCreatorSeedColor,
                         isLoadingBlockedUsers = current.isLoadingBlockedUsers,
                         blockedUsernames = current.blockedUsernames,
-                        blockedLoadError = current.blockedLoadError
+                        blockedLoadError = current.blockedLoadError,
+                        macros = current.macros,
+                        chatCommands = current.chatCommands,
+                        highlightRules = current.highlightRules,
+                        modButtonsVersion = current.modButtonsVersion
                     )
                 }
             }
@@ -1023,22 +1032,22 @@ class SettingsViewModel(
                 saveAllModButtons(reordered)
                 val custom = reordered.filter { !it.isDefault }
                 saveModButtons(custom)
-                s.copy(allModButtons = reordered, customModButtons = custom)
+                s.copy(allModButtons = reordered, customModButtons = custom, modButtonsVersion = s.modButtonsVersion + 1)
             }
 
             is SettingsEvent.OnShowDefaultDeleteChanged -> {
                 settings.putBoolean(KEY_SHOW_DEFAULT_DELETE, event.show)
-                update { it.copy(showDefaultDeleteButton = event.show) }
+                update { it.copy(showDefaultDeleteButton = event.show, modButtonsVersion = it.modButtonsVersion + 1) }
             }
 
             is SettingsEvent.OnShowDefaultTimeoutChanged -> {
                 settings.putBoolean(KEY_SHOW_DEFAULT_TIMEOUT, event.show)
-                update { it.copy(showDefaultTimeoutButton = event.show) }
+                update { it.copy(showDefaultTimeoutButton = event.show, modButtonsVersion = it.modButtonsVersion + 1) }
             }
 
             is SettingsEvent.OnShowDefaultBanChanged -> {
                 settings.putBoolean(KEY_SHOW_DEFAULT_BAN, event.show)
-                update { it.copy(showDefaultBanButton = event.show) }
+                update { it.copy(showDefaultBanButton = event.show, modButtonsVersion = it.modButtonsVersion + 1) }
             }
 
             is SettingsEvent.OnAddMacro -> update { s ->
