@@ -12,6 +12,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.rudione.chatone.domain.model.ChatoneColorTokens
 
 data class ChatFontSettings(
     val fontFamily: FontFamily = FontFamily.Default,
@@ -106,10 +107,10 @@ private val ChatoneDarkScheme = darkColorScheme(
     onPrimary = Color.White,
     primaryContainer = ChatoneColors.Violet800,
     onPrimaryContainer = ChatoneColors.Violet200,
-    secondary = ChatoneColors.Cyan400,
-    onSecondary = Color.Black,
-    secondaryContainer = ChatoneColors.Cyan600,
-    onSecondaryContainer = ChatoneColors.Cyan50,
+    secondary = ChatoneColors.Violet300,
+    onSecondary = ChatoneColors.Violet900,
+    secondaryContainer = ChatoneColors.Violet700,
+    onSecondaryContainer = ChatoneColors.Violet100,
     tertiary = ChatoneColors.Rose400,
     onTertiary = Color.Black,
     tertiaryContainer = Color(0xFF5C1031),
@@ -142,10 +143,10 @@ private val ChatoneLightScheme = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = ChatoneColors.Violet100,
     onPrimaryContainer = ChatoneColors.Violet900,
-    secondary = ChatoneColors.Cyan500,
+    secondary = ChatoneColors.Violet400,
     onSecondary = Color.White,
-    secondaryContainer = ChatoneColors.Cyan100,
-    onSecondaryContainer = Color(0xFF003540),
+    secondaryContainer = ChatoneColors.Violet100,
+    onSecondaryContainer = ChatoneColors.Violet900,
     tertiary = ChatoneColors.Rose500,
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFFFD9E4),
@@ -260,19 +261,27 @@ private val LightExtraColors = ChatoneExtraColors(
 )
 
 
+val LocalChatoneColorTokens = staticCompositionLocalOf { ChatoneColorTokens() }
+
 object ChatoneTheme {
     val extraColors: ChatoneExtraColors
         @Composable
         @ReadOnlyComposable
         get() = LocalChatoneColors.current
+
+    val colorTokens: ChatoneColorTokens
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalChatoneColorTokens.current
 }
 
 @Composable
 fun ChatoneTheme(
-    darkTheme: Boolean = true,  
+    darkTheme: Boolean = true,
     accentColorIndex: Int = 0,
     customTheme: CustomThemeConfig? = null,
     fontSettings: ChatFontSettings = ChatFontSettings(),
+    colorTokens: ChatoneColorTokens = ChatoneColorTokens(),
     content: @Composable () -> Unit
 ) {
    
@@ -289,19 +298,25 @@ fun ChatoneTheme(
     } else {
         applyAccentPalette(ChatoneDarkScheme, accentColorIndex, true)
     }
-    val palette = ExpressivePalettes.getOrElse(accentColorIndex) { ExpressivePalettes[0] }
-
-    val baseExtra = DarkExtraColors
-    val accentHint = palette.darkPrimary
-    val extraColors = if (accentColorIndex == 0) baseExtra else baseExtra.copy(
-        sidebarSurface = accentHint.copy(alpha = 0.10f).compositeOver(baseExtra.sidebarSurface),
-        sidebarSelected = accentHint.copy(alpha = 0.20f).compositeOver(baseExtra.sidebarSelected),
-        chatInputSurface = accentHint.copy(alpha = 0.07f).compositeOver(baseExtra.chatInputSurface),
-        mentionHighlight = accentHint.copy(alpha = 0.14f)
+    // Every panel token below reads from the SAME already-accent-tinted colorScheme surfaces
+    // (see applyAccentPalette), so sidebar/topbar/bottombar/mod-panel/chat-pane all move
+    // together with the chosen accent instead of drifting independently.
+    val extraColors = DarkExtraColors.copy(
+        modTimeout = Color(colorTokens.modTimeout),
+        modBan = Color(colorTokens.modBan),
+        modDelete = Color(colorTokens.modDelete),
+        modUnban = Color(colorTokens.modUnban),
+        live = Color(colorTokens.live),
+        connected = Color(colorTokens.connected),
+        sidebarSurface = colorScheme.surfaceContainerLow,
+        sidebarSelected = colorScheme.primary.copy(alpha = 0.20f).compositeOver(colorScheme.surfaceContainerLow),
+        chatInputSurface = colorScheme.surfaceContainer,
+        mentionHighlight = colorScheme.primary.copy(alpha = 0.14f)
     )
 
     CompositionLocalProvider(
         LocalChatoneColors provides extraColors,
+        LocalChatoneColorTokens provides colorTokens,
         LocalChatFont provides fontSettings
     ) {
         val ff = fontSettings.fontFamily
@@ -344,10 +359,10 @@ val ExpressivePalettes = listOf(
     AccentPalette(
         name = "Violet",
         darkPrimary = ChatoneColors.Violet500,
-        darkSecondary = ChatoneColors.Cyan400,
+        darkSecondary = ChatoneColors.Violet300,
         darkTertiary = ChatoneColors.Rose400,
         lightPrimary = ChatoneColors.Violet600,
-        lightSecondary = ChatoneColors.Cyan500,
+        lightSecondary = ChatoneColors.Violet400,
         lightTertiary = ChatoneColors.Rose500,
         previewColor = ChatoneColors.Violet500
     ),
@@ -426,9 +441,8 @@ val ExpressivePalettes = listOf(
 private fun applyAccentPalette(base: ColorScheme, index: Int, dark: Boolean): ColorScheme {
     val palette = ExpressivePalettes.getOrElse(index) { ExpressivePalettes[0] }
     return if (dark) {
-        val tintedBg = palette.darkPrimary.copy(alpha = 0.1f).compositeOver(ChatoneColors.DarkBg)
-        val tintedSurface = palette.darkPrimary.copy(alpha = 0.04f).compositeOver(ChatoneColors.DarkSurface)
-        val tintedSurfaceElevated = palette.darkPrimary.copy(alpha = 0.05f).compositeOver(ChatoneColors.DarkSurfaceElevated)
+        val accent = palette.darkPrimary
+        val t = 0.05f
         base.copy(
             primary = palette.darkPrimary,
             onPrimary = Color.White,
@@ -443,16 +457,21 @@ private fun applyAccentPalette(base: ColorScheme, index: Int, dark: Boolean): Co
             tertiaryContainer = palette.darkTertiary.copy(alpha = 0.22f).compositeOver(Color(0xFF1A1A22)),
             onTertiaryContainer = palette.darkTertiary,
             inversePrimary = palette.lightPrimary,
-           
-            background = tintedBg,
-            surface = tintedSurface,
-            surfaceVariant = tintedSurfaceElevated,
-            surfaceContainerHigh = palette.darkPrimary.copy(alpha = 0.06f).compositeOver(ChatoneColors.DarkSurfaceElevated),
-            surfaceContainerHighest = palette.darkPrimary.copy(alpha = 0.07f).compositeOver(ChatoneColors.DarkSurfaceHighest)
+
+            // Same relative accent tint on every surface step, so sidebar/topbar/bottombar/chat
+            // pane/mod panel/settings/automod all shift together instead of only some of them.
+            background = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkBg),
+            surface = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurface),
+            surfaceVariant = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurfaceElevated),
+            surfaceContainerLowest = accent.copy(alpha = t).compositeOver(Color(0xFF060609)),
+            surfaceContainerLow = accent.copy(alpha = t).compositeOver(Color(0xFF0E0E14)),
+            surfaceContainer = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurface),
+            surfaceContainerHigh = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurfaceElevated),
+            surfaceContainerHighest = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurfaceHighest)
         )
     } else {
-        val tintedBg = palette.lightPrimary.copy(alpha = 0.02f).compositeOver(ChatoneColors.LightBg)
-        val tintedSurface = palette.lightPrimary.copy(alpha = 0.1f).compositeOver(ChatoneColors.LightSurface)
+        val accent = palette.lightPrimary
+        val t = 0.06f
         base.copy(
             primary = palette.lightPrimary,
             onPrimary = Color.White,
@@ -467,8 +486,14 @@ private fun applyAccentPalette(base: ColorScheme, index: Int, dark: Boolean): Co
             tertiaryContainer = palette.lightTertiary.copy(alpha = 0.12f).compositeOver(Color.White),
             onTertiaryContainer = palette.lightTertiary,
             inversePrimary = palette.darkPrimary,
-            background = tintedBg,
-            surface = tintedSurface
+            background = accent.copy(alpha = t * 0.5f).compositeOver(ChatoneColors.LightBg),
+            surface = accent.copy(alpha = t).compositeOver(ChatoneColors.LightSurface),
+            surfaceVariant = accent.copy(alpha = t).compositeOver(ChatoneColors.LightSurfaceElevated),
+            surfaceContainerLowest = accent.copy(alpha = t * 0.5f).compositeOver(Color.White),
+            surfaceContainerLow = accent.copy(alpha = t * 0.6f).compositeOver(Color(0xFFFCFCFF)),
+            surfaceContainer = accent.copy(alpha = t).compositeOver(ChatoneColors.LightSurfaceElevated),
+            surfaceContainerHigh = accent.copy(alpha = t).compositeOver(ChatoneColors.LightSurfaceHighest),
+            surfaceContainerHighest = accent.copy(alpha = t * 1.2f).compositeOver(Color(0xFFE2E2EC))
         )
     }
 }

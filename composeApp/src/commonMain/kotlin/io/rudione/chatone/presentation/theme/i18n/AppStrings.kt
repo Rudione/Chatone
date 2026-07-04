@@ -18,6 +18,7 @@ interface AppStrings {
     val openChannels: String
 
     val chatPlaceholder: String
+    val chatSendMessageIn: String
     val chatConnecting: String
     val chatDisconnected: String
     val chatReconnect: String
@@ -101,6 +102,32 @@ interface AppStrings {
     val sectionBackground: String
     val sectionHotkeys: String
     val sectionCommands: String
+    val sectionActions: String
+    val actionsHint: String
+    val actionsAutomations: String
+    val actionsAutomationsHint: String
+    val actionsEmpty: String
+    val actionsKindTimer: String
+    val actionsKindReply: String
+    val actionsKindSound: String
+    val actionsFieldChannel: String
+    val actionsFieldInterval: String
+    val actionsFieldCooldown: String
+    val actionsFieldKeyword: String
+    val actionsFieldMessage: String
+    val actionsAllChannels: String
+    val actionsAllChannelsBadge: String
+    val actionsUnitMinutes: String
+    val actionsUnitSeconds: String
+    val actionsListEvery: String
+    val actionsListSound: String
+    val actionsAdd: String
+    val actionsSafetyNote: String
+    val actionsAutoClaim: String
+    val actionsAutoClaimHint: String
+    val actionsMutedPhrases: String
+    val actionsMutedPhrasesHint: String
+    val actionsMutedPhrasePlaceholder: String
     val settingsCommandsTitle: String
     val settingsCommandsDesc: String
     val settingsCommandsAdd: String
@@ -152,6 +179,42 @@ interface AppStrings {
     val settingsShowChatHeaderDesc: String
     val settingsShowDeletedMessages: String
     val settingsShowDeletedMessagesDesc: String
+    val settingsShowViewerJoinLeave: String
+    val settingsShowViewerJoinLeaveDesc: String
+
+    val uploaderTitle: String
+    val uploaderDesc: String
+    val uploaderEnable: String
+    val uploaderAskOnUpload: String
+    val uploaderRequestUrl: String
+    val uploaderFormField: String
+    val uploaderExtraHeaders: String
+    val uploaderExtraHeadersHint: String
+    val uploaderImageLink: String
+    val uploaderDeletionLink: String
+    val uploaderCheckStatus: String
+    val uploaderStatusChecking: String
+
+    val uploaderStatusOk: String
+
+    val uploaderStatusFail: String
+    val uploaderUploading: String
+    val uploaderUploaded: String
+    val uploaderCopyLink: String
+    val uploaderLinkCopied: String
+
+    val uploaderFailed: String
+    val uploaderUnsupportedFile: String
+    val uploaderConfirmTitle: String
+
+    val uploaderConfirmText: String
+    val uploaderConfirmYes: String
+    val uploaderConfirmNo: String
+    val uploaderDropHint: String
+
+    val chatViewerJoined: String
+
+    val chatViewerLeft: String
     val settingsSmoothChat: String
     val settingsSmoothChatDesc: String
     val settingsAlternateRowBg: String
@@ -270,6 +333,7 @@ interface AppStrings {
     val settingsShowInlineImages: String
     val settingsShowInlineImagesDesc: String
     val settingsImageMaxHeight: String
+    val settingsChatScrollbarWidth: String
     val settingsImageMaxHeightUnit: String
     val settingsCreateCustomTheme: String
     val settingsRecording: String
@@ -432,6 +496,8 @@ interface AppStrings {
     val mainLogin: String
     val mainLoginToTwitch: String
     val mainViewersList: String
+    val mainChannelBadgesBits: String
+    val mainChannelBadgesBitsSoon: String
     val mainChannelsHeader: String
     val mainNoChannelsToAdd: String
     val mainOpenSidebar: String
@@ -442,6 +508,9 @@ interface AppStrings {
     val mainMoveToFolder: String
     val mainRemoveFromFolder: String
     val mainCloseChannel: String
+    val mainLiveNotifyOn: String
+    val mainLiveNotifyOff: String
+    val mainOpenInPlayer: String
     val mainChannelNamePlaceholder: String
     val mainFolderNamePlaceholder: String
     val mainCreate: String
@@ -457,6 +526,11 @@ interface AppStrings {
     val profileJoined: String
     val profileFollowingSince: String
     val profileNote: String
+    val profileNickname: String
+    val profileNicknamePlaceholder: String
+    val profileSubAgeHidden: String
+    val profileSubAgeMonths: String
+    val profileSubAgeStreak: String
     val profileNoteCopy: String
     val profileNotePlaceholder: String
     val profileSectionModeration: String
@@ -640,6 +714,8 @@ interface AppStrings {
     val themePresets: String
     val themeAppliedOnTop: String
     val themeResetAdjustments: String
+    val themeGlowEffects: String
+    val themeGlowEffectsDesc: String
     val themeDragTapHint: String
     val themePick: String
     val themeMode: String
@@ -772,7 +848,87 @@ interface AppStrings {
     val settingsSearchPlaceholder: String
     val settingsSearchNoResults: String
     val profileMuteNotificationsGlobally: String
+    val profileMuteChipGlobal: String
+    val profileMuteChipChannel: String
     val profileMuteNotificationsInChannel: String
+
+    val colorsSectionTitle: String
+    val colorsSectionSubtitle: String
+    val colorsGroupHighlights: String
+    val colorsGroupModeration: String
+    val colorsGroupAutomod: String
+    val colorsResetGroup: String
+    val colorMentionBg: String
+    val colorHighlightBg: String
+    val colorOwnMessageBg: String
+    val colorModDelete: String
+
+    val chatTranslate: String
+    val chatTranslating: String
+    val chatTranslationError: String
+    val settingsTranslationLang: String
+    val settingsTranslationLangDesc: String
+    val settingsMentionTabs: String
+    val settingsMentionTabsDesc: String
+    val mentionTabsTitle: String
+
+    val hotkeysCombinationsTitle: String
+    val settingsNavigationHidden: String
+    val settingsNavigationHiddenDesc: String
+    val hotkeyToggleNavigation: String
+    val hotkeyToggleSidebar: String
+    val hotkeyToggleMentions: String
+    val hotkeyAddChannel: String
+    val hotkeyOpenSettings: String
+    val hotkeyNextChannel: String
+    val hotkeyPrevChannel: String
+    val hotkeyCloseChannel: String
+    val hotkeyToggleWhispers: String
+
+    // Stream header / channel top bar
+    val chatOffline: String
+    val streamTooltipHint: String
+    val streamOpenInBrowser: String
+    val streamPlayerQuality: String
+    val unitHourShort: String
+    val unitMinuteShort: String
+    val chatBanConfirmText: String
+
+    // Mention toast
+    val mentionInChannel: String
+
+    // ViewModel system messages / notifications
+    val actionsAutoClaimFailed: String
+    val tokenStaleWarning: String
+    val liveNotifyTitle: String
+    val liveNotifyBody: String
+
+    // Polls / predictions (moderation panel)
+    val pollEnd: String
+    val pollCancel: String
+    val pollStart: String
+    val pollDurationLabel: String
+    val pollChoicesLabel: String
+    val predictionLock: String
+    val predictionWinner: String
+    val predictionStart: String
+    val predictionWindowLabel: String
+    val predictionOutcomesLabel: String
+    val create: String
+    val pollOptionPlaceholder: String
+    val raidChannelPlaceholder: String
+
+    // Auth / accounts
+    val tryAgain: String
+    val oauthTokenLabel: String
+    val authBrowser: String
+    val authPasteToken: String
+
+    // Automod
+    val automodAddVariant: String
+
+    // Profile
+    val profileMessageDeleted: String
 
     companion object {
         fun forLocale(locale: String): AppStrings = when (locale) {

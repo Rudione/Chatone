@@ -134,7 +134,7 @@ data class SevenTvCosmeticsResponse(
 data class SevenTvEventMessage(
     val op: Int,
     val d: SevenTvEventData? = null,
-    val t: Int? = null
+    val t: Long? = null
 )
 
 @Serializable

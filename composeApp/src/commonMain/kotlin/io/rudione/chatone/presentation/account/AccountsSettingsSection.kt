@@ -248,6 +248,7 @@ private fun OverrideSettingsRow(
 ) {
     val strings = LocalStrings.current
     var enabled by remember(userId) { mutableStateOf(accountManager.isOverrideEnabled(userId)) }
+    val perAccountSettings = remember(accountManager) { PerAccountSettingsLoader(accountManager) }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
@@ -258,11 +259,11 @@ private fun OverrideSettingsRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(
+        io.rudione.chatone.presentation.components.ChatoneSwitch(
             checked = enabled,
             onCheckedChange = {
                 enabled = it
-                accountManager.setOverrideEnabled(userId, it)
+                perAccountSettings.setOverrideEnabled(userId, it)
             }
         )
     }
@@ -314,7 +315,7 @@ private fun ProxyConfigSection(
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(strings.accountsProxyEnabled, modifier = Modifier.weight(1f))
-            Switch(checked = enabled, onCheckedChange = {
+            io.rudione.chatone.presentation.components.ChatoneSwitch(checked = enabled, onCheckedChange = {
                 enabled = it
                 if (!it) accountManager.saveProxy(
                     userId,

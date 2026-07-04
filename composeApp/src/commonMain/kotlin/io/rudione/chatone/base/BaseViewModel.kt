@@ -24,16 +24,13 @@ abstract class BaseViewModel<State : UiState, Event : UiEvent, Effect : UIEffect
     val state: StateFlow<State> get() = _state
     private val _effect: MutableSharedFlow<Effect> = MutableSharedFlow()
     val effect: SharedFlow<Effect>
-        get() = _effect.onEach { effect: Effect ->
-            Napier.d("effect: $effect", tag = TAG)
-        }.shareIn(viewModelScope, SharingStarted.WhileSubscribed())
+        get() = _effect.shareIn(viewModelScope, SharingStarted.WhileSubscribed())
     val effectSubscription get() = _effect.subscriptionCount
     private val _events: MutableSharedFlow<Event> = MutableSharedFlow()
     open val listenerFlowsOnLifeCycle: Flow<Any> = flowOf(Unit)
-    
+
     fun subscribeToEvents() {
         _events.onEach { event ->
-            Napier.d("event: $event", tag = TAG)
             onEvent(event)
         }.share().addDataFlows().share()
     }
@@ -56,14 +53,14 @@ abstract class BaseViewModel<State : UiState, Event : UiEvent, Effect : UIEffect
             _effect.emit(effect)
         }
     }
-    
+
     fun sendEffectWaitSubscriber(effect: Effect) {
         viewModelScope.launch {
             effectSubscription.first { it > 0 }
             _effect.emit(effect)
         }
     }
-    
+
     protected abstract suspend fun onEvent(event: Event)
 
     private fun <T> Flow<T>.share(): Flow<T> {

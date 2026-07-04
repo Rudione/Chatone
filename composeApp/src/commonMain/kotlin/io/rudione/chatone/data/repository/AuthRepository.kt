@@ -165,9 +165,21 @@ class AuthRepositoryImpl(
                     emptyList()
                 }
             )
-            val result = validateToken(account)
-            if (result is Result.Success && result.data) {
-                return account
+            when (val result = apiClient.validateToken(account.accessToken)) {
+                is Result.Success -> return account
+                is Result.Error -> {
+                    val msg = result.exception.message ?: ""
+                    val explicitlyRejected = msg.contains("401") || msg.contains("403")
+                    if (!explicitlyRejected) {
+                        Napier.w(
+                            "Token validation unreachable (${msg.take(80)}) — keeping ${account.login} optimistically",
+                            tag = TAG
+                        )
+                        return account
+                    }
+                    Napier.w("Token for ${account.login} rejected by Twitch, trying next account", tag = TAG)
+                }
+                else -> return account
             }
         }
         return null

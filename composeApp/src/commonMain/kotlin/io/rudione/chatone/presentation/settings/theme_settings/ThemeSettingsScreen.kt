@@ -41,6 +41,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.palette_fill_16
+import io.rudione.chatone.domain.model.ChatoneColorTokens
+import io.rudione.chatone.presentation.components.ChatoneSwitch
+import io.rudione.chatone.presentation.settings.components.ColorTokensEditor
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.*
@@ -147,7 +150,9 @@ fun ThemeSettingsScreen(
                 3 -> ChatColorTab(
                     wallpaper = wallpaper,
                     onUpdate = { wallpaperController.updateChatColor(it); save() },
-                    onReset  = { wallpaperController.updateChatColor(ChatColorConfig()); save() }
+                    onReset  = { wallpaperController.updateChatColor(ChatColorConfig()); save() },
+                    colorTokens = settingsState.colorTokens,
+                    onColorTokensChange = { settingsViewModel.sendEvent(SettingsEvent.OnColorTokensChanged(it)) }
                 )
                 4 -> GlobalTab(
                     displayConfig = wallpaper.displayConfig,
@@ -380,13 +385,21 @@ private fun PanelsTab(
 private fun ChatColorTab(
     wallpaper: WallpaperState,
     onUpdate: (ChatColorConfig) -> Unit,
-    onReset: () -> Unit
+    onReset: () -> Unit,
+    colorTokens: ChatoneColorTokens,
+    onColorTokensChange: (ChatoneColorTokens) -> Unit
 ) {
     val s = LocalStrings.current
     val cfg = wallpaper.chatColorConfig
     val wallpaperActive = wallpaper.isActive
 
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+
+        item {
+            SectionCard(s.colorsSectionTitle, subtitle = s.colorsSectionSubtitle, icon = Icons.Outlined.Palette) {
+                ColorTokensEditor(tokens = colorTokens, onChange = onColorTokensChange)
+            }
+        }
 
        
         if (wallpaperActive) {
@@ -423,7 +436,7 @@ private fun ChatColorTab(
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Switch(
+                    ChatoneSwitch(
                         checked = cfg.useCustomColor && !wallpaperActive,
                         onCheckedChange = { if (!wallpaperActive) onUpdate(cfg.copy(useCustomColor = it)) },
                         enabled = !wallpaperActive
@@ -512,7 +525,7 @@ private fun PanelSection(
                     Text(if (expanded) "Less" else "More")
                     Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, Modifier.size(16.dp))
                 }
-                Switch(checked = useCustom, onCheckedChange = onUseCustomChanged)
+                io.rudione.chatone.presentation.components.ChatoneSwitch(checked = useCustom, onCheckedChange = onUseCustomChanged)
             }
         }
 
@@ -547,8 +560,9 @@ private fun PanelSection(
 @Composable
 private fun ChatSimulationPreview(wallpaper: WallpaperState) {
     val s = LocalStrings.current
-    val chatBg = remember(wallpaper.displayConfig, wallpaper.dominantColor, wallpaper.isActive) {
-        chatPaneBackgroundColor(wallpaper, isDark = true)
+    val chatPaneDefaultColor = MaterialTheme.colorScheme.surfaceContainer
+    val chatBg = remember(wallpaper.displayConfig, wallpaper.dominantColor, wallpaper.isActive, chatPaneDefaultColor) {
+        chatPaneBackgroundColor(wallpaper, chatPaneDefaultColor)
     }
     val textOnBg = if (chatBg.luminance() > 0.4f) Color(0xFF0A0A14) else Color(0xFFF0F0F5)
     val textSecondary = textOnBg.copy(alpha = 0.5f)
@@ -660,7 +674,7 @@ private fun GlobalTab(
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Switch(
+                    io.rudione.chatone.presentation.components.ChatoneSwitch(
                         checked = displayConfig.useMasterColor,
                         onCheckedChange = { onUpdate(displayConfig.copy(useMasterColor = it)) }
                     )
@@ -692,6 +706,24 @@ private fun GlobalTab(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        item {
+            SectionCard(s.themeGlowEffects, icon = Icons.Outlined.AutoAwesome) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                        Text(s.themeGlowEffects, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(
+                            s.themeGlowEffectsDesc,
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    io.rudione.chatone.presentation.components.ChatoneSwitch(
+                        checked = displayConfig.glowEffectsEnabled,
+                        onCheckedChange = { onUpdate(displayConfig.copy(glowEffectsEnabled = it)) }
+                    )
                 }
             }
         }

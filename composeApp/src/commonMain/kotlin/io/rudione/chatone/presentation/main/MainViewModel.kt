@@ -57,6 +57,8 @@ data class MainState(
     val folders: List<ChannelFolder> = emptyList(),
     val unfolderedChannels: List<ChannelTab> = emptyList(),
     val activeChannelLogin: String? = null,
+    val pendingScrollMessageId: String? = null,
+    val mentionsChannelActive: Boolean = false,
     val openChannels: List<ChannelTab> = emptyList(),
     val sidebarExpanded: Boolean = false,
     val sidebarCollapsed: Boolean = false,
@@ -82,6 +84,7 @@ data class MainState(
     val activeChatChannelId: String = "",
     val channelIdMap: Map<String, String> = emptyMap(),
     val moderatedChannelIds: Set<String> = emptySet(),
+    val liveNotifyChannels: Set<String> = emptySet(),
     val needsReauth: Boolean = false
 ) : UiState
 
@@ -90,7 +93,11 @@ sealed class MainEvent : UiEvent {
     object ToggleSidebar : MainEvent()
     object CloseSidebar : MainEvent()
     object ToggleSidebarCollapsed : MainEvent()
-    data class SelectChannel(val login: String) : MainEvent()
+    data class SelectChannel(val login: String, val scrollToMessageId: String? = null) : MainEvent()
+    data class ToggleLiveNotify(val login: String) : MainEvent()
+    object ClearPendingScrollMessage : MainEvent()
+    object SelectMentionsChannel : MainEvent()
+    object CloseMentionsChannel : MainEvent()
     data class CloseChannel(val login: String) : MainEvent()
     data class ReorderChannels(val fromIndex: Int, val toIndex: Int) : MainEvent()
     data class DropChannelOnFolder(val channelLogin: String, val folderId: String) : MainEvent()
@@ -173,7 +180,6 @@ sealed class MainEvent : UiEvent {
 sealed class MainEffect : UIEffect {
     object NavigateToAuth : MainEffect()
     data class ShowError(val message: String) : MainEffect()
-    data class ShowEmoteUpdate(val text: String) : MainEffect()
     data class IncomingWhisper(val fromDisplayName: String, val text: String) : MainEffect()
     data class MentionToast(
         val channelLogin: String,
@@ -195,7 +201,8 @@ class MainViewModel(
     private val channelFolderRepository: ChannelFolderRepository,
     private val apiClient: TwitchApiClient,
     private val mentionRepository: MentionRepository,
-    private val recentMessagesClient: RecentMessagesClient
+    private val recentMessagesClient: RecentMessagesClient,
+    private val thirdPartyBadgeRepository: io.rudione.chatone.data.repository.ThirdPartyBadgeRepository
 ) : BaseViewModel<MainState, MainEvent, MainEffect>(MainState()) {
 
     val mentionMuteRepository = MentionMuteRepository()
@@ -206,17 +213,23 @@ class MainViewModel(
         private const val KEY_ACTIVE_CHANNEL = "active_channel"
         private const val KEY_FOLDERS = "folders"
         private const val KEY_UNFOLDERED_ORDER = "unfoldered_order_v2"
+        private const val KEY_LIVE_NOTIFY = "live_notify_channels"
+        private const val KEY_WARNED_SCOPES = "warned_missing_scopes"
         private const val LIVE_POLL_INTERVAL_MS = 60_000L
     }
 
     private val settings = Settings()
+
+    private fun uiStrings() =
+        io.rudione.chatone.presentation.theme.i18n.AppStrings.forLocale(
+            settings.getString("language", "en")
+        )
 
     init {
         subscribeToEvents()
         loadAccounts()
         restoreSavedChannels()
         restoreFolders()
-        observeEmoteUpdates()
         observeWhispers()
         observeLiveMentions()
         startLiveStatusPolling()
@@ -228,7 +241,25 @@ class MainViewModel(
             MainEvent.ToggleSidebar -> update { it.copy(sidebarExpanded = !it.sidebarExpanded) }
             MainEvent.CloseSidebar -> update { it.copy(sidebarExpanded = false) }
             MainEvent.ToggleSidebarCollapsed -> update { it.copy(sidebarCollapsed = !it.sidebarCollapsed) }
-            is MainEvent.SelectChannel -> selectChannel(event.login)
+            is MainEvent.SelectChannel -> selectChannel(event.login, event.scrollToMessageId)
+            is MainEvent.ToggleLiveNotify -> {
+                val login = event.login.lowercase()
+                update { st ->
+                    val n = if (login in st.liveNotifyChannels) st.liveNotifyChannels - login
+                    else st.liveNotifyChannels + login
+                    settings.putString(KEY_LIVE_NOTIFY, n.joinToString(","))
+                    st.copy(liveNotifyChannels = n)
+                }
+            }
+            MainEvent.SelectMentionsChannel -> update {
+                it.copy(
+                    mentionsChannelActive = true,
+                    sidebarExpanded = false,
+                    showMentionsFeed = false
+                )
+            }
+            MainEvent.CloseMentionsChannel -> update { it.copy(mentionsChannelActive = false) }
+            MainEvent.ClearPendingScrollMessage -> update { it.copy(pendingScrollMessageId = null) }
             is MainEvent.CloseChannel -> closeChannel(event.login)
             is MainEvent.AddChannel -> addChannel(
                 event.login,
@@ -311,6 +342,7 @@ class MainViewModel(
                     }
                     state.copy(folders = folders)
                 }
+                saveChannelState()
             }
 
             is MainEvent.DropChannelOnFolder -> moveChannelToFolder(
@@ -662,6 +694,7 @@ class MainViewModel(
                 connectChatUseCase(account)
                 update { it.copy(isConnected = true) }
                 launch { emoteRepository.loadGlobalEmotes() }
+                launch { thirdPartyBadgeRepository.loadAll() }
                 launch { sevenTvEventApi.connect() }
                 launch {
                     try {
@@ -671,11 +704,41 @@ class MainViewModel(
                         }
                     } catch (_: Exception) {}
                 }
+                launch { checkTokenScopes(account) }
                 Napier.d("Connected as ${account.login}", tag = TAG)
             } catch (e: Exception) {
                 Napier.e("Failed to connect: ${e.message}", e, tag = TAG)
                 sendEffect(MainEffect.ShowError("Failed to connect: ${e.message}"))
             }
+        }
+    }
+
+    /** Stored tokens keep the scopes they were issued with — after Chatone adds new scopes
+     * (polls, predictions, emotes, channel points…) an OLD token silently 401s on those
+     * endpoints. Detect the drift live and tell the user to re-login instead of letting
+     * features fail mysteriously. */
+    private suspend fun checkTokenScopes(account: TwitchAccount) {
+        try {
+            val r = apiClient.validateToken(account.accessToken)
+            if (r !is io.rudione.chatone.util.Result.Success) return
+            val granted = r.data.scopes.toSet()
+            val missing = io.rudione.chatone.util.AppConfig.REQUIRED_SCOPES.filter { it !in granted }
+            if (missing.isNotEmpty()) {
+                Napier.w("Token missing ${missing.size} scopes: $missing", tag = TAG)
+                val fingerprint = missing.sorted().joinToString(",")
+                if (settings.getStringOrNull(KEY_WARNED_SCOPES) != fingerprint) {
+                    settings.putString(KEY_WARNED_SCOPES, fingerprint)
+                    sendEffect(
+                        MainEffect.ShowError(
+                            uiStrings().tokenStaleWarning.replace("{0}", missing.size.toString())
+                        )
+                    )
+                }
+            } else {
+                settings.remove(KEY_WARNED_SCOPES)
+            }
+        } catch (e: Exception) {
+            Napier.w("Scope check failed: ${e.message}", tag = TAG)
         }
     }
 
@@ -685,6 +748,7 @@ class MainViewModel(
                 chatRepository.connectAnonymous()
                 update { it.copy(isConnected = true) }
                 launch { emoteRepository.loadGlobalEmotes() }
+                launch { thirdPartyBadgeRepository.loadAll() }
                 Napier.d("Connected anonymously", tag = TAG)
             } catch (e: Exception) {
                 Napier.e("Failed to connect anonymously: ${e.message}", e, tag = TAG)
@@ -692,7 +756,7 @@ class MainViewModel(
         }
     }
 
-    private fun selectChannel(login: String) {
+    private fun selectChannel(login: String, scrollToMessageId: String? = null) {
         val normalized = login.lowercase().removePrefix("#")
         val existing = state.value.openChannels.find { it.login == normalized }
         if (existing == null) {
@@ -705,6 +769,8 @@ class MainViewModel(
                 activeChatChannelId = restoredChannelId,
                 sidebarExpanded = false,
                 showMentionsFeed = false,
+                mentionsChannelActive = false,
+                pendingScrollMessageId = scrollToMessageId,
                 openChannels = state.openChannels.map {
                     if (it.login == normalized) it.copy(unreadCount = 0) else it
                 },
@@ -1009,10 +1075,14 @@ class MainViewModel(
             openTabs
         }
 
+        val liveNotify = settings.getStringOrNull(KEY_LIVE_NOTIFY)
+            ?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+
         update { state ->
             state.copy(
                 openChannels = openTabs,
                 unfolderedChannels = unfolderedTabs,
+                liveNotifyChannels = liveNotify,
                 activeChannelLogin = activeChannel ?: openTabs.firstOrNull()?.login
             )
         }
@@ -1046,21 +1116,6 @@ class MainViewModel(
             ?: settings.remove(KEY_ACTIVE_CHANNEL)
         val unfolderedOrder = state.value.unfolderedChannels.joinToString(",") { it.login }
         settings.putString(KEY_UNFOLDERED_ORDER, unfolderedOrder)
-    }
-
-    private fun observeEmoteUpdates() {
-        viewModelScope.launch {
-            sevenTvEventApi.emoteSetUpdates.collect { event ->
-                val text = when (event) {
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteAdded -> "${event.actorName} added emote ${event.emoteName}"
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRemoved -> "${event.actorName} removed emote ${event.emoteName}"
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRenamed -> "${event.actorName} renamed ${event.oldName} to ${event.newName}"
-                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetGranted,
-                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetRevoked -> null
-                }
-                if (text != null) sendEffect(MainEffect.ShowEmoteUpdate(text))
-            }
-        }
     }
 
     private fun startLiveStatusPolling() {
@@ -1104,7 +1159,24 @@ class MainViewModel(
         return logins.toList()
     }
 
+    private var lastLiveLogins: Set<String>? = null
+
     private fun updateLiveStatus(liveLogins: Set<String>) {
+        // Offline→online transition → OS notification, but only for channels the user
+        // explicitly opted into (default off for everyone). First poll only seeds the set.
+        val previous = lastLiveLogins
+        lastLiveLogins = liveLogins
+        if (previous != null) {
+            val notifySet = state.value.liveNotifyChannels
+            (liveLogins - previous).forEach { login ->
+                if (login in notifySet) {
+                    io.rudione.chatone.util.showSystemNotification(
+                        uiStrings().liveNotifyTitle,
+                        uiStrings().liveNotifyBody.replace("{0}", login)
+                    )
+                }
+            }
+        }
         update { state ->
             state.copy(
                 openChannels = state.openChannels.map { ch -> ch.copy(isLive = ch.login.lowercase() in liveLogins) },
@@ -1118,40 +1190,38 @@ class MainViewModel(
 
     private suspend fun fetchAndUpdateProfileImages() {
         val account = state.value.selectedAccount ?: return
-        val channelsToUpdate = state.value.openChannels.filter { it.profileImageUrl.isEmpty() }
+        val channelsToUpdate = getAllChannelLogins().filter { login ->
+            val tab = state.value.openChannels.firstOrNull { it.login.lowercase() == login }
+                ?: state.value.unfolderedChannels.firstOrNull { it.login.lowercase() == login }
+                ?: state.value.folders.firstNotNullOfOrNull { f -> f.channels.firstOrNull { it.login.lowercase() == login } }
+            tab == null || tab.profileImageUrl.isEmpty() || tab.displayName.equals(tab.login, ignoreCase = true)
+        }
         if (channelsToUpdate.isEmpty()) return
         try {
             val result = apiClient.getUsers(
                 accessToken = account.accessToken,
-                logins = channelsToUpdate.map { it.login }.take(100)
+                logins = channelsToUpdate.take(100)
             )
             if (result is Result.Success) {
                 val imageMap =
                     result.data.data.associateBy({ it.login.lowercase() }, { it.profileImageUrl })
+                val nameMap =
+                    result.data.data.associateBy({ it.login.lowercase() }, { it.displayName })
+                fun enrich(ch: ChannelTab): ChannelTab {
+                    val key = ch.login.lowercase()
+                    val url = imageMap[key]
+                    val name = nameMap[key]?.takeIf { it.isNotBlank() }
+                    return ch.copy(
+                        profileImageUrl = if (ch.profileImageUrl.isEmpty() && url != null) url else ch.profileImageUrl,
+                        displayName = if (name != null && ch.displayName.equals(ch.login, ignoreCase = true)) name else ch.displayName
+                    )
+                }
                 update { state ->
                     state.copy(
-                        openChannels = state.openChannels.map { ch ->
-                            imageMap[ch.login]?.let { url ->
-                                ch.copy(
-                                    profileImageUrl = url
-                                )
-                            } ?: ch
-                        },
-                        unfolderedChannels = state.unfolderedChannels.map { ch ->
-                            imageMap[ch.login]?.let { url ->
-                                ch.copy(
-                                    profileImageUrl = url
-                                )
-                            } ?: ch
-                        },
+                        openChannels = state.openChannels.map(::enrich),
+                        unfolderedChannels = state.unfolderedChannels.map(::enrich),
                         folders = state.folders.map { folder ->
-                            folder.copy(channels = folder.channels.map { ch ->
-                                imageMap[ch.login]?.let { url ->
-                                    ch.copy(
-                                        profileImageUrl = url
-                                    )
-                                } ?: ch
-                            })
+                            folder.copy(channels = folder.channels.map(::enrich))
                         }
                     )
                 }
@@ -1292,7 +1362,7 @@ class MainViewModel(
 
             viewModelScope.launch {
                 try {
-                    val messages = recentMessagesClient.getRecentMessages(normalized, limit = 100)
+                    val messages = recentMessagesClient.getRecentMessages(normalized, limit = 100) ?: return@launch
                     messages.forEach { msg ->
                         if (msg.userId == userId) return@forEach
 

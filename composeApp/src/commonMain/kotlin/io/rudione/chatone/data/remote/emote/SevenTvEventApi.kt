@@ -103,6 +103,8 @@ class SevenTvEventApi(
             try {
                 session?.send(Frame.Text(subscribeMsg))
                 Napier.d("Subscribed to emote set: $emoteSetId", tag = TAG)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Napier.e("Failed to subscribe to emote set: ${e.message}", tag = TAG)
             }
@@ -125,6 +127,8 @@ class SevenTvEventApi(
                 """.trimIndent()
                 try {
                     session?.send(Frame.Text(msg))
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Napier.e("Failed to subscribe $type for channel $twitchChannelId: ${e.message}", tag = TAG)
                 }

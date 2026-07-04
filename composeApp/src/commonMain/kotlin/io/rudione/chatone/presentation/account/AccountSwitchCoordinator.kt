@@ -1,6 +1,7 @@
 package io.rudione.chatone.presentation.account
 
 import io.github.aakira.napier.Napier
+import io.rudione.chatone.data.remote.TwitchEventSubClient
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.remote.TwitchPubSubClient
 import io.rudione.chatone.data.repository.EmoteRepository
@@ -16,7 +17,9 @@ class AccountSwitchCoordinator(
     private val accountManager: AccountManager,
     private val ircClient: TwitchIrcClient,
     private val pubSubClient: TwitchPubSubClient,
+    private val eventSubClient: TwitchEventSubClient,
     private val emoteRepository: EmoteRepository,
+    private val perAccountSettings: PerAccountSettingsLoader,
     private val scope: CoroutineScope
 ) {
     companion object { private const val TAG = "AccountSwitch" }
@@ -44,13 +47,32 @@ class AccountSwitchCoordinator(
                 try { pubSubClient.disconnect() } catch (e: Exception) {
                     Napier.w("PubSub disconnect failed: ${e.message}", tag = TAG)
                 }
+                try { eventSubClient.disconnect() } catch (e: Exception) {
+                    Napier.w("EventSub disconnect failed: ${e.message}", tag = TAG)
+                }
                 try { ircClient.disconnect() } catch (e: Exception) {
                     Napier.w("IRC disconnect failed: ${e.message}", tag = TAG)
                 }
 
 
+                val previousId = accountManager.activeAccountId.value
+                if (previousId != account.userId) {
+                    try {
+                        perAccountSettings.captureFor(previousId)
+                    } catch (e: Exception) {
+                        Napier.w("Settings capture failed: ${e.message}", tag = TAG)
+                    }
+                }
+
                 accountManager.setActiveAccount(account.userId)
 
+                if (previousId != account.userId) {
+                    try {
+                        perAccountSettings.applyFor(account.userId)
+                    } catch (e: Exception) {
+                        Napier.w("Settings apply failed: ${e.message}", tag = TAG)
+                    }
+                }
 
                 ircClient.connect(username = account.login, oauthToken = account.accessToken)
 

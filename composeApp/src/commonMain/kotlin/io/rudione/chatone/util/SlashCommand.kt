@@ -2,6 +2,20 @@ package io.rudione.chatone.util
 
 object SlashCommand {
 
+    const val MAX_SPAM_COUNT = 30
+    const val DEFAULT_SPAM_DELAY_MS = 2_000L
+    const val MIN_SPAM_DELAY_MS = 1_100L
+    const val MAX_SPAM_DELAY_MS = 60_000L
+
+    private fun parseDelayMs(token: String): Long? {
+        val t = token.trim().lowercase()
+        return when {
+            t.endsWith("ms") -> t.dropLast(2).toLongOrNull()
+            t.endsWith("s") -> t.dropLast(1).toDoubleOrNull()?.let { (it * 1000).toLong() }
+            else -> null
+        }
+    }
+
     data class CommandInfo(
         val name: String,
         val aliases: List<String>,
@@ -57,8 +71,8 @@ object SlashCommand {
         CommandInfo(
             "pin",
             listOf("pin"),
-            "/pin <messageId>",
-            "Pin a message by ID",
+            "/pin <id|@user|text> [5m|30m|1h|indefinite]",
+            "Pin a message (by id, a user's last message, or pin your own text)",
             requiresMod = true
         ),
         CommandInfo(
@@ -181,6 +195,55 @@ object SlashCommand {
             "Issue a warning",
             requiresMod = true
         ),
+        CommandInfo(
+            "shield",
+            listOf("shield"),
+            "/shield",
+            "Turn Shield Mode on",
+            requiresMod = true
+        ),
+        CommandInfo(
+            "shieldoff",
+            listOf("shieldoff"),
+            "/shieldoff",
+            "Turn Shield Mode off",
+            requiresMod = true
+        ),
+        CommandInfo(
+            "monitor",
+            listOf("monitor"),
+            "/monitor <user>",
+            "Mark a user as monitored",
+            requiresMod = true
+        ),
+        CommandInfo(
+            "unmonitor",
+            listOf("unmonitor"),
+            "/unmonitor <user>",
+            "Remove a user from monitored/restricted",
+            requiresMod = true
+        ),
+        CommandInfo(
+            "restrict",
+            listOf("restrict"),
+            "/restrict <user>",
+            "Mark a user as restricted",
+            requiresMod = true
+        ),
+        CommandInfo(
+            "unrestrict",
+            listOf("unrestrict"),
+            "/unrestrict <user>",
+            "Remove a user from monitored/restricted",
+            requiresMod = true
+        ),
+        CommandInfo(
+            "marker",
+            listOf("marker"),
+            "/marker [description]",
+            "Create a stream marker",
+            requiresBroadcaster = true
+        ),
         CommandInfo("color", listOf("color"), "/color <name|#hex>", "Change your chat color"),
         CommandInfo("me", listOf("me"), "/me <text>", "Action message"),
         CommandInfo("w", listOf("w"), "/w <user> <text>", "Whisper a user"),
@@ -190,8 +253,8 @@ object SlashCommand {
         CommandInfo(
             "spam",
             listOf("spam"),
-            "/spam <count> [delayMs] <message> | /spam stop",
-            "Send a message N times (max 30). Optional 2nd arg = delay in ms (50–60000). /spam stop cancels"
+            "/spam <count> [delay e.g. 2s] <message> | /spam stop",
+            "Send a message N times (max 30). Optional delay with a unit, e.g. 2s or 1500ms (min 1.1s). /spam stop cancels"
         ),
         CommandInfo(
             "poll",
@@ -280,7 +343,7 @@ object SlashCommand {
         object Clear : Parsed()
         data class Raid(val targetLogin: String) : Parsed()
         object UnRaid : Parsed()
-        data class Pin(val messageId: String) : Parsed()
+        data class Pin(val args: String) : Parsed()
         object Unpin : Parsed()
         data class Announce(val text: String, val color: String) : Parsed()
         data class Slow(val seconds: Int) : Parsed()
@@ -300,12 +363,19 @@ object SlashCommand {
         data class Shoutout(val targetLogin: String) : Parsed()
         data class Color(val value: String) : Parsed()
         data class Warn(val targetLogin: String, val reason: String) : Parsed()
+        object Shield : Parsed()
+        object ShieldOff : Parsed()
+        data class Monitor(val targetLogin: String) : Parsed()
+        data class Unmonitor(val targetLogin: String) : Parsed()
+        data class Restrict(val targetLogin: String) : Parsed()
+        data class Unrestrict(val targetLogin: String) : Parsed()
+        data class Marker(val description: String) : Parsed()
         data class Me(val text: String) : Parsed()
         data class Whisper(val targetLogin: String, val text: String) : Parsed()
         data class Block(val targetLogin: String) : Parsed()
         data class Unblock(val targetLogin: String) : Parsed()
         object Help : Parsed()
-        data class Spam(val count: Int, val message: String, val delayMs: Long = 1500L) : Parsed()
+        data class Spam(val count: Int, val message: String, val delayMs: Long = DEFAULT_SPAM_DELAY_MS) : Parsed()
         object SpamStop : Parsed()
         data class Poll(val durationSeconds: Int, val title: String, val choices: List<String>) :
             Parsed()
@@ -374,8 +444,8 @@ object SlashCommand {
 
             "unraid" -> Parsed.UnRaid
             "pin" -> {
-                val t = firstWord()
-                if (t.isEmpty()) Parsed.BadUsage("pin", "/pin <messageId>") else Parsed.Pin(t)
+                if (rest.isEmpty()) Parsed.BadUsage("pin", "/pin <id|@user|text> [5m|30m|1h|indefinite]")
+                else Parsed.Pin(rest)
             }
 
             "unpin" -> Parsed.Unpin
@@ -441,6 +511,18 @@ object SlashCommand {
                 )
                 else Parsed.Warn(t, reason)
             }
+
+            "shield" -> Parsed.Shield
+            "shieldoff" -> Parsed.ShieldOff
+            "monitor" -> firstWord().takeIf { it.isNotEmpty() }?.let { Parsed.Monitor(it) }
+                ?: Parsed.BadUsage("monitor", "/monitor <user>")
+            "unmonitor" -> firstWord().takeIf { it.isNotEmpty() }?.let { Parsed.Unmonitor(it) }
+                ?: Parsed.BadUsage("unmonitor", "/unmonitor <user>")
+            "restrict" -> firstWord().takeIf { it.isNotEmpty() }?.let { Parsed.Restrict(it) }
+                ?: Parsed.BadUsage("restrict", "/restrict <user>")
+            "unrestrict" -> firstWord().takeIf { it.isNotEmpty() }?.let { Parsed.Unrestrict(it) }
+                ?: Parsed.BadUsage("unrestrict", "/unrestrict <user>")
+            "marker" -> Parsed.Marker(rest)
 
             "me" -> rest.takeIf { it.isNotEmpty() }?.let { Parsed.Me(it) } ?: Parsed.BadUsage(
                 "me",
@@ -529,22 +611,25 @@ object SlashCommand {
                 val firstWord = rest.substringBefore(' ').trim()
                 if (firstWord.equals("stop", ignoreCase = true)) Parsed.SpamStop
                 else {
-
                     val parts = rest.split(' ', limit = 3)
                     val count = parts.getOrNull(0)?.toIntOrNull()
-                    val maybeDelay = parts.getOrNull(1)?.toLongOrNull()
+                    val explicitDelay = parts.getOrNull(1)?.let { parseDelayMs(it) }
                     val msg: String
                     val delayMs: Long
-                    if (maybeDelay != null) {
-                        delayMs = maybeDelay.coerceIn(50L, 60_000L)
+                    if (explicitDelay != null) {
+                        delayMs = explicitDelay
                         msg = parts.getOrNull(2)?.trim().orEmpty()
                     } else {
-                        delayMs = 1500L
+                        delayMs = DEFAULT_SPAM_DELAY_MS
                         msg = rest.substringAfter(' ', "").trim()
                     }
                     if (count == null || count <= 0 || msg.isEmpty())
-                        Parsed.BadUsage("spam", "/spam <count> [delayMs] <message>  or  /spam stop")
-                    else Parsed.Spam(count.coerceAtMost(30), msg, delayMs)
+                        Parsed.BadUsage("spam", "/spam <count> [delay e.g. 2s] <message>  or  /spam stop")
+                    else Parsed.Spam(
+                        count.coerceIn(1, MAX_SPAM_COUNT),
+                        msg,
+                        delayMs.coerceIn(MIN_SPAM_DELAY_MS, MAX_SPAM_DELAY_MS)
+                    )
                 }
             }
 
@@ -568,5 +653,19 @@ object SlashCommand {
             'w' -> n * 604_800
             else -> n
         }
+    }
+
+    private val UUID_REGEX =
+        Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+    fun isMessageId(s: String): Boolean = UUID_REGEX.matches(s.trim())
+
+    /** Parses a pin duration token. Returns seconds (0 = indefinite), or null if not a duration. */
+    fun parsePinDuration(token: String): Int? {
+        val t = token.trim().lowercase()
+        if (t.isEmpty()) return null
+        if (t == "0" || t == "indefinite" || t == "forever" || t == "permanent") return 0
+        val secs = parseDuration(t) ?: return null
+        return if (secs in 1..1800) secs else 0
     }
 }

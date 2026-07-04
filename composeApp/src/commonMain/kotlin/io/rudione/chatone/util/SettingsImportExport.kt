@@ -73,7 +73,8 @@ object SettingsImportExport {
         "show_default_ban",
         "disable_scroll_on_alt",
         "link_open_mode",
-        "accent_color_index"
+        "accent_color_index",
+        "image_uploader_config"
     )
 
     fun snapshot(settings: Settings): SettingsBackup {

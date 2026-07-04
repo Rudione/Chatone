@@ -192,19 +192,15 @@ internal fun AutoModMsgItem(
     onDeny: () -> Unit,
     onUsernameClick: () -> Unit = {}
 ) {
-    val bgColor = when (message.status) {
-        DisplayMessage.AutoModMsg.AutoModStatus.PENDING -> MaterialTheme.colorScheme.errorContainer.copy(
-            alpha = 0.15f
-        )
-
-        DisplayMessage.AutoModMsg.AutoModStatus.ALLOWED -> MaterialTheme.colorScheme.primaryContainer.copy(
-            alpha = 0.10f
-        )
-
-        DisplayMessage.AutoModMsg.AutoModStatus.DENIED -> MaterialTheme.colorScheme.surfaceVariant.copy(
-            alpha = 0.10f
-        )
+    val pendingAccent = Color(0xFFE0A12F)
+    val accent = when (message.status) {
+        DisplayMessage.AutoModMsg.AutoModStatus.PENDING -> pendingAccent
+        DisplayMessage.AutoModMsg.AutoModStatus.ALLOWED -> MaterialTheme.colorScheme.primary
+        DisplayMessage.AutoModMsg.AutoModStatus.DENIED -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val bgColor = accent.copy(
+        alpha = if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING) 0.10f else 0.06f
+    )
 
     fun categoryLabel(raw: String?): String? = when (raw?.lowercase()) {
         "aggression" -> "Aggression"; "bullying" -> "Bullying"; "disability" -> "Disability"
@@ -223,184 +219,209 @@ internal fun AutoModMsgItem(
         borderAlphaHigh = 0.25f,
         borderAlphaLow = 0.10f
     ) {
-      BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val compactActions = maxWidth < 320.dp
-        Column(
-            modifier = Modifier.fillMaxWidth().background(bgColor)
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val compactActions = maxWidth < 320.dp
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .drawWithContent {
+                        drawContent()
+                        drawRect(
+                            color = accent.copy(alpha = 0.9f),
+                            size = Size(3.dp.toPx(), size.height)
+                        )
+                    }
+                    .background(bgColor)
+                    .padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)
             ) {
-                Icon(
-                    Icons.Outlined.Info,
-                    contentDescription = null,
-                    modifier = Modifier.size(13.dp),
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    LocalStrings.current.chatAutomodPanel,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                )
-                val label = categoryLabel(message.reasonCategory)
-                if (label != null) {
-                    Spacer(Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
-                        tonalElevation = 0.dp
-                    ) {
-                        val levelDots = message.reasonLevel?.let { lvl ->
-                            " " + "●".repeat(
-                                lvl.coerceIn(
-                                    0,
-                                    4
-                                )
-                            ) + "○".repeat((4 - lvl).coerceIn(0, 4))
-                        } ?: ""
-                        Text(
-                            "$label$levelDots",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-                Spacer(Modifier.weight(1f))
-                if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING && !compactActions) {
-                    TextButton(
-                        onClick = onAllow,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier.height(26.dp),
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Text(
-                            LocalStrings.current.automodAllow,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(Modifier.width(2.dp))
-                    TextButton(
-                        onClick = onDeny,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier.height(26.dp),
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text(
-                            LocalStrings.current.automodDeny,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-            if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING && compactActions) {
-                Spacer(Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val allowBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                    val denyBg = MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(allowBg)
-                            .clickable(onClick = onAllow)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = LocalStrings.current.automodAllow,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            LocalStrings.current.automodAllow,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(denyBg)
-                            .clickable(onClick = onDeny)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = LocalStrings.current.automodDeny,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            LocalStrings.current.automodDeny,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.error,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(5.dp))
-            val nameColor = message.color?.let { hex ->
-                try {
-                    val v = hex.removePrefix("#").toLong(16); Color(
-                        red = ((v shr 16) and 0xFF) / 255f,
-                        green = ((v shr 8) and 0xFF) / 255f,
-                        blue = (v and 0xFF) / 255f
+                    Icon(
+                        Icons.Outlined.Shield,
+                        contentDescription = null,
+                        modifier = Modifier.size(13.dp),
+                        tint = accent
                     )
-                } catch (_: Exception) {
-                    null
-                }
-            } ?: MaterialTheme.colorScheme.primary
-            val msgAlpha =
-                if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.DENIED) 0.4f else 0.9f
-            Row(verticalAlignment = Alignment.Top) {
-                Text(
-                    text = message.displayName,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = nameColor.copy(alpha = msgAlpha),
-                    modifier = Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onUsernameClick
-                    )
-                )
-                Text(
-                    text = ": ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = msgAlpha * 0.6f)
-                )
-                SelectionContainer {
+                    Spacer(Modifier.width(5.dp))
                     Text(
-                        text = message.text,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = msgAlpha)
+                        LocalStrings.current.chatAutomodPanel,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = accent
                     )
+                    val label = categoryLabel(message.reasonCategory)
+                    if (label != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = accent.copy(alpha = 0.16f),
+                            tonalElevation = 0.dp
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = accent
+                                )
+                                message.reasonLevel?.let { lvl ->
+                                    Spacer(Modifier.width(5.dp))
+                                    repeat(4) { i ->
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(horizontal = 0.5.dp)
+                                                .size(4.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(
+                                                    if (i < lvl.coerceIn(0, 4)) accent
+                                                    else accent.copy(alpha = 0.25f)
+                                                )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING && !compactActions) {
+                        TextButton(
+                            onClick = onAllow,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(26.dp),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text(
+                                LocalStrings.current.automodAllow,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(Modifier.width(2.dp))
+                        TextButton(
+                            onClick = onDeny,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(26.dp),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text(
+                                LocalStrings.current.automodDeny,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING && compactActions) {
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val allowBg = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        val denyBg = MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(allowBg)
+                                .clickable(onClick = onAllow)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = LocalStrings.current.automodAllow,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                LocalStrings.current.automodAllow,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(denyBg)
+                                .clickable(onClick = onDeny)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = LocalStrings.current.automodDeny,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                LocalStrings.current.automodDeny,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(5.dp))
+                val automodBg = MaterialTheme.colorScheme.background
+                val nameColor = message.color?.let { hex ->
+                    try {
+                        val v = hex.removePrefix("#").toLong(16)
+                        adjustReadableColor(
+                            Color(
+                                red = ((v shr 16) and 0xFF) / 255f,
+                                green = ((v shr 8) and 0xFF) / 255f,
+                                blue = (v and 0xFF) / 255f
+                            ),
+                            automodBg
+                        )
+                    } catch (_: Exception) {
+                        null
+                    }
+                } ?: MaterialTheme.colorScheme.primary
+                val msgAlpha =
+                    if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.DENIED) 0.4f else 0.9f
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(
+                        text = message.displayName,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = nameColor.copy(alpha = msgAlpha),
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onUsernameClick
+                        )
+                    )
+                    Text(
+                        text = ": ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = msgAlpha * 0.6f)
+                    )
+                    SelectionContainer {
+                        Text(
+                            text = message.text,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = msgAlpha)
+                        )
+                    }
                 }
             }
         }
-      }
     }
 }

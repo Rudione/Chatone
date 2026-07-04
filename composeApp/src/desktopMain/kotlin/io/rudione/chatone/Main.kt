@@ -6,8 +6,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.ui.window.rememberTrayState
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -24,7 +26,10 @@ import io.rudione.chatone.util.WindowsTitleBar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.core.context.startKoin
@@ -45,6 +50,7 @@ private val isMac: Boolean = osName.contains("mac")
 private val isWindows: Boolean = osName.contains("win")
 private val useCustomTitleBar: Boolean = !isMac
 
+@OptIn(FlowPreview::class)
 fun main() {
     System.setProperty("apple.awt.application.appearance", "system")
     System.setProperty("apple.awt.application.name", "Chatone")
@@ -89,7 +95,10 @@ fun main() {
                     position = windowState.position,
                     placement = windowState.placement
                 )
-            }.collect { snap ->
+            }
+                .distinctUntilChanged()
+                .debounce(350)
+                .collect { snap ->
                 if (snap.placement == WindowPlacement.Maximized) {
                     settings.putBoolean(WIN_MAX, true)
                 } else {
@@ -112,6 +121,20 @@ fun main() {
 
         val appIcon = painterResource(Res.drawable.icon)
 
+        val trayState = rememberTrayState()
+        DisposableEffect(trayState) {
+            io.rudione.chatone.util.DesktopTrayHolder.trayState = trayState
+            onDispose { io.rudione.chatone.util.DesktopTrayHolder.trayState = null }
+        }
+        Tray(
+            state = trayState,
+            icon = appIcon,
+            tooltip = "Chatone",
+            menu = {
+                Item("Выход") { exitApplication() }
+            }
+        )
+
         Window(
             onCloseRequest = { exitApplication() },
             title = "Chatone",
@@ -127,6 +150,9 @@ fun main() {
                     override fun windowOpened(e: java.awt.event.WindowEvent) {
                         window.background = NATIVE_BG
                         window.contentPane.background = NATIVE_BG
+                        if (isWindows && useCustomTitleBar) {
+                            WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
+                        }
                         runCatching {
                             window.rootPane.putClientProperty(
                                 "apple.awt.windowAppearance",

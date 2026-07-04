@@ -49,7 +49,16 @@ data class Macro(
     val icon: String = "⚡",
     val steps: List<MacroStep> = emptyList(),
     val pinnedIndex: Int = -1
-)
+) {
+    companion object {
+        const val MAX_MACRO_SLOTS = 7
+
+        fun pinnedFrom(macros: List<Macro>): List<Macro> =
+            macros.filter { it.pinnedIndex in 0 until MAX_MACRO_SLOTS }
+                .sortedBy { it.pinnedIndex }
+                .take(MAX_MACRO_SLOTS)
+    }
+}
 
 @Serializable
 sealed class MacroStep {

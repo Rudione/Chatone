@@ -53,27 +53,46 @@ fun LiquidGlassSurface(
 
     val (alphaHigh, alphaLow) = glassAlphasFromIntensity(effectiveIntensity)
 
-   
+
     val bgLum = baseColor.luminance()
     val bHigh = if (bgLum < 0.25f) 0.30f else 0.08f
     val bLow  = if (bgLum < 0.25f) 0.07f else 0.02f
 
+    val glowEnabled = liveWallpaper.glowEffectsEnabled
+
     Box(
         modifier = modifier
             .clip(shape)
-            .background(
-                Brush.verticalGradient(listOf(
-                    baseColor.copy(alpha = alphaHigh),
-                    baseColor.copy(alpha = alphaLow)
-                ))
-            )
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(listOf(
-                    Color.White.copy(alpha = bHigh),
-                    Color.White.copy(alpha = bLow)
-                )),
-                shape = shape
+            .then(
+                if (glowEnabled) {
+                    Modifier
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    baseColor.copy(alpha = alphaHigh),
+                                    baseColor.copy(alpha = alphaLow)
+                                )
+                            )
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = bHigh),
+                                    Color.White.copy(alpha = bLow)
+                                )
+                            ),
+                            shape = shape
+                        )
+                } else {
+                    Modifier
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            shape = shape
+                        )
+                }
             )
     ) {
         Box(modifier = Modifier.padding(contentPadding)) { content() }

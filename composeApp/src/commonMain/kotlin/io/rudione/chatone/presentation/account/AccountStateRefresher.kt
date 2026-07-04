@@ -44,7 +44,10 @@ class AccountStateRefresher(
             accounts.forEach { acc ->
                 val isValid = when (val r = authRepository.validateToken(acc)) {
                     is Result.Success -> r.data
-                    is Result.Error -> false
+                    is Result.Error -> {
+                        val msg = r.exception.message ?: ""
+                        !(msg.contains("401") || msg.contains("403"))
+                    }
                     Result.Loading -> true
                 }
                 results[acc.userId] = isValid

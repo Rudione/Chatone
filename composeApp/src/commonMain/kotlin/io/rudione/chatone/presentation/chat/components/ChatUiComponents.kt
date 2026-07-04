@@ -5,7 +5,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,10 +44,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 
+private fun formatRemaining(totalSeconds: Long): String {
+    val m = totalSeconds / 60
+    val s = totalSeconds % 60
+    return "$m:${s.toString().padStart(2, '0')}"
+}
+
 @Composable
 internal fun PinnedMessageBar(
     message: DisplayMessage.PrivMsg,
     canUnpin: Boolean,
+    endsAtMs: Long? = null,
     onUnpin: () -> Unit
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -104,6 +113,23 @@ internal fun PinnedMessageBar(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                         maxLines = 2, overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (endsAtMs != null) {
+                    var remainingSec by remember(endsAtMs) {
+                        mutableStateOf((endsAtMs - Clock.System.now().toEpochMilliseconds()) / 1000)
+                    }
+                    LaunchedEffect(endsAtMs) {
+                        while (remainingSec > 0) {
+                            delay(1000)
+                            remainingSec = (endsAtMs - Clock.System.now().toEpochMilliseconds()) / 1000
+                        }
+                    }
+                    Text(
+                        if (remainingSec > 0) formatRemaining(remainingSec) else "0:00",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(end = 6.dp)
                     )
                 }
                 if (canUnpin) IconButton(onClick = onUnpin, modifier = Modifier.size(24.dp)) {
@@ -274,30 +300,41 @@ internal fun HighlightScrollbar(
     }
     Canvas(
         modifier = modifier
+            // Single unified press+drag handler: a plain click jumps to that position (like a
+            // normal scrollbar track click), and dragging from anywhere in the hit area keeps
+            // scrolling relative to the pointer. Previously tap and drag were two separate
+            // pointerInput gesture detectors racing over the same events, which made most of the
+            // bar feel unresponsive and only a thin sliver reliably "catch" the cursor.
             .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val fraction = offset.y / size.height
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val fraction = (down.position.y / size.height).coerceIn(0f, 1f)
                     val target =
-                        (fraction * (messages.size - 1)).toInt().coerceIn(0, messages.lastIndex)
+                        (fraction * (messages.size - 1)).toInt().coerceIn(0, messages.lastIndex.coerceAtLeast(0))
                     coroutineScope.launch { listState.scrollToItem(target) }
+                    down.consume()
+                    var pointerId = down.id
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                        if (!change.pressed) break
+                        if (change.positionChanged()) {
+                            val dragAmountY = change.position.y - change.previousPosition.y
+                            val layoutInfo = listState.layoutInfo
+                            val viewportHeight = layoutInfo.viewportSize.height.toFloat()
+                            val avgHeight =
+                                if (layoutInfo.visibleItemsInfo.isNotEmpty()) layoutInfo.visibleItemsInfo.map { it.size }
+                                    .average().toFloat() else 50f
+                            val totalContentHeight = avgHeight * layoutInfo.totalItemsCount
+                            val scrollRange = (totalContentHeight - viewportHeight).coerceAtLeast(0f)
+                            val scrollDelta =
+                                if (viewportHeight > 0f && scrollRange > 0f) dragAmountY * (scrollRange / viewportHeight) else 0f
+                            coroutineScope.launch { listState.scrollBy(scrollDelta) }
+                            change.consume()
+                        }
+                        pointerId = change.id
+                    }
                 }
-            }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = {}, onDragEnd = {}, onDragCancel = {},
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        val layoutInfo = listState.layoutInfo
-                        val viewportHeight = layoutInfo.viewportSize.height.toFloat()
-                        val avgHeight =
-                            if (layoutInfo.visibleItemsInfo.isNotEmpty()) layoutInfo.visibleItemsInfo.map { it.size }
-                                .average().toFloat() else 50f
-                        val totalContentHeight = avgHeight * layoutInfo.totalItemsCount
-                        val scrollRange = (totalContentHeight - viewportHeight).coerceAtLeast(0f)
-                        val scrollDelta =
-                            if (viewportHeight > 0f && scrollRange > 0f) dragAmount.y * (scrollRange / viewportHeight) else 0f
-                        coroutineScope.launch { listState.scrollBy(scrollDelta) }
-                    })
             }
             .pointerInput(Unit) {
                 awaitPointerEventScope {

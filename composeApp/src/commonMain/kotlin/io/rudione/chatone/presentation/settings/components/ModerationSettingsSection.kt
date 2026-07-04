@@ -2,6 +2,8 @@ package io.rudione.chatone.presentation.settings.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+import io.github.aakira.napier.Napier
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -154,11 +156,12 @@ private fun ModActionButtonsSection(
     var showAddDialog by remember { mutableStateOf(false) }
     var editingButton by remember { mutableStateOf<ModActionButton?>(null) }
 
-    var orderedButtons by remember(state.allModButtons) {
+    var orderedButtons by remember {
         mutableStateOf(state.allModButtons.sortedBy { it.sortOrder })
     }
     var draggedIndex by remember { mutableStateOf<Int?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
+    var preDragOrder by remember { mutableStateOf<List<ModActionButton>?>(null) }
     LaunchedEffect(state.allModButtons) {
         if (draggedIndex == null) {
             orderedButtons = state.allModButtons.sortedBy { it.sortOrder }
@@ -248,6 +251,7 @@ private fun ModActionButtonsSection(
                                 detectDragGestures(
                                     onDragStart = {
                                         val curIdx = orderedButtons.indexOfFirst { it.id == btn.id }
+                                        preDragOrder = orderedButtons
                                         draggedIndex = curIdx
                                         dragOffsetY = 0f
                                     },
@@ -270,11 +274,17 @@ private fun ModActionButtonsSection(
                                     },
                                     onDragEnd = {
                                         draggedIndex = null; dragOffsetY = 0f
+                                        preDragOrder = null
+                                        Napier.d(
+                                            tag = "ModReorder",
+                                            message = "[dragEnd] sending order=${orderedButtons.map { it.id }}"
+                                        )
                                         onEvent(SettingsEvent.OnReorderAllModButtons(orderedButtons))
                                     },
                                     onDragCancel = {
                                         draggedIndex = null; dragOffsetY = 0f
-                                        orderedButtons = state.allModButtons.sortedBy { it.sortOrder }
+                                        preDragOrder?.let { orderedButtons = it }
+                                        preDragOrder = null
                                     }
                                 )
                             }
@@ -325,21 +335,17 @@ private fun ModActionButtonsSection(
                                 )
                             }
                         }
-                        Switch(
+                        io.rudione.chatone.presentation.components.ChatoneSwitch(
                             checked = btn.enabled,
                             onCheckedChange = { enabled ->
-                                val updated = orderedButtons.map {
+                                orderedButtons = orderedButtons.map {
                                     if (it.id == btn.id) it.copy(enabled = enabled) else it
                                 }
-                                orderedButtons = updated
-                                onEvent(SettingsEvent.OnReorderAllModButtons(updated))
+                                onEvent(SettingsEvent.OnSetModButtonEnabled(btn.id, enabled))
                                 when (btn.id) {
                                     "default_delete"  -> onEvent(SettingsEvent.OnShowDefaultDeleteChanged(enabled))
                                     "default_timeout" -> onEvent(SettingsEvent.OnShowDefaultTimeoutChanged(enabled))
                                     "default_ban"     -> onEvent(SettingsEvent.OnShowDefaultBanChanged(enabled))
-                                }
-                                if (!btn.isDefault) {
-                                    onEvent(SettingsEvent.OnUpdateModButton(btn.copy(enabled = enabled)))
                                 }
                             },
                             modifier = Modifier.height(28.dp)
@@ -544,12 +550,12 @@ fun MacrosSection(
                 Text(s.modQuickBar, style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    (0..4).forEach { slot ->
+                    (0 until Macro.MAX_MACRO_SLOTS).forEach { slot ->
                         val macro = state.macros.find { it.pinnedIndex == slot }
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(9.dp))
                                 .background(
                                     if (macro != null) MaterialTheme.colorScheme.primaryContainer
                                     else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
@@ -557,11 +563,11 @@ fun MacrosSection(
                                 .border(1.dp,
                                     if (macro != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                                     else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                                    RoundedCornerShape(10.dp)),
+                                    RoundedCornerShape(9.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (macro != null) {
-                                Text(macro.icon, fontSize = 16.sp)
+                                Text(macro.icon, fontSize = 14.sp)
                             } else {
                                 Text("${slot + 1}", style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
@@ -629,7 +635,7 @@ private fun MacroRow(
     onUnpin: () -> Unit
 ) {
     var showPinMenu by remember { mutableStateOf(false) }
-    val isPinned = macro.pinnedIndex in 0..4
+    val isPinned = macro.pinnedIndex in 0 until Macro.MAX_MACRO_SLOTS
     val s = LocalStrings.current
 
     Row(
@@ -671,7 +677,7 @@ private fun MacroRow(
                     )
                     HorizontalDivider()
                 }
-                (0..4).forEach { slot ->
+                (0 until Macro.MAX_MACRO_SLOTS).forEach { slot ->
                     val slotMacro = pinnedMacros.find { it.pinnedIndex == slot }
                     DropdownMenuItem(
                         text = { Text(s.modSlot.replace("{0}", (slot + 1).toString()) + (slotMacro?.let { s.modSlotName.replace("{0}", it.name) } ?: s.modSlotEmpty)) },
@@ -1296,21 +1302,41 @@ fun SettingsCard(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        tonalElevation = 4.dp,
-        shadowElevation = 2.dp,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-        ),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary)
-            content()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            letterSpacing = 0.8.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f),
+                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.60f)
+                        )
+                    )
+                )
+                .border(
+                    1.dp,
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
+                        )
+                    ),
+                    RoundedCornerShape(16.dp)
+                )
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                content()
+            }
         }
     }
 }

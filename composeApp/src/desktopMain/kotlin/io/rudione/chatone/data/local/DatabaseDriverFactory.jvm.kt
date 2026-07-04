@@ -111,6 +111,14 @@ actual class DatabaseDriverFactory {
         """.trimIndent(), 0)
 
         driver.execute(null, """
+            CREATE TABLE IF NOT EXISTS UserNicknameEntity (
+                twitchUserId TEXT NOT NULL PRIMARY KEY,
+                nickname TEXT NOT NULL DEFAULT '',
+                updatedAt INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent(), 0)
+
+        driver.execute(null, """
             CREATE TABLE IF NOT EXISTS MentionEntity (
                 id TEXT NOT NULL PRIMARY KEY,
                 channelLogin TEXT NOT NULL,

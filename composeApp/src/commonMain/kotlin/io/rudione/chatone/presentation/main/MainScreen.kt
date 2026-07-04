@@ -40,6 +40,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.consumeAllChanges
@@ -67,9 +70,14 @@ import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
+import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsScreen
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.util.GlobalKeyDispatcher
+import io.rudione.chatone.util.HotkeyAction
+import io.rudione.chatone.util.comboFor
 import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
 import io.rudione.chatone.presentation.theme.ChatoneColors
 import io.rudione.chatone.presentation.theme.ChatoneTheme
@@ -87,6 +95,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.hypot
 import io.rudione.chatone.presentation.chat.components.ChattersPanel
 import io.rudione.chatone.presentation.main.components.MentionsFeed
+import io.rudione.chatone.presentation.main.components.MentionTabsBar
 import io.rudione.chatone.presentation.main.components.MentionToast
 import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
 import io.rudione.chatone.presentation.settings.SettingsEffect
@@ -133,18 +142,70 @@ fun MainScreen(
     var showMentionsOverlay by remember { mutableStateOf(false) }
     var mentionToastData by remember { mutableStateOf<Triple<String, String, String>?>(null) }
 
+    val currentHotkeys by rememberUpdatedState(settingsState.hotkeys)
+    val currentNavHidden by rememberUpdatedState(settingsState.navigationHidden)
+    DisposableEffect(Unit) {
+        val handler: (KeyEvent) -> Boolean = handler@{ event ->
+            if (event.type != KeyEventType.KeyDown) return@handler false
+            val hk = currentHotkeys
+            when {
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.TOGGLE_NAVIGATION)) -> {
+                    settingsViewModel.sendEvent(SettingsEvent.OnNavigationHiddenChanged(!currentNavHidden)); true
+                }
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.TOGGLE_SIDEBAR)) -> {
+                    viewModel.sendEvent(MainEvent.ToggleSidebar); true
+                }
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.TOGGLE_MENTIONS)) -> {
+                    viewModel.sendEvent(MainEvent.ToggleMentionsFeed); true
+                }
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.ADD_CHANNEL)) -> {
+                    viewModel.sendEvent(MainEvent.ShowAddChannelDialog); true
+                }
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.OPEN_SETTINGS)) -> {
+                    viewModel.sendEvent(MainEvent.ShowSettings); true
+                }
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.PREV_CHANNEL)) -> {
+                    val st = viewModel.state.value
+                    val logins = st.openChannels.map { it.login }
+                    val idx = logins.indexOf(st.activeChannelLogin)
+                    if (logins.isNotEmpty()) {
+                        val prev = logins[(idx - 1 + logins.size) % logins.size]
+                        viewModel.sendEvent(MainEvent.SelectChannel(prev))
+                    }
+                    true
+                }
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.NEXT_CHANNEL)) -> {
+                    val st = viewModel.state.value
+                    val logins = st.openChannels.map { it.login }
+                    val idx = logins.indexOf(st.activeChannelLogin)
+                    if (logins.isNotEmpty()) {
+                        val next = logins[(idx + 1) % logins.size]
+                        viewModel.sendEvent(MainEvent.SelectChannel(next))
+                    }
+                    true
+                }
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.CLOSE_CHANNEL)) -> {
+                    viewModel.state.value.activeChannelLogin?.let {
+                        viewModel.sendEvent(MainEvent.CloseChannel(it))
+                    }
+                    true
+                }
+                pauseHotkeyMatches(event, hk.comboFor(HotkeyAction.TOGGLE_WHISPERS)) -> {
+                    viewModel.sendEvent(MainEvent.ToggleWhisperPanel); true
+                }
+                else -> false
+            }
+        }
+        val unregister = GlobalKeyDispatcher.register(handler)
+        onDispose { unregister() }
+    }
+
 
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
                 MainEffect.NavigateToAuth -> onNavigateToAuth()
                 is MainEffect.ShowError -> scope.launch { snackbarHostState.showSnackbar(effect.message) }
-                is MainEffect.ShowEmoteUpdate -> scope.launch {
-                    snackbarHostState.showSnackbar(
-                        effect.text
-                    )
-                }
-
                 is MainEffect.IncomingWhisper -> {
                     mentionToastData = Triple(
                         effect.fromDisplayName,
@@ -227,7 +288,9 @@ fun MainScreen(
                         },
                         isWideScreen = wide,
                         wallpaper = wallpaper,
-                        mentionMuteRepository = viewModel.mentionMuteRepository
+                        mentionMuteRepository = viewModel.mentionMuteRepository,
+                        pendingScrollMessageId = state.pendingScrollMessageId,
+                        onScrollToMessageHandled = { viewModel.sendEvent(MainEvent.ClearPendingScrollMessage) }
                     )
                 }
             }
@@ -263,9 +326,15 @@ fun MainScreen(
                         mentionMuteRepository = viewModel.mentionMuteRepository,
                         renderBackground = false,
                         isMultiChat = state.openChannels.size > 1,
-                        viewModel = perPanelViewModel
+                        viewModel = perPanelViewModel,
+                        pendingScrollMessageId = state.pendingScrollMessageId
+                            .takeIf { panelChannel.equals(state.activeChannelLogin, ignoreCase = true) },
+                        onScrollToMessageHandled = { viewModel.sendEvent(MainEvent.ClearPendingScrollMessage) }
                     )
                 }
+
+            val mentionsPanelShowing = !settingsState.navigationHidden && settingsState.mentionTabsEnabled &&
+                state.mentions.any { !it.isRead }
 
             if (isWideScreen) {
                 Row(modifier = Modifier.fillMaxSize()) {
@@ -342,7 +411,7 @@ fun MainScreen(
                                 }
                             }
                         }
-                        if (wallpaper.isActive) {
+                        if (wallpaper.isActive && wallpaper.glowEffectsEnabled) {
                             WallpaperGlowEdge(
                                 dominantColor = wallpaper.dominantColor,
                                 fromRight = true,
@@ -352,8 +421,19 @@ fun MainScreen(
                         }
                     }
                     Column(modifier = Modifier.weight(1f)) {
+                        if (mentionsPanelShowing) {
+                            MentionTabsBar(
+                                mentions = state.mentions,
+                                activeLogin = state.activeChannelLogin,
+                                onSelect = { login, messageId ->
+                                    viewModel.sendEvent(MainEvent.SelectChannel(login, messageId))
+                                    viewModel.sendEvent(MainEvent.MarkChannelMentionsRead(login))
+                                }
+                            )
+                        }
                         val showTabBar =
-                            settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
+                            !settingsState.navigationHidden && !mentionsPanelShowing &&
+                                    settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
                         if (showTabBar && state.openChannels.size > 1) {
                             Box {
                                 ChannelTabBar(
@@ -381,7 +461,7 @@ fun MainScreen(
                                         viewModel.sendEvent(MainEvent.MoveChannelToFolder(login, folderId))
                                     }
                                 )
-                                if (wallpaper.isActive) {
+                                if (wallpaper.isActive && wallpaper.glowEffectsEnabled) {
                                     WallpaperGlowEdge(
                                         dominantColor = wallpaper.dominantColor,
                                         fromRight = false,
@@ -392,7 +472,19 @@ fun MainScreen(
                             }
                         }
                         val activeChannel = state.activeChannelLogin
-                        if (activeChannel != null) {
+                        if (state.mentionsChannelActive) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                MentionsFeed(
+                                    state = state,
+                                    onEvent = { viewModel.sendEvent(it) },
+                                    onChannelClick = { login, messageId ->
+                                        viewModel.sendEvent(MainEvent.SelectChannel(login, messageId))
+                                    },
+                                    fillAvailableSpace = true,
+                                    onCloseClick = { viewModel.sendEvent(MainEvent.CloseMentionsChannel) }
+                                )
+                            }
+                        } else if (activeChannel != null) {
                             ChatBackgroundLayer(
                                 wallpaper = wallpaper,
                                 darkTheme = settingsState.darkTheme,
@@ -418,8 +510,19 @@ fun MainScreen(
                 }
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
+                    if (mentionsPanelShowing) {
+                        MentionTabsBar(
+                            mentions = state.mentions,
+                            activeLogin = state.activeChannelLogin,
+                            onSelect = { login, messageId ->
+                                viewModel.sendEvent(MainEvent.SelectChannel(login, messageId))
+                                viewModel.sendEvent(MainEvent.MarkChannelMentionsRead(login))
+                            }
+                        )
+                    }
                     val showTabBar =
-                        settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
+                        !settingsState.navigationHidden && !mentionsPanelShowing &&
+                                settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
                     if (showTabBar && state.openChannels.size > 1) {
                         Box {
                             ChannelTabBar(
@@ -458,7 +561,19 @@ fun MainScreen(
                         }
                     }
                     val activeChannel = state.activeChannelLogin
-                    if (activeChannel != null) {
+                    if (state.mentionsChannelActive) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            MentionsFeed(
+                                state = state,
+                                onEvent = { viewModel.sendEvent(it) },
+                                onChannelClick = { login, messageId ->
+                                    viewModel.sendEvent(MainEvent.SelectChannel(login, messageId))
+                                },
+                                fillAvailableSpace = true,
+                                onCloseClick = { viewModel.sendEvent(MainEvent.CloseMentionsChannel) }
+                            )
+                        }
+                    } else if (activeChannel != null) {
                         ChatBackgroundLayer(
                             wallpaper = wallpaper,
                             darkTheme = settingsState.darkTheme,
@@ -483,7 +598,8 @@ fun MainScreen(
                 }
 
                 val showMiniRail =
-                    settingsState.channelNavigation != SettingsState.ChannelNavigation.TAB_BAR
+                    !mentionsPanelShowing &&
+                        settingsState.channelNavigation != SettingsState.ChannelNavigation.TAB_BAR
                 if (showMiniRail && !state.sidebarExpanded) {
                     Box {
                         MiniRail(
@@ -526,20 +642,13 @@ fun MainScreen(
                     modifier = Modifier.align(Alignment.TopStart)
                 ) {
                     Box {
-                        GlowSurface(
-                            dominantColor = wallpaper.dominantColor,
-                            intensity = 0.9f,
-                            centerX = 1.2f,
-                            centerY = 0.5f
-                        ) {
-                            ChannelSidebar(
-                                state = state,
-                                onEvent = { event: MainEvent -> viewModel.sendEvent(event) },
-                                isWideScreen = true,
-                                mentionMuteRepository = viewModel.mentionMuteRepository
-                            )
-                        }
-                        if (wallpaper.isActive) {
+                        ChannelSidebar(
+                            state = state,
+                            onEvent = { event: MainEvent -> viewModel.sendEvent(event) },
+                            isWideScreen = false,
+                            mentionMuteRepository = viewModel.mentionMuteRepository
+                        )
+                        if (wallpaper.isActive && wallpaper.glowEffectsEnabled) {
                             WallpaperGlowEdge(
                                 dominantColor = wallpaper.dominantColor,
                                 fromRight = true,
@@ -613,7 +722,7 @@ fun MainScreen(
             MentionsFeed(
                 state = state,
                 onEvent = { viewModel.sendEvent(it) },
-                onChannelClick = { login -> viewModel.sendEvent(MainEvent.SelectChannel(login)) },
+                onChannelClick = { login, messageId -> viewModel.sendEvent(MainEvent.SelectChannel(login, messageId)) },
                 modifier = Modifier.padding(end = 16.dp, bottom = 72.dp)
             )
         }
@@ -703,13 +812,16 @@ private fun MiniRail(
     val railItemCenters = remember { mutableStateMapOf<String, Float>() }
     val miniRailCollapsedFolders = remember { mutableStateListOf<String>() }
     val tooltipOffsetYPx = with(density) { 28.dp.roundToPx() }
+    val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
 
     LiquidGlassSurface(
-        modifier = modifier.padding(8.dp).shadow(
-            8.dp,
-            RoundedCornerShape(16.dp),
-            ambientColor = extra.shadowColor,
-            spotColor = extra.elevatedShadow
+        modifier = modifier.padding(8.dp).then(
+            if (glowEnabled) Modifier.shadow(
+                8.dp,
+                RoundedCornerShape(16.dp),
+                ambientColor = extra.shadowColor,
+                spotColor = extra.elevatedShadow
+            ) else Modifier
         ),
         contentPadding = PaddingValues(2.dp),
         backgroundAlphaHigh = 0.95f,
@@ -1149,20 +1261,39 @@ private fun CompactSidebar(
 ) {
     val extra = ChatoneTheme.extraColors
     val expandedFolders = remember { mutableStateListOf<String>() }
+    val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
+    val compactShape =
+        if (glowEnabled) RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+        else RoundedCornerShape(0.dp)
+    val compactDivider = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
 
     Column(
         modifier = Modifier
             .width(60.dp)
             .fillMaxHeight()
-            .shadow(
-                12.dp,
-                RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp),
-                ambientColor = extra.shadowColor,
-                spotColor = extra.elevatedShadow
+            .then(
+                if (glowEnabled) Modifier.shadow(
+                    12.dp,
+                    compactShape,
+                    ambientColor = extra.shadowColor,
+                    spotColor = extra.elevatedShadow
+                ) else Modifier
             )
-            .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
-            .background(extra.sidebarSurface)
-            .border(1.dp, extra.glassBorder, RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)),
+            .clip(compactShape)
+            .background(
+                if (glowEnabled) extra.sidebarSurface
+                else MaterialTheme.colorScheme.surfaceContainerLow
+            )
+            .then(
+                if (glowEnabled) Modifier.border(1.dp, extra.glassBorder, compactShape)
+                else Modifier.drawBehind {
+                    drawRect(
+                        color = compactDivider,
+                        topLeft = Offset(size.width - 1.dp.toPx(), 0f),
+                        size = androidx.compose.ui.geometry.Size(1.dp.toPx(), size.height)
+                    )
+                }
+            ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(8.dp))
@@ -1508,6 +1639,7 @@ private fun ChannelSidebar(
     val density = LocalDensity.current
 
     var draggedChannelLogin by remember { mutableStateOf<String?>(null) }
+    var draggedChannelSourceFolderId by remember { mutableStateOf<String?>(null) }
     var dragOffsetPx by remember { mutableStateOf(Offset.Zero) }
     var dragStartOffsetPx by remember { mutableStateOf(Offset.Zero) }
     var isDragging by remember { mutableStateOf(false) }
@@ -1522,20 +1654,42 @@ private fun ChannelSidebar(
     val s = LocalStrings.current
     val folderedLogins = state.folders.flatMap { it.channels }.map { it.login }.toSet()
     val filteredUnfoldered = state.unfolderedChannels.filter { it.login !in folderedLogins }
-
+    val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
+    val floating = glowEnabled && isWideScreen
+    val sidebarShape = when {
+        floating -> RoundedCornerShape(18.dp)
+        glowEnabled -> RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+        else -> RoundedCornerShape(0.dp)
+    }
+    val sidebarDivider = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
     Column(
         modifier = Modifier
-            .width(280.dp)
+            .width(256.dp)
             .fillMaxHeight()
-            .shadow(
-                12.dp,
-                RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp),
-                ambientColor = extra.shadowColor,
-                spotColor = extra.elevatedShadow
+            .then(if (floating) Modifier.padding(8.dp) else Modifier)
+            .then(
+                if (floating) Modifier.shadow(
+                    16.dp,
+                    sidebarShape,
+                    ambientColor = extra.shadowColor,
+                    spotColor = extra.elevatedShadow
+                ) else Modifier
             )
-            .clip(RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp))
-            .background(extra.sidebarSurface)
-            .border(1.dp, extra.glassBorder, RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp))
+            .clip(sidebarShape)
+            .background(
+                if (glowEnabled) extra.sidebarSurface
+                else MaterialTheme.colorScheme.surfaceContainerLow
+            )
+            .then(
+                if (glowEnabled) Modifier.border(1.dp, extra.glassBorder, sidebarShape)
+                else Modifier.drawBehind {
+                    drawRect(
+                        color = sidebarDivider,
+                        topLeft = Offset(size.width - 1.dp.toPx(), 0f),
+                        size = androidx.compose.ui.geometry.Size(1.dp.toPx(), size.height)
+                    )
+                }
+            )
             .onGloballyPositioned { sidebarTopLeftInRoot = it.positionInRoot() }
     ) {
         Row(
@@ -1611,6 +1765,7 @@ private fun ChannelSidebar(
                             state.activeChatChannelId in state.moderatedChannelIds
                     Box {
                         var showChannelMenu by remember { mutableStateOf(false) }
+                        var showBadgesBitsStub by remember { mutableStateOf(false) }
                         IconButton(
                             onClick = { showChannelMenu = true },
                             modifier = Modifier.size(26.dp)
@@ -1620,6 +1775,16 @@ private fun ChannelSidebar(
                                 contentDescription = LocalStrings.current.mainChannelOptions,
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (showBadgesBitsStub) {
+                            AlertDialog(
+                                onDismissRequest = { showBadgesBitsStub = false },
+                                title = { Text(LocalStrings.current.mainChannelBadgesBits) },
+                                text = { Text(LocalStrings.current.mainChannelBadgesBitsSoon) },
+                                confirmButton = {
+                                    TextButton(onClick = { showBadgesBitsStub = false }) { Text("OK") }
+                                }
                             )
                         }
                         val activeLogin = state.activeChannelLogin ?: ""
@@ -1671,6 +1836,20 @@ private fun ChannelSidebar(
                                         onEvent(MainEvent.MuteMentionsChannel(activeLogin))
                                         channelMuted = true
                                     }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(LocalStrings.current.mainChannelBadgesBits) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Filled.Star,
+                                        null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showChannelMenu = false
+                                    showBadgesBitsStub = true
                                 }
                             )
                         }
@@ -1747,7 +1926,7 @@ private fun ChannelSidebar(
 
                 if (folder.isExpanded) {
                     folder.channels.forEachIndexed { channelIndex, channel ->
-                        ChannelItem(
+                        ChannelItemWithDrag(
                             channel = channel,
                             isActive = channel.login == state.activeChannelLogin,
                             folders = state.folders,
@@ -1756,7 +1935,59 @@ private fun ChannelSidebar(
                             onClose = { onEvent(MainEvent.CloseChannel(channel.login)) },
                             onMoveToFolder = { folderId ->
                                 onEvent(MainEvent.MoveChannelToFolder(channel.login, folderId))
-                            }
+                            },
+                            liveNotifyEnabled = channel.login.lowercase() in state.liveNotifyChannels,
+                            onToggleLiveNotify = { onEvent(MainEvent.ToggleLiveNotify(channel.login)) },
+                            index = channelIndex,
+                            onDragStart = { rootPos ->
+                                draggedChannelLogin = channel.login
+                                draggedChannelSourceFolderId = folder.id
+                                dragStartOffsetPx = rootPos - sidebarTopLeftInRoot
+                                dragOffsetPx = Offset.Zero
+                                isDragging = true
+                                dragStartIndex = channelIndex
+                                dragOverIndex = null
+                            },
+                            onDrag = { delta ->
+                                dragOffsetPx += delta
+                                val currentPos = dragStartOffsetPx + dragOffsetPx
+
+                                dropTargetFolderId = folderBounds.find { it.rect.contains(currentPos) }?.id
+
+                                val hoveredLogin = channelRectMap.entries
+                                    .firstOrNull { (_, rect) -> rect.contains(currentPos) }?.key
+                                dragOverIndex = if (hoveredLogin != null) {
+                                    folder.channels.indexOfFirst { it.login == hoveredLogin }
+                                        .takeIf { it >= 0 }
+                                } else null
+                            },
+                            onDragEnd = {
+                                val currentPos = dragStartOffsetPx + dragOffsetPx
+                                val hitFolder = folderBounds.find { it.rect.contains(currentPos) }
+                                when {
+                                    hitFolder != null && hitFolder.id != folder.id && draggedChannelLogin != null -> {
+                                        onEvent(MainEvent.MoveChannelToFolder(draggedChannelLogin!!, hitFolder.id))
+                                    }
+                                    dragOverIndex != null && dragStartIndex != null && dragOverIndex != dragStartIndex -> {
+                                        onEvent(MainEvent.ReorderFolderChannels(folder.id, dragStartIndex!!, dragOverIndex!!))
+                                    }
+                                    hitFolder == null && dragOverIndex == null && draggedChannelLogin != null -> {
+                                        onEvent(MainEvent.MoveChannelToFolder(draggedChannelLogin!!, null))
+                                    }
+                                }
+                                draggedChannelLogin = null
+                                draggedChannelSourceFolderId = null
+                                dropTargetFolderId = null
+                                dragOffsetPx = Offset.Zero
+                                dragStartIndex = null
+                                dragOverIndex = null
+                                isDragging = false
+                            },
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .onGloballyPositioned { coords ->
+                                    channelRectMap[channel.login] = coords.boundsInRoot()
+                                }
                         )
                     }
                 }
@@ -1789,6 +2020,8 @@ private fun ChannelSidebar(
                     onMoveToFolder = { folderId ->
                         onEvent(MainEvent.MoveChannelToFolder(channel.login, folderId))
                     },
+                    liveNotifyEnabled = channel.login.lowercase() in state.liveNotifyChannels,
+                    onToggleLiveNotify = { onEvent(MainEvent.ToggleLiveNotify(channel.login)) },
                     index = index,
                     onDragStart = { rootPos ->
                         draggedChannelLogin = channel.login
@@ -1885,7 +2118,8 @@ private fun ChannelSidebar(
 
         TextButton(
             onClick = { onEvent(MainEvent.ToggleMentionsFeed) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(38.dp)
         ) {
             Box {
                 Icon(
@@ -1924,7 +2158,8 @@ private fun ChannelSidebar(
         }
         TextButton(
             onClick = { onEvent(MainEvent.ToggleWhisperPanel) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(38.dp)
         ) {
             Box {
                 Icon(
@@ -1963,7 +2198,8 @@ private fun ChannelSidebar(
         }
         TextButton(
             onClick = { onEvent(MainEvent.ShowSettings) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(38.dp)
         ) {
             Icon(
                 Icons.Outlined.Settings,
@@ -2164,6 +2400,8 @@ private fun ChannelItemWithDrag(
     onClick: () -> Unit,
     onClose: () -> Unit,
     onMoveToFolder: (String?) -> Unit = {},
+    liveNotifyEnabled: Boolean = false,
+    onToggleLiveNotify: () -> Unit = {},
     onDragStart: (Offset) -> Unit,
     onDrag: (Offset) -> Unit,
     onDragEnd: () -> Unit,
@@ -2204,7 +2442,7 @@ private fun ChannelItemWithDrag(
                 )
                 .combinedClickable(
                     onClick = onClick,
-                    onLongClick = { if (folders.isNotEmpty()) showContextMenu = true }
+                    onLongClick = { showContextMenu = true }
                 )
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
@@ -2330,183 +2568,37 @@ private fun ChannelItemWithDrag(
                                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                                     )
                                     LiquidGlassDropdownItem(
-                                        text = LocalStrings.current.mainCloseChannel,
-                                        icon = Icons.Outlined.Close,
+                                        text = if (liveNotifyEnabled)
+                                            LocalStrings.current.mainLiveNotifyOff
+                                        else LocalStrings.current.mainLiveNotifyOn,
+                                        icon = if (liveNotifyEnabled)
+                                            Icons.Filled.Notifications
+                                        else Icons.Outlined.Notifications,
                                         onClick = {
                                             showContextMenu = false
-                                            onClose()
+                                            onToggleLiveNotify()
                                         }
                                     )
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.width(2.dp))
-            }
-            if (isActive) {
-                IconButton(onClick = onClose, modifier = Modifier.size(20.dp)) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Close",
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ChannelItem(
-    channel: ChannelTab,
-    isActive: Boolean,
-    folders: List<ChannelFolder> = emptyList(),
-    currentFolderId: String? = null,
-    onClick: () -> Unit,
-    onClose: () -> Unit,
-    onMoveToFolder: (String?) -> Unit = {}
-) {
-    val uriHandler = LocalUriHandler.current
-    var showContextMenu by remember { mutableStateOf(false) }
-
-    Box {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 1.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(if (isActive) ChatoneTheme.extraColors.sidebarSelected else Color.Transparent)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = { if (folders.isNotEmpty()) showContextMenu = true }
-                )
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
-                                try {
-                                    uriHandler.openUri("https://www.twitch.tv/${channel.login}")
-                                } catch (_: Exception) {
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (channel.isLive) {
-                Box(
-                    modifier = Modifier.size(8.dp).clip(CircleShape)
-                        .background(ChatoneTheme.extraColors.live)
-                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                )
-                Spacer(Modifier.width(6.dp))
-            }
-            if (channel.profileImageUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = channel.profileImageUrl,
-                    contentDescription = channel.displayName,
-                    modifier = Modifier.size(22.dp).clip(CircleShape)
-                )
-            } else {
-                Text(
-                    text = "#",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = channel.displayName,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            if (channel.unreadCount > 0) {
-                Surface(
-                    color = ChatoneTheme.extraColors.live,
-                    shape = CircleShape,
-                    modifier = Modifier.padding(start = 4.dp)
-                ) {
-                    Text(
-                        text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            if (folders.isNotEmpty()) {
-                Box {
-                    IconButton(
-                        onClick = { showContextMenu = true },
-                        modifier = Modifier.size(20.dp)
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.List,
-                            contentDescription = LocalStrings.current.mainMoveToFolder,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
-
-                    if (showContextMenu) {
-                        Popup(
-                            alignment = Alignment.TopEnd,
-                            offset = IntOffset(0, 24),
-                            properties = androidx.compose.ui.window.PopupProperties(
-                                focusable = true,
-                                dismissOnBackPress = true,
-                                dismissOnClickOutside = true
-                            ),
-                            onDismissRequest = { showContextMenu = false }
-                        ) {
-                            LiquidGlassSurface(
-                                modifier = Modifier
-                                    .width(200.dp)
-                                    .zIndex(100f)
-                                    .shadow(16.dp, RoundedCornerShape(12.dp)),
-                                contentPadding = PaddingValues(4.dp),
-                                backgroundAlphaHigh = 0.98f
-                            ) {
-                                Column {
-                                    if (currentFolderId != null) {
+                                    var showQualityMenu by remember { mutableStateOf(false) }
+                                    if (!showQualityMenu) {
                                         LiquidGlassDropdownItem(
-                                            text = LocalStrings.current.mainRemoveFromFolder,
-                                            icon = Icons.Outlined.Close,
-                                            onClick = {
-                                                showContextMenu = false
-                                                onMoveToFolder(null)
-                                            }
+                                            text = LocalStrings.current.mainOpenInPlayer,
+                                            icon = Icons.Outlined.PlayArrow,
+                                            onClick = { showQualityMenu = true }
                                         )
-                                        HorizontalDivider(
-                                            modifier = Modifier.padding(vertical = 4.dp),
-                                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                                        )
+                                    } else {
+                                        listOf("best", "720p60", "480p", "audio_only").forEach { q ->
+                                            LiquidGlassDropdownItem(
+                                                text = "▶ $q",
+                                                icon = Icons.Outlined.PlayArrow,
+                                                onClick = {
+                                                    showContextMenu = false
+                                                    showQualityMenu = false
+                                                    io.rudione.chatone.util.openInStreamlink(channel.login, q)
+                                                }
+                                            )
+                                        }
                                     }
-                                    folders.filter { it.id != currentFolderId }.forEach { folder ->
-                                        LiquidGlassDropdownItem(
-                                            text = folder.name,
-                                            icon = Icons.AutoMirrored.Outlined.List,
-                                            onClick = {
-                                                showContextMenu = false
-                                                onMoveToFolder(folder.id)
-                                            }
-                                        )
-                                    }
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(vertical = 4.dp),
-                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                                    )
                                     LiquidGlassDropdownItem(
                                         text = LocalStrings.current.mainCloseChannel,
                                         icon = Icons.Outlined.Close,
@@ -2581,7 +2673,8 @@ private fun ChannelTabBar(
 
 
     val tabBarWallpaper = LocalWallpaperController.current.state
-    val tabBarBlur = tabBarWallpaper.panelColorConfig.topBarBlurRadius
+    val tabBarBlur =
+        if (tabBarWallpaper.glowEffectsEnabled) tabBarWallpaper.panelColorConfig.topBarBlurRadius else 0f
     val tabBarColor =
         topBarBackgroundColor(tabBarWallpaper, MaterialTheme.colorScheme.surfaceContainer)
 

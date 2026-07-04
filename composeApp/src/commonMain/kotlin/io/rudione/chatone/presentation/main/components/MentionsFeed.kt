@@ -53,8 +53,10 @@ enum class MentionSort { NEWEST, OLDEST, BY_USER, BY_CHANNEL }
 fun MentionsFeed(
     state: MainState,
     onEvent: (MainEvent) -> Unit,
-    onChannelClick: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onChannelClick: (login: String, messageId: String) -> Unit,
+    modifier: Modifier = Modifier,
+    fillAvailableSpace: Boolean = false,
+    onCloseClick: (() -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
     var filter by remember { mutableStateOf(MentionFilter.ALL) }
@@ -101,7 +103,7 @@ fun MentionsFeed(
     }
 
     LiquidGlassSurface(
-        modifier = modifier.width(340.dp).heightIn(max = 520.dp),
+        modifier = if (fillAvailableSpace) modifier.fillMaxSize() else modifier.width(340.dp).heightIn(max = 520.dp),
         shape = RoundedCornerShape(20.dp),
         contentPadding = PaddingValues(0.dp),
         glassIntensity = 0.96f,
@@ -195,7 +197,7 @@ fun MentionsFeed(
                     )
                 }
                 IconButton(
-                    onClick = { onEvent(MainEvent.HideMentionsFeed) },
+                    onClick = { onCloseClick?.invoke() ?: onEvent(MainEvent.HideMentionsFeed) },
                     modifier = Modifier.size(28.dp)
                 ) {
                     Icon(
@@ -275,7 +277,8 @@ fun MentionsFeed(
             } else {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp),
+                    modifier = if (fillAvailableSpace) Modifier.fillMaxWidth().weight(1f)
+                    else Modifier.fillMaxWidth().heightIn(max = 440.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
                     items(displayedMentions, key = { it.messageId }) { entry ->
@@ -283,8 +286,8 @@ fun MentionsFeed(
                             entry = entry,
                             onClick = {
                                 onEvent(MainEvent.MarkChannelMentionsRead(entry.channelLogin))
-                                onChannelClick(entry.channelLogin)
-                                onEvent(MainEvent.HideMentionsFeed)
+                                onChannelClick(entry.channelLogin, entry.messageId)
+                                onCloseClick?.invoke() ?: onEvent(MainEvent.HideMentionsFeed)
                             }
                         )
                     }

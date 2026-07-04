@@ -21,6 +21,8 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
     companion object {
         private const val TAG = "7TV"
         private const val ZERO_WIDTH_FLAG = 1 shl 8
+
+        private val EMOTE_FORMAT_PREFERENCE = listOf("WEBP", "AVIF", "GIF", "PNG")
     }
 
     suspend fun getChannelEmotes(userId: String): List<GenericEmote> {
@@ -76,26 +78,32 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
         val emoteData = data ?: return null
         val host = emoteData.host
         val baseUrl = "https:${host.url}"
-        val webpFiles = host.files.filter { it.format == "WEBP" }
-        if (webpFiles.isEmpty()) return null
 
-        val file1x = webpFiles.find { it.name.contains("1x") }
-        val file2x = webpFiles.find { it.name.contains("2x") }
-        val file3x = webpFiles.find { it.name.contains("4x") }
-            ?: webpFiles.find { it.name.contains("3x") }
+        // Prefer WEBP (decodes on every platform). Fall back to AVIF/GIF/PNG so emotes that
+        // 7TV only ships in a newer format (common for newer/personal emotes) are still shown
+        // instead of being silently dropped — this is why some users' emotes were invisible
+        // here while Chatterino, which also reads AVIF, showed them.
+        val files = EMOTE_FORMAT_PREFERENCE
+            .firstNotNullOfOrNull { fmt -> host.files.filter { it.format == fmt }.takeIf { it.isNotEmpty() } }
+            ?: return null
+
+        val file1x = files.find { it.name.contains("1x") }
+        val file2x = files.find { it.name.contains("2x") }
+        val file3x = files.find { it.name.contains("4x") }
+            ?: files.find { it.name.contains("3x") }
 
         val url1x = file1x?.let { "$baseUrl/${it.name}" }
         val url2x = file2x?.let { "$baseUrl/${it.name}" }
         val url3x = file3x?.let { "$baseUrl/${it.name}" }
 
-        val sizeFile = file2x ?: file1x ?: webpFiles.first()
+        val sizeFile = file2x ?: file1x ?: files.first()
 
         return GenericEmote(
             id = id,
             code = name,
-            url1x = url1x ?: "$baseUrl/${webpFiles.first().name}",
-            url2x = url2x ?: url1x ?: "$baseUrl/${webpFiles.first().name}",
-            url3x = url3x ?: url2x ?: url1x ?: "$baseUrl/${webpFiles.first().name}",
+            url1x = url1x ?: "$baseUrl/${files.first().name}",
+            url2x = url2x ?: url1x ?: "$baseUrl/${files.first().name}",
+            url3x = url3x ?: url2x ?: url1x ?: "$baseUrl/${files.first().name}",
             provider = EmoteProvider.SEVEN_TV,
             isZeroWidth = (flags and ZERO_WIDTH_FLAG) != 0 || (emoteData.flags and ZERO_WIDTH_FLAG) != 0,
             width = sizeFile.width,

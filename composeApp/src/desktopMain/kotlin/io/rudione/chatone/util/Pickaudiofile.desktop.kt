@@ -22,9 +22,23 @@ actual suspend fun pickAudioFile(): String? = withContext(Dispatchers.IO) {
             }
             val dir = dialog.directory ?: return@runCatching null
             val name = dialog.file ?: return@runCatching null
-            File(dir, name).absolutePath
+            val source = File(dir, name)
+            persistMentionSound(source) ?: source.absolutePath
         } finally {
             restore()
         }
     }.getOrNull()
 }
+
+private fun persistMentionSound(source: File): String? = runCatching {
+    if (!source.exists() || !source.canRead()) return@runCatching null
+    val soundsDir = File(System.getProperty("user.home"), ".chatone/sounds")
+    soundsDir.mkdirs()
+    val ext = source.extension.ifBlank { "wav" }
+    val dest = File(soundsDir, "mention_sound_${System.currentTimeMillis()}.$ext")
+    source.copyTo(dest, overwrite = true)
+    soundsDir.listFiles()?.forEach { f ->
+        if (f != dest && f.name.startsWith("mention_sound_")) runCatching { f.delete() }
+    }
+    dest.absolutePath
+}.getOrNull()

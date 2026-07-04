@@ -20,6 +20,7 @@ class AccountManager(private val settings: Settings) {
         private const val KEY_PROXY_PREFIX = "account_proxy_"
         private const val KEY_OVERRIDE_PREFIX = "account_settings_override_"
         private const val KEY_USE_OVERRIDE_PREFIX = "account_use_override_"
+        private const val KEY_GLOBAL_SETTINGS_BASE = "account_global_settings_base"
     }
 
     private val _activeAccountId = MutableStateFlow(settings.getStringOrNull(KEY_ACTIVE_USER_ID) ?: "")
@@ -86,6 +87,14 @@ class AccountManager(private val settings: Settings) {
         if (userId.isBlank()) return
         if (json == null) settings.remove(KEY_OVERRIDE_PREFIX + userId)
         else settings.putString(KEY_OVERRIDE_PREFIX + userId, json)
+    }
+
+    fun getGlobalBaseJson(): String? =
+        settings.getStringOrNull(KEY_GLOBAL_SETTINGS_BASE)
+
+    fun saveGlobalBaseJson(json: String?) {
+        if (json == null) settings.remove(KEY_GLOBAL_SETTINGS_BASE)
+        else settings.putString(KEY_GLOBAL_SETTINGS_BASE, json)
     }
 
     fun deleteAllPerAccountData(userId: String) {

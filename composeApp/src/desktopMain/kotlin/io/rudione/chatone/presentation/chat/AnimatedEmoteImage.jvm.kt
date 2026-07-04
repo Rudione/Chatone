@@ -45,24 +45,38 @@ import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 
 
+private const val FRAME_CACHE_MAX = 150
+private const val FRAME_IDLE_TTL_MS = 5 * 60 * 1000L
+
 private val animatedCache = object : LinkedHashMap<String, AnimatedFrames>(64, 0.75f, true) {
-    override fun removeEldestEntry(eldest: Map.Entry<String, AnimatedFrames>) = size > 150
+    override fun removeEldestEntry(eldest: Map.Entry<String, AnimatedFrames>) = size > FRAME_CACHE_MAX
 }
 private val animatedCacheLock = java.util.concurrent.locks.ReentrantReadWriteLock()
 private val staticUrls = ConcurrentHashMap.newKeySet<String>()
 
-private data class AnimatedFrames(
+private class AnimatedFrames(
     val frames: List<ImageBitmap>,
-    val durations: IntArray
+    val durations: IntArray,
+    @Volatile var lastAccess: Long = System.currentTimeMillis()
 )
+
+// Idle eviction (ImageExpirationPool-style): drop decoded frames not shown for a while
+// so animated emotes don't keep their off-heap pixel buffers alive during idle periods.
+private fun sweepIdleFrames(now: Long) {
+    val it = animatedCache.entries.iterator()
+    while (it.hasNext()) {
+        if (now - it.next().value.lastAccess > FRAME_IDLE_TTL_MS) it.remove()
+    }
+}
 
 @Composable
 actual fun AnimatedEmoteImage(
     url: String,
     contentDescription: String?,
-    modifier: Modifier
+    modifier: Modifier,
+    isScrolling: Boolean
 ) {
-    AnimatedEmoteImageCore(url = url, contentDescription = contentDescription, modifier = modifier)
+    AnimatedEmoteImageCore(url = url, contentDescription = contentDescription, modifier = modifier, isScrolling = isScrolling)
 }
 
 @Composable
@@ -196,7 +210,8 @@ fun AnimatedEmoteImageCore(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     emoteId: String? = null,
-    entranceAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 150)
+    entranceAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 150),
+    isScrolling: Boolean = false
 ) {
     var animData by remember(url) { mutableStateOf<AnimatedFrames?>(animatedCache[url]) }
     var isStatic by remember(url) { mutableStateOf(url in staticUrls) }
@@ -213,6 +228,7 @@ fun AnimatedEmoteImageCore(
                     try { animatedCache[url] } finally { lock.unlock() }
                 }
                 if (cached != null) {
+                    cached.lastAccess = System.currentTimeMillis()
                     animData = cached
                     return@withContext
                 }
@@ -228,26 +244,45 @@ fun AnimatedEmoteImageCore(
                 val data = Data.makeFromBytes(bytes)
                 val codec = Codec.makeFromData(data)
 
-                if (codec.frameCount > 1) {
-                    val infos = codec.framesInfo
-                    val durations = IntArray(codec.frameCount) { i ->
-                        infos[i].duration.coerceAtLeast(16)
+                try {
+                    if (codec.frameCount > 1) {
+                        val imageInfo = codec.imageInfo
+                        val infos = codec.framesInfo
+                        val durations = IntArray(codec.frameCount) { i ->
+                            infos[i].duration.coerceAtLeast(16)
+                        }
+                        val frames = (0 until codec.frameCount).map { i ->
+                            // Decode the frame into a native Skia bitmap, copy it into an
+                            // independent ImageBitmap, then release the native bitmap right away.
+                            // Without bmp.close() the off-heap pixel buffers accumulate and are
+                            // only reclaimed by delayed finalizers — the main cause of the RAM growth.
+                            val bmp = Bitmap()
+                            try {
+                                bmp.allocPixels(imageInfo)
+                                codec.readPixels(bmp, i)
+                                bmp.toComposeImageBitmap()
+                            } finally {
+                                bmp.close()
+                            }
+                        }
+                        val result = AnimatedFrames(frames, durations)
+                        animatedCacheLock.writeLock().let { lock ->
+                            lock.lock()
+                            try {
+                                animatedCache[url] = result
+                                sweepIdleFrames(System.currentTimeMillis())
+                            } finally { lock.unlock() }
+                        }
+                        animData = result
+                    } else {
+                        staticUrls.add(url)
+                        isStatic = true
                     }
-                    val frames = (0 until codec.frameCount).map { i ->
-                        val bmp = Bitmap()
-                        bmp.allocPixels(codec.imageInfo)
-                        codec.readPixels(bmp, i)
-                        bmp.toComposeImageBitmap()
-                    }
-                    val result = AnimatedFrames(frames, durations)
-                    animatedCacheLock.writeLock().let { lock ->
-                        lock.lock()
-                        try { animatedCache[url] = result } finally { lock.unlock() }
-                    }
-                    animData = result
-                } else {
-                    staticUrls.add(url)
-                    isStatic = true
+                } finally {
+                    // Release the native decoder and the encoded-data buffer deterministically
+                    // instead of waiting for the GC/finalizer to run.
+                    codec.close()
+                    data.close()
                 }
             } catch (_: Exception) {
                 staticUrls.add(url)
@@ -274,7 +309,10 @@ fun AnimatedEmoteImageCore(
 
     val data = animData
     if (data != null && data.frames.isNotEmpty()) {
-        LaunchedEffect(data) {
+        LaunchedEffect(data, isScrolling) {
+            // Freeze on the current frame while the list is scrolling — advancing frames
+            // (and the recomposition each advance triggers) is the bulk of the scroll cost.
+            if (isScrolling) return@LaunchedEffect
             while (isActive) {
                 val frameDuration = data.durations.getOrElse(currentFrame) { 100 }
                 delay(frameDuration.toLong())

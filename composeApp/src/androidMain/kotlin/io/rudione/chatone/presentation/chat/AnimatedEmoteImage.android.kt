@@ -8,8 +8,11 @@ import coil3.compose.AsyncImage
 actual fun AnimatedEmoteImage(
     url: String,
     contentDescription: String?,
-    modifier: Modifier
+    modifier: Modifier,
+    isScrolling: Boolean
 ) {
+    // Coil already throttles animated-image decoding/playback on Android, so there is
+    // nothing extra to pause here; isScrolling is accepted to satisfy the expect contract.
     AsyncImage(
         model = url,
         contentDescription = contentDescription,

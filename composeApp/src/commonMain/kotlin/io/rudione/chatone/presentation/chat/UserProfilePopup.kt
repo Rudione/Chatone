@@ -1,7 +1,11 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,12 +23,26 @@ import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -42,6 +60,7 @@ import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.domain.model.SevenTvCosmetics
+import io.rudione.chatone.presentation.components.ExpressiveCheckbox
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.MessageToken
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
@@ -51,7 +70,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun UserProfilePopup(
     userId: String,
@@ -98,6 +117,8 @@ fun UserProfilePopup(
     var fetchedAvatarUrl by remember(userId) { mutableStateOf(profileImageUrl) }
     var fetchedCreatedAt by remember(userId) { mutableStateOf(createdAt) }
     var followedAt by remember(userId) { mutableStateOf<String?>(null) }
+    var subAge by remember(userId) { mutableStateOf<io.rudione.chatone.data.remote.SubAgeInfo?>(null) }
+    val ivrApiClient: io.rudione.chatone.data.remote.IvrApiClient = koinInject()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -106,13 +127,16 @@ fun UserProfilePopup(
             .filterIsInstance<DisplayMessage.PrivMsg>()
             .filter { it.userId == userId }
             .takeLast(1000)
-            .reversed()
     }
 
     LaunchedEffect(userId) {
         fetchedAvatarUrl = profileImageUrl
         fetchedCreatedAt = createdAt
         followedAt = null
+        subAge = null
+        if (username.isNotEmpty() && channelLogin.isNotEmpty()) {
+            launch { subAge = ivrApiClient.getSubAge(username, channelLogin) }
+        }
 
         val existing = noteRepository.getNote(userId)
         noteText = existing ?: ""
@@ -166,7 +190,24 @@ fun UserProfilePopup(
 
     Popup(onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
         Card(
-            modifier = Modifier.width(320.dp).padding(8.dp),
+            modifier = Modifier.width(320.dp).padding(8.dp)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown || !event.isAltPressed) return@onPreviewKeyEvent false
+                    if (!showModActions || isBroadcaster) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.B -> { onBan(); onDismiss(); true }
+                        Key.U -> { onUnban(); onDismiss(); true }
+                        Key.W -> { onWhisper(); onDismiss(); true }
+                        Key.K -> { if (isBlocked) onUnblock() else onBlock(); onDismiss(); true }
+                        Key.M -> if (currentUserIsBroadcaster) {
+                            if (isModerator) onUnmod() else onMod(); onDismiss(); true
+                        } else false
+                        Key.V -> if (currentUserIsBroadcaster) {
+                            if (isVip) onUnvip() else onVip(); onDismiss(); true
+                        } else false
+                        else -> false
+                    }
+                },
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
@@ -186,59 +227,17 @@ fun UserProfilePopup(
                     onDetach = onDetach,
                     onDismiss = onDismiss
                 )
-                TabRow(
-                    selectedTabIndex = selectedTab, containerColor = Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                    divider = {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outline.copy(
-                                alpha = 0.2f
-                            )
-                        )
-                    }) {
-                    Tab(
-                        selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                        text = {
-                            Text(
-                                LocalStrings.current.profileTabUsercard, style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        })
-                    Tab(
-                        selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    LocalStrings.current.profileTabMessages, style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal
-                                )
-                                if (userMessages.isNotEmpty()) {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = CircleShape
-                                    ) {
-                                        Text(
-                                            "${userMessages.size}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onPrimary,
-                                            modifier = Modifier.padding(
-                                                horizontal = 5.dp,
-                                                vertical = 1.dp
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                        })
-                }
+                CompactProfileTabs(
+                    selectedTab = selectedTab,
+                    onSelect = { selectedTab = it },
+                    messagesCount = userMessages.size
+                )
 
                 when (selectedTab) {
                     0 -> UsercardTab(
                         userId = userId,
                         fetchedCreatedAt = fetchedCreatedAt,
+                        subAge = subAge,
                         followedAt = followedAt,
                         noteText = noteText,
                         isNoteLoaded = isNoteLoaded,
@@ -287,6 +286,7 @@ internal fun UsercardTab(
     userId: String,
     fetchedCreatedAt: String,
     followedAt: String?,
+    subAge: io.rudione.chatone.data.remote.SubAgeInfo? = null,
     noteText: String,
     isNoteLoaded: Boolean,
     noteRepository: UserNoteRepository,
@@ -315,7 +315,7 @@ internal fun UsercardTab(
     username: String = "",
     mentionMuteRepository: io.rudione.chatone.data.repository.MentionMuteRepository? = null
 ) {
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
         if (fetchedCreatedAt.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -343,94 +343,162 @@ internal fun UsercardTab(
                 )
             }
         }
-
-        if (isNoteLoaded) {
-            Spacer(Modifier.height(10.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(Modifier.height(8.dp))
-
-            var noteExpanded by remember { mutableStateOf(noteText.isNotEmpty()) }
-
-            if (noteText.isNotEmpty() || noteExpanded) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+        subAge?.let { sa ->
+            val subLine = when {
+                sa.hidden -> LocalStrings.current.profileSubAgeHidden
+                sa.cumulativeMonths > 0 -> buildString {
+                    append(
+                        LocalStrings.current.profileSubAgeMonths
+                            .replace("{0}", sa.cumulativeMonths.toString())
+                    )
+                    sa.tier?.let { append(" · Tier $it") }
+                    if (sa.streakMonths > 1) {
+                        append(" · ")
+                        append(
+                            LocalStrings.current.profileSubAgeStreak
+                                .replace("{0}", sa.streakMonths.toString())
+                        )
+                    }
+                }
+                else -> null
+            }
+            if (subLine != null) {
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Outlined.Edit,
-                        null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        Icons.Filled.Star, null, modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        LocalStrings.current.profileNote,
-                        style = MaterialTheme.typography.labelMedium,
+                        subLine, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.weight(1f))
-                    if (noteText.isNotEmpty()) {
-                        TextButton(
-                            onClick = { clipboardManager.setText(AnnotatedString(noteText)) },
-                            modifier = Modifier.height(24.dp),
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                        ) {
-                            Text(
-                                LocalStrings.current.profileNoteCopy,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                }
+            }
+        }
+
+        if (isNoteLoaded) {
+            Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            Spacer(Modifier.height(6.dp))
+
+            val nicknameRepository: io.rudione.chatone.data.repository.NicknameRepository =
+                org.koin.compose.koinInject()
+            var nicknameText by remember(userId) {
+                mutableStateOf(nicknameRepository.getNickname(userId) ?: "")
+            }
+            // Note and local nickname share one compact field, switched by the chip row —
+            // two stacked 56dp OutlinedTextFields made the card twice as tall as needed.
+            var localTab by remember { mutableStateOf(0) }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                @Composable
+                fun chip(index: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, filled: Boolean) {
+                    val selected = localTab == index
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                else Color.Transparent
                             )
-                        }
-                        IconButton(
-                            onClick = onShowDeleteConfirmation,
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.Delete,
-                                null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.error
+                            .border(
+                                1.dp,
+                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .clickable { localTab = index }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            icon, null,
+                            modifier = Modifier.size(12.dp),
+                            tint = if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (filled) {
+                            Box(
+                                Modifier.size(5.dp).clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
                             )
                         }
                     }
                 }
-                Spacer(Modifier.height(4.dp))
-                OutlinedTextField(
+                chip(0, Icons.Outlined.Edit, LocalStrings.current.profileNote, noteText.isNotEmpty())
+                chip(1, Icons.Outlined.Person, LocalStrings.current.profileNickname, nicknameText.isNotEmpty())
+                Spacer(Modifier.weight(1f))
+                if (localTab == 0 && noteText.isNotEmpty()) {
+                    IconButton(
+                        onClick = { clipboardManager.setText(AnnotatedString(noteText)) },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Email, null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = onShowDeleteConfirmation, modifier = Modifier.size(22.dp)) {
+                        Icon(
+                            Icons.Outlined.Delete, null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                if (localTab == 1 && nicknameText.isNotEmpty()) {
+                    IconButton(
+                        onClick = {
+                            nicknameRepository.deleteNickname(userId)
+                            nicknameText = ""
+                        },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Delete, null,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(5.dp))
+            if (localTab == 0) {
+                CompactModField(
                     value = noteText,
                     onValueChange = { newText ->
                         onNoteChange(newText)
                         if (newText.isNotBlank()) noteRepository.saveNote(userId, newText)
                         else if (newText.isEmpty()) noteRepository.deleteNote(userId)
                     },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 16.dp, max = 72.dp),
-                    placeholder = {
-                        Text(
-                            LocalStrings.current.profileNotePlaceholder,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    },
-                    textStyle = MaterialTheme.typography.bodySmall,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                    )
+                    placeholder = LocalStrings.current.profileNotePlaceholder,
+                    modifier = Modifier.fillMaxWidth()
                 )
             } else {
-                TextButton(
-                    onClick = { noteExpanded = true },
-                    modifier = Modifier.height(28.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                ) {
-                    Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(13.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        LocalStrings.current.profileNote,
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                }
+                CompactModField(
+                    value = nicknameText,
+                    onValueChange = { newText ->
+                        nicknameText = newText
+                        if (newText.isNotBlank()) nicknameRepository.saveNickname(userId, newText)
+                        else nicknameRepository.deleteNickname(userId)
+                    },
+                    placeholder = LocalStrings.current.profileNicknamePlaceholder,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 
@@ -451,140 +519,71 @@ internal fun UsercardTab(
 
             val s = LocalStrings.current
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = isMutedGlobally,
-                    onCheckedChange = { checked ->
-                        isMutedGlobally = checked
-                        if (checked) mentionMuteRepository.muteUser(username)
-                        else mentionMuteRepository.unmuteUser(username)
-                    },
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    s.profileMuteNotificationsGlobally,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            if (channelLogin.isNotEmpty()) {
-                Spacer(Modifier.height(2.dp))
+            @Composable
+            fun muteChip(label: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = isMutedInChannel,
-                        onCheckedChange = { checked ->
-                            isMutedInChannel = checked
-                            if (checked) mentionMuteRepository.muteUserInChannel(username, channelLogin)
-                            else mentionMuteRepository.unmuteUserInChannel(username, channelLogin)
-                        },
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        s.profileMuteNotificationsInChannel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(10.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-        Spacer(Modifier.height(6.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedButton(
-                onClick = { onWhisper(); onDismiss() },
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                Icon(Icons.Outlined.MailOutline, null, modifier = Modifier.size(15.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(LocalStrings.current.profileSendWhisper, style = MaterialTheme.typography.labelSmall)
-            }
-
-            if (!isBroadcaster) {
-                var showBlockConfirm by remember { mutableStateOf(false) }
-                if (showBlockConfirm) {
-                    val confirmTitle = if (isBlocked)
-                        LocalStrings.current.profileUnblockConfirmTitle
-                    else
-                        LocalStrings.current.profileBlockConfirmTitle
-                    AlertDialog(
-                        onDismissRequest = { showBlockConfirm = false },
-                        title = { Text(confirmTitle, style = MaterialTheme.typography.titleSmall) },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                if (isBlocked) onUnblock() else onBlock()
-                                showBlockConfirm = false
-                                onDismiss()
-                            }, colors = ButtonDefaults.textButtonColors(
-                                contentColor = if (isBlocked) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.error
-                            )) {
-                                Text(if (isBlocked) LocalStrings.current.unblockUser else LocalStrings.current.blockUser)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showBlockConfirm = false }) {
-                                Text(LocalStrings.current.cancel)
-                            }
-                        }
-                    )
-                }
-                OutlinedButton(
-                    onClick = { showBlockConfirm = true },
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (isBlocked) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
-                    )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(
+                            if (checked) MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                            else Color.Transparent
+                        )
+                        .border(
+                            1.dp,
+                            if (checked) MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                            RoundedCornerShape(7.dp)
+                        )
+                        .clickable { onToggle(!checked) }
+                        .padding(horizontal = 7.dp, vertical = 3.dp)
                 ) {
                     Icon(
-                        if (isBlocked) Icons.Outlined.LockOpen else Icons.Outlined.Block,
-                        null, modifier = Modifier.size(15.dp)
+                        if (checked) Icons.Outlined.NotificationsOff else Icons.Outlined.Notifications,
+                        null,
+                        modifier = Modifier.size(11.dp),
+                        tint = if (checked) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.width(4.dp))
                     Text(
-                        if (isBlocked) LocalStrings.current.profileUnblock else LocalStrings.current.profileBlock,
-                        style = MaterialTheme.typography.labelSmall
+                        label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (checked) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
-        }
-
-        if (showModActions && !isBroadcaster) {
-            Spacer(Modifier.height(4.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                LocalStrings.current.profileSectionModeration, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                letterSpacing = 1.sp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
 
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                muteChip(s.profileMuteChipGlobal, isMutedGlobally) { checked ->
+                    isMutedGlobally = checked
+                    if (checked) mentionMuteRepository.muteUser(username)
+                    else mentionMuteRepository.unmuteUser(username)
+                }
+                if (channelLogin.isNotEmpty()) {
+                    muteChip(s.profileMuteChipChannel, isMutedInChannel) { checked ->
+                        isMutedInChannel = checked
+                        if (checked) mentionMuteRepository.muteUserInChannel(username, channelLogin)
+                        else mentionMuteRepository.unmuteUserInChannel(username, channelLogin)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        Spacer(Modifier.height(5.dp))
+
+        if (showModActions && !isBroadcaster) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 listOf(
                     1 to "1s",
@@ -601,69 +600,81 @@ internal fun UsercardTab(
                     TimeoutChip(label, sec, onTimeout, onDismiss)
                 }
             }
+            Spacer(Modifier.height(5.dp))
+        }
 
-            Spacer(Modifier.height(8.dp))
-
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilledTonalButton(
-                    onClick = { onBan(); onDismiss() },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = ChatoneTheme.extraColors.modBan.copy(alpha = 0.15f),
-                        contentColor = ChatoneTheme.extraColors.modBan
-                    ),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Icon(Icons.Filled.Close, null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(LocalStrings.current.profileBan, style = MaterialTheme.typography.labelMedium)
+        var showBlockConfirm by remember { mutableStateOf(false) }
+        if (showBlockConfirm) {
+            val confirmTitle = if (isBlocked)
+                LocalStrings.current.profileUnblockConfirmTitle
+            else
+                LocalStrings.current.profileBlockConfirmTitle
+            AlertDialog(
+                onDismissRequest = { showBlockConfirm = false },
+                title = { Text(confirmTitle, style = MaterialTheme.typography.titleSmall) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (isBlocked) onUnblock() else onBlock()
+                        showBlockConfirm = false
+                        onDismiss()
+                    }, colors = ButtonDefaults.textButtonColors(
+                        contentColor = if (isBlocked) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error
+                    )) {
+                        Text(if (isBlocked) LocalStrings.current.unblockUser else LocalStrings.current.blockUser)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBlockConfirm = false }) {
+                        Text(LocalStrings.current.cancel)
+                    }
                 }
-                FilledTonalButton(
-                    onClick = { onUnban(); onDismiss() },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = ChatoneTheme.extraColors.modUnban.copy(alpha = 0.15f),
-                        contentColor = ChatoneTheme.extraColors.modUnban
-                    ),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Icon(Icons.Outlined.CheckCircle, null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(LocalStrings.current.profileUnban, style = MaterialTheme.typography.labelMedium)
-                }
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            ModIconChip(
+                icon = Icons.Outlined.MailOutline,
+                tint = MaterialTheme.colorScheme.primary,
+                contentDescription = LocalStrings.current.profileSendWhisper,
+                onClick = { onWhisper(); onDismiss() }
+            )
+            if (!isBroadcaster) {
+                ModIconChip(
+                    icon = if (isBlocked) Icons.Outlined.LockOpen else Icons.Outlined.Block,
+                    tint = if (isBlocked) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.error,
+                    contentDescription = if (isBlocked) LocalStrings.current.profileUnblock
+                    else LocalStrings.current.profileBlock,
+                    onClick = { showBlockConfirm = true }
+                )
             }
-
-
-            if (currentUserIsBroadcaster) {
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { if (isModerator) onUnmod() else onMod(); onDismiss() },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            if (isModerator) "Unmod" else "Mod",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
-                    OutlinedButton(
-                        onClick = { if (isVip) onUnvip() else onVip(); onDismiss() },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            if (isVip) "Un-VIP" else "VIP",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
+            if (showModActions && !isBroadcaster) {
+                ModIconChip(
+                    icon = Icons.Filled.Close,
+                    tint = ChatoneTheme.extraColors.modBan,
+                    contentDescription = LocalStrings.current.profileBan,
+                    onClick = { onBan(); onDismiss() }
+                )
+                ModIconChip(
+                    icon = Icons.Outlined.CheckCircle,
+                    tint = ChatoneTheme.extraColors.modUnban,
+                    contentDescription = LocalStrings.current.profileUnban,
+                    onClick = { onUnban(); onDismiss() }
+                )
+                if (currentUserIsBroadcaster) {
+                    ModIconChip(
+                        icon = if (isModerator) Icons.Filled.Shield else Icons.Outlined.Shield,
+                        tint = ChatoneTheme.extraColors.connected,
+                        contentDescription = if (isModerator) "Unmod" else "Mod",
+                        onClick = { if (isModerator) onUnmod() else onMod(); onDismiss() }
+                    )
+                    ModIconChip(
+                        icon = if (isVip) Icons.Filled.WorkspacePremium else Icons.Outlined.WorkspacePremium,
+                        tint = Color(0xFFE005B9),
+                        contentDescription = if (isVip) "Un-VIP" else "VIP",
+                        onClick = { if (isVip) onUnvip() else onVip(); onDismiss() }
+                    )
                 }
             }
         }
@@ -699,6 +710,9 @@ internal fun MessagesTab(
             }
         }
     } else {
+        LaunchedEffect(messages.size) {
+            if (messages.isNotEmpty()) listState.scrollToItem(messages.lastIndex)
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 360.dp),
@@ -729,26 +743,71 @@ internal fun MessageHistoryItem(message: DisplayMessage.PrivMsg, nameColor: Colo
             }
         }
     }
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
-            .background(
-                if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+    val bodyColor = if (message.isDeleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
+    else if (message.isAction) nameColor else MaterialTheme.colorScheme.onSurface
+    val deletedLabel = LocalStrings.current.profileMessageDeleted
+    val line = buildAnnotatedString {
+        withStyle(SpanStyle(color = nameColor, fontWeight = FontWeight.SemiBold)) {
+            append(message.displayName)
+        }
+        withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))) {
+            append(": ")
+        }
+        withStyle(
+            SpanStyle(
+                color = bodyColor,
+                textDecoration = if (message.isDeleted) TextDecoration.LineThrough else null
             )
-            .padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.Top
-    ) {
-        Text(
-            timeText, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.padding(top = 1.dp, end = 6.dp)
-        )
-        Text(
-            rawText.ifEmpty { if (message.isDeleted) "message deleted" else "" },
-            style = if (message.isDeleted) MaterialTheme.typography.bodySmall.copy(textDecoration = TextDecoration.LineThrough)
-            else MaterialTheme.typography.bodySmall,
-            color = if (message.isDeleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
-            else if (message.isAction) nameColor else MaterialTheme.colorScheme.onSurface
-        )
+        ) {
+            append(rawText.ifEmpty { if (message.isDeleted) deletedLabel else "" })
+        }
+    }
+    var showCopyMenu by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    Box {
+        Row(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
+                .background(
+                    if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
+                )
+                .pointerInput(message.id) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type == PointerEventType.Press &&
+                                event.buttons.isSecondaryPressed
+                            ) {
+                                showCopyMenu = true
+                            }
+                        }
+                    }
+                }
+                .padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.Top
+        ) {
+            Text(
+                timeText, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.padding(top = 1.dp, end = 6.dp)
+            )
+            Text(line, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        }
+        DropdownMenu(expanded = showCopyMenu, onDismissRequest = { showCopyMenu = false }) {
+            DropdownMenuItem(
+                text = { Text(LocalStrings.current.chatCopyMessage, style = MaterialTheme.typography.bodySmall) },
+                onClick = {
+                    showCopyMenu = false
+                    clipboard.setText(AnnotatedString(rawText))
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(LocalStrings.current.chatCopyUsername, style = MaterialTheme.typography.bodySmall) },
+                onClick = {
+                    showCopyMenu = false
+                    clipboard.setText(AnnotatedString(message.displayName))
+                }
+            )
+        }
     }
 }
 
@@ -758,6 +817,78 @@ internal fun formatMessageTime(timestamp: Long): String {
     return "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
 }
 
+
+@Composable
+internal fun CompactProfileTabs(
+    selectedTab: Int,
+    onSelect: (Int) -> Unit,
+    messagesCount: Int = 0
+) {
+    val s = LocalStrings.current
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            @Composable
+            fun tab(index: Int, label: String, badge: Int = 0) {
+                val selected = selectedTab == index
+                val labelColor by animateColorAsState(
+                    if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                val indicatorWidth by animateDpAsState(if (selected) 16.dp else 0.dp)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                        .clickable { onSelect(index) }
+                        .padding(horizontal = 10.dp)
+                        .padding(top = 5.dp, bottom = 2.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                            color = labelColor
+                        )
+                        if (badge > 0) {
+                            Text(
+                                "$badge",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.sp,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+                                    )
+                                    .padding(horizontal = 4.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Box(
+                        Modifier
+                            .width(indicatorWidth)
+                            .height(2.dp)
+                            .clip(RoundedCornerShape(1.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
+            }
+            tab(0, s.profileTabUsercard)
+            tab(1, s.profileTabMessages, messagesCount)
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+    }
+}
 
 @Composable
 internal fun RoleBadge(label: String, color: Color) {
@@ -779,21 +910,76 @@ internal fun TimeoutChip(
     onTimeout: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    Surface(
-        onClick = { onTimeout(seconds); onDismiss() },
-        shape = RoundedCornerShape(8.dp),
-        color = ChatoneTheme.extraColors.modTimeout.copy(alpha = 0.1f),
-        modifier = Modifier.border(
-            0.5.dp,
-            ChatoneTheme.extraColors.modTimeout.copy(alpha = 0.3f),
-            RoundedCornerShape(8.dp)
-        )
+    // Custom clickable Box instead of Surface(onClick): Surface enforces a 48dp
+    // minimum touch target, which blew the chips apart with invisible gaps.
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(ChatoneTheme.extraColors.modTimeout.copy(alpha = 0.14f))
+            .clickable { onTimeout(seconds); onDismiss() }
+            .padding(horizontal = 6.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             label, style = MaterialTheme.typography.labelSmall,
-            color = ChatoneTheme.extraColors.modTimeout, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            color = ChatoneTheme.extraColors.modTimeout, fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+@Composable
+internal fun MiniActionButton(
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
+        color = color.copy(alpha = 0.14f),
+        contentColor = color,
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(icon, null, modifier = Modifier.size(14.dp), tint = color)
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+internal fun ModIconChip(
+    icon: ImageVector,
+    tint: Color,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .size(26.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(tint.copy(alpha = 0.14f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(15.dp), tint = tint)
     }
 }
 
@@ -913,22 +1099,11 @@ fun UserProfileContent(
             showIconDetached = false
         )
 
-        TabRow(
-            selectedTabIndex = selectedTab, containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.primary,
-            divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)) }) {
-            Tab(
-                selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                text = { Text(LocalStrings.current.profileTabUsercard, style = MaterialTheme.typography.labelMedium) })
-            Tab(
-                selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                text = {
-                    Text(
-                        LocalStrings.current.profileTabMessagesCount.replace("{0}", userMessages.size.toString()),
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                })
-        }
+        CompactProfileTabs(
+            selectedTab = selectedTab,
+            onSelect = { selectedTab = it },
+            messagesCount = userMessages.size
+        )
         when (selectedTab) {
             0 -> UsercardTab(
                 userId = msg.userId,
@@ -997,17 +1172,17 @@ fun UserProfileHeader(
         }
     }
 
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (avatarUrl.isNotEmpty()) {
                 AsyncImage(
                     model = avatarUrl,
                     contentDescription = displayName,
-                    modifier = Modifier.size(48.dp).clip(CircleShape)
+                    modifier = Modifier.size(44.dp).clip(CircleShape)
                 )
             } else {
                 Box(
-                    modifier = Modifier.size(48.dp).clip(CircleShape)
+                    modifier = Modifier.size(44.dp).clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {

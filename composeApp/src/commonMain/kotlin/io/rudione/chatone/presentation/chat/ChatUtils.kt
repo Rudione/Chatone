@@ -152,6 +152,20 @@ internal fun pauseHotkeyMatchesRelease(event: KeyEvent, hotkey: String): Boolean
     }
 }
 
+internal val charToKey: Map<Char, Key> = buildMap {
+    put('A', Key.A); put('B', Key.B); put('C', Key.C); put('D', Key.D); put('E', Key.E)
+    put('F', Key.F); put('G', Key.G); put('H', Key.H); put('I', Key.I); put('J', Key.J)
+    put('K', Key.K); put('L', Key.L); put('M', Key.M); put('N', Key.N); put('O', Key.O)
+    put('P', Key.P); put('Q', Key.Q); put('R', Key.R); put('S', Key.S); put('T', Key.T)
+    put('U', Key.U); put('V', Key.V); put('W', Key.W); put('X', Key.X); put('Y', Key.Y)
+    put('Z', Key.Z)
+    put('0', Key.Zero); put('1', Key.One); put('2', Key.Two); put('3', Key.Three)
+    put('4', Key.Four); put('5', Key.Five); put('6', Key.Six); put('7', Key.Seven)
+    put('8', Key.Eight); put('9', Key.Nine)
+}
+
+internal val keyToChar: Map<Key, Char> = charToKey.entries.associate { (c, k) -> k to c }
+
 internal fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
     "space" -> key == Key.Spacebar
     "enter" -> key == Key.Enter
@@ -167,9 +181,53 @@ internal fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
     "down" -> key == Key.DirectionDown
     "left" -> key == Key.DirectionLeft
     "right" -> key == Key.DirectionRight
-    else -> if (name.length == 1) key.keyCode == name[0].uppercaseChar().code.toLong() else false
+    else -> if (name.length == 1) charToKey[name[0].uppercaseChar()] == key else false
 }
 
+
+internal fun adjustReadableColor(color: Color, background: Color): Color {
+    val bgLum = 0.299f * background.red + 0.587f * background.green + 0.114f * background.blue
+    val isDarkBg = bgLum < 0.5f
+
+    val r = color.red; val g = color.green; val b = color.blue
+    val max = maxOf(r, g, b); val min = minOf(r, g, b)
+    val l = (max + min) / 2f
+    val d = max - min
+
+    var h = 0f
+    var s = 0f
+    if (d > 0.0001f) {
+        s = if (l > 0.5f) d / (2f - max - min) else d / (max + min)
+        h = when (max) {
+            r -> (g - b) / d + if (g < b) 6f else 0f
+            g -> (b - r) / d + 2f
+            else -> (r - g) / d + 4f
+        } / 6f
+    }
+
+    val targetL = if (isDarkBg) l.coerceIn(0.50f, 0.78f) else l.coerceIn(0.24f, 0.60f)
+    val targetS = s.coerceAtMost(0.90f)
+
+    return hslToColor(h, targetS, targetL).copy(alpha = color.alpha)
+}
+
+private fun hslToColor(h: Float, s: Float, l: Float): Color {
+    if (s <= 0.0001f) return Color(l, l, l)
+    val q = if (l < 0.5f) l * (1f + s) else l + s - l * s
+    val p = 2f * l - q
+    fun hue(t: Float): Float {
+        var tt = t
+        if (tt < 0f) tt += 1f
+        if (tt > 1f) tt -= 1f
+        return when {
+            tt < 1f / 6f -> p + (q - p) * 6f * tt
+            tt < 1f / 2f -> q
+            tt < 2f / 3f -> p + (q - p) * (2f / 3f - tt) * 6f
+            else -> p
+        }
+    }
+    return Color(hue(h + 1f / 3f), hue(h), hue(h - 1f / 3f))
+}
 
 internal fun stableUserColor(login: String): Color {
     val palette = longArrayOf(

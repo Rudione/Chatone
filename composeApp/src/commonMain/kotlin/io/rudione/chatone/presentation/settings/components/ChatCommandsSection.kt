@@ -31,6 +31,7 @@ import androidx.compose.ui.window.DialogProperties
 import io.rudione.chatone.domain.model.ChatCommand
 import io.rudione.chatone.domain.model.ChatCommandKind
 import io.rudione.chatone.domain.model.Macro
+import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
@@ -696,7 +697,7 @@ private fun ToggleRow(
                 style = MaterialTheme.typography.labelSmall.copy(color = scheme.onSurfaceVariant)
             )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        ChatoneSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -714,8 +715,5 @@ private fun keyToName(key: Key): String? = when (key) {
     Key.DirectionDown -> "down"
     Key.DirectionLeft -> "left"
     Key.DirectionRight -> "right"
-    else -> {
-        val ch = (key.keyCode and 0xFFFF).toInt().toChar()
-        if (ch.isLetterOrDigit()) ch.lowercaseChar().toString() else null
-    }
+    else -> io.rudione.chatone.presentation.chat.keyToChar[key]?.lowercaseChar()?.toString()
 }

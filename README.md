@@ -1,6 +1,65 @@
 # Chatone - Twitch Chat Client
 
-A modern cross-platform Twitch chat client built with Kotlin Multiplatform and Compose Multiplatform.
+A modern cross-platform Twitch chat client built with Kotlin Multiplatform and Compose Multiplatform — running on **Windows, macOS, Linux, Android and iOS** from a single codebase, with a Material 3 Expressive interface.
+
+## ✨ Features
+
+### 💬 Chat & messaging
+- Real-time Twitch chat with multi-channel support
+- **Multi-chat panels** — view several channels side by side with drag & drop layout and cross-channel mentions
+- Reply threads and message pinning (for moderators)
+- Recent message history loaded when you join a channel
+- Inline image previews (on / off / blur) and link hover previews
+- Slash-command suggestions, custom **chat commands** and **macros** (with pinned quick-macros)
+- Repeated-message counter
+- **Message translation** — right-click / long-press any message to translate it into your language (no API key required)
+
+### 😀 Emotes & cosmetics
+- **7TV, BTTV and FFZ** emotes, including animated emotes
+- 7TV cosmetics: badges & paints, with live 7TV emote-set updates
+- Emote picker with search and tooltips
+
+### 🛡️ Moderation
+- Mod actions: timeout (presets), ban / unban, delete, mod / unmod, VIP / un-VIP
+- **Customizable, reorderable mod-action buttons**
+- Moderation panel for live chat settings
+- Built-in **Automod**:
+  - Word filters (with alternates, regex, whole-word, case-sensitivity)
+  - Behavioral rules: spam rate, all-caps, links, emote spam, new accounts, duplicate messages, consecutive numbers
+  - Event triggers: stream online/offline greeting, first-message greeting, raid welcome
+  - Global or per-channel scope, exemptions for mods/VIPs/subs
+  - Import / export as JSON, CSV or XLSX
+
+### 👤 User mini-profile
+- User card with avatar, badges, roles, account age and follow date
+- Per-user notes and mention muting (globally or per channel)
+- Message history shown Chatterino-style: timestamp + colored nickname + message
+- Compact, borderless quick actions (whisper, block, ban/unban, mod, VIP)
+
+### 🎨 Customization & themes
+- Material 3 Expressive UI with glassmorphism / liquid-glass surfaces
+- Custom theme creator (seed colour → full scheme) and accent palettes
+- **Fully configurable interface colours** — every chat-highlight, moderation and automod colour can be edited
+- Wallpaper backgrounds with blur, per-panel colours and glow effects
+- Custom fonts (load your own), italic / underline / strikethrough, font and UI scaling
+- Adjustable message spacing / density, light & dark, configurable title bar
+
+### 👥 Accounts & connectivity
+- Multiple accounts with independent connections and quick switching
+- Per-account settings profiles
+- Proxy support
+
+### 🔔 Highlights & notifications
+- Highlight rules (username, keywords, subscriptions, whispers, first message, channel points)
+- Custom mention sound, a mentions feed and a whispers panel
+
+### 🖥️ Platform & extras
+- Cross-platform: Windows, macOS, Linux, Android, iOS
+- Localization: English & Russian
+- Detached windows (profile, settings, automod) on desktop
+- Image uploader (drag & drop to a custom host)
+- Polls & predictions banners, channel-point redemptions
+- Blocked-users management
 
 ## ⬇️ Download
 

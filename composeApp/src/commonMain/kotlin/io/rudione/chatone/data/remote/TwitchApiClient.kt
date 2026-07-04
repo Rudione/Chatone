@@ -171,6 +171,7 @@ class TwitchApiClient(
             Napier.d("Got ${response.data.size} streams", tag = TAG)
             Result.Success(response)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Napier.e("Failed to get streams: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
@@ -676,6 +677,100 @@ class TwitchApiClient(
         }
     }
 
+    suspend fun updateShieldMode(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        isActive: Boolean
+    ): Result<Unit> {
+        return try {
+            val body = buildJsonObject { put("is_active", JsonPrimitive(isActive)) }
+            httpClient.put("$baseUrl/moderation/shield_mode") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("moderator_id", moderatorId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to update shield mode: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun addSuspiciousUser(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        userId: String,
+        restricted: Boolean
+    ): Result<Unit> {
+        return try {
+            val body = buildJsonObject {
+                put("user_id", JsonPrimitive(userId))
+                put("status", JsonPrimitive(if (restricted) "RESTRICTED" else "ACTIVE_MONITORING"))
+            }
+            httpClient.post("$baseUrl/moderation/suspicious_users") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("moderator_id", moderatorId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to add suspicious user: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun removeSuspiciousUser(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        userId: String
+    ): Result<Unit> {
+        return try {
+            httpClient.delete("$baseUrl/moderation/suspicious_users") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("moderator_id", moderatorId)
+                parameter("user_id", userId)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to remove suspicious user: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun createStreamMarker(
+        accessToken: String,
+        broadcasterId: String,
+        description: String
+    ): Result<Unit> {
+        return try {
+            val body = buildJsonObject {
+                put("user_id", JsonPrimitive(broadcasterId))
+                if (description.isNotBlank()) put("description", JsonPrimitive(description))
+            }
+            httpClient.post("$baseUrl/streams/markers") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            Result.Success(Unit)
+        } catch (e: Exception) {
+            Napier.e("Failed to create stream marker: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
     suspend fun createEventSubSubscription(
         accessToken: String,
         type: String,
@@ -1011,17 +1106,151 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getUserEmotes(accessToken: String, userId: String, broadcasterId: String? = null): Result<UserEmotesResponse> {
+    /** Lists custom channel-point rewards of the channel (broadcaster token required).
+     * Note: PATCH/DELETE/redemption-queue only work for rewards created by this same
+     * client-id — a Helix restriction, not ours. Pass [onlyManageable] to get the subset
+     * this app is allowed to modify. */
+    suspend fun getCustomRewards(
+        accessToken: String,
+        broadcasterId: String,
+        onlyManageable: Boolean = false
+    ): Result<io.rudione.chatone.data.remote.dto.CustomRewardsResponse> {
+        return try {
+            val resp = httpClient.get("$baseUrl/channel_points/custom_rewards") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                if (onlyManageable) parameter("only_manageable_rewards", true)
+            }.body<io.rudione.chatone.data.remote.dto.CustomRewardsResponse>()
+            Result.Success(resp)
+        } catch (e: Exception) {
+            Napier.w("getCustomRewards failed: ${e.message}", tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    /** Only works for rewards created by Chatone (same client-id) — Helix restriction. */
+    suspend fun updateCustomReward(
+        accessToken: String,
+        broadcasterId: String,
+        rewardId: String,
+        isEnabled: Boolean? = null,
+        isPaused: Boolean? = null,
+        cost: Int? = null
+    ): Result<Unit> {
+        return try {
+            val body = buildJsonObject {
+                if (isEnabled != null) put("is_enabled", JsonPrimitive(isEnabled))
+                if (isPaused != null) put("is_paused", JsonPrimitive(isPaused))
+                if (cost != null) put("cost", JsonPrimitive(cost))
+            }
+            val resp = httpClient.patch("$baseUrl/channel_points/custom_rewards") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("id", rewardId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            if (resp.status.isSuccess()) Result.Success(Unit)
+            else Result.Error(Exception("HTTP ${resp.status.value}"))
+        } catch (e: Exception) {
+            Napier.w("updateCustomReward failed: ${e.message}", tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun deleteCustomReward(
+        accessToken: String,
+        broadcasterId: String,
+        rewardId: String
+    ): Result<Unit> {
+        return try {
+            val resp = httpClient.delete("$baseUrl/channel_points/custom_rewards") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                parameter("id", rewardId)
+            }
+            if (resp.status.isSuccess()) Result.Success(Unit)
+            else Result.Error(Exception("HTTP ${resp.status.value}"))
+        } catch (e: Exception) {
+            Napier.w("deleteCustomReward failed: ${e.message}", tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun createCustomReward(
+        accessToken: String,
+        broadcasterId: String,
+        title: String,
+        cost: Int,
+        prompt: String = "",
+        isUserInputRequired: Boolean = false
+    ): Result<io.rudione.chatone.data.remote.dto.CustomRewardData> {
+        return try {
+            val body = buildJsonObject {
+                put("title", JsonPrimitive(title))
+                put("cost", JsonPrimitive(cost))
+                if (prompt.isNotBlank()) {
+                    put("prompt", JsonPrimitive(prompt))
+                    put("is_user_input_required", JsonPrimitive(isUserInputRequired))
+                }
+            }
+            val resp = httpClient.post("$baseUrl/channel_points/custom_rewards") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }.body<io.rudione.chatone.data.remote.dto.CustomRewardsResponse>()
+            resp.data.firstOrNull()?.let { Result.Success(it) }
+                ?: Result.Error(Exception("Empty reward response"))
+        } catch (e: Exception) {
+            Napier.e("createCustomReward failed: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun getUserEmotes(accessToken: String, userId: String, broadcasterId: String? = null, after: String? = null): Result<UserEmotesResponse> {
         return try {
             val response = httpClient.get("$baseUrl/chat/emotes/user") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 parameter("user_id", userId)
                 if (broadcasterId != null) parameter("broadcaster_id", broadcasterId)
+                if (after != null) parameter("after", after)
             }.body<UserEmotesResponse>()
             Result.Success(response)
         } catch (e: Exception) {
             Napier.w("Failed to get user emotes: ${e.message}", tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun getChannelTwitchEmotes(accessToken: String, broadcasterId: String): Result<UserEmotesResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/chat/emotes") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+                parameter("broadcaster_id", broadcasterId)
+            }.body<UserEmotesResponse>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Napier.w("Failed to get channel Twitch emotes: ${e.message}", tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun getGlobalTwitchEmotes(accessToken: String): Result<UserEmotesResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/chat/emotes/global") {
+                header("Authorization", "Bearer $accessToken")
+                header("Client-Id", clientId)
+            }.body<UserEmotesResponse>()
+            Result.Success(response)
+        } catch (e: Exception) {
+            Napier.w("Failed to get global Twitch emotes: ${e.message}", tag = TAG)
             Result.Error(e)
         }
     }

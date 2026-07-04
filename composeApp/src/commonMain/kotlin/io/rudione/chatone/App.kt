@@ -82,6 +82,20 @@ fun App(
 
         val wallpaperLoader: WallpaperLoader = koinInject()
 
+        val translationStore: io.rudione.chatone.presentation.chat.TranslationStore = koinInject()
+        LaunchedEffect(settingsState.translationTargetLang) {
+            translationStore.targetLang = settingsState.translationTargetLang
+        }
+
+        val nicknameRepository: io.rudione.chatone.data.repository.NicknameRepository = koinInject()
+        val nicknames by nicknameRepository.nicknames.collectAsState()
+
+        val thirdPartyBadgeRepository: io.rudione.chatone.data.repository.ThirdPartyBadgeRepository = koinInject()
+        val ffzBadges by thirdPartyBadgeRepository.ffzByLogin.collectAsState()
+        val bttvBadges by thirdPartyBadgeRepository.bttvByUserId.collectAsState()
+        val thirdPartyBadgeMaps = remember(ffzBadges, bttvBadges) {
+            io.rudione.chatone.presentation.chat.ThirdPartyBadgeMaps(ffzBadges, bttvBadges)
+        }
 
         LaunchedEffect(settingsState.alwaysOnTop) {
             onAlwaysOnTopChanged(settingsState.alwaysOnTop)
@@ -207,6 +221,8 @@ fun App(
             LocalStrings provides currentStrings,
             LocalWallpaperController provides wallpaperController,
             LocalCustomThemeManager provides customThemeManager,
+            io.rudione.chatone.presentation.chat.LocalNicknames provides nicknames,
+            io.rudione.chatone.presentation.chat.LocalThirdPartyBadges provides thirdPartyBadgeMaps,
             LocalDensity provides Density(
                 LocalDensity.current.density * uiScale,
                 LocalDensity.current.fontScale
@@ -216,7 +232,8 @@ fun App(
                 darkTheme = true,
                 accentColorIndex = settingsState.accentColorIndex,
                 customTheme = activeCustomTheme,
-                fontSettings = chatFontSettings
+                fontSettings = chatFontSettings,
+                colorTokens = settingsState.colorTokens
             ) {
                 Box(
                     modifier = androidx.compose.ui.Modifier

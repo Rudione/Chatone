@@ -29,6 +29,7 @@ data class GenericEmote(
 @Stable
 data class ChannelEmotes(
     val twitchEmotes: List<GenericEmote> = emptyList(),
+    val twitchGlobal: List<GenericEmote> = emptyList(),
     val sevenTvChannel: List<GenericEmote> = emptyList(),
     val sevenTvGlobal: List<GenericEmote> = emptyList(),
     val bttvChannel: List<GenericEmote> = emptyList(),
@@ -38,6 +39,7 @@ data class ChannelEmotes(
 ) {
     val allByCode: Map<String, GenericEmote> by lazy(LazyThreadSafetyMode.PUBLICATION) {
         buildMap {
+            twitchGlobal.forEach { put(it.code, it) }
             ffzGlobal.forEach { put(it.code, it) }
             bttvGlobal.forEach { put(it.code, it) }
             sevenTvGlobal.forEach { put(it.code, it) }
@@ -53,7 +55,7 @@ data class ChannelEmotes(
         val result = mutableListOf<GenericEmote>()
         val sources = listOf(
             twitchEmotes, sevenTvChannel, bttvChannel, ffzChannel,
-            sevenTvGlobal, bttvGlobal, ffzGlobal
+            sevenTvGlobal, bttvGlobal, ffzGlobal, twitchGlobal
         )
         for (source in sources) {
             for (emote in source) {

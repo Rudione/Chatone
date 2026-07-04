@@ -274,11 +274,20 @@ class TwitchIrcClient(
 
                 "JOIN" -> {
                     val channel = ircMsg.channel
-                    _events.emit(IrcEvent.Connected(channel))
-                    Napier.d("Joined #$channel", tag = TAG)
+                    val who = ircMsg.nick
+                    if (who.isNotEmpty() && !who.equals(currentUsername, ignoreCase = true)) {
+                        _events.emit(IrcEvent.UserJoin(channel, who))
+                    } else {
+                        _events.emit(IrcEvent.Connected(channel))
+                        Napier.d("Joined #$channel", tag = TAG)
+                    }
                 }
 
                 "PART" -> {
+                    val who = ircMsg.nick
+                    if (who.isNotEmpty() && !who.equals(currentUsername, ignoreCase = true)) {
+                        _events.emit(IrcEvent.UserPart(ircMsg.channel, who))
+                    }
                     Napier.d("Left #${ircMsg.channel}", tag = TAG)
                 }
 

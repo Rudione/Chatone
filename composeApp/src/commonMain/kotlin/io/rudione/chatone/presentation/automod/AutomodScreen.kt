@@ -1,6 +1,7 @@
 package io.rudione.chatone.presentation.automod
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,7 +29,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
@@ -36,8 +40,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import io.rudione.chatone.data.repository.AutomodRepository
 import io.rudione.chatone.domain.model.*
+import io.rudione.chatone.presentation.components.ExpressiveCheckChip
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.AutomodImportExport
@@ -95,7 +102,7 @@ fun AutomodScreen(
                 Row(Modifier.fillMaxSize()) {
                     Surface(
                         modifier = Modifier.weight(0.40f).fillMaxHeight(),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        color = ChatoneTheme.extraColors.sidebarSurface,
                         tonalElevation = 0.dp
                     ) {
                         Column(Modifier.fillMaxSize()) {
@@ -126,7 +133,7 @@ fun AutomodScreen(
                             }
                         }
                     }
-                    Box(Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant))
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(ChatoneTheme.extraColors.cardBorder))
                     Surface(
                         modifier = Modifier.weight(0.60f).fillMaxHeight(),
                         color = MaterialTheme.colorScheme.surface
@@ -289,10 +296,11 @@ private fun Md3Tab(label: String, count: Int, selected: Boolean, onClick: () -> 
             }
         }
         Spacer(Modifier.height(6.dp))
+        val indicatorWidth by animateFloatAsState(if (selected) 0.5f else 0f, tween(220))
         Box(
             Modifier.height(2.dp)
-                .fillMaxWidth(if (selected) 0.5f else 0f)
-                .clip(RoundedCornerShape(1.dp))
+                .fillMaxWidth(indicatorWidth)
+                .clip(RoundedCornerShape(2.dp))
                 .background(MaterialTheme.colorScheme.primary)
         )
     }
@@ -507,12 +515,17 @@ private fun ChatRuleListPane(
 @Composable
 private fun WordRuleRow(rule: AutomodRule, selected: Boolean, onClick: () -> Unit, onToggle: () -> Unit) {
     val bg by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.secondaryContainer
+        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
         else Color.Transparent, tween(150)
     )
+    val accent = MaterialTheme.colorScheme.primary
     Row(
         modifier = Modifier.fillMaxWidth()
             .background(bg)
+            .drawWithContent {
+                drawContent()
+                if (selected) drawRect(color = accent, size = Size(3.dp.toPx(), size.height))
+            }
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -538,7 +551,7 @@ private fun WordRuleRow(rule: AutomodRule, selected: Boolean, onClick: () -> Uni
                 color = actionColor(rule.action)
             )
         }
-        Switch(checked = rule.enabled, onCheckedChange = { onToggle() },
+        io.rudione.chatone.presentation.components.ChatoneSwitch(checked = rule.enabled, onCheckedChange = { onToggle() },
             modifier = Modifier.scale(0.78f))
     }
     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -554,8 +567,8 @@ private fun WordDetailContent(
 ) {
     val s = LocalStrings.current
     if (rule == null) { EmptyHint(s.automodSelectRuleHint, "", Modifier.fillMaxSize()); return }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)) {
         if (onBack != null) {
             TextButton(onClick = onBack) { Text("← ${s.automodBackToList}") }
         }
@@ -584,8 +597,10 @@ private fun WordDetailContent(
         }
 
         DetailSection(s.automodSectionMatching) {
-            Md3Toggle(s.automodCaseSensitive, s.automodCaseSensitiveDesc, rule.caseSensitive) { onChange(rule.copy(caseSensitive = it)) }
-            Md3Toggle(s.automodWholeWordOnly, s.automodWholeWordDesc, rule.wholeWord) { onChange(rule.copy(wholeWord = it)) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Md3Toggle(s.automodCaseSensitive, s.automodCaseSensitiveDesc, rule.caseSensitive, Modifier.weight(1f)) { onChange(rule.copy(caseSensitive = it)) }
+                Md3Toggle(s.automodWholeWordOnly, s.automodWholeWordDesc, rule.wholeWord, Modifier.weight(1f)) { onChange(rule.copy(wholeWord = it)) }
+            }
             Md3Toggle(s.automodRegularExpression, s.automodRegexDesc, rule.isRegex) { onChange(rule.copy(isRegex = it)) }
         }
 
@@ -615,9 +630,13 @@ private fun WordDetailContent(
         }
 
         DetailSection(s.automodSectionExemptions) {
-            Md3Toggle(s.automodExemptMods, null, rule.exemptMods) { onChange(rule.copy(exemptMods = it)) }
-            Md3Toggle(s.automodExemptVips, null, rule.exemptVips) { onChange(rule.copy(exemptVips = it)) }
-            Md3Toggle(s.automodExemptSubs, null, rule.exemptSubs) { onChange(rule.copy(exemptSubs = it)) }
+            ExemptionChips(
+                rule.exemptMods, rule.exemptVips, rule.exemptSubs,
+                s.automodExemptMods, s.automodExemptVips, s.automodExemptSubs,
+                { onChange(rule.copy(exemptMods = it)) },
+                { onChange(rule.copy(exemptVips = it)) },
+                { onChange(rule.copy(exemptSubs = it)) }
+            )
         }
 
         DetailSection(s.automodSectionNote) {
@@ -629,7 +648,7 @@ private fun WordDetailContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (rule.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.weight(1f))
-            Switch(rule.enabled, { onChange(rule.copy(enabled = it)) })
+            io.rudione.chatone.presentation.components.ChatoneSwitch(rule.enabled, { onChange(rule.copy(enabled = it)) })
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -648,9 +667,15 @@ private fun WordDetailContent(
 @Composable
 private fun ChatRuleRow(rule: ChatRule, selected: Boolean, onClick: () -> Unit, onToggle: () -> Unit) {
     val typeColor = chatRuleTypeColor(rule.type)
-    val bg by animateColorAsState(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent, tween(150))
+    val bg by animateColorAsState(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent, tween(150))
+    val accent = MaterialTheme.colorScheme.primary
     Row(
-        modifier = Modifier.fillMaxWidth().background(bg).clickable(onClick = onClick)
+        modifier = Modifier.fillMaxWidth().background(bg)
+            .drawWithContent {
+                drawContent()
+                if (selected) drawRect(color = accent, size = Size(3.dp.toPx(), size.height))
+            }
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -678,7 +703,7 @@ private fun ChatRuleRow(rule: ChatRule, selected: Boolean, onClick: () -> Unit, 
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(checked = rule.enabled, onCheckedChange = { onToggle() }, modifier = Modifier.scale(0.78f))
+        io.rudione.chatone.presentation.components.ChatoneSwitch(checked = rule.enabled, onCheckedChange = { onToggle() }, modifier = Modifier.scale(0.78f))
     }
     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }
@@ -693,8 +718,8 @@ private fun ChatRuleDetailContent(
 ) {
     val s = LocalStrings.current
     if (rule == null) { EmptyHint(s.chatRuleSelectHint, "", Modifier.fillMaxSize()); return }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)) {
         if (onBack != null) TextButton(onClick = onBack) { Text("← ${s.automodBackToList}") }
 
         DetailSection(s.chatRuleSectionScope) {
@@ -749,19 +774,23 @@ private fun ChatRuleDetailContent(
         DetailSection(s.chatRuleSectionConfig) {
             when (rule.type) {
                 ChatRuleType.SPAM_RATE -> {
-                    Md3NumberField(s.chatRuleSpamMessages, rule.spamMaxMessages.toLong(), s.chatRuleSpamMessagesDesc) {
-                        onChange(rule.copy(spamMaxMessages = it.toInt().coerceIn(1, 100)))
-                    }
-                    Md3NumberField(s.chatRuleSpamWindow, rule.spamWindowSeconds.toLong(), s.chatRuleSpamWindowDesc) {
-                        onChange(rule.copy(spamWindowSeconds = it.toInt().coerceIn(1, 3600)))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Md3NumberField(s.chatRuleSpamMessages, rule.spamMaxMessages.toLong(), s.chatRuleSpamMessagesDesc, Modifier.weight(1f)) {
+                            onChange(rule.copy(spamMaxMessages = it.toInt().coerceIn(1, 100)))
+                        }
+                        Md3NumberField(s.chatRuleSpamWindow, rule.spamWindowSeconds.toLong(), s.chatRuleSpamWindowDesc, Modifier.weight(1f)) {
+                            onChange(rule.copy(spamWindowSeconds = it.toInt().coerceIn(1, 3600)))
+                        }
                     }
                 }
                 ChatRuleType.ALL_CAPS -> {
-                    Md3NumberField(s.chatRuleCapsPercent, rule.capsThresholdPercent.toLong(), s.chatRuleCapsPercentDesc) {
-                        onChange(rule.copy(capsThresholdPercent = it.toInt().coerceIn(10, 100)))
-                    }
-                    Md3NumberField(s.chatRuleCapsMinLength, rule.capsMinLength.toLong(), s.chatRuleCapsMinLengthDesc) {
-                        onChange(rule.copy(capsMinLength = it.toInt().coerceIn(1, 500)))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Md3NumberField(s.chatRuleCapsPercent, rule.capsThresholdPercent.toLong(), s.chatRuleCapsPercentDesc, Modifier.weight(1f)) {
+                            onChange(rule.copy(capsThresholdPercent = it.toInt().coerceIn(10, 100)))
+                        }
+                        Md3NumberField(s.chatRuleCapsMinLength, rule.capsMinLength.toLong(), s.chatRuleCapsMinLengthDesc, Modifier.weight(1f)) {
+                            onChange(rule.copy(capsMinLength = it.toInt().coerceIn(1, 500)))
+                        }
                     }
                 }
                 ChatRuleType.LINKS -> {
@@ -843,11 +872,13 @@ private fun ChatRuleDetailContent(
                         maxLines = 4,
                         textStyle = MaterialTheme.typography.bodySmall
                     )
-                    Md3NumberField(s.chatRuleEventRepeat, rule.eventRepeat.toLong(), s.chatRuleEventRepeatDesc) {
-                        onChange(rule.copy(eventRepeat = it.toInt().coerceIn(1, 10)))
-                    }
-                    Md3NumberField(s.chatRuleEventDelay, rule.eventDelaySeconds.toLong(), s.chatRuleEventDelayDesc) {
-                        onChange(rule.copy(eventDelaySeconds = it.toInt().coerceIn(0, 600)))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Md3NumberField(s.chatRuleEventRepeat, rule.eventRepeat.toLong(), s.chatRuleEventRepeatDesc, Modifier.weight(1f)) {
+                            onChange(rule.copy(eventRepeat = it.toInt().coerceIn(1, 10)))
+                        }
+                        Md3NumberField(s.chatRuleEventDelay, rule.eventDelaySeconds.toLong(), s.chatRuleEventDelayDesc, Modifier.weight(1f)) {
+                            onChange(rule.copy(eventDelaySeconds = it.toInt().coerceIn(0, 600)))
+                        }
                     }
                 }
             }
@@ -869,9 +900,13 @@ private fun ChatRuleDetailContent(
         }
 
         DetailSection(s.chatRuleSectionExemptions) {
-            Md3Toggle(s.chatRuleExemptMods, null, rule.exemptMods) { onChange(rule.copy(exemptMods = it)) }
-            Md3Toggle(s.chatRuleExemptVips, null, rule.exemptVips) { onChange(rule.copy(exemptVips = it)) }
-            Md3Toggle(s.chatRuleExemptSubs, null, rule.exemptSubs) { onChange(rule.copy(exemptSubs = it)) }
+            ExemptionChips(
+                rule.exemptMods, rule.exemptVips, rule.exemptSubs,
+                s.chatRuleExemptMods, s.chatRuleExemptVips, s.chatRuleExemptSubs,
+                { onChange(rule.copy(exemptMods = it)) },
+                { onChange(rule.copy(exemptVips = it)) },
+                { onChange(rule.copy(exemptSubs = it)) }
+            )
         }
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -879,7 +914,7 @@ private fun ChatRuleDetailContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (rule.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.weight(1f))
-            Switch(rule.enabled, { onChange(rule.copy(enabled = it)) })
+            io.rudione.chatone.presentation.components.ChatoneSwitch(rule.enabled, { onChange(rule.copy(enabled = it)) })
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         OutlinedButton(onClick = { onDelete(rule) },
@@ -895,17 +930,34 @@ private fun ChatRuleDetailContent(
 
 @Composable
 private fun DetailSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary)
-        Surface(
-            shape = MaterialTheme.shapes.medium,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = 0.dp,
-            modifier = Modifier.fillMaxWidth()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f),
+                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.60f)
+                        )
+                    )
+                )
+                .border(
+                    1.dp,
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
+                        )
+                    ),
+                    RoundedCornerShape(16.dp)
+                )
         ) {
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 content()
             }
         }
@@ -924,9 +976,9 @@ private fun SegmentedRow(content: @Composable RowScope.() -> Unit) {
 @Composable
 private fun RowScope.Seg(label: String, selected: Boolean, onClick: () -> Unit) {
     val bg by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent, tween(150))
+        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else Color.Transparent, tween(150))
     val fg by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface, tween(150))
+        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, tween(150))
     Box(
         Modifier.weight(1f).background(bg).clickable(onClick = onClick).padding(vertical = 10.dp),
         contentAlignment = Alignment.Center
@@ -993,9 +1045,9 @@ private fun Md3TextField(label: String, value: String, placeholder: String, mult
 }
 
 @Composable
-private fun Md3NumberField(label: String, value: Long, helper: String? = null, onChange: (Long) -> Unit) {
+private fun Md3NumberField(label: String, value: Long, helper: String? = null, modifier: Modifier = Modifier, onChange: (Long) -> Unit) {
     var text by remember(value) { mutableStateOf(value.toString()) }
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
         OutlinedTextField(
             value = text,
             onValueChange = { t ->
@@ -1063,15 +1115,29 @@ private fun TimeInputField(label: String, totalSeconds: Int, onChange: (Int) -> 
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Md3Toggle(label: String, desc: String?, value: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+private fun ExemptionChips(
+    mods: Boolean, vips: Boolean, subs: Boolean,
+    modsLabel: String, vipsLabel: String, subsLabel: String,
+    onMods: (Boolean) -> Unit, onVips: (Boolean) -> Unit, onSubs: (Boolean) -> Unit
+) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ExpressiveCheckChip(modsLabel, mods, onMods)
+        ExpressiveCheckChip(vipsLabel, vips, onVips)
+        ExpressiveCheckChip(subsLabel, subs, onSubs)
+    }
+}
+
+@Composable
+private fun Md3Toggle(label: String, desc: String?, value: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             if (!desc.isNullOrBlank())
                 Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(value, onChange)
+        io.rudione.chatone.presentation.components.ChatoneSwitch(value, onChange)
     }
 }
 
@@ -1108,7 +1174,7 @@ private fun EmptyHint(title: String, hint: String, modifier: Modifier) {
 private fun AlternatesEditor(alternates: List<String>, onChange: (List<String>) -> Unit) {
     var draft by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Alternates / transliterations", style = MaterialTheme.typography.labelSmall,
+        Text(io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.automodAlternates, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         alternates.forEachIndexed { idx, alt ->
             Row(Modifier.fillMaxWidth()
@@ -1128,7 +1194,7 @@ private fun AlternatesEditor(alternates: List<String>, onChange: (List<String>) 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it },
-                placeholder = { Text("Add variant…") },
+                placeholder = { Text(io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.automodAddVariant) },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodySmall,
@@ -1143,23 +1209,12 @@ private fun AlternatesEditor(alternates: List<String>, onChange: (List<String>) 
 }
 
 @Composable
-private fun chatRuleTypeColor(type: ChatRuleType): Color = when (type) {
-    ChatRuleType.SPAM_RATE -> Color(0xFF4FC3F7)
-    ChatRuleType.ALL_CAPS -> Color(0xFFFFB74D)
-    ChatRuleType.LINKS -> Color(0xFF81C784)
-    ChatRuleType.EMOTE_SPAM -> Color(0xFFBA68C8)
-    ChatRuleType.NEW_ACCOUNT -> Color(0xFFFF8A65)
-    ChatRuleType.DUPLICATE_MESSAGE -> Color(0xFF90A4AE)
-    ChatRuleType.CONSECUTIVE_NUMBERS -> Color(0xFFF48FB1)
-    ChatRuleType.STREAM_ONLINE -> Color(0xFF66BB6A)
-    ChatRuleType.STREAM_OFFLINE -> Color(0xFFE57373)
-    ChatRuleType.FIRST_MESSAGE_GREETING -> Color(0xFFFFD54F)
-    ChatRuleType.RAID_WELCOME -> Color(0xFF7E57C2)
-}
+private fun chatRuleTypeColor(type: ChatRuleType): Color =
+    Color(ChatoneTheme.colorTokens.automodColorFor(type))
 
 @Composable
 private fun actionColor(action: AutomodAction): Color = when (action) {
     AutomodAction.DELETE -> MaterialTheme.colorScheme.onSurfaceVariant
-    AutomodAction.TIMEOUT -> Color(0xFFFFB74D)
+    AutomodAction.TIMEOUT -> Color(ChatoneTheme.colorTokens.modTimeout)
     AutomodAction.BAN -> MaterialTheme.colorScheme.error
 }

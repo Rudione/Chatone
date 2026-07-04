@@ -98,6 +98,7 @@ kotlin {
             implementation(libs.multiplatform.settings.noarg)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
+            implementation(libs.coil.svg)
             implementation("org.jetbrains.kotlinx:atomicfu:0.32.1")
             implementation(compose.materialIconsExtended)
         }

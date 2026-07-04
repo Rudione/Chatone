@@ -16,8 +16,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -86,7 +88,11 @@ internal fun MessageInput(
     onTabSlash: (Int) -> Unit = {},
     onConfirmSlashTab: () -> Unit = {},
     glowIntensity: Float = 0f,
-    glowTriggerTs: Long = 0L
+    glowTriggerTs: Long = 0L,
+    uploadProgress: Float? = null,
+    uploadedLink: String? = null,
+    onCopyUploadedLink: () -> Unit = {},
+    onDismissUploadedLink: () -> Unit = {}
 ) {
     val MAX_CHARS = 500
     val WARN_CHARS = 480
@@ -207,7 +213,7 @@ internal fun MessageInput(
                 glowAnim.snapTo(glowIntensity)
                 glowAnim.animateTo(
                     targetValue = 0f,
-                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 5000)
+                    animationSpec = tween(durationMillis = 5000)
                 )
             }
         }
@@ -250,7 +256,7 @@ internal fun MessageInput(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
             ) {
 
                 Box(
@@ -335,7 +341,7 @@ internal fun MessageInput(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 4.dp),
+                                .padding(horizontal = 4.dp, vertical = 3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
 
@@ -395,7 +401,7 @@ internal fun MessageInput(
                                 },
                                 modifier = Modifier
                                     .weight(1f)
-                                    .padding(vertical = 10.dp)
+                                    .padding(vertical = 4.dp)
                                     .focusRequester(focusRequester)
                                     .focusable(interactionSource = interactionSource)
                                     .onPreviewKeyEvent { event ->
@@ -616,6 +622,9 @@ internal fun MessageInput(
                                         Text(
                                             placeholderText ?: s.chatPlaceholder,
                                             style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis,
                                             color = MaterialTheme.colorScheme
                                                 .onSurfaceVariant
                                                 .copy(
@@ -635,6 +644,68 @@ internal fun MessageInput(
                             Spacer(
                                 modifier = Modifier.width(0.dp)
                             )
+
+                            if (uploadProgress != null) {
+                                LiquidGlassTooltipBox(tooltip = s.uploaderUploading) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .padding(end = 4.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            progress = { uploadProgress.coerceIn(0f, 1f) },
+                                            modifier = Modifier.size(22.dp),
+                                            strokeWidth = 2.5.dp,
+                                            color = primaryCol,
+                                            trackColor = primaryCol.copy(alpha = 0.15f)
+                                        )
+                                    }
+                                }
+                            } else if (uploadedLink != null) {
+                                var justCopied by remember(uploadedLink) { mutableStateOf(false) }
+                                LaunchedEffect(justCopied) {
+                                    if (justCopied) {
+                                        kotlinx.coroutines.delay(1500)
+                                        justCopied = false
+                                    }
+                                }
+                                LiquidGlassTooltipBox(
+                                    tooltip = if (justCopied) s.uploaderLinkCopied else s.uploaderCopyLink
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(primaryCol.copy(alpha = 0.12f))
+                                            .border(
+                                                width = 0.7.dp,
+                                                color = primaryCol.copy(alpha = 0.25f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            )
+                                            .clickable(
+                                                interactionSource = remember {
+                                                    MutableInteractionSource()
+                                                },
+                                                indication = null,
+                                                onClick = {
+                                                    justCopied = true
+                                                    onCopyUploadedLink()
+                                                }
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            if (justCopied) Icons.Filled.Check
+                                            else Icons.Outlined.Link,
+                                            contentDescription = s.uploaderCopyLink,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = primaryCol
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                            }
 
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -730,6 +801,32 @@ fun LiquidGlassTooltipBox(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+            }
+        },
+        state = rememberTooltipState()
+    ) {
+        content()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LiquidGlassRichTooltipBox(
+    tooltipContent: @Composable () -> Unit,
+    content: @Composable () -> Unit
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        tooltip = {
+            io.rudione.chatone.presentation.components.LiquidGlassSurface(
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(10.dp),
+                backgroundAlphaHigh = 0.95f,
+                backgroundAlphaLow = 0.85f,
+                borderAlphaHigh = 0.25f,
+                borderAlphaLow = 0.08f
+            ) {
+                tooltipContent()
             }
         },
         state = rememberTooltipState()

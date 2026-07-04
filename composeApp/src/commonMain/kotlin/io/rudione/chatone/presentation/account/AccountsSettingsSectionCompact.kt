@@ -154,9 +154,10 @@ private fun AccountRowCompact(
     val hasProxy = remember(account.userId) {
         accountManager.getProxy(account.userId)?.let { it.enabled && it.isValid } == true
     }
-    val hasCustomSettings = remember(account.userId) {
-        accountManager.isOverrideEnabled(account.userId)
+    var hasCustomSettings by remember(account.userId) {
+        mutableStateOf(accountManager.isOverrideEnabled(account.userId))
     }
+    val perAccountSettings = remember(accountManager) { PerAccountSettingsLoader(accountManager) }
 
     Column(
         modifier = Modifier
@@ -245,7 +246,10 @@ private fun AccountRowCompact(
                     label = strings.accountsCustomSettings,
                     sublabel = if (hasCustomSettings) strings.accountsUsesCustom else strings.accountsUsesGlobal,
                     checked = hasCustomSettings,
-                    onCheckedChange = { accountManager.setOverrideEnabled(account.userId, it) }
+                    onCheckedChange = {
+                        hasCustomSettings = it
+                        perAccountSettings.setOverrideEnabled(account.userId, it)
+                    }
                 )
                 ProxyExpandableRow(
                     userId = account.userId,
@@ -305,7 +309,7 @@ private fun ToggleRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        io.rudione.chatone.presentation.components.ChatoneSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -342,7 +346,7 @@ private fun ProxyExpandableRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Switch(checked = enabled, onCheckedChange = {
+            io.rudione.chatone.presentation.components.ChatoneSwitch(checked = enabled, onCheckedChange = {
                 enabled = it
                 formExpanded = it
                 if (!it) {
@@ -459,11 +463,11 @@ private fun AddAccountChoiceDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onBrowser) { Text("Browser") }
+            TextButton(onClick = onBrowser) { Text(strings.authBrowser) }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = onPasteToken) { Text("Paste token") }
+                TextButton(onClick = onPasteToken) { Text(strings.authPasteToken) }
                 TextButton(onClick = onDismiss) { Text(strings.cancel) }
             }
         }

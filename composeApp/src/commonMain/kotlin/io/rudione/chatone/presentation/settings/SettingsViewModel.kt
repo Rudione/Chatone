@@ -10,7 +10,9 @@ import io.rudione.chatone.base.UiState
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.domain.model.ChatCommand
+import io.rudione.chatone.domain.model.ChatoneColorTokens
 import io.rudione.chatone.domain.model.HighlightRule
+import io.rudione.chatone.domain.model.ImageUploaderConfig
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
@@ -20,8 +22,14 @@ import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.util.AppDataCleaner
 import io.rudione.chatone.util.AppRestarter
 import io.rudione.chatone.util.WallpaperLoader
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -36,6 +44,8 @@ data class SettingsState(
     val darkTheme: Boolean = true,
     val timestampFormat: TimestampFormat = TimestampFormat.H24,
     val showDeletedMessages: Boolean = true,
+    val showViewerJoinLeave: Boolean = false,
+    val imageUploader: ImageUploaderConfig = ImageUploaderConfig(),
     val scrollbackLimit: Int = 500,
     val emoteSize: EmoteSize = EmoteSize.MEDIUM,
     val showBadges: Boolean = true,
@@ -61,6 +71,10 @@ data class SettingsState(
     val pauseHotkeyMode: PauseHotkeyMode = PauseHotkeyMode.TOGGLE,
     val showInlineImages: InlineImageMode = InlineImageMode.ON,
     val inlineImageMaxHeight: Int = 200,
+    val chatScrollbarWidth: Int = 16,
+    val automations: List<io.rudione.chatone.domain.model.ChatAutomation> = emptyList(),
+    val autoClaimPoints: Boolean = false,
+    val mutedPhrases: List<String> = emptyList(),
     val wallpaperPath: String = "",
     val wallpaperBlur: Float = 12f,
     val wallpaperDisplayConfig: WallpaperDisplayConfig = WallpaperDisplayConfig(),
@@ -108,6 +122,11 @@ data class SettingsState(
     val savedTimeoutReason: String = "",
     val savedBanReason: String = "",
     val chatCommands: List<ChatCommand> = emptyList(),
+    val colorTokens: ChatoneColorTokens = ChatoneColorTokens(),
+    val translationTargetLang: String = "en",
+    val mentionTabsEnabled: Boolean = false,
+    val navigationHidden: Boolean = false,
+    val hotkeys: Map<String, String> = io.rudione.chatone.util.defaultHotkeys(),
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
     enum class LinkOpenMode { DEFAULT, INCOGNITO }
@@ -117,7 +136,7 @@ data class SettingsState(
     enum class MessageSpacing { NONE, LOW, MEDIUM, HIGH }
 
     val pinnedMacros: List<Macro>
-        get() = macros.filter { it.pinnedIndex in 0..4 }.sortedBy { it.pinnedIndex }.take(5)
+        get() = Macro.pinnedFrom(macros)
 }
 
 sealed class SettingsEvent : UiEvent {
@@ -128,6 +147,8 @@ sealed class SettingsEvent : UiEvent {
     data class OnCustomThemeApplied(val theme: CustomThemeConfig?) : SettingsEvent()
     data class OnTimestampFormatChanged(val format: SettingsState.TimestampFormat) : SettingsEvent()
     data class OnShowDeletedChanged(val show: Boolean) : SettingsEvent()
+    data class OnShowViewerJoinLeaveChanged(val show: Boolean) : SettingsEvent()
+    data class OnImageUploaderChanged(val config: ImageUploaderConfig) : SettingsEvent()
     data class OnScrollbackLimitChanged(val limit: Int) : SettingsEvent()
     data class OnEmoteSizeChanged(val size: SettingsState.EmoteSize) : SettingsEvent()
     object OnLogoutClicked : SettingsEvent()
@@ -180,6 +201,13 @@ sealed class SettingsEvent : UiEvent {
     data class OnPauseHotkeyModeChanged(val mode: PauseHotkeyMode) : SettingsEvent()
     data class OnShowInlineImagesChanged(val mode: InlineImageMode) : SettingsEvent()
     data class OnInlineImageMaxHeightChanged(val height: Int) : SettingsEvent()
+    data class OnChatScrollbarWidthChanged(val width: Int) : SettingsEvent()
+    data class OnAddAutomation(val automation: io.rudione.chatone.domain.model.ChatAutomation) : SettingsEvent()
+    data class OnRemoveAutomation(val id: String) : SettingsEvent()
+    data class OnToggleAutomation(val id: String, val enabled: Boolean) : SettingsEvent()
+    data class OnAutoClaimPointsChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnAddMutedPhrase(val phrase: String) : SettingsEvent()
+    data class OnRemoveMutedPhrase(val phrase: String) : SettingsEvent()
     data class OnWallpaperPathChanged(val path: String) : SettingsEvent()
     data class OnWallpaperBlurChanged(val blur: Float) : SettingsEvent()
     data class OnWallpaperDisplayConfigChanged(val config: WallpaperDisplayConfig) : SettingsEvent()
@@ -190,6 +218,7 @@ sealed class SettingsEvent : UiEvent {
     data class OnRemoveModButton(val id: String) : SettingsEvent()
     data class OnUpdateModButton(val button: ModActionButton) : SettingsEvent()
     data class OnReorderAllModButtons(val newOrder: List<ModActionButton>) : SettingsEvent()
+    data class OnSetModButtonEnabled(val id: String, val enabled: Boolean) : SettingsEvent()
     data class OnShowDefaultDeleteChanged(val show: Boolean) : SettingsEvent()
     data class OnShowDefaultTimeoutChanged(val show: Boolean) : SettingsEvent()
     data class OnShowDefaultBanChanged(val show: Boolean) : SettingsEvent()
@@ -214,6 +243,12 @@ sealed class SettingsEvent : UiEvent {
     data class OnAddChatCommand(val command: ChatCommand) : SettingsEvent()
     data class OnUpdateChatCommand(val command: ChatCommand) : SettingsEvent()
     data class OnRemoveChatCommand(val id: String) : SettingsEvent()
+
+    data class OnColorTokensChanged(val tokens: ChatoneColorTokens) : SettingsEvent()
+    data class OnTranslationLangChanged(val code: String) : SettingsEvent()
+    data class OnMentionTabsChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnNavigationHiddenChanged(val hidden: Boolean) : SettingsEvent()
+    data class OnHotkeyChanged(val actionId: String, val combo: String) : SettingsEvent()
 }
 
 sealed class SettingsEffect : UIEffect {
@@ -232,6 +267,8 @@ class SettingsViewModel(
         private const val KEY_DARK_THEME = "dark_theme"
         private const val KEY_TIMESTAMP_FORMAT = "timestamp_format"
         private const val KEY_SHOW_DELETED = "show_deleted"
+        private const val KEY_SHOW_VIEWER_JOIN_LEAVE = "show_viewer_join_leave"
+        private const val KEY_IMAGE_UPLOADER = "image_uploader_config"
         private const val KEY_SCROLLBACK_LIMIT = "scrollback_limit"
         private const val KEY_EMOTE_SIZE = "emote_size"
         private const val KEY_SHOW_BADGES = "show_badges"
@@ -257,6 +294,10 @@ class SettingsViewModel(
         private const val KEY_PAUSE_HOTKEY_MODE = "pause_hotkey_mode"
         private const val KEY_SHOW_INLINE_IMAGES = "show_inline_images"
         private const val KEY_INLINE_IMAGE_MAX_HEIGHT = "inline_image_max_height"
+        private const val KEY_CHAT_SCROLLBAR_WIDTH = "chat_scrollbar_width"
+        private const val KEY_AUTOMATIONS = "chat_automations"
+        private const val KEY_AUTO_CLAIM_POINTS = "auto_claim_points"
+        private const val KEY_MUTED_PHRASES = "muted_phrases"
 
         private const val KEY_CUSTOM_THEMES = "custom_themes_json"
         private const val KEY_ACTIVE_THEME_ID = "active_custom_theme_id"
@@ -285,6 +326,11 @@ class SettingsViewModel(
         private const val KEY_REPEAT_WINDOW = "repeated_message_window"
         private const val KEY_SAVED_TIMEOUT_REASON = "saved_timeout_reason"
         private const val KEY_SAVED_BAN_REASON = "saved_ban_reason"
+        private const val KEY_COLOR_TOKENS = "color_tokens"
+        private const val KEY_TRANSLATION_LANG = "translation_target_lang"
+        private const val KEY_MENTION_TABS = "mention_tabs_enabled"
+        private const val KEY_NAVIGATION_HIDDEN = "navigation_hidden"
+        private const val KEY_HOTKEYS = "hotkeys_map"
         private val json = Json { ignoreUnknownKeys = true }
         private val _effects = MutableSharedFlow<SettingsEffect>()
         val effects = _effects.asSharedFlow()
@@ -293,6 +339,36 @@ class SettingsViewModel(
         val changeBroadcast = _changeBroadcast.asSharedFlow()
         private fun emitChange() {
             _changeBroadcast.tryEmit(Clock.System.now().toEpochMilliseconds())
+        }
+
+        /**
+         * Authoritative, conflated mod-button list shared across every SettingsViewModel
+         * instance (chat windows + the detached settings window). Unlike the timestamp
+         * broadcast above, this carries the actual list, so it can never be dropped or lose
+         * the disk write/read race — a drag-reorder reaches the chat immediately instead of
+         * only after the next unrelated change (the old "toggle a button to apply" workaround).
+         */
+        private val _modButtonsLive = MutableStateFlow<List<ModActionButton>?>(null)
+
+        /**
+         * Public, process-wide live view of the mod-button list. The chat UI collects this
+         * DIRECTLY (not through any per-instance SettingsState), so a reorder/add/remove/toggle
+         * done in the detached settings window shows up in every chat window immediately,
+         * regardless of which SettingsViewModel instance koinViewModel() handed out.
+         * Null until the first mod-button write this session — callers fall back to their state.
+         */
+        val modButtonsLive: StateFlow<List<ModActionButton>?> = _modButtonsLive.asStateFlow()
+
+        private val _macrosLive = MutableStateFlow<List<Macro>?>(null)
+        val macrosLive: StateFlow<List<Macro>?> = _macrosLive.asStateFlow()
+
+        /**
+         * Notify every SettingsViewModel instance that the settings store was rewritten
+         * outside the normal event flow (per-account profile swap, import). A negative
+         * stamp tells collectors to do a FULL reload including macros/commands/rules.
+         */
+        fun notifyExternalChange() {
+            _changeBroadcast.tryEmit(-Clock.System.now().toEpochMilliseconds())
         }
 
         fun loadInitialState(): SettingsState {
@@ -322,6 +398,20 @@ class SettingsViewModel(
                 emptyList()
             }
 
+            val automations = try {
+                val j = settings.getStringOrNull(KEY_AUTOMATIONS)
+                if (j != null) json.decodeFromString<List<io.rudione.chatone.domain.model.ChatAutomation>>(j)
+                else emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val mutedPhrases = try {
+                val j = settings.getStringOrNull(KEY_MUTED_PHRASES)
+                if (j != null) json.decodeFromString<List<String>>(j) else emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+
             val chatCommands = try {
                 val j = settings.getStringOrNull(KEY_CHAT_COMMANDS)
                 if (j != null) json.decodeFromString<List<ChatCommand>>(j) else emptyList()
@@ -334,6 +424,12 @@ class SettingsViewModel(
                 if (j != null) json.decodeFromString<List<CustomThemeConfig>>(j) else emptyList()
             } catch (_: Exception) {
                 emptyList()
+            }
+            val colorTokens = try {
+                val j = settings.getStringOrNull(KEY_COLOR_TOKENS)
+                if (j != null) json.decodeFromString<ChatoneColorTokens>(j) else ChatoneColorTokens()
+            } catch (_: Exception) {
+                ChatoneColorTokens()
             }
             val activeThemeId =
                 settings.getStringOrNull(KEY_ACTIVE_THEME_ID)?.takeIf { it.isNotBlank() }
@@ -351,6 +447,14 @@ class SettingsViewModel(
                     )
                 ) ?: SettingsState.TimestampFormat.H24,
                 showDeletedMessages = settings.getBoolean(KEY_SHOW_DELETED, true),
+                showViewerJoinLeave = settings.getBoolean(KEY_SHOW_VIEWER_JOIN_LEAVE, false),
+                imageUploader = try {
+                    settings.getStringOrNull(KEY_IMAGE_UPLOADER)
+                        ?.let { json.decodeFromString<ImageUploaderConfig>(it) }
+                        ?: ImageUploaderConfig()
+                } catch (_: Exception) {
+                    ImageUploaderConfig()
+                },
                 scrollbackLimit = settings.getInt(KEY_SCROLLBACK_LIMIT, 500),
                 emoteSize = SettingsState.EmoteSize.entries.getOrNull(
                     settings.getInt(
@@ -394,6 +498,7 @@ class SettingsViewModel(
                     settings.getInt(KEY_SHOW_INLINE_IMAGES, 0)
                 ) ?: InlineImageMode.ON,
                 inlineImageMaxHeight = settings.getInt(KEY_INLINE_IMAGE_MAX_HEIGHT, 200),
+                chatScrollbarWidth = settings.getInt(KEY_CHAT_SCROLLBAR_WIDTH, 16),
                 wallpaperPath = settings.getStringOrNull(KEY_WALLPAPER_PATH) ?: "",
                 wallpaperBlur = settings.getFloat(KEY_WALLPAPER_BLUR, 12f),
                 wallpaperDisplayConfig = wallpaperDisplayConfig,
@@ -403,6 +508,9 @@ class SettingsViewModel(
                 ),
                 customModButtons = modButtons,
                 macros = macros,
+                automations = automations,
+                mutedPhrases = mutedPhrases,
+                autoClaimPoints = settings.getBoolean(KEY_AUTO_CLAIM_POINTS, false),
                 showChatHeader = settings.getBoolean(KEY_SHOW_CHAT_HEADER, true),
                 smoothChatEnabled = settings.getBoolean(KEY_SMOOTH_CHAT, false),
                 alternateRowBackground = settings.getBoolean(KEY_ALTERNATE_ROW_BG, false),
@@ -454,6 +562,17 @@ class SettingsViewModel(
                 savedTimeoutReason = settings.getString(KEY_SAVED_TIMEOUT_REASON, ""),
                 savedBanReason = settings.getString(KEY_SAVED_BAN_REASON, ""),
                 chatCommands = chatCommands,
+                colorTokens = colorTokens,
+                translationTargetLang = settings.getString(KEY_TRANSLATION_LANG, "en"),
+                mentionTabsEnabled = settings.getBoolean(KEY_MENTION_TABS, false),
+                navigationHidden = settings.getBoolean(KEY_NAVIGATION_HIDDEN, false),
+                hotkeys = try {
+                    val j = settings.getStringOrNull(KEY_HOTKEYS)
+                    val stored = if (j != null) json.decodeFromString<Map<String, String>>(j) else emptyMap()
+                    io.rudione.chatone.util.defaultHotkeys() + stored
+                } catch (_: Exception) {
+                    io.rudione.chatone.util.defaultHotkeys()
+                },
             )
         }
     }
@@ -461,22 +580,49 @@ class SettingsViewModel(
     init {
         subscribeToEvents()
         viewModelScope.launch {
-            changeBroadcast.collect { _ ->
+            _modButtonsLive.collect { live ->
+                if (live == null) return@collect
                 super.update { current ->
-                    // allModButtons and customModButtons are always saved to Settings on every change,
-                    // so we read them fresh from loadInitialState() to ensure the chat view
-                    // immediately reflects reorder changes. Other in-memory-only fields are
-                    // preserved from current state.
-                    loadInitialState().copy(
+                    if (live == current.allModButtons) current
+                    else current.copy(
+                        allModButtons = live,
+                        customModButtons = live.filter { !it.isDefault },
+                        modButtonsVersion = current.modButtonsVersion + 1
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            kotlinx.coroutines.flow.merge(
+                changeBroadcast.filter { it >= 0 }.debounce(50),
+                changeBroadcast.filter { it < 0 }
+            ).collect { stamp ->
+                val fullReload = stamp < 0
+                super.update { current ->
+                    val fresh = loadInitialState()
+                    val modButtonsChanged = fresh.allModButtons != current.allModButtons ||
+                            fresh.showDefaultDeleteButton != current.showDefaultDeleteButton ||
+                            fresh.showDefaultTimeoutButton != current.showDefaultTimeoutButton ||
+                            fresh.showDefaultBanButton != current.showDefaultBanButton
+                    if (modButtonsChanged) {
+                        Napier.d(
+                            tag = "ModReorder",
+                            message = "[changeBroadcast@${this@SettingsViewModel.hashCode()}] " +
+                                    "disk=${fresh.allModButtons.map { "${it.id}(${it.sortOrder})" }} " +
+                                    "was=${current.allModButtons.map { "${it.id}(${it.sortOrder})" }} fullReload=$fullReload"
+                        )
+                    }
+                    fresh.copy(
                         showThemeCreator = current.showThemeCreator,
                         themeCreatorSeedColor = current.themeCreatorSeedColor,
                         isLoadingBlockedUsers = current.isLoadingBlockedUsers,
                         blockedUsernames = current.blockedUsernames,
                         blockedLoadError = current.blockedLoadError,
-                        macros = current.macros,
-                        chatCommands = current.chatCommands,
-                        highlightRules = current.highlightRules,
-                        modButtonsVersion = current.modButtonsVersion
+                        macros = if (fullReload) fresh.macros else current.macros,
+                        chatCommands = if (fullReload) fresh.chatCommands else current.chatCommands,
+                        highlightRules = if (fullReload) fresh.highlightRules else current.highlightRules,
+                        modButtonsVersion = if (modButtonsChanged || fullReload) current.modButtonsVersion + 1
+                        else current.modButtonsVersion
                     )
                 }
             }
@@ -602,6 +748,19 @@ class SettingsViewModel(
                 settings.putBoolean(KEY_SHOW_DELETED, event.show); update {
                     it.copy(
                         showDeletedMessages = event.show
+                    )
+                }
+            }
+
+            is SettingsEvent.OnImageUploaderChanged -> {
+                settings.putString(KEY_IMAGE_UPLOADER, json.encodeToString(event.config))
+                update { it.copy(imageUploader = event.config) }
+            }
+
+            is SettingsEvent.OnShowViewerJoinLeaveChanged -> {
+                settings.putBoolean(KEY_SHOW_VIEWER_JOIN_LEAVE, event.show); update {
+                    it.copy(
+                        showViewerJoinLeave = event.show
                     )
                 }
             }
@@ -955,6 +1114,51 @@ class SettingsViewModel(
                 update { it.copy(inlineImageMaxHeight = event.height.coerceIn(50, 500)) }
             }
 
+            is SettingsEvent.OnChatScrollbarWidthChanged -> {
+                val w = event.width.coerceIn(6, 32)
+                settings.putInt(KEY_CHAT_SCROLLBAR_WIDTH, w)
+                update { it.copy(chatScrollbarWidth = w) }
+            }
+
+            is SettingsEvent.OnAddAutomation -> update { st ->
+                val n = st.automations + event.automation
+                settings.putString(KEY_AUTOMATIONS, json.encodeToString(n))
+                st.copy(automations = n)
+            }
+
+            is SettingsEvent.OnRemoveAutomation -> update { st ->
+                val n = st.automations.filter { it.id != event.id }
+                settings.putString(KEY_AUTOMATIONS, json.encodeToString(n))
+                st.copy(automations = n)
+            }
+
+            is SettingsEvent.OnToggleAutomation -> update { st ->
+                val n = st.automations.map { if (it.id == event.id) it.copy(enabled = event.enabled) else it }
+                settings.putString(KEY_AUTOMATIONS, json.encodeToString(n))
+                st.copy(automations = n)
+            }
+
+            is SettingsEvent.OnAutoClaimPointsChanged -> {
+                settings.putBoolean(KEY_AUTO_CLAIM_POINTS, event.enabled)
+                update { it.copy(autoClaimPoints = event.enabled) }
+            }
+
+            is SettingsEvent.OnAddMutedPhrase -> update { st ->
+                val phrase = event.phrase.trim()
+                if (phrase.isEmpty() || st.mutedPhrases.any { it.equals(phrase, ignoreCase = true) }) st
+                else {
+                    val n = st.mutedPhrases + phrase
+                    settings.putString(KEY_MUTED_PHRASES, json.encodeToString(n))
+                    st.copy(mutedPhrases = n)
+                }
+            }
+
+            is SettingsEvent.OnRemoveMutedPhrase -> update { st ->
+                val n = st.mutedPhrases.filter { it != event.phrase }
+                settings.putString(KEY_MUTED_PHRASES, json.encodeToString(n))
+                st.copy(mutedPhrases = n)
+            }
+
             is SettingsEvent.OnWallpaperPathChanged -> {
                 settings.putString(KEY_WALLPAPER_PATH, event.path);
                 val w = loadWallpaper(event.path, state.value.wallpaperBlur); update {
@@ -1032,7 +1236,23 @@ class SettingsViewModel(
                 saveAllModButtons(reordered)
                 val custom = reordered.filter { !it.isDefault }
                 saveModButtons(custom)
-                s.copy(allModButtons = reordered, customModButtons = custom, modButtonsVersion = s.modButtonsVersion + 1)
+                val newVer = s.modButtonsVersion + 1
+                println("ModReorder[OnReorderAllModButtons] order=${reordered.map { it.id + "(" + it.sortOrder + ")" }} ver=$newVer")
+                s.copy(allModButtons = reordered, customModButtons = custom, modButtonsVersion = newVer)
+            }
+
+            is SettingsEvent.OnSetModButtonEnabled -> update { s ->
+                val newAll = s.allModButtons.map {
+                    if (it.id == event.id) it.copy(enabled = event.enabled) else it
+                }
+                saveAllModButtons(newAll)
+                val custom = newAll.filter { !it.isDefault }
+                saveModButtons(custom)
+                s.copy(
+                    allModButtons = newAll,
+                    customModButtons = custom,
+                    modButtonsVersion = s.modButtonsVersion + 1
+                )
             }
 
             is SettingsEvent.OnShowDefaultDeleteChanged -> {
@@ -1120,6 +1340,32 @@ class SettingsViewModel(
                 val n = s.chatCommands.filter { it.id != event.id }
                 saveChatCommands(n); s.copy(chatCommands = n)
             }
+
+            is SettingsEvent.OnColorTokensChanged -> {
+                settings.putString(KEY_COLOR_TOKENS, json.encodeToString(event.tokens))
+                update { it.copy(colorTokens = event.tokens) }
+            }
+
+            is SettingsEvent.OnTranslationLangChanged -> {
+                settings.putString(KEY_TRANSLATION_LANG, event.code)
+                update { it.copy(translationTargetLang = event.code) }
+            }
+
+            is SettingsEvent.OnMentionTabsChanged -> {
+                settings.putBoolean(KEY_MENTION_TABS, event.enabled)
+                update { it.copy(mentionTabsEnabled = event.enabled) }
+            }
+
+            is SettingsEvent.OnNavigationHiddenChanged -> {
+                settings.putBoolean(KEY_NAVIGATION_HIDDEN, event.hidden)
+                update { it.copy(navigationHidden = event.hidden) }
+            }
+
+            is SettingsEvent.OnHotkeyChanged -> {
+                val updated = state.value.hotkeys.toMutableMap().apply { put(event.actionId, event.combo) }
+                settings.putString(KEY_HOTKEYS, json.encodeToString(updated))
+                update { it.copy(hotkeys = updated) }
+            }
         }
     }
 
@@ -1137,12 +1383,28 @@ class SettingsViewModel(
     private fun saveHighlightRules(rules: List<HighlightRule>) =
         settings.putString(KEY_HIGHLIGHT_RULES, json.encodeToString(rules))
 
-    private fun saveAllModButtons(buttons: List<ModActionButton>) =
+    private fun saveAllModButtons(buttons: List<ModActionButton>) {
         settings.putString(KEY_ALL_MOD_BUTTONS, json.encodeToString(buttons))
+        _modButtonsLive.value = buttons
+        println("ModReorder[publish->modButtonsLive] ${buttons.map { "${it.id}(${it.sortOrder})" }}")
+        notifyExternalChange()
+        val readBack = try {
+            settings.getStringOrNull(KEY_ALL_MOD_BUTTONS)
+                ?.let { json.decodeFromString<List<ModActionButton>>(it) }
+        } catch (_: Exception) { null }
+        val ok = readBack?.map { it.id to it.sortOrder } == buttons.map { it.id to it.sortOrder }
+        Napier.d(
+            tag = "ModReorder",
+            message = "[saveAllModButtons] wrote=${buttons.map { "${it.id}(${it.sortOrder})" }} readBackOk=$ok"
+        )
+    }
 
     private fun saveModButtons(buttons: List<ModActionButton>) =
         settings.putString(KEY_CUSTOM_MOD_BUTTONS, json.encodeToString(buttons))
 
-    private fun saveMacros(macros: List<Macro>) =
+    private fun saveMacros(macros: List<Macro>) {
         settings.putString(KEY_MACROS, json.encodeToString(macros))
+        _macrosLive.value = macros
+        notifyExternalChange()
+    }
 }

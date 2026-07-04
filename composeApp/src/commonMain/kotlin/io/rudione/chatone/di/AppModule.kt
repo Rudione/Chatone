@@ -3,6 +3,7 @@ package io.rudione.chatone.di
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
@@ -16,6 +17,7 @@ import io.rudione.chatone.data.remote.RecentMessagesClient
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.remote.TwitchPubSubClient
+import io.rudione.chatone.data.remote.TwitchEventSubClient
 import io.rudione.chatone.data.remote.emote.BttvApiClient
 import io.rudione.chatone.data.remote.emote.FfzApiClient
 import io.rudione.chatone.data.remote.emote.SevenTvApiClient
@@ -74,6 +76,7 @@ val networkModule = module {
                 level = LogLevel.INFO
             }
             install(WebSockets)
+            install(HttpTimeout)
         }
     }
 
@@ -96,6 +99,8 @@ val networkModule = module {
     }
 
     single { TwitchPubSubClient(httpClient = get(), scope = get()) }
+    single { TwitchEventSubClient(httpClient = get(), apiClient = get(), scope = get()) }
+    single { io.rudione.chatone.data.remote.ImageUploaderClient(httpClient = get()) }
     single { io.rudione.chatone.data.repository.MentionMuteRepository() }
 
     single { PlatformAuthHandler() }
@@ -110,6 +115,10 @@ val networkModule = module {
 
     single { SevenTvCosmeticsClient(httpClient = get()) }
     single { SevenTvEventApi(httpClient = get(), scope = get()) }
+
+    single { io.rudione.chatone.data.remote.TranslationClient(httpClient = get()) }
+    single { io.rudione.chatone.presentation.chat.TranslationStore(client = get()) }
+    single { io.rudione.chatone.data.remote.TwitchGqlClient(httpClient = get()) }
 }
 
 expect val databaseModule: Module
@@ -155,6 +164,35 @@ val repositoryModule = module {
         UserNoteRepository(
             database = get()
         )
+    }
+
+    single {
+        io.rudione.chatone.data.repository.NicknameRepository(
+            database = get()
+        )
+    }
+
+    single {
+        io.rudione.chatone.data.repository.ThirdPartyBadgeRepository(
+            httpClient = get()
+        )
+    }
+
+    single {
+        io.rudione.chatone.data.remote.IvrApiClient(
+            httpClient = get()
+        )
+    }
+
+    single<io.rudione.chatone.domain.entitlements.EntitlementsRepository> {
+        io.rudione.chatone.data.repository.RemoteEntitlementsRepository(
+            httpClient = get()
+        )
+    }
+    single { io.rudione.chatone.domain.entitlements.RefreshEntitlementsUseCase(repository = get()) }
+    single { io.rudione.chatone.domain.entitlements.ResolveUserPerksUseCase(repository = get()) }
+    single {
+        io.rudione.chatone.domain.entitlements.HasFeatureUseCase(resolvePerks = get())
     }
 
     single {
@@ -272,7 +310,9 @@ val appModule = module {
             accountManager = get(),
             ircClient = get(),
             pubSubClient = get(),
+            eventSubClient = get(),
             emoteRepository = get(),
+            perAccountSettings = get(),
             scope = get()
         )
     }

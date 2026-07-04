@@ -41,16 +41,16 @@ fun MentionToast(
         onDismiss()
     }
 
+    // Deliberately opaque and independent of the user's sidebar glass-intensity setting:
+    // a translucent toast floating over busy chat text was unreadable at low intensities.
     LiquidGlassSurface(
         modifier = modifier
             .widthIn(max = 420.dp)
             .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(16.dp),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-        backgroundAlphaHigh = 0.95f,
-        backgroundAlphaLow = 0.88f,
-        borderAlphaHigh = 0.25f,
-        borderAlphaLow = 0.10f
+        tintColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        glassIntensity = 0.98f
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -65,7 +65,8 @@ fun MentionToast(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isWhisper) "💬 $fromDisplayName" else "@$fromDisplayName в #$channelLogin",
+                    text = if (isWhisper) "💬 $fromDisplayName"
+                    else "@$fromDisplayName ${io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.mentionInChannel.replace("{0}", channelLogin)}",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,

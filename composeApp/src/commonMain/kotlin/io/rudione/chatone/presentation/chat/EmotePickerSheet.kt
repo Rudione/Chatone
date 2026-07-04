@@ -7,14 +7,18 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import io.rudione.chatone.presentation.chat.components.EmoteGridItemFlyweight
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -28,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -46,7 +51,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import io.rudione.chatone.presentation.chat.models.EmoteUiData
@@ -192,7 +196,7 @@ fun EmotePickerSheet(
                     favoriteIds = favoriteIds + newKeys
                     settings.putString("favorite_emotes", favoriteIds.joinToString(","))
                 },
-                onEmojiSelected = { emoji -> onEmojiSelected(emoji); onDismiss() },
+                onEmojiSelected = onEmojiSelected,
                 onToggleFavoriteEmoji = { toggleFavoriteEmoji(it) }
             )
             Spacer(Modifier.height(8.dp))
@@ -203,13 +207,103 @@ fun EmotePickerSheet(
 private sealed class PickerTab {
     object Favorites : PickerTab()
     object All : PickerTab()
-    object TwitchChannel : PickerTab()
-    object TwitchGlobal : PickerTab()
+    object Twitch : PickerTab()
     object TwitchSubscribed : PickerTab()
     object SevenTv : PickerTab()
     object Bttv : PickerTab()
     object Ffz : PickerTab()
     object Emoji : PickerTab()
+}
+
+private data class EmoteSection(val title: String?, val emotes: List<GenericEmote>)
+
+private fun providerName(p: EmoteProvider): String = when (p) {
+    EmoteProvider.TWITCH -> "Twitch"
+    EmoteProvider.SEVEN_TV -> "7TV"
+    EmoteProvider.BTTV -> "BTTV"
+    EmoteProvider.FFZ -> "FFZ"
+}
+
+@Composable
+private fun CompactEmoteSearchBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor =
+        if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+        else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        interactionSource = interactionSource,
+        textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        keyboardOptions = KeyboardOptions.Default.copy(
+            keyboardType = KeyboardType.Text,
+            imeAction = ImeAction.Search
+        ),
+        modifier = modifier
+            .height(34.dp)
+            .clip(RoundedCornerShape(17.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f))
+            .border(1.dp, borderColor, RoundedCornerShape(17.dp)),
+        decorationBox = { innerTextField ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp)
+            ) {
+                Icon(
+                    Icons.Default.Search, null,
+                    modifier = Modifier.size(15.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.width(7.dp))
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) {
+                        Text(
+                            LocalStrings.current.emoteSearchPlaceholder,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            maxLines = 1
+                        )
+                    }
+                    innerTextField()
+                }
+                if (value.isNotEmpty()) {
+                    Icon(
+                        Icons.Default.Clear, "Clear",
+                        modifier = Modifier
+                            .size(15.dp)
+                            .clip(CircleShape)
+                            .clickable { onValueChange("") },
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun EmoteSectionHeader(title: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+    }
 }
 
 @Composable
@@ -231,24 +325,23 @@ internal fun EmoteTab(
     data class TabEntry(val label: String, val tab: PickerTab, val count: Int)
 
     val twitchChannel = channelEmotes.twitchEmotes
-    val twitchGlobal: List<GenericEmote> = emptyList()
+    val twitchGlobal: List<GenericEmote> = channelEmotes.twitchGlobal
     val twitchSubscribed = personalEmotes.filter { it.provider == EmoteProvider.TWITCH }
-    val hasTwitchChannel = twitchChannel.isNotEmpty()
-    val hasTwitchSubscribed = twitchSubscribed.isNotEmpty()
-    val s7 = channelEmotes.byProvider[EmoteProvider.SEVEN_TV]?.size ?: 0
-    val bt = channelEmotes.byProvider[EmoteProvider.BTTV]?.size ?: 0
-    val fz = channelEmotes.byProvider[EmoteProvider.FFZ]?.size ?: 0
+    val hasTwitch = twitchChannel.isNotEmpty() || twitchGlobal.isNotEmpty()
+    val hasSub = twitchSubscribed.isNotEmpty()
+    val sevenTv = channelEmotes.byProvider[EmoteProvider.SEVEN_TV] ?: emptyList()
+    val bttv = channelEmotes.byProvider[EmoteProvider.BTTV] ?: emptyList()
+    val ffz = channelEmotes.byProvider[EmoteProvider.FFZ] ?: emptyList()
 
-    val tabs = remember(allEmotes.size, favoriteEmotes.size, hasTwitchChannel, hasTwitchSubscribed, s7, bt, fz) {
+    val tabs = remember(allEmotes.size, favoriteEmotes.size, hasTwitch, hasSub, sevenTv.size, bttv.size, ffz.size) {
         buildList<TabEntry> {
             if (favoriteEmotes.isNotEmpty()) add(TabEntry("★ ${favoriteEmotes.size}", PickerTab.Favorites, favoriteEmotes.size))
             add(TabEntry("All (${allEmotes.size})", PickerTab.All, allEmotes.size))
-            if (hasTwitchChannel) add(TabEntry("Twitch Ch.", PickerTab.TwitchChannel, twitchChannel.size))
-            if (twitchGlobal.isNotEmpty()) add(TabEntry("Twitch Global", PickerTab.TwitchGlobal, twitchGlobal.size))
-            if (hasTwitchSubscribed) add(TabEntry("Sub ★", PickerTab.TwitchSubscribed, twitchSubscribed.size))
-            if (s7 > 0) add(TabEntry("7TV", PickerTab.SevenTv, s7))
-            if (bt > 0) add(TabEntry("BTTV", PickerTab.Bttv, bt))
-            if (fz > 0) add(TabEntry("FFZ", PickerTab.Ffz, fz))
+            if (hasTwitch) add(TabEntry("Twitch", PickerTab.Twitch, twitchChannel.size + twitchGlobal.size))
+            if (hasSub) add(TabEntry("Sub ★", PickerTab.TwitchSubscribed, twitchSubscribed.size))
+            if (sevenTv.isNotEmpty()) add(TabEntry("7TV", PickerTab.SevenTv, sevenTv.size))
+            if (bttv.isNotEmpty()) add(TabEntry("BTTV", PickerTab.Bttv, bttv.size))
+            if (ffz.isNotEmpty()) add(TabEntry("FFZ", PickerTab.Ffz, ffz.size))
             add(TabEntry("😀 Emoji", PickerTab.Emoji, 0))
         }
     }
@@ -258,115 +351,81 @@ internal fun EmoteTab(
     val currentTab = tabs.getOrNull(safeTab)
     val isEmojiTab = currentTab?.tab == PickerTab.Emoji
 
-    val currentEmoteSource = remember(currentTab, allEmotes, favoriteEmotes, twitchChannel, twitchSubscribed) {
+    val baseSections: List<EmoteSection> = remember(currentTab, allEmotes, favoriteEmotes, twitchChannel, twitchGlobal, twitchSubscribed, sevenTv, bttv, ffz) {
+        val channelName = twitchChannel.firstOrNull()?.authorName?.takeIf { it.isNotBlank() }
         when (currentTab?.tab) {
-            PickerTab.Favorites -> favoriteEmotes
-            PickerTab.All -> allEmotes
-            PickerTab.TwitchChannel -> twitchChannel
-            PickerTab.TwitchGlobal -> twitchGlobal
+            PickerTab.Favorites -> listOf(EmoteSection(null, favoriteEmotes))
+            PickerTab.All -> buildList {
+                if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Twitch · $it" } ?: "Twitch", twitchChannel))
+                if (twitchGlobal.isNotEmpty()) add(EmoteSection("Twitch Global", twitchGlobal))
+                if (sevenTv.isNotEmpty()) add(EmoteSection("7TV", sevenTv))
+                if (bttv.isNotEmpty()) add(EmoteSection("BTTV", bttv))
+                if (ffz.isNotEmpty()) add(EmoteSection("FFZ", ffz))
+                if (twitchSubscribed.isNotEmpty()) add(EmoteSection("Subscriptions", twitchSubscribed))
+            }
+            PickerTab.Twitch -> buildList {
+                if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Channel · $it" } ?: "Channel", twitchChannel))
+                if (twitchGlobal.isNotEmpty()) add(EmoteSection("Global", twitchGlobal))
+            }
             PickerTab.TwitchSubscribed -> twitchSubscribed
-            PickerTab.SevenTv -> channelEmotes.byProvider[EmoteProvider.SEVEN_TV] ?: emptyList()
-            PickerTab.Bttv -> channelEmotes.byProvider[EmoteProvider.BTTV] ?: emptyList()
-            PickerTab.Ffz -> channelEmotes.byProvider[EmoteProvider.FFZ] ?: emptyList()
+                .groupBy { it.authorName.ifBlank { "Other" } }
+                .toList()
+                .sortedBy { it.first.lowercase() }
+                .map { (chan, list) -> EmoteSection(chan, list) }
+            PickerTab.SevenTv -> listOf(EmoteSection(null, sevenTv))
+            PickerTab.Bttv -> listOf(EmoteSection(null, bttv))
+            PickerTab.Ffz -> listOf(EmoteSection(null, ffz))
             else -> emptyList()
         }
     }
 
-    val debouncedQuery by remember(searchQuery) { derivedStateOf { searchQuery } }
+    val flatSource = remember(baseSections) { baseSections.flatMap { it.emotes } }
+    val currentEmoteSource = flatSource
 
-    val searchIndex by produceState<EmoteSearchIndex?>(
-        initialValue = null,
-        currentEmoteSource.size, currentTab
-    ) {
+    val searchIndex by produceState<EmoteSearchIndex?>(initialValue = null, flatSource.size, currentTab) {
         if (isEmojiTab) { value = null; return@produceState }
-        value = withContext(Dispatchers.Default) {
-            EmoteSearchIndex().also { it.build(currentEmoteSource) }
+        value = withContext(Dispatchers.Default) { EmoteSearchIndex().also { it.build(flatSource) } }
+    }
+    val allIndex by produceState<EmoteSearchIndex?>(initialValue = null, allEmotes.size) {
+        value = withContext(Dispatchers.Default) { EmoteSearchIndex().also { it.build(allEmotes) } }
+    }
+
+    val displaySections: List<EmoteSection> = remember(baseSections, searchQuery, searchIndex, allIndex) {
+        if (isEmojiTab) emptyList()
+        else if (searchQuery.isBlank() || searchIndex == null) baseSections
+        else {
+            val matched = searchIndex!!.search(searchQuery, limit = 500).map { it.listKey }.toSet()
+            val filtered = baseSections
+                .map { sec -> sec.copy(emotes = sec.emotes.filter { it.listKey in matched }) }
+                .filter { it.emotes.isNotEmpty() }
+            if (filtered.isNotEmpty()) filtered
+            else (allIndex?.search(searchQuery, limit = 500) ?: emptyList())
+                .groupBy { it.provider }
+                .toList()
+                .map { (prov, list) -> EmoteSection("${providerName(prov)} · search", list) }
         }
     }
 
-    val allFilteredEmotes = remember(searchIndex, debouncedQuery, currentEmoteSource) {
-        if (isEmojiTab) return@remember emptyList()
-        if (debouncedQuery.isBlank() || searchIndex == null) currentEmoteSource
-        else searchIndex!!.search(debouncedQuery, limit = 500)
-    }
-
-    var loadedCount by remember(allFilteredEmotes.size) { mutableIntStateOf(PAGE_SIZE) }
-
-    LaunchedEffect(allFilteredEmotes.size, safeTab, debouncedQuery) {
-        loadedCount = PAGE_SIZE.coerceAtMost(allFilteredEmotes.size)
-    }
-
-    val visibleEmotes = remember(allFilteredEmotes, loadedCount) {
-        if (loadedCount >= allFilteredEmotes.size) allFilteredEmotes
-        else allFilteredEmotes.subList(0, loadedCount)
-    }
-
-    val hasMore = loadedCount < allFilteredEmotes.size
-    var isLoadingMore by remember { mutableStateOf(false) }
+    val isEmpty = displaySections.all { it.emotes.isEmpty() }
     val gridState = rememberLazyGridState()
-
-    LaunchedEffect(safeTab, debouncedQuery) {
-        if (gridState.canScrollForward || gridState.canScrollBackward) gridState.scrollToItem(0)
-        isLoadingMore = false
-    }
-
     var isScrolling by remember { mutableStateOf(false) }
     LaunchedEffect(gridState) {
         snapshotFlow { gridState.isScrollInProgress }.collect { isScrolling = it }
     }
-
-    val shouldLoadMore = remember(hasMore, visibleEmotes.size, gridState, isLoadingMore) {
-        derivedStateOf {
-            if (!hasMore || isLoadingMore) return@derivedStateOf false
-            val layoutInfo = gridState.layoutInfo
-            if (layoutInfo.totalItemsCount == 0) return@derivedStateOf false
-            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            if (lastVisible < 0) return@derivedStateOf false
-            lastVisible >= (visibleEmotes.size - PRELOAD_THRESHOLD).coerceAtLeast(0)
-        }
-    }
-
-    LaunchedEffect(shouldLoadMore.value) {
-        if (shouldLoadMore.value && !isLoadingMore && hasMore) {
-            isLoadingMore = true
-            try {
-                delay(8)
-                loadedCount = (loadedCount + PAGE_SIZE).coerceAtMost(allFilteredEmotes.size)
-            } finally {
-                isLoadingMore = false
-            }
-        }
-    }
-
-    val visibleEmoteKeys = remember(gridState.layoutInfo) {
-        gridState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? String }.toSet()
+    LaunchedEffect(safeTab, searchQuery) {
+        if (gridState.canScrollForward || gridState.canScrollBackward) gridState.scrollToItem(0)
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            placeholder = { Text(LocalStrings.current.emoteSearchPlaceholder, style = MaterialTheme.typography.bodyMedium) },
-            leadingIcon = { Icon(Icons.Default.Search, null, modifier = Modifier.size(20.dp)) },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
-                        Icon(Icons.Default.Clear, "Clear", modifier = Modifier.size(16.dp))
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-            ),
-            keyboardOptions = KeyboardOptions.Default.copy(
-                keyboardType = KeyboardType.Text,
-                imeAction = ImeAction.Search
+        // Emoji can only be "searched" by pasting the emoji itself, which is useless —
+        // hide the bar there instead of pretending it works.
+        if (!isEmojiTab) {
+            CompactEmoteSearchBar(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
             )
-        )
+        }
 
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             ScrollableTabRow(
@@ -415,7 +474,7 @@ internal fun EmoteTab(
                 favoriteEmojis = favoriteEmojis,
                 onToggleFavoriteEmoji = onToggleFavoriteEmoji
             )
-        } else if (currentTab?.tab == PickerTab.Favorites && favoriteEmojis.isNotEmpty() && allFilteredEmotes.isEmpty()) {
+        } else if (currentTab?.tab == PickerTab.Favorites && favoriteEmojis.isNotEmpty() && isEmpty) {
             // Show favorite emojis when there are no favorite emotes but there are fav emoji
             EmojiTab(
                 searchQuery = "",
@@ -425,9 +484,9 @@ internal fun EmoteTab(
                 showOnlyFavorites = true,
                 onToggleFavoriteEmoji = onToggleFavoriteEmoji
             )
-        } else if (allFilteredEmotes.isEmpty()) {
+        } else if (isEmpty) {
             EmptyEmoteState(
-                searchQuery = debouncedQuery,
+                searchQuery = searchQuery,
                 isFavoritesTab = currentTab?.tab == PickerTab.Favorites,
                 onClearSearch = { onSearchQueryChange("") }
             )
@@ -440,25 +499,30 @@ internal fun EmoteTab(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                items(
-                    items = visibleEmotes,
-                    key = { it.listKey },
-                    contentType = { it.provider }
-                ) { emote ->
-                    val uiData = remember(emote.listKey, favoriteIds) {
-                        EmoteUiData.fromEmote(emote, "${emote.provider}_${emote.id}" in favoriteIds)
+                displaySections.forEach { section ->
+                    if (section.title != null && section.emotes.isNotEmpty()) {
+                        item(
+                            span = { GridItemSpan(maxLineSpan) },
+                            key = "header_${section.title}",
+                            contentType = "header"
+                        ) {
+                            EmoteSectionHeader(section.title)
+                        }
                     }
-                    EmoteGridItemFlyweight(
-                        uiData = uiData,
-                        isScrolling = isScrolling,
-                        isVisible = emote.listKey in visibleEmoteKeys,
-                        onClick = { onEmoteSelected(emote) },
-                        onToggleFavorite = { onToggleFavorite(emote) }
-                    )
-                }
-                if (hasMore) {
-                    item(key = "loading_indicator", contentType = "loading") {
-                        LoadMoreIndicator(isLoading = isLoadingMore)
+                    items(
+                        items = section.emotes,
+                        key = { it.listKey },
+                        contentType = { it.provider }
+                    ) { emote ->
+                        val uiData = remember(emote.listKey, favoriteIds) {
+                            EmoteUiData.fromEmote(emote, "${emote.provider}_${emote.id}" in favoriteIds)
+                        }
+                        EmoteGridItemFlyweight(
+                            uiData = uiData,
+                            isScrolling = isScrolling,
+                            onClick = { onEmoteSelected(emote) },
+                            onToggleFavorite = { onToggleFavorite(emote) }
+                        )
                     }
                 }
             }

@@ -63,9 +63,10 @@ data class WallpaperDisplayConfig(
     val masterColor: Int? = null,
     val useMasterColor: Boolean = false,
    
-    val globalBrightness: Float = 0f,  
-    val globalContrast: Float = 1f,    
-    val globalSaturation: Float = 1f   
+    val globalBrightness: Float = 0f,
+    val globalContrast: Float = 1f,
+    val globalSaturation: Float = 1f,
+    val glowEffectsEnabled: Boolean = true
 ) {
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
@@ -90,6 +91,7 @@ data class WallpaperState(
     val overlayDimming: Float get() = displayConfig.overlayDimming
     val chatColorConfig: ChatColorConfig   get() = displayConfig.chatColorConfig
     val panelColorConfig: PanelColorConfig get() = displayConfig.panelColorConfig
+    val glowEffectsEnabled: Boolean        get() = displayConfig.glowEffectsEnabled
 }
 
 val LocalWallpaper = compositionLocalOf { WallpaperState() }
@@ -112,6 +114,7 @@ class WallpaperController {
     fun updateChatColor(cfg: ChatColorConfig)  = patchDisplay { copy(chatColorConfig = cfg) }
     fun updatePanelColors(cfg: PanelColorConfig) = patchDisplay { copy(panelColorConfig = cfg) }
     fun updateMasterColor(argb: Int?, enabled: Boolean) = patchDisplay { copy(masterColor = argb, useMasterColor = enabled) }
+    fun updateGlowEffects(enabled: Boolean)    = patchDisplay { copy(glowEffectsEnabled = enabled) }
     fun updateGlobalAdjustments(brightness: Float, contrast: Float, saturation: Float) =
         patchDisplay { copy(globalBrightness = brightness, globalContrast = contrast, globalSaturation = saturation) }
     fun resetToDefault()                       = setDisplayConfig(WallpaperDisplayConfig())

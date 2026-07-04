@@ -221,8 +221,9 @@ data class SendChatMessageDropReason(
 )
 @Serializable
 data class UserEmotesResponse(
-    val data: List<UserEmoteData>,
-    val template: String = ""
+    val data: List<UserEmoteData> = emptyList(),
+    val template: String = "",
+    val pagination: PaginationData? = null
 )
 
 @Serializable
@@ -295,3 +296,19 @@ data class PredictionData(
 
 @Serializable
 data class PredictionsResponse(val data: List<PredictionData> = emptyList())
+
+@Serializable
+data class CustomRewardData(
+    val id: String,
+    val title: String = "",
+    val prompt: String = "",
+    val cost: Int = 0,
+    @SerialName("is_enabled") val isEnabled: Boolean = true,
+    @SerialName("is_paused") val isPaused: Boolean = false,
+    @SerialName("is_in_stock") val isInStock: Boolean = true,
+    @SerialName("background_color") val backgroundColor: String = "",
+    @SerialName("is_user_input_required") val isUserInputRequired: Boolean = false
+)
+
+@Serializable
+data class CustomRewardsResponse(val data: List<CustomRewardData> = emptyList())

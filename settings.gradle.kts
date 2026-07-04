@@ -134,6 +134,7 @@ dependencyResolutionManagement {
             library("coil-compose", "io.coil-kt.coil3", "coil-compose").versionRef("coil")
             library("coil-network-ktor", "io.coil-kt.coil3", "coil-network-ktor3").versionRef("coil")
             library("coil-gif", "io.coil-kt.coil3", "coil-gif").versionRef("coil")
+            library("coil-svg", "io.coil-kt.coil3", "coil-svg").versionRef("coil")
         }
     }
 }

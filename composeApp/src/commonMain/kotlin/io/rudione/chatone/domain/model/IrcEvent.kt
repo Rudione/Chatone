@@ -90,6 +90,11 @@ sealed class IrcEvent {
     ) : IrcEvent()
 
     data class Connected(val channel: String) : IrcEvent()
+
+    data class UserJoin(val channel: String, val username: String) : IrcEvent()
+
+    data class UserPart(val channel: String, val username: String) : IrcEvent()
+
     data class Reconnect(val reason: String = "Server requested reconnect") : IrcEvent()
     data class Error(val message: String) : IrcEvent()
 
@@ -118,4 +123,33 @@ sealed class IrcEvent {
             const val ACTION_UNVIP = "unvip"
         }
     }
+
+    /**
+     * Live pin update from PubSub `pinned-chat-updates-v1`. The payload carries the full pin
+     * content, which matters because Twitch's private GQL (the fetch-on-demand path) rejects
+     * third-party client tokens — this event is the only reliable source of pin data.
+     * [pin] is set for pin-message/update-message, null for unpin-message.
+     */
+    data class PinnedChatUpdated(
+        val channel: String,
+        val pin: PinnedChatPayload? = null,
+        val isUnpin: Boolean = false,
+        val unpinId: String? = null,
+        val unpinnedBy: String? = null
+    ) : IrcEvent()
+
+    /** Bonus-chest claim became available (PubSub community-points-user-v1). */
+    data class PointsClaimAvailable(val channelId: String, val claimId: String) : IrcEvent()
+
+    data class PinnedChatPayload(
+        val pinId: String,
+        val messageId: String,
+        val text: String,
+        val senderId: String,
+        val senderName: String,
+        val senderLogin: String,
+        val senderColor: String?,
+        val endsAtEpochMs: Long?,
+        val pinnerName: String
+    )
 }

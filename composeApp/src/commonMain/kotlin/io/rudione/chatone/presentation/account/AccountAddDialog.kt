@@ -41,7 +41,7 @@ fun AccountAddDialog(
                 OutlinedTextField(
                     value = token,
                     onValueChange = { token = it.trim() },
-                    label = { Text("OAuth token") },
+                    label = { Text(io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.oauthTokenLabel) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )

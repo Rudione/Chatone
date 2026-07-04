@@ -47,14 +47,18 @@ class TwitchPubSubClient(
     private var currentToken: String = ""
     private var currentUserId: String = ""
     private var currentChannelId: String = ""
+    private var currentIsMod: Boolean = false
 
-    fun connect(accessToken: String, userId: String, channelId: String) {
+    fun connect(accessToken: String, userId: String, channelId: String, isMod: Boolean = false) {
         if (accessToken.isEmpty() || userId.isEmpty() || channelId.isEmpty()) return
-        if (accessToken == currentToken && userId == currentUserId && channelId == currentChannelId) return
+        if (accessToken == currentToken && userId == currentUserId && channelId == currentChannelId &&
+            isMod == currentIsMod
+        ) return
 
         currentToken = accessToken
         currentUserId = userId
         currentChannelId = channelId
+        currentIsMod = isMod
         reconnect()
     }
 
@@ -65,6 +69,7 @@ class TwitchPubSubClient(
         currentToken = ""
         currentUserId = ""
         currentChannelId = ""
+        currentIsMod = false
     }
 
     private fun reconnect() {
@@ -77,19 +82,34 @@ class TwitchPubSubClient(
                     Napier.d("Connecting to PubSub...", tag = TAG)
                     httpClient.webSocket(PUBSUB_URL) {
                         session = this
-                        val automodTopic = "automod-queue.$currentUserId.$currentChannelId"
-                        val modActionsTopic = "chat_moderator_actions.$currentUserId.$currentChannelId"
 
+                        val pinTopic = "pinned-chat-updates-v1.$currentChannelId"
+                        val pinListen =
+                            """{"type":"LISTEN","nonce":"pin","data":{"topics":["$pinTopic"],"auth_token":"$currentToken"}}"""
+                        send(Frame.Text(pinListen))
+                        Napier.d("Subscribed to PubSub topic: $pinTopic", tag = TAG)
 
-                        val automodListen =
-                            """{"type":"LISTEN","nonce":"automod","data":{"topics":["$automodTopic"],"auth_token":"$currentToken"}}"""
-                        send(Frame.Text(automodListen))
-                        Napier.d("Subscribed to PubSub topic: $automodTopic", tag = TAG)
+                        // Bonus-chest claim-available events for the auto-claim automation.
+                        val pointsTopic = "community-points-user-v1.$currentUserId"
+                        val pointsListen =
+                            """{"type":"LISTEN","nonce":"points","data":{"topics":["$pointsTopic"],"auth_token":"$currentToken"}}"""
+                        send(Frame.Text(pointsListen))
+                        Napier.d("Subscribed to PubSub topic: $pointsTopic", tag = TAG)
 
-                        val modActionsListen =
-                            """{"type":"LISTEN","nonce":"modactions","data":{"topics":["$modActionsTopic"],"auth_token":"$currentToken"}}"""
-                        send(Frame.Text(modActionsListen))
-                        Napier.d("Subscribed to PubSub topic: $modActionsTopic", tag = TAG)
+                        if (currentIsMod) {
+                            val automodTopic = "automod-queue.$currentUserId.$currentChannelId"
+                            val modActionsTopic = "chat_moderator_actions.$currentUserId.$currentChannelId"
+
+                            val automodListen =
+                                """{"type":"LISTEN","nonce":"automod","data":{"topics":["$automodTopic"],"auth_token":"$currentToken"}}"""
+                            send(Frame.Text(automodListen))
+                            Napier.d("Subscribed to PubSub topic: $automodTopic", tag = TAG)
+
+                            val modActionsListen =
+                                """{"type":"LISTEN","nonce":"modactions","data":{"topics":["$modActionsTopic"],"auth_token":"$currentToken"}}"""
+                            send(Frame.Text(modActionsListen))
+                            Napier.d("Subscribed to PubSub topic: $modActionsTopic", tag = TAG)
+                        }
 
                         pingJob = scope.launch {
                             while (isActive) {
@@ -108,6 +128,8 @@ class TwitchPubSubClient(
                             }
                         }
                     }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Napier.e("PubSub error: ${e.message}", e, tag = TAG)
                 }
@@ -149,11 +171,86 @@ class TwitchPubSubClient(
                     when {
                         topic.startsWith("automod-queue.") -> handleAutoModMessage(messageStr)
                         topic.startsWith("chat_moderator_actions.") -> handleModActionMessage(messageStr)
+                        topic.startsWith("pinned-chat-updates-v1.") -> handlePinnedChatUpdate(messageStr)
+                        topic.startsWith("community-points-user-v1.") -> handleCommunityPoints(messageStr)
                     }
                 }
             }
         } catch (e: Exception) {
             Napier.e("PubSub parse error: ${e.message}", tag = TAG)
+        }
+    }
+
+    /** `claim-available` events carry the bonus-chest claim id the auto-claim automation needs. */
+    private fun handleCommunityPoints(messageStr: String) {
+        try {
+            val root = json.parseToJsonElement(messageStr).jsonObject
+            if (root["type"]?.jsonPrimitive?.contentOrNull != "claim-available") return
+            val claim = root["data"]?.jsonObject?.get("claim")?.jsonObject ?: return
+            val claimId = claim["id"]?.jsonPrimitive?.contentOrNull ?: return
+            val channelId = claim["channel_id"]?.jsonPrimitive?.contentOrNull ?: return
+            scope.launch { _events.emit(IrcEvent.PointsClaimAvailable(channelId, claimId)) }
+        } catch (e: Exception) {
+            Napier.w("community-points parse failed: ${e.message}", tag = TAG)
+        }
+    }
+
+    // Payload shapes (same as moltorino's PubSubPinnedChatUpdatesV1Message):
+    //  pin-message / update-message: data.{id, pinned_by{display_name}, message{id, sender{id,
+    //    display_name, login, chat_color}, content{text}, ends_at(epoch sec)}}
+    //  unpin-message: data.{id|pin_id|pinned_chat_message_id, unpinned_by{display_name}}
+    // The payload is parsed in full because the GQL fallback fetch is rejected (401) for
+    // third-party client tokens — this is the only working source of pin content.
+    private fun handlePinnedChatUpdate(messageStr: String) {
+        val channelId = currentChannelId
+        try {
+            val root = json.parseToJsonElement(messageStr).jsonObject
+            val type = root["type"]?.jsonPrimitive?.contentOrNull ?: return
+            val data = root["data"]?.jsonObject
+
+            when (type) {
+                "pin-message", "update-message" -> {
+                    val msg = data?.get("message")?.jsonObject
+                    val sender = msg?.get("sender")?.jsonObject
+                    val pin = if (msg != null) {
+                        val senderName = sender?.get("display_name")?.jsonPrimitive?.contentOrNull.orEmpty()
+                        IrcEvent.PinnedChatPayload(
+                            pinId = data["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            messageId = msg["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            text = msg["content"]?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            senderId = sender?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            senderName = senderName,
+                            senderLogin = sender?.get("login")?.jsonPrimitive?.contentOrNull
+                                ?.takeIf { it.isNotBlank() } ?: senderName.lowercase(),
+                            senderColor = sender?.get("chat_color")?.jsonPrimitive?.contentOrNull,
+                            endsAtEpochMs = msg["ends_at"]?.jsonPrimitive?.contentOrNull
+                                ?.toLongOrNull()?.takeIf { it > 0 }?.times(1000),
+                            pinnerName = data["pinned_by"]?.jsonObject
+                                ?.get("display_name")?.jsonPrimitive?.contentOrNull.orEmpty()
+                        )
+                    } else null
+                    scope.launch { _events.emit(IrcEvent.PinnedChatUpdated(channelId, pin = pin)) }
+                }
+
+                "unpin-message" -> {
+                    val unpinnedBy = data?.get("unpinned_by")?.jsonObject
+                        ?.get("display_name")?.jsonPrimitive?.contentOrNull
+                    val unpinId = listOf("id", "pin_id", "pinned_chat_message_id")
+                        .firstNotNullOfOrNull { key -> data?.get(key)?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } }
+                    scope.launch {
+                        _events.emit(
+                            IrcEvent.PinnedChatUpdated(
+                                channelId, isUnpin = true, unpinId = unpinId, unpinnedBy = unpinnedBy
+                            )
+                        )
+                    }
+                }
+
+                else -> scope.launch { _events.emit(IrcEvent.PinnedChatUpdated(channelId)) }
+            }
+        } catch (e: Exception) {
+            Napier.w("PubSub pin payload parse failed: ${e.message}", tag = TAG)
+            scope.launch { _events.emit(IrcEvent.PinnedChatUpdated(channelId)) }
         }
     }
 

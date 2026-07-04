@@ -407,7 +407,7 @@ private fun AuthContentState(
                                     contentColor = MaterialTheme.colorScheme.onErrorContainer
                                 )
                             ) {
-                                Text("Try Again", style = MaterialTheme.typography.labelMedium)
+                                Text(io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.tryAgain, style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }

@@ -23,6 +23,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -51,6 +52,7 @@ import chatone.composeapp.generated.resources.icon
 import chatone.composeapp.generated.resources.images
 import chatone.composeapp.generated.resources.images_outline
 import chatone.composeapp.generated.resources.key_outline
+import chatone.composeapp.generated.resources.ic_sword
 import chatone.composeapp.generated.resources.keyboard_24_filled
 import chatone.composeapp.generated.resources.keyboard_24_regular
 import chatone.composeapp.generated.resources.musical_notes_outline
@@ -78,6 +80,8 @@ import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import androidx.compose.runtime.CompositionLocalProvider
 import io.rudione.chatone.util.BuildConfig
+import io.rudione.chatone.util.HotkeyAction
+import io.rudione.chatone.util.comboFor
 import io.rudione.chatone.util.NotificationSoundPlayer
 import io.rudione.chatone.util.WallpaperLoader
 import io.rudione.chatone.presentation.theme.i18n.AppLocale
@@ -111,6 +115,7 @@ private enum class SettingsSection(
     BACKGROUND("Background", Res.drawable.wallpaper_filled, Res.drawable.wallpaper_outlined),
     HOTKEYS("Hotkeys", Res.drawable.keyboard_24_filled, Res.drawable.keyboard_24_regular),
     COMMANDS("Commands", Res.drawable.key_outline, Res.drawable.key_outline),
+    ACTIONS("Actions", Res.drawable.ic_sword, Res.drawable.ic_sword),
     MODERATION("Moderation", Res.drawable.shield_filled, Res.drawable.shield_outlined),
     ACCOUNT("Account", Res.drawable.person_filled, Res.drawable.person_filled),
     ABOUT("About", Res.drawable.panel_left_key_16_regular, null);
@@ -123,6 +128,7 @@ private enum class SettingsSection(
         BACKGROUND -> s.sectionBackground
         HOTKEYS -> s.sectionHotkeys
         COMMANDS -> s.sectionCommands
+        ACTIONS -> s.sectionActions
         MODERATION -> s.settingsModeration
         ACCOUNT -> s.settingsAccount
         ABOUT -> s.settingsAbout
@@ -328,6 +334,12 @@ private fun SettingsDialogContent(
                 "auto reply", "phrase", "abbreviation", "expander",
                 "команда", "команды", "триггер", "алиас", "сокращение", "подмена", "замена",
                 "автоответ", "фраза", "расширение"
+            ),
+            SettingsSection.ACTIONS to listOf(
+                "action", "actions", "automation", "timer", "timed message", "auto reply",
+                "keyword", "sound alert", "auto points", "bonus", "claim", "mute", "ignore",
+                "действия", "автоматизация", "таймер", "автоответчик", "ключевое слово",
+                "звук", "баллы", "бонус", "мьют", "игнор", "фраза"
             ),
             SettingsSection.MODERATION to listOf(
                 "moderation", "mod", "ban", "timeout", "automod", "macro",
@@ -752,8 +764,8 @@ private fun SectionContentLazy(
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().padding(end = 10.dp),
-            contentPadding = PaddingValues(horizontal = 28.dp, vertical = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             item {
                 Text(
@@ -761,7 +773,7 @@ private fun SectionContentLazy(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(bottom = 18.dp)
+                    modifier = Modifier.padding(bottom = 10.dp)
                 )
             }
             when (section) {
@@ -779,6 +791,7 @@ private fun SectionContentLazy(
                 SettingsSection.BACKGROUND -> backgroundLazyItems(state, viewModel)
                 SettingsSection.HOTKEYS -> hotkeyLazyItems(state, viewModel)
                 SettingsSection.COMMANDS -> commandsLazyItems(state, viewModel)
+                SettingsSection.ACTIONS -> actionsLazyItems(state, viewModel)
                 SettingsSection.MODERATION -> moderationLazyItems(state, viewModel)
                 SettingsSection.ABOUT -> aboutLazyItems(viewModel)
             }
@@ -829,6 +842,10 @@ private fun SectionContentColumn(
                 SettingsSection.HIGHLIGHTS -> HighlightContent(state, viewModel)
                 SettingsSection.BACKGROUND -> BackgroundContent(state, viewModel)
                 SettingsSection.HOTKEYS -> HotkeyContent(state, viewModel)
+                SettingsSection.ACTIONS -> io.rudione.chatone.presentation.settings.components.ActionsSection(
+                    state = state,
+                    onEvent = { viewModel.sendEvent(it) }
+                )
                 SettingsSection.COMMANDS -> io.rudione.chatone.presentation.settings.components.ChatCommandsSection(
                     state = state,
                     onEvent = { viewModel.sendEvent(it) }
@@ -1066,6 +1083,14 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
             }
             RowDivider()
             SwitchRow(
+                s.settingsShowViewerJoinLeave,
+                s.settingsShowViewerJoinLeaveDesc,
+                state.showViewerJoinLeave
+            ) {
+                vm.sendEvent(SettingsEvent.OnShowViewerJoinLeaveChanged(it))
+            }
+            RowDivider()
+            SwitchRow(
                 s.settingsSmoothChat,
                 s.settingsSmoothChatDesc,
                 state.smoothChatEnabled
@@ -1148,6 +1173,8 @@ private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewMo
             }
         }
     }
+    item { MentionTabsSettingsGroup(state, vm) }
+    item { TranslationSettingsGroup(state, vm) }
 }
 
 private fun LazyListScope.notificationLazyItems(state: SettingsState, vm: SettingsViewModel) {
@@ -1167,39 +1194,40 @@ private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsV
             modifier = Modifier.padding(bottom = 12.dp)
         )
     }
-    items(state.highlightRules, key = { it.id }) { rule ->
-        HightlightRuleCard(
-            rule = rule,
-            onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-            onSoundToggle = {
-                vm.sendEvent(
-                    SettingsEvent.OnHighlightRuleSoundToggled(
-                        rule.id,
-                        it
-                    )
-                )
-            },
-            onColorChange = { color ->
-                vm.sendEvent(
-                    SettingsEvent.OnHighlightRuleColorChanged(
-                        rule.id,
-                        color
-                    )
-                )
-            },
-            onSubstringToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSubstringToggled(rule.id, it)) },
-            onRemove = if (!rule.id.startsWith("custom_")) null else {
-                { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
+    val builtInHighlightRules = state.highlightRules.filter { !it.id.startsWith("custom_") }
+    val customHighlightRules = state.highlightRules.filter { it.id.startsWith("custom_") }
+    builtInHighlightRules.chunked(2).forEach { chunk ->
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                chunk.forEach { rule ->
+                    Box(modifier = Modifier.weight(1f)) {
+                        HighlightRuleCardFor(rule = rule, vm = vm, compact = true)
+                    }
+                }
+                if (chunk.size == 1) Spacer(Modifier.weight(1f))
             }
-        )
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+    items(customHighlightRules, key = { it.id }) { rule ->
+        HighlightRuleCardFor(rule = rule, vm = vm)
         Spacer(Modifier.height(4.dp))
     }
     item {
         var newPattern by remember { mutableStateOf("") }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             OutlinedTextField(
                 value = newPattern,
@@ -1210,9 +1238,13 @@ private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsV
                     Text(sp.settingsAddHighlightPattern)
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary
+                )
             )
-            FilledTonalButton(
+            FilledIconButton(
                 onClick = {
                     if (newPattern.isNotBlank()) {
                         vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
@@ -1232,6 +1264,7 @@ private fun LazyListScope.backgroundLazyItems(state: SettingsState, vm: Settings
 }
 
 private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item { HotkeyCombinationsGroup(state, vm) }
     item {
         val s = LocalStrings.current
         SettingsGroup(s.settingsChatControls) {
@@ -1271,13 +1304,35 @@ private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsView
                     )
                 ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
             }
+            SliderRow(
+                label = s.settingsChatScrollbarWidth,
+                value = state.chatScrollbarWidth.toFloat(),
+                valueRange = 6f..32f,
+                steps = 12,
+                valueLabel = "${state.chatScrollbarWidth} dp"
+            ) { vm.sendEvent(SettingsEvent.OnChatScrollbarWidthChanged(it.toInt())) }
         }
+    }
+    item {
+        io.rudione.chatone.presentation.settings.components.ImageUploaderSection(
+            state = state,
+            onEvent = { vm.sendEvent(it) }
+        )
     }
 }
 
 private fun LazyListScope.moderationLazyItems(state: SettingsState, vm: SettingsViewModel) {
     item {
         ModerationSettingsSection(
+            state = state,
+            onEvent = { vm.sendEvent(it) }
+        )
+    }
+}
+
+private fun LazyListScope.actionsLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item {
+        io.rudione.chatone.presentation.settings.components.ActionsSection(
             state = state,
             onEvent = { vm.sendEvent(it) }
         )
@@ -1610,6 +1665,14 @@ private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
         }
         RowDivider()
         SwitchRow(
+            s.settingsShowViewerJoinLeave,
+            s.settingsShowViewerJoinLeaveDesc,
+            state.showViewerJoinLeave
+        ) {
+            vm.sendEvent(SettingsEvent.OnShowViewerJoinLeaveChanged(it))
+        }
+        RowDivider()
+        SwitchRow(
             s.settingsSmoothChat,
             s.settingsSmoothChatDesc,
             state.smoothChatEnabled
@@ -1651,6 +1714,8 @@ private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
             vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
         }
     }
+    MentionTabsSettingsGroup(state, vm)
+    TranslationSettingsGroup(state, vm)
 }
 
 @Composable
@@ -1676,29 +1741,38 @@ private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
-            state.highlightRules.forEach { rule ->
-                HightlightRuleCard(
-                    rule = rule,
-                    onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-                    onSoundToggle = {
-                        vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it))
-                    },
-                    onColorChange = { color ->
-                        vm.sendEvent(SettingsEvent.OnHighlightRuleColorChanged(rule.id, color))
-                    },
-                    onRemove = if (!rule.id.startsWith("custom_")) null else {
-                        { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
+            val builtInHighlightRules = state.highlightRules.filter { !it.id.startsWith("custom_") }
+            val customHighlightRules = state.highlightRules.filter { it.id.startsWith("custom_") }
+            builtInHighlightRules.chunked(2).forEach { chunk ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    chunk.forEach { rule ->
+                        Box(modifier = Modifier.weight(1f)) {
+                            HighlightRuleCardFor(rule = rule, vm = vm, compact = true)
+                        }
                     }
-                )
+                    if (chunk.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+            customHighlightRules.forEach { rule ->
+                HighlightRuleCardFor(rule = rule, vm = vm)
             }
         }
     }
     SettingsGroup(s.settingsAddRule) {
         var newPattern by remember { mutableStateOf("") }
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                .padding(4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             OutlinedTextField(
                 value = newPattern,
@@ -1706,9 +1780,13 @@ private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
                 modifier = Modifier.weight(1f),
                 placeholder = { Text(s.settingsAddHighlightPattern) },
                 singleLine = true,
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(10.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = Color.Transparent,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary
+                )
             )
-            FilledTonalButton(
+            FilledIconButton(
                 onClick = {
                     if (newPattern.isNotBlank()) {
                         vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
@@ -1731,6 +1809,7 @@ private fun BackgroundContent(state: SettingsState, vm: SettingsViewModel) {
 @Composable
 private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
     val s = LocalStrings.current
+    HotkeyCombinationsGroup(state, vm)
     SettingsGroup(s.settingsChatControls) {
         HotkeyRow(s.settingsPauseAutoScroll, s.settingsPauseAutoScrollDesc, state.pauseHotkey) {
             vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
@@ -1766,6 +1845,10 @@ private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
             ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
         }
     }
+    io.rudione.chatone.presentation.settings.components.ImageUploaderSection(
+        state = state,
+        onEvent = { vm.sendEvent(it) }
+    )
 }
 
 @Composable
@@ -1791,14 +1874,8 @@ private fun AboutContent(vm: SettingsViewModel) {
 @Composable
 private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
     val s = LocalStrings.current
-    LiquidGlassSurface(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp),
-        contentPadding = PaddingValues(16.dp),
-        backgroundAlphaHigh = 0.80f,
-        backgroundAlphaLow = 0.65f,
-        borderAlphaHigh = 0f,
-        borderAlphaLow = 0f
+    SettingsSurface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
@@ -1819,7 +1896,7 @@ private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Switch(
+                io.rudione.chatone.presentation.components.ChatoneSwitch(
                     checked = state.mentionSoundEnabled,
                     onCheckedChange = { vm.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) })
             }
@@ -1855,14 +1932,8 @@ private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
 private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
     val s = LocalStrings.current
     val scope = rememberCoroutineScope()
-    LiquidGlassSurface(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp),
-        contentPadding = PaddingValues(16.dp),
-        backgroundAlphaHigh = 0.80f,
-        backgroundAlphaLow = 0.65f,
-        borderAlphaHigh = 0f,
-        borderAlphaLow = 0f
+    SettingsSurface(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
@@ -2248,6 +2319,44 @@ private fun BackupCard(vm: SettingsViewModel) {
     }
 }
 
+/**
+ * Shared settings card surface — the same gradient + subtle border used by the
+ * Appearance section, so every settings section reads identically.
+ */
+@Composable
+private fun SettingsSurface(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f),
+                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.60f)
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
+                    )
+                ),
+                RoundedCornerShape(16.dp)
+            )
+            .padding(contentPadding)
+    ) {
+        content()
+    }
+}
+
 @Composable
 private fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -2286,7 +2395,7 @@ private fun SettingsGroup(title: String? = null, content: @Composable ColumnScop
         ) {
             Column(content = content)
         }
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(6.dp))
     }
 }
 
@@ -2416,6 +2525,31 @@ private fun RowDivider() {
 }
 
 @Composable
+private fun MentionTabsSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsMentionTabs) {
+        SwitchRow(s.settingsMentionTabs, s.settingsMentionTabsDesc, state.mentionTabsEnabled) {
+            vm.sendEvent(SettingsEvent.OnMentionTabsChanged(it))
+        }
+    }
+}
+
+@Composable
+private fun TranslationSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
+    val s = LocalStrings.current
+    val langs = io.rudione.chatone.presentation.chat.TranslationLanguages
+    val currentName = langs.firstOrNull { it.first == state.translationTargetLang }?.second
+        ?: state.translationTargetLang
+    SettingsGroup(s.settingsTranslationLang) {
+        ListRow(
+            s.settingsTranslationLangDesc,
+            currentName,
+            langs.map { it.second }
+        ) { idx -> vm.sendEvent(SettingsEvent.OnTranslationLangChanged(langs[idx].first)) }
+    }
+}
+
+@Composable
 private fun SwitchRow(
     title: String,
     subtitle: String? = null,
@@ -2424,18 +2558,19 @@ private fun SwitchRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = 16.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyLarge)
+            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyMedium)
             if (subtitle != null) HighlightedSettingsText(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Spacer(Modifier.width(12.dp))
+        io.rudione.chatone.presentation.components.ChatoneSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -2450,11 +2585,11 @@ private fun ListRow(
     Box {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 13.dp),
+                .padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                HighlightedSettingsText(title, style = MaterialTheme.typography.bodyLarge)
+                HighlightedSettingsText(title, style = MaterialTheme.typography.bodyMedium)
                 HighlightedSettingsText(
                     value,
                     style = MaterialTheme.typography.bodySmall,
@@ -2578,36 +2713,63 @@ private fun SliderRow(
 }
 
 @Composable
+private fun HighlightRuleCardFor(
+    rule: HighlightRule,
+    vm: SettingsViewModel,
+    compact: Boolean = false
+) {
+    val isCustom = rule.id.startsWith("custom_")
+    HightlightRuleCard(
+        rule = rule,
+        onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
+        onSoundToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
+        onColorChange = { color -> vm.sendEvent(SettingsEvent.OnHighlightRuleColorChanged(rule.id, color)) },
+        onSubstringToggle = if (isCustom) {
+            { vm.sendEvent(SettingsEvent.OnHighlightRuleSubstringToggled(rule.id, it)) }
+        } else null,
+        onRemove = if (isCustom) {
+            { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
+        } else null,
+        compact = compact
+    )
+}
+
+@Composable
 private fun HightlightRuleCard(
     rule: HighlightRule,
     onToggle: (Boolean) -> Unit,
     onSoundToggle: (Boolean) -> Unit,
     onColorChange: (Long) -> Unit = {},
     onSubstringToggle: ((Boolean) -> Unit)? = null,
-    onRemove: (() -> Unit)?
+    onRemove: (() -> Unit)?,
+    compact: Boolean = false
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
     val ruleColor = Color(rule.color)
 
     Surface(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(if (compact) 10.dp else 12.dp),
         color = ruleColor.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, ruleColor.copy(alpha = 0.25f))
+        border = BorderStroke(1.dp, ruleColor.copy(alpha = 0.25f)),
+        modifier = if (compact) Modifier.fillMaxWidth() else Modifier
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier.fillMaxWidth().padding(
+                    horizontal = if (compact) 8.dp else 12.dp,
+                    vertical = if (compact) 6.dp else 10.dp
+                ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
                 Box(
                     modifier = Modifier
-                        .size(14.dp)
+                        .size(if (compact) 11.dp else 14.dp)
                         .clip(CircleShape)
                         .background(ruleColor)
                         .clickable { showColorPicker = true }
                 )
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(if (compact) 7.dp else 10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         rule.pattern.ifEmpty {
@@ -2624,10 +2786,12 @@ private fun HightlightRuleCard(
                                     .replaceFirstChar { it.uppercase() }
                             }
                         },
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
+                        style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = if (compact) 2 else 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    if (rule.isRegex) Text(
+                    if (!compact && rule.isRegex) Text(
                         LocalStrings.current.settingsRegex,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -2636,17 +2800,21 @@ private fun HightlightRuleCard(
 
                 IconButton(
                     onClick = { onSoundToggle(!rule.playSound) },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(if (compact) 24.dp else 32.dp)
                 ) {
                     Icon(
                         if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications,
                         null,
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(if (compact) 13.dp else 16.dp),
                         tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Switch(checked = rule.enabled, onCheckedChange = onToggle)
+                io.rudione.chatone.presentation.components.ChatoneSwitch(
+                    checked = rule.enabled,
+                    onCheckedChange = onToggle,
+                    modifier = if (compact) Modifier.scale(0.8f) else Modifier
+                )
 
                 if (onRemove != null) {
                     IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
@@ -2659,7 +2827,7 @@ private fun HightlightRuleCard(
                     }
                 }
             }
-            if (onSubstringToggle != null && !rule.isRegex && rule.id.startsWith("custom_")) {
+            if (!compact && onSubstringToggle != null && !rule.isRegex && rule.id.startsWith("custom_")) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2765,6 +2933,38 @@ private fun HightlightRuleCard(
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun hotkeyActionLabel(action: HotkeyAction, s: io.rudione.chatone.presentation.theme.i18n.AppStrings): String =
+    when (action) {
+        HotkeyAction.TOGGLE_NAVIGATION -> s.hotkeyToggleNavigation
+        HotkeyAction.TOGGLE_SIDEBAR -> s.hotkeyToggleSidebar
+        HotkeyAction.TOGGLE_MENTIONS -> s.hotkeyToggleMentions
+        HotkeyAction.ADD_CHANNEL -> s.hotkeyAddChannel
+        HotkeyAction.OPEN_SETTINGS -> s.hotkeyOpenSettings
+        HotkeyAction.NEXT_CHANNEL -> s.hotkeyNextChannel
+        HotkeyAction.PREV_CHANNEL -> s.hotkeyPrevChannel
+        HotkeyAction.CLOSE_CHANNEL -> s.hotkeyCloseChannel
+        HotkeyAction.TOGGLE_WHISPERS -> s.hotkeyToggleWhispers
+    }
+
+@Composable
+private fun HotkeyCombinationsGroup(state: SettingsState, vm: SettingsViewModel) {
+    val s = LocalStrings.current
+    SettingsGroup(s.hotkeysCombinationsTitle) {
+        SwitchRow(s.settingsNavigationHidden, s.settingsNavigationHiddenDesc, state.navigationHidden) {
+            vm.sendEvent(SettingsEvent.OnNavigationHiddenChanged(it))
+        }
+        HotkeyAction.entries.forEach { action ->
+            RowDivider()
+            HotkeyRow(
+                hotkeyActionLabel(action, s),
+                "",
+                state.hotkeys.comboFor(action)
+            ) { combo -> vm.sendEvent(SettingsEvent.OnHotkeyChanged(action.id, combo)) }
+        }
+    }
+}
+
 @Composable
 private fun HotkeyRow(
     title: String,

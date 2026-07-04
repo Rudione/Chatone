@@ -40,6 +40,14 @@ actual class DatabaseDriverFactory(private val context: Context) {
         driver.execute(null, "CREATE INDEX IF NOT EXISTS idx_automod_scope ON AutomodRuleEntity(scope)", 0)
         driver.execute(null, "CREATE INDEX IF NOT EXISTS idx_automod_channel ON AutomodRuleEntity(channelLogin)", 0)
         driver.execute(null, "CREATE INDEX IF NOT EXISTS idx_automod_enabled ON AutomodRuleEntity(enabled)", 0)
+
+        driver.execute(null, """
+            CREATE TABLE IF NOT EXISTS UserNicknameEntity (
+                twitchUserId TEXT NOT NULL PRIMARY KEY,
+                nickname TEXT NOT NULL DEFAULT '',
+                updatedAt INTEGER NOT NULL DEFAULT 0
+            )
+        """.trimIndent(), 0)
     }
 
     private fun migrateChatRuleColumns(driver: SqlDriver) {
