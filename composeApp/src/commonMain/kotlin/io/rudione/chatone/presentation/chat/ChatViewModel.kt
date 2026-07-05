@@ -281,7 +281,6 @@ class ChatViewModel(
     private var pollPollingJob: kotlinx.coroutines.Job? = null
     private var predictionPollingJob: kotlinx.coroutines.Job? = null
 
-    // ===== Chat automations ("Действия") =====
     private var automationTimerJob: kotlinx.coroutines.Job? = null
     private val automationLastFired = mutableMapOf<String, Long>()
     private var timedMsgCounter = 0
@@ -293,9 +292,6 @@ class ChatViewModel(
         return phrases.any { text.contains(it, ignoreCase = true) }
     }
 
-    /** Timed messages for the currently open channel. Interval gets a random 3–20s jitter and
-     * the text a rotating invisible dup-marker so Twitch's identical-message / bot filters
-     * never trigger. Anchored at channel open — nothing fires the moment you enable it. */
     private fun startAutomationEngine() {
         automationTimerJob?.cancel()
         automationTimerJob = viewModelScope.launch {
@@ -331,8 +327,13 @@ class ChatViewModel(
         }
     }
 
-    /** Auto-reply and keyword-sound triggers for incoming messages, each with its own
-     * cooldown; auto-replies go out with a short human-ish random delay. */
+    private fun textMentionsCurrentUser(text: String): Boolean {
+        val login = state.value.currentUserLogin
+        val display = state.value.currentDisplayName
+        return (login.isNotBlank() && text.contains("@$login", ignoreCase = true)) ||
+                (display.isNotBlank() && text.contains("@$display", ignoreCase = true))
+    }
+
     private fun processIncomingAutomations(message: ChatMessage, isOwnMessage: Boolean) {
         if (isOwnMessage) return
         val s = state.value
@@ -341,14 +342,17 @@ class ChatViewModel(
         val text = message.message
         val now = Clock.System.now().toEpochMilliseconds()
         autos.forEach { auto ->
-            if (!auto.enabled || auto.keyword.isBlank()) return@forEach
+            if (!auto.enabled) return@forEach
             if (auto.channelLogin != "*" && auto.channelLogin.isNotBlank() &&
                 !auto.channelLogin.equals(message.channelName, ignoreCase = true)
             ) return@forEach
-            if (!text.contains(auto.keyword, ignoreCase = true)) return@forEach
             when (auto.kind) {
                 io.rudione.chatone.domain.model.AutomationKind.AUTO_REPLY -> {
                     if (auto.message.isBlank()) return@forEach
+                    // Mention-only replies may have a blank keyword: the @-mention alone triggers.
+                    if (auto.keyword.isBlank() && !auto.onlyWhenMentioned) return@forEach
+                    if (auto.keyword.isNotBlank() && !text.contains(auto.keyword, ignoreCase = true)) return@forEach
+                    if (auto.onlyWhenMentioned && !textMentionsCurrentUser(text)) return@forEach
                     val last = automationLastFired[auto.id] ?: 0L
                     if (now - last < auto.cooldownSeconds.coerceAtLeast(10) * 1000L) return@forEach
                     automationLastFired[auto.id] = now
@@ -367,6 +371,8 @@ class ChatViewModel(
                 }
 
                 io.rudione.chatone.domain.model.AutomationKind.KEYWORD_SOUND -> {
+                    if (auto.keyword.isBlank()) return@forEach
+                    if (!text.contains(auto.keyword, ignoreCase = true)) return@forEach
                     val last = automationLastFired[auto.id] ?: 0L
                     if (now - last < auto.cooldownSeconds.coerceAtLeast(5) * 1000L) return@forEach
                     automationLastFired[auto.id] = now

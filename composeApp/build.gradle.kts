@@ -128,6 +128,8 @@ kotlin {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.slf4j.simple)
             implementation(libs.ktor.server.cio)
+            implementation(libs.jna)
+            implementation(libs.jna.platform)
         }
         all {
             languageSettings.enableLanguageFeature("BreakContinueInInlineLambdas")

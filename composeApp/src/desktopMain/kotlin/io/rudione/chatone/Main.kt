@@ -18,8 +18,11 @@ import chatone.composeapp.generated.resources.icon
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.window.ChatoneTitleBar
+import io.rudione.chatone.presentation.window.NATIVE_WINDOW_BG
+import io.rudione.chatone.presentation.window.isWindowsOs
+import io.rudione.chatone.presentation.window.resolveTitleBar
+import io.rudione.chatone.presentation.window.useCustomTitleBar
 import io.rudione.chatone.util.AutoUpdater
 import io.rudione.chatone.util.GlobalKeyDispatcher
 import io.rudione.chatone.util.WindowsTitleBar
@@ -39,16 +42,6 @@ private const val WIN_Y = "win_y"
 private const val WIN_W = "win_w"
 private const val WIN_H = "win_h"
 private const val WIN_MAX = "win_maximized"
-
-private val NATIVE_BG = java.awt.Color(0x0A, 0x0A, 0x0F)
-
-private val DARK_CAPTION_COLOR = Color(0x0D, 0x0F, 0x1A)
-private val LIGHT_CAPTION_COLOR = Color(0xF0, 0xF0, 0xF5)
-
-private val osName: String = System.getProperty("os.name", "").lowercase()
-private val isMac: Boolean = osName.contains("mac")
-private val isWindows: Boolean = osName.contains("win")
-private val useCustomTitleBar: Boolean = !isMac
 
 @OptIn(FlowPreview::class)
 fun main() {
@@ -148,9 +141,9 @@ fun main() {
                 val initialDark = isDarkTheme
                 val listener = object : java.awt.event.WindowAdapter() {
                     override fun windowOpened(e: java.awt.event.WindowEvent) {
-                        window.background = NATIVE_BG
-                        window.contentPane.background = NATIVE_BG
-                        if (isWindows && useCustomTitleBar) {
+                        window.background = NATIVE_WINDOW_BG
+                        window.contentPane.background = NATIVE_WINDOW_BG
+                        if (isWindowsOs && useCustomTitleBar) {
                             WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
                         }
                         runCatching {
@@ -213,53 +206,6 @@ fun main() {
             }
         }
     }
-}
-
-private fun resolveTitleBar(
-    mode: TitleBarMode,
-    isDarkTheme: Boolean,
-    dominantColor: Color?
-): Pair<Color, Boolean> = when (mode) {
-    TitleBarMode.DARK -> DARK_CAPTION_COLOR to true
-    TitleBarMode.LIGHT -> LIGHT_CAPTION_COLOR to false
-    TitleBarMode.ADAPTIVE -> {
-        val blended = dominantColor?.let { blendWithDark(it, isDarkTheme) }
-            ?: if (isDarkTheme) DARK_CAPTION_COLOR else LIGHT_CAPTION_COLOR
-        blended to isDarkTheme
-    }
-    TitleBarMode.SYSTEM -> {
-        val systemDark = isSystemDarkMode()
-        val color = if (systemDark) DARK_CAPTION_COLOR else LIGHT_CAPTION_COLOR
-        color to systemDark
-    }
-}
-
-private fun isSystemDarkMode(): Boolean = runCatching {
-    if (isWindows) {
-        val proc = Runtime.getRuntime().exec(
-            arrayOf("reg", "query",
-                "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                "/v", "AppsUseLightTheme")
-        )
-        val output = proc.inputStream.bufferedReader().readText()
-        val value = output.lines()
-            .firstOrNull { it.contains("AppsUseLightTheme") }
-            ?.trim()?.split("\\s+".toRegex())?.lastOrNull()
-            ?.let { java.lang.Long.parseLong(it.removePrefix("0x"), 16) }
-        value == 0L
-    } else {
-        true
-    }
-}.getOrDefault(true)
-
-private fun blendWithDark(dominant: Color, isDark: Boolean): Color {
-    val base = if (isDark) Color(0x0A, 0x0A, 0x0F) else Color(0xF5, 0xF5, 0xFF)
-    val t = 0.15f
-    return Color(
-        red = base.red * (1f - t) + dominant.red * t,
-        green = base.green * (1f - t) + dominant.green * t,
-        blue = base.blue * (1f - t) + dominant.blue * t
-    )
 }
 
 private data class WindowSnapshot(

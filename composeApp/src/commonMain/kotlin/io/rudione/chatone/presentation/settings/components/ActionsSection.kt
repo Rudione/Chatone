@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,7 +32,7 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.datetime.Clock
 
-/** Compact 32dp pill field for the Actions forms. */
+/** Compact 28dp pill field for the Actions forms. */
 @Composable
 private fun ActionField(
     value: String,
@@ -50,7 +51,7 @@ private fun ActionField(
         textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
         cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
         modifier = modifier
-            .height(32.dp)
+            .height(28.dp)
             .clip(RoundedCornerShape(9.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f))
             .border(
@@ -78,12 +79,12 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 10.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f))
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .padding(9.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         content = content
     )
 }
@@ -121,12 +122,33 @@ fun ActionsSection(
             s.actionsHint,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 10.dp)
+            modifier = Modifier.padding(bottom = 6.dp)
         )
 
-        // --- Automations list + creator ---
         SectionCard {
             CardTitle(s.actionsAutomations, s.actionsAutomationsHint)
+
+            var editingId by remember { mutableStateOf<String?>(null) }
+            var kind by remember { mutableStateOf(AutomationKind.TIMED_MESSAGE) }
+            var channel by remember { mutableStateOf("") }
+            var allChannels by remember { mutableStateOf(false) }
+            var message by remember { mutableStateOf("") }
+            var keyword by remember { mutableStateOf("") }
+            var interval by remember { mutableStateOf("15") }
+            var cooldown by remember { mutableStateOf("60") }
+            var onlyMention by remember { mutableStateOf(false) }
+
+            fun resetForm() {
+                editingId = null
+                channel = ""
+                allChannels = false
+                message = ""
+                keyword = ""
+                interval = "15"
+                cooldown = "60"
+                onlyMention = false
+            }
+
             if (state.automations.isEmpty()) {
                 Text(
                     s.actionsEmpty,
@@ -137,8 +159,15 @@ fun ActionsSection(
             state.automations.forEach { auto ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(
+                            if (editingId == auto.id) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+                            else Color.Transparent
+                        )
+                        .padding(horizontal = 2.dp)
                 ) {
                     val kindLabel = when (auto.kind) {
                         AutomationKind.TIMED_MESSAGE -> s.actionsKindTimer
@@ -165,8 +194,11 @@ fun ActionsSection(
                                             .replace("{0}", auto.intervalMinutes.toString())
                                             .replace("{1}", auto.message)
                                     )
-                                AutomationKind.AUTO_REPLY ->
-                                    append("«${auto.keyword}» → ${auto.message}")
+                                AutomationKind.AUTO_REPLY -> {
+                                    if (auto.onlyWhenMentioned) append("[${s.actionsMentionBadge}] ")
+                                    if (auto.keyword.isNotBlank()) append("«${auto.keyword}» → ${auto.message}")
+                                    else append("→ ${auto.message}")
+                                }
                                 AutomationKind.KEYWORD_SOUND ->
                                     append(s.actionsListSound.replace("{0}", auto.keyword))
                             }
@@ -181,7 +213,30 @@ fun ActionsSection(
                         onCheckedChange = { onEvent(SettingsEvent.OnToggleAutomation(auto.id, it)) }
                     )
                     IconButton(
-                        onClick = { onEvent(SettingsEvent.OnRemoveAutomation(auto.id)) },
+                        onClick = {
+                            editingId = auto.id
+                            kind = auto.kind
+                            allChannels = auto.channelLogin == "*"
+                            channel = if (auto.channelLogin == "*") "" else auto.channelLogin
+                            message = auto.message
+                            keyword = auto.keyword
+                            interval = auto.intervalMinutes.toString()
+                            cooldown = auto.cooldownSeconds.toString()
+                            onlyMention = auto.onlyWhenMentioned
+                        },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Edit, s.actionsEdit,
+                            modifier = Modifier.size(13.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            if (editingId == auto.id) resetForm()
+                            onEvent(SettingsEvent.OnRemoveAutomation(auto.id))
+                        },
                         modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
@@ -194,15 +249,6 @@ fun ActionsSection(
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-            // Creator
-            var kind by remember { mutableStateOf(AutomationKind.TIMED_MESSAGE) }
-            var channel by remember { mutableStateOf("") }
-            var allChannels by remember { mutableStateOf(false) }
-            var message by remember { mutableStateOf("") }
-            var keyword by remember { mutableStateOf("") }
-            var interval by remember { mutableStateOf("15") }
-            var cooldown by remember { mutableStateOf("60") }
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 @Composable
@@ -226,7 +272,7 @@ fun ActionsSection(
                                 RoundedCornerShape(8.dp)
                             )
                             .clickable { kind = k }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
                 kindChip(AutomationKind.TIMED_MESSAGE, s.actionsKindTimer)
@@ -275,38 +321,84 @@ fun ActionsSection(
             if (kind != AutomationKind.TIMED_MESSAGE) {
                 ActionField(keyword, { keyword = it }, s.actionsFieldKeyword, Modifier.fillMaxWidth())
             }
+            if (kind == AutomationKind.AUTO_REPLY) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onlyMention = !onlyMention }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    ExpressiveCheckbox(
+                        checked = onlyMention,
+                        onCheckedChange = { onlyMention = it },
+                        boxSize = 14
+                    )
+                    Text(
+                        s.actionsOnlyMention,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (onlyMention) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                }
+            }
             if (kind != AutomationKind.KEYWORD_SOUND) {
                 ActionField(message, { message = it }, s.actionsFieldMessage, Modifier.fillMaxWidth())
             }
-            FilledTonalButton(
-                onClick = {
-                    val valid = (allChannels || channel.isNotBlank()) && when (kind) {
-                        AutomationKind.TIMED_MESSAGE -> message.isNotBlank()
-                        AutomationKind.AUTO_REPLY -> keyword.isNotBlank() && message.isNotBlank()
-                        AutomationKind.KEYWORD_SOUND -> keyword.isNotBlank()
-                    }
-                    if (!valid) return@FilledTonalButton
-                    onEvent(
-                        SettingsEvent.OnAddAutomation(
-                            ChatAutomation(
-                                id = "auto_${Clock.System.now().toEpochMilliseconds()}",
-                                kind = kind,
-                                channelLogin = if (allChannels) "*" else channel.removePrefix("#"),
-                                message = message.trim(),
-                                keyword = keyword.trim(),
-                                intervalMinutes = interval.toIntOrNull()?.coerceIn(1, 720) ?: 15,
-                                cooldownSeconds = cooldown.toIntOrNull()?.coerceIn(5, 3600) ?: 60
-                            )
-                        )
-                    )
-                    message = ""; keyword = ""
-                },
-                modifier = Modifier.height(32.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(s.actionsAdd, style = MaterialTheme.typography.labelSmall)
+                FilledTonalButton(
+                    onClick = {
+                        val valid = (allChannels || channel.isNotBlank()) && when (kind) {
+                            AutomationKind.TIMED_MESSAGE -> message.isNotBlank()
+                            AutomationKind.AUTO_REPLY -> message.isNotBlank() && (keyword.isNotBlank() || onlyMention)
+                            AutomationKind.KEYWORD_SOUND -> keyword.isNotBlank()
+                        }
+                        if (!valid) return@FilledTonalButton
+                        val existing = state.automations.firstOrNull { it.id == editingId }
+                        val result = ChatAutomation(
+                            id = existing?.id ?: "auto_${Clock.System.now().toEpochMilliseconds()}",
+                            enabled = existing?.enabled ?: true,
+                            kind = kind,
+                            channelLogin = if (allChannels) "*" else channel.removePrefix("#"),
+                            message = message.trim(),
+                            keyword = keyword.trim(),
+                            intervalMinutes = interval.toIntOrNull()?.coerceIn(1, 720) ?: 15,
+                            cooldownSeconds = cooldown.toIntOrNull()?.coerceIn(5, 3600) ?: 60,
+                            onlyWhenMentioned = kind == AutomationKind.AUTO_REPLY && onlyMention
+                        )
+                        if (existing != null) {
+                            onEvent(SettingsEvent.OnUpdateAutomation(result))
+                            resetForm()
+                        } else {
+                            onEvent(SettingsEvent.OnAddAutomation(result))
+                            message = ""; keyword = ""
+                        }
+                    },
+                    modifier = Modifier.height(28.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    if (editingId == null) {
+                        Icon(Icons.Filled.Add, null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text(
+                        if (editingId != null) s.actionsSave else s.actionsAdd,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+                if (editingId != null) {
+                    TextButton(
+                        onClick = { resetForm() },
+                        modifier = Modifier.height(28.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp)
+                    ) {
+                        Text(s.actionsCancel, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
             }
             Text(
                 s.actionsSafetyNote,
@@ -315,7 +407,7 @@ fun ActionsSection(
             )
         }
 
-        // --- Auto claim points ---
+        /*
         SectionCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -327,8 +419,8 @@ fun ActionsSection(
                 )
             }
         }
+        */
 
-        // --- Phrase mute ---
         SectionCard {
             CardTitle(s.actionsMutedPhrases, s.actionsMutedPhrasesHint)
             state.mutedPhrases.forEach { phrase ->
@@ -367,7 +459,7 @@ fun ActionsSection(
                         }
                     },
                     enabled = newPhrase.isNotBlank(),
-                    modifier = Modifier.height(32.dp),
+                    modifier = Modifier.height(28.dp),
                     contentPadding = PaddingValues(horizontal = 10.dp)
                 ) {
                     Text(s.actionsAdd, style = MaterialTheme.typography.labelSmall)

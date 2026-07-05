@@ -1269,7 +1269,7 @@ private fun CompactSidebar(
 
     Column(
         modifier = Modifier
-            .width(60.dp)
+            .width(40.dp)
             .fillMaxHeight()
             .then(
                 if (glowEnabled) Modifier.shadow(
@@ -1296,20 +1296,20 @@ private fun CompactSidebar(
             ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         IconButton(
             onClick = { onEvent(MainEvent.ToggleSidebarCollapsed) },
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(28.dp)
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = LocalStrings.current.mainExpandSidebar,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(14.dp)
             )
         }
         HorizontalDivider(
-            modifier = Modifier.padding(vertical = 4.dp, horizontal = 8.dp),
+            modifier = Modifier.padding(vertical = 3.dp, horizontal = 6.dp),
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
         )
 
@@ -1320,8 +1320,8 @@ private fun CompactSidebar(
         LazyColumn(
             modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.CenterHorizontally,
-            contentPadding = PaddingValues(vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            contentPadding = PaddingValues(vertical = 3.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             itemsIndexed(state.folders, key = { _, f -> "cf_${f.id}" }) { _, folder ->
                 val isExpanded = folder.id in expandedFolders
@@ -1340,16 +1340,16 @@ private fun CompactSidebar(
 
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.width(52.dp)
+                    modifier = Modifier.width(36.dp)
                 ) {
                     Box(
-                        modifier = Modifier.size(40.dp),
+                        modifier = Modifier.size(28.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                                .size(24.dp)
+                                .clip(RoundedCornerShape(7.dp))
                                 .background(
                                     if (hasFolderActive) folderColor.copy(alpha = 0.2f)
                                     else if (isExpanded) MaterialTheme.colorScheme.surfaceVariant.copy(
@@ -1359,9 +1359,9 @@ private fun CompactSidebar(
                                 )
                                 .then(
                                     if (hasFolderActive) Modifier.border(
-                                        2.dp,
+                                        1.5.dp,
                                         folderColor,
-                                        RoundedCornerShape(10.dp)
+                                        RoundedCornerShape(7.dp)
                                     )
                                     else Modifier
                                 )
@@ -1374,24 +1374,24 @@ private fun CompactSidebar(
                             Icon(
                                 painterResource(Res.drawable.folder_outline),
                                 contentDescription = folder.name,
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(14.dp),
                                 tint = folderColor
                             )
                         }
                         if (folder.channels.count { it.isLive } > 0) {
                             Box(
                                 modifier = Modifier.align(Alignment.TopEnd)
-                                    .offset(x = 2.dp, y = (-2).dp)
-                                    .size(10.dp).clip(CircleShape)
+                                    .offset(x = 1.5.dp, y = (-1.5).dp)
+                                    .size(7.dp).clip(CircleShape)
                                     .background(ChatoneTheme.extraColors.live)
-                                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                    .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
                             )
                         }
                     }
 
                     Text(
-                        text = folder.name.take(8),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                        text = folder.name.take(6),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
                         color = if (hasFolderActive) folderColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(
                             alpha = 0.7f
                         ),
@@ -1414,7 +1414,7 @@ private fun CompactSidebar(
                     }
                     Spacer(Modifier.height(2.dp))
                     HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 10.dp),
+                        modifier = Modifier.padding(horizontal = 7.dp),
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                     )
                     Spacer(Modifier.height(2.dp))
@@ -1431,68 +1431,68 @@ private fun CompactSidebar(
                 )
             }
 
-            item { Spacer(Modifier.height(8.dp)) }
+            item { Spacer(Modifier.height(6.dp)) }
         }
 
         HorizontalDivider(
-            modifier = Modifier.padding(horizontal = 8.dp),
+            modifier = Modifier.padding(horizontal = 6.dp),
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
         )
 
-        Spacer(Modifier.height(4.dp))
-        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Spacer(Modifier.height(3.dp))
+        Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
             IconButton(
                 onClick = { onEvent(MainEvent.ToggleMentionsFeed) },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(28.dp)
             ) {
                 Icon(
                     Icons.Filled.Notifications,
                     contentDescription = s.chatMentionsTab,
                     tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(14.dp)
                 )
             }
             if (state.unreadMentionsCount > 0) {
                 Box(
                     modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
-                        .size(14.dp).clip(CircleShape)
+                        .size(10.dp).clip(CircleShape)
                         .background(MaterialTheme.colorScheme.error)
                         .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
                         color = Color.White
                     )
                 }
             }
         }
-        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
             IconButton(
                 onClick = { onEvent(MainEvent.ToggleWhisperPanel) },
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(28.dp)
             ) {
                 Icon(
                     Icons.Filled.MailOutline,
                     contentDescription = s.chatWhisperTab,
                     tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(14.dp)
                 )
             }
             if (state.totalUnreadWhispers > 0) {
                 Box(
                     modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
-                        .size(14.dp).clip(CircleShape)
+                        .size(10.dp).clip(CircleShape)
                         .background(MaterialTheme.colorScheme.error)
                         .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
                         color = Color.White
                     )
                 }
@@ -1500,16 +1500,16 @@ private fun CompactSidebar(
         }
         IconButton(
             onClick = { onEvent(MainEvent.ShowSettings) },
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(28.dp)
         ) {
             Icon(
                 Icons.Outlined.Settings,
                 contentDescription = s.settingsTitle,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(14.dp)
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
     }
 }
 
@@ -1522,13 +1522,13 @@ private fun CompactChannelAvatar(
 ) {
     var showTooltip by remember { mutableStateOf(false) }
     Box(
-        modifier = Modifier.fillMaxWidth().padding(start = if (indented) 8.dp else 0.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = if (indented) 6.dp else 0.dp),
         contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(24.dp)
                     .clip(CircleShape)
                     .background(
                         if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
@@ -1536,7 +1536,7 @@ private fun CompactChannelAvatar(
                     )
                     .then(
                         if (isActive) Modifier.border(
-                            2.dp,
+                            1.5.dp,
                             MaterialTheme.colorScheme.primary,
                             CircleShape
                         )
@@ -1561,12 +1561,12 @@ private fun CompactChannelAvatar(
                         model = channel.profileImageUrl,
                         contentDescription = channel.displayName,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(30.dp).clip(CircleShape)
+                        modifier = Modifier.size(20.dp).clip(CircleShape)
                     )
                 } else {
                     Text(
                         text = channel.displayName.take(2).uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                         fontWeight = FontWeight.Bold,
                         color = if (isActive) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant
@@ -1576,24 +1576,24 @@ private fun CompactChannelAvatar(
             if (channel.isLive) {
                 Box(
                     modifier = Modifier.align(Alignment.TopEnd)
-                        .offset(x = 2.dp, y = (-2).dp)
-                        .size(10.dp).clip(CircleShape)
+                        .offset(x = 1.5.dp, y = (-1.5).dp)
+                        .size(7.dp).clip(CircleShape)
                         .background(ChatoneTheme.extraColors.live)
-                        .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
                 )
             }
             if (channel.unreadCount > 0) {
                 Box(
                     modifier = Modifier.align(Alignment.BottomEnd)
-                        .offset(x = 2.dp, y = 2.dp)
-                        .size(14.dp).clip(CircleShape)
+                        .offset(x = 1.5.dp, y = 1.5.dp)
+                        .size(10.dp).clip(CircleShape)
                         .background(Color.Red)
                         .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         if (channel.unreadCount > 9) "9+" else "${channel.unreadCount}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
                         color = Color.White
                     )
                 }
@@ -1602,7 +1602,7 @@ private fun CompactChannelAvatar(
         if (showTooltip) {
             Popup(
                 alignment = Alignment.CenterEnd,
-                offset = IntOffset(28, 0),
+                offset = IntOffset(20, 0),
                 properties = androidx.compose.ui.window.PopupProperties(focusable = false)
             ) {
                 Box(

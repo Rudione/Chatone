@@ -1,8 +1,17 @@
 package io.rudione.chatone.util
 
 import androidx.compose.ui.graphics.Color
+import com.sun.jna.CallbackReference
+import com.sun.jna.Memory
+import com.sun.jna.Native
+import com.sun.jna.NativeLibrary
+import com.sun.jna.Pointer
+import com.sun.jna.platform.win32.User32
+import com.sun.jna.platform.win32.WinDef
+import com.sun.jna.platform.win32.WinUser
 import io.github.aakira.napier.Napier
 import java.awt.Window
+import java.util.concurrent.ConcurrentHashMap
 
 object WindowsTitleBar {
 
@@ -23,31 +32,16 @@ object WindowsTitleBar {
     private const val DWMWA_BORDER_COLOR = 34
 
 
-    private val dwmLib: Any? by lazy {
-        runCatching {
-            val nlClass = Class.forName("com.sun.jna.NativeLibrary")
-            nlClass.getMethod("getInstance", String::class.java).invoke(null, "dwmapi")
-        }.getOrNull()
+    private val dwmLib: NativeLibrary? by lazy {
+        runCatching { NativeLibrary.getInstance("dwmapi") }.getOrNull()
     }
 
     private fun callDwm(hwnd: Long, attribute: Int, valueBytes: ByteArray) {
         val lib = dwmLib ?: return
-        val nlClass = Class.forName("com.sun.jna.NativeLibrary")
-        val funcMethod = nlClass.getMethod("getFunction", String::class.java)
-        val func = funcMethod.invoke(lib, "DwmSetWindowAttribute")
-        val funcClass = Class.forName("com.sun.jna.Function")
-
-        val memClass = Class.forName("com.sun.jna.Memory")
-        val mem = memClass.getConstructor(Long::class.java).newInstance(valueBytes.size.toLong()) as Any
-        val writeMethod = memClass.getMethod("write", Long::class.java, ByteArray::class.java, Int::class.java, Int::class.java)
-        writeMethod.invoke(mem, 0L, valueBytes, 0, valueBytes.size)
-
-        val ptrClass = Class.forName("com.sun.jna.Pointer")
-        val ptrCtor = ptrClass.getConstructor(Long::class.java)
-        val hwndPtr = ptrCtor.newInstance(hwnd)
-
-        val invokeMethod = funcClass.getMethod("invoke", Class::class.java, Array<Any?>::class.javaObjectType)
-        invokeMethod.invoke(func, Int::class.java, arrayOf(hwndPtr, attribute, mem, valueBytes.size))
+        val mem = Memory(valueBytes.size.toLong())
+        mem.write(0L, valueBytes, 0, valueBytes.size)
+        lib.getFunction("DwmSetWindowAttribute")
+            .invokeInt(arrayOf(Pointer(hwnd), attribute, mem, valueBytes.size))
     }
 
     private fun setDwmBool(hwnd: Long, attribute: Int, value: Boolean) {
@@ -68,7 +62,13 @@ object WindowsTitleBar {
     }
 
 
-    private fun getHwnd(window: Window): Long? = runCatching {
+    private fun getHwnd(window: Window): Long? =
+        runCatching { Pointer.nativeValue(Native.getWindowPointer(window)) }
+            .getOrNull()
+            ?.takeIf { it != 0L }
+            ?: getHwndViaPeer(window)
+
+    private fun getHwndViaPeer(window: Window): Long? = runCatching {
         val peerField = java.awt.Component::class.java.getDeclaredField("peer")
         peerField.isAccessible = true
         val peer = peerField.get(window) ?: return@runCatching null
@@ -113,54 +113,114 @@ object WindowsTitleBar {
     fun windowsBuildNumber(): Int = _buildNumber
 
 
+    private const val GWL_WNDPROC = -4
     private const val GWL_STYLE = -16
     private const val GWL_EXSTYLE = -20
-    private const val WS_CAPTION = 0x00C00000.toInt()
+    private const val WS_CAPTION = 0x00C00000
     private const val WS_THICKFRAME = 0x00040000
     private const val WS_SYSMENU = 0x00080000
     private const val WS_MAXIMIZEBOX = 0x00010000
     private const val WS_MINIMIZEBOX = 0x00020000
+    private const val WS_MAXIMIZE = 0x01000000
     private const val WS_EX_APPWINDOW = 0x00040000
+
+    private const val WM_NCCALCSIZE = 0x0083
+    private const val WM_NCHITTEST = 0x0084
+    private const val WM_NCDESTROY = 0x0082
+    private const val HTCLIENT = 1
+    private const val SM_CXSIZEFRAME = 32
+    private const val SM_CYSIZEFRAME = 33
+    private const val SM_CXPADDEDBORDER = 92
+
+    private const val SWP_FRAMECHANGED = 0x0020
+    private const val SWP_NOMOVE = 0x0002
+    private const val SWP_NOSIZE = 0x0001
+    private const val SWP_NOZORDER = 0x0004
+    private const val SWP_NOACTIVATE = 0x0010
+
+    // Keeps strong references to WNDPROC callbacks so JNA doesn't GC them
+    // while the native window still points at them.
+    private val subclassed = ConcurrentHashMap<Long, BorderlessWindowProc>()
+
+    private class BorderlessWindowProc(
+        private val hwndValue: Long,
+        @Volatile var originalProc: Pointer?
+    ) : WinUser.WindowProc {
+        override fun callback(
+            hwnd: WinDef.HWND,
+            uMsg: Int,
+            wParam: WinDef.WPARAM,
+            lParam: WinDef.LPARAM
+        ): WinDef.LRESULT {
+            val original = originalProc
+                ?: return User32.INSTANCE.DefWindowProc(hwnd, uMsg, wParam, lParam)
+            return when (uMsg) {
+                WM_NCCALCSIZE -> {
+                    if (wParam.toLong() != 0L) {
+                        // Claim the whole window rect as client area so the
+                        // native caption never shows; when maximized, inset by
+                        // the frame that Windows pushes off-screen.
+                        val style = User32.INSTANCE.GetWindowLong(hwnd, GWL_STYLE)
+                        if (style and WS_MAXIMIZE != 0) {
+                            val pad = User32.INSTANCE.GetSystemMetrics(SM_CXPADDEDBORDER)
+                            val fx = User32.INSTANCE.GetSystemMetrics(SM_CXSIZEFRAME) + pad
+                            val fy = User32.INSTANCE.GetSystemMetrics(SM_CYSIZEFRAME) + pad
+                            val rect = Pointer(lParam.toLong())
+                            rect.setInt(0L, rect.getInt(0L) + fx)
+                            rect.setInt(4L, rect.getInt(4L) + fy)
+                            rect.setInt(8L, rect.getInt(8L) - fx)
+                            rect.setInt(12L, rect.getInt(12L) - fy)
+                        }
+                        WinDef.LRESULT(0)
+                    } else {
+                        User32.INSTANCE.CallWindowProc(original, hwnd, uMsg, wParam, lParam)
+                    }
+                }
+                WM_NCHITTEST -> WinDef.LRESULT(HTCLIENT.toLong())
+                WM_NCDESTROY -> {
+                    val result = User32.INSTANCE.CallWindowProc(original, hwnd, uMsg, wParam, lParam)
+                    subclassed.remove(hwndValue)
+                    result
+                }
+                else -> User32.INSTANCE.CallWindowProc(original, hwnd, uMsg, wParam, lParam)
+            }
+        }
+    }
 
     fun enableWindowsSnapAndTaskbar(window: Window) {
         if (!isWindows()) return
-        val hwnd = getHwnd(window)
-        if (hwnd == null) {
+        val hwndValue = getHwnd(window)
+        if (hwndValue == null) {
             Napier.w("enableWindowsSnapAndTaskbar: could not resolve HWND, skipping", tag = "WindowsTitleBar")
             return
         }
+        if (subclassed.containsKey(hwndValue)) return
         runCatching {
-            val ptrClass   = Class.forName("com.sun.jna.Pointer")
-            val ptrCtor    = ptrClass.getConstructor(Long::class.java)
+            val user32 = User32.INSTANCE
+            val hwnd = WinDef.HWND(Pointer(hwndValue))
 
-            val user32Class  = Class.forName("com.sun.jna.platform.win32.User32")
-            val user32       = user32Class.getField("INSTANCE").get(null)
+            val curStyle = user32.GetWindowLong(hwnd, GWL_STYLE)
+            user32.SetWindowLong(
+                hwnd, GWL_STYLE,
+                curStyle or WS_CAPTION or WS_THICKFRAME or WS_SYSMENU or
+                        WS_MAXIMIZEBOX or WS_MINIMIZEBOX
+            )
+            val curEx = user32.GetWindowLong(hwnd, GWL_EXSTYLE)
+            user32.SetWindowLong(hwnd, GWL_EXSTYLE, curEx or WS_EX_APPWINDOW)
 
-            val hwndClass  = Class.forName("com.sun.jna.platform.win32.WinDef\$HWND")
-            val hwndCtor   = hwndClass.getConstructor(ptrClass)
-            val winRef     = hwndCtor.newInstance(ptrCtor.newInstance(hwnd))
-            val nullRef    = hwndCtor.newInstance(ptrCtor.newInstance(0L))
+            val originalProc = Pointer(user32.GetWindowLongPtr(hwnd, GWL_WNDPROC).toLong())
+            val proc = BorderlessWindowProc(hwndValue, originalProc)
+            subclassed[hwndValue] = proc
+            user32.SetWindowLongPtr(hwnd, GWL_WNDPROC, CallbackReference.getFunctionPointer(proc))
 
-            val intClass   = Int::class.java
-
-            val getWindowLong = user32Class.getMethod("GetWindowLong", hwndClass, intClass)
-            val setWindowLong = user32Class.getMethod("SetWindowLong", hwndClass, intClass, intClass)
-            val setWindowPos  = user32Class.getMethod("SetWindowPos",  hwndClass, hwndClass,
-                intClass, intClass, intClass, intClass, intClass)
-
-            val curStyle  = getWindowLong.invoke(user32, winRef, GWL_STYLE) as Int
-            val newStyle  = curStyle or WS_CAPTION or WS_THICKFRAME or WS_SYSMENU or
-                    WS_MAXIMIZEBOX or WS_MINIMIZEBOX
-            setWindowLong.invoke(user32, winRef, GWL_STYLE, newStyle)
-
-            val curEx  = getWindowLong.invoke(user32, winRef, GWL_EXSTYLE) as Int
-            setWindowLong.invoke(user32, winRef, GWL_EXSTYLE, curEx or WS_EX_APPWINDOW)
-
-            val SWP_FLAGS = 0x0020 or 0x0002 or 0x0001 or 0x0004
-            setWindowPos.invoke(user32, winRef, nullRef, 0, 0, 0, 0, SWP_FLAGS)
+            user32.SetWindowPos(
+                hwnd, null, 0, 0, 0, 0,
+                SWP_FRAMECHANGED or SWP_NOMOVE or SWP_NOSIZE or SWP_NOZORDER or SWP_NOACTIVATE
+            )
+            Napier.i("enableWindowsSnapAndTaskbar: snap styles applied to hwnd=$hwndValue", tag = "WindowsTitleBar")
         }.onFailure { e ->
+            subclassed.remove(hwndValue)
             Napier.w("enableWindowsSnapAndTaskbar failed: ${e::class.simpleName}: ${e.message}", tag = "WindowsTitleBar")
-            runCatching { window.type = java.awt.Window.Type.NORMAL }
         }
     }
 }

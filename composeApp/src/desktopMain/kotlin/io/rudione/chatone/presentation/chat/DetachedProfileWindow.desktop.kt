@@ -10,14 +10,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.window.rememberWindowState
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.ic_lock
 import chatone.composeapp.generated.resources.ic_unlock
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.window.ChatoneDetachedWindow
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
@@ -43,26 +41,21 @@ actual fun DetachedProfileWindow(
 ) {
     var isPinned by remember { mutableStateOf(false) }
 
-    val windowState = rememberWindowState(
-        width = 340.dp,
-        height = 600.dp,
-        position = WindowPosition.PlatformDefault
-    )
-
-    val pinTint by animateColorAsState(
-        targetValue = if (isPinned) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(200)
-    )
-
-    Window(
-        onCloseRequest = onClose,
+    ChatoneDetachedWindow(
+        windowId = "profile",
         title = "${msg.displayName} — Profile",
-        state = windowState,
+        defaultWidth = 340.dp,
+        defaultHeight = 600.dp,
         alwaysOnTop = isPinned,
-        resizable = true
+        onCloseRequest = onClose
     ) {
         ChatoneTheme {
+            val pinTint by animateColorAsState(
+                targetValue = if (isPinned) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                animationSpec = tween(200)
+            )
+
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.surface

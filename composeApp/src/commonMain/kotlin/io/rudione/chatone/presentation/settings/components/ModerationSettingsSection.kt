@@ -212,6 +212,7 @@ private fun ModActionButtonsSection(
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 orderedButtons.forEachIndexed { idx, btn ->
+                    key(btn.id) {
                     val isDragged = draggedIndex == idx
                     val btnColor = when (btn.id) {
                         "default_delete" -> ChatoneTheme.extraColors.modDelete
@@ -350,6 +351,7 @@ private fun ModActionButtonsSection(
                             },
                             modifier = Modifier.height(28.dp)
                         )
+                    }
                     }
                 }
             }

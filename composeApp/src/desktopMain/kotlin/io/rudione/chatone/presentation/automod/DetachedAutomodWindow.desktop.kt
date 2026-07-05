@@ -7,10 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.window.rememberWindowState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.window.ChatoneDetachedWindow
 import io.rudione.chatone.util.readAutomodText
 import io.rudione.chatone.util.saveAutomodText
 import io.rudione.chatone.util.AutomodImportExport
@@ -25,16 +23,12 @@ actual fun DetachedAutomodWindow(
 ) {
     val repository: AutomodRepository = koinInject()
     val scope = rememberCoroutineScope()
-    val windowState = rememberWindowState(
-        width = 960.dp,
-        height = 680.dp,
-        position = WindowPosition.PlatformDefault
-    )
-    Window(
-        onCloseRequest = onClose,
+    ChatoneDetachedWindow(
+        windowId = "automod",
         title = "Chatone — Local Automod",
-        state = windowState,
-        resizable = true
+        defaultWidth = 960.dp,
+        defaultHeight = 680.dp,
+        onCloseRequest = onClose
     ) {
         ChatoneTheme {
             Surface(

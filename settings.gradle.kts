@@ -67,6 +67,9 @@ dependencyResolutionManagement {
            
             version("coil", "3.1.0")
 
+
+            version("jna", "5.14.0")
+
            
             plugin("kotlinMultiplatform", "org.jetbrains.kotlin.multiplatform").versionRef("kotlin")
             plugin("androidApplication", "com.android.application").versionRef("agp")
@@ -135,6 +138,10 @@ dependencyResolutionManagement {
             library("coil-network-ktor", "io.coil-kt.coil3", "coil-network-ktor3").versionRef("coil")
             library("coil-gif", "io.coil-kt.coil3", "coil-gif").versionRef("coil")
             library("coil-svg", "io.coil-kt.coil3", "coil-svg").versionRef("coil")
+
+
+            library("jna", "net.java.dev.jna", "jna").versionRef("jna")
+            library("jna-platform", "net.java.dev.jna", "jna-platform").versionRef("jna")
         }
     }
 }

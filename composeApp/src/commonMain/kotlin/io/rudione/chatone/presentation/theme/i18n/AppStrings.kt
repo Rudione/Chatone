@@ -128,6 +128,11 @@ interface AppStrings {
     val actionsMutedPhrases: String
     val actionsMutedPhrasesHint: String
     val actionsMutedPhrasePlaceholder: String
+    val actionsEdit: String
+    val actionsSave: String
+    val actionsCancel: String
+    val actionsOnlyMention: String
+    val actionsMentionBadge: String
     val settingsCommandsTitle: String
     val settingsCommandsDesc: String
     val settingsCommandsAdd: String

@@ -6,27 +6,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Window
-import androidx.compose.ui.window.WindowPosition
-import androidx.compose.ui.window.rememberWindowState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.window.ChatoneDetachedWindow
 
 @Composable
 actual fun DetachedSettingsWindow(
     onClose: () -> Unit,
     onThemeChanged: (Boolean) -> Unit
 ) {
-    val windowState = rememberWindowState(
-        width = 860.dp,
-        height = 680.dp,
-        position = WindowPosition.PlatformDefault
-    )
-
-    Window(
-        onCloseRequest = onClose,
+    ChatoneDetachedWindow(
+        windowId = "settings",
         title = "Chatone — Settings",
-        state = windowState,
-        resizable = true
+        defaultWidth = 860.dp,
+        defaultHeight = 680.dp,
+        onCloseRequest = onClose
     ) {
         ChatoneTheme {
             Surface(

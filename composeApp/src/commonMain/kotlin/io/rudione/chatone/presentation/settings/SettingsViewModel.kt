@@ -205,6 +205,7 @@ sealed class SettingsEvent : UiEvent {
     data class OnAddAutomation(val automation: io.rudione.chatone.domain.model.ChatAutomation) : SettingsEvent()
     data class OnRemoveAutomation(val id: String) : SettingsEvent()
     data class OnToggleAutomation(val id: String, val enabled: Boolean) : SettingsEvent()
+    data class OnUpdateAutomation(val automation: io.rudione.chatone.domain.model.ChatAutomation) : SettingsEvent()
     data class OnAutoClaimPointsChanged(val enabled: Boolean) : SettingsEvent()
     data class OnAddMutedPhrase(val phrase: String) : SettingsEvent()
     data class OnRemoveMutedPhrase(val phrase: String) : SettingsEvent()
@@ -341,33 +342,26 @@ class SettingsViewModel(
             _changeBroadcast.tryEmit(Clock.System.now().toEpochMilliseconds())
         }
 
-        /**
-         * Authoritative, conflated mod-button list shared across every SettingsViewModel
-         * instance (chat windows + the detached settings window). Unlike the timestamp
-         * broadcast above, this carries the actual list, so it can never be dropped or lose
-         * the disk write/read race — a drag-reorder reaches the chat immediately instead of
-         * only after the next unrelated change (the old "toggle a button to apply" workaround).
-         */
         private val _modButtonsLive = MutableStateFlow<List<ModActionButton>?>(null)
 
-        /**
-         * Public, process-wide live view of the mod-button list. The chat UI collects this
-         * DIRECTLY (not through any per-instance SettingsState), so a reorder/add/remove/toggle
-         * done in the detached settings window shows up in every chat window immediately,
-         * regardless of which SettingsViewModel instance koinViewModel() handed out.
-         * Null until the first mod-button write this session — callers fall back to their state.
-         */
         val modButtonsLive: StateFlow<List<ModActionButton>?> = _modButtonsLive.asStateFlow()
 
         private val _macrosLive = MutableStateFlow<List<Macro>?>(null)
         val macrosLive: StateFlow<List<Macro>?> = _macrosLive.asStateFlow()
 
-        /**
-         * Notify every SettingsViewModel instance that the settings store was rewritten
-         * outside the normal event flow (per-account profile swap, import). A negative
-         * stamp tells collectors to do a FULL reload including macros/commands/rules.
-         */
         fun notifyExternalChange() {
+            if (_modButtonsLive.value != null) {
+                _modButtonsLive.value = runCatching {
+                    settings.getStringOrNull(KEY_ALL_MOD_BUTTONS)
+                        ?.let { json.decodeFromString<List<ModActionButton>>(it) }
+                }.getOrNull()
+            }
+            if (_macrosLive.value != null) {
+                _macrosLive.value = runCatching {
+                    settings.getStringOrNull(KEY_MACROS)
+                        ?.let { json.decodeFromString<List<Macro>>(it) }
+                }.getOrNull()
+            }
             _changeBroadcast.tryEmit(-Clock.System.now().toEpochMilliseconds())
         }
 
@@ -510,7 +504,12 @@ class SettingsViewModel(
                 macros = macros,
                 automations = automations,
                 mutedPhrases = mutedPhrases,
-                autoClaimPoints = settings.getBoolean(KEY_AUTO_CLAIM_POINTS, false),
+                autoClaimPoints = run {
+                    if (settings.getBoolean(KEY_AUTO_CLAIM_POINTS, false)) {
+                        settings.putBoolean(KEY_AUTO_CLAIM_POINTS, false)
+                    }
+                    false
+                },
                 showChatHeader = settings.getBoolean(KEY_SHOW_CHAT_HEADER, true),
                 smoothChatEnabled = settings.getBoolean(KEY_SMOOTH_CHAT, false),
                 alternateRowBackground = settings.getBoolean(KEY_ALTERNATE_ROW_BG, false),
@@ -1134,6 +1133,12 @@ class SettingsViewModel(
 
             is SettingsEvent.OnToggleAutomation -> update { st ->
                 val n = st.automations.map { if (it.id == event.id) it.copy(enabled = event.enabled) else it }
+                settings.putString(KEY_AUTOMATIONS, json.encodeToString(n))
+                st.copy(automations = n)
+            }
+
+            is SettingsEvent.OnUpdateAutomation -> update { st ->
+                val n = st.automations.map { if (it.id == event.automation.id) event.automation else it }
                 settings.putString(KEY_AUTOMATIONS, json.encodeToString(n))
                 st.copy(automations = n)
             }
