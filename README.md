@@ -22,7 +22,6 @@ One Kotlin codebase → Windows, macOS, Linux and Android.
 
 ## 📸 Screenshots
 
-> Drop your images into `docs/screenshots/` and they will render here.
 
 | Multi-chat | Moderation | Themes |
 |:--:|:--:|:--:|
