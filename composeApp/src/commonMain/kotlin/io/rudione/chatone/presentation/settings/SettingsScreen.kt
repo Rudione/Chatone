@@ -53,6 +53,7 @@ import chatone.composeapp.generated.resources.images
 import chatone.composeapp.generated.resources.images_outline
 import chatone.composeapp.generated.resources.key_outline
 import chatone.composeapp.generated.resources.ic_sword
+import chatone.composeapp.generated.resources.sparkle_filled
 import chatone.composeapp.generated.resources.keyboard_24_filled
 import chatone.composeapp.generated.resources.keyboard_24_regular
 import chatone.composeapp.generated.resources.musical_notes_outline
@@ -70,7 +71,34 @@ import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
+import io.rudione.chatone.presentation.components.rows.LocalSettingsSearch
+import io.rudione.chatone.presentation.components.rows.RowDivider
+import io.rudione.chatone.presentation.components.rows.SwitchRow
+import io.rudione.chatone.presentation.components.rows.ListRow
+import io.rudione.chatone.presentation.components.rows.DropdownRow
+import io.rudione.chatone.presentation.components.rows.SliderRow
+import io.rudione.chatone.presentation.components.rows.HotkeyRow
 import io.rudione.chatone.presentation.settings.components.ModerationSettingsSection
+import io.rudione.chatone.presentation.settings.components.NotificationGroupCard
+import io.rudione.chatone.presentation.settings.components.CustomSoundCard
+import io.rudione.chatone.presentation.settings.components.BackgroundCard
+import io.rudione.chatone.presentation.settings.components.AboutCard
+import io.rudione.chatone.presentation.settings.components.BackupCard
+import io.rudione.chatone.presentation.settings.components.SettingsSurface
+import io.rudione.chatone.presentation.settings.components.SettingsGroup
+import io.rudione.chatone.presentation.settings.components.AccentColorPaletteRow
+import io.rudione.chatone.presentation.settings.components.HighlightRuleCardFor
+import io.rudione.chatone.presentation.settings.components.HightlightRuleCard
+import io.rudione.chatone.presentation.settings.components.FontSettingsCard
+import io.rudione.chatone.presentation.settings.sections.appearanceLazyItems
+import io.rudione.chatone.presentation.settings.sections.chatLazyItems
+import io.rudione.chatone.presentation.settings.sections.highlightLazyItems
+import io.rudione.chatone.presentation.settings.sections.hotkeyLazyItems
+import io.rudione.chatone.presentation.settings.sections.AppearanceContent
+import io.rudione.chatone.presentation.settings.sections.ChatContent
+import io.rudione.chatone.presentation.settings.sections.HighlightContent
+import io.rudione.chatone.presentation.settings.sections.HotkeyContent
 import io.rudione.chatone.presentation.settings.theme_settings.ThemeSettingsScreen
 import io.rudione.chatone.presentation.settings.theme_settings.ThinSlider
 import io.rudione.chatone.presentation.theme.ChatoneTheme
@@ -80,19 +108,19 @@ import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import androidx.compose.runtime.CompositionLocalProvider
 import io.rudione.chatone.util.BuildConfig
-import io.rudione.chatone.util.HotkeyAction
-import io.rudione.chatone.util.comboFor
-import io.rudione.chatone.util.NotificationSoundPlayer
-import io.rudione.chatone.util.WallpaperLoader
+import io.rudione.chatone.util.system.HotkeyAction
+import io.rudione.chatone.util.system.comboFor
+import io.rudione.chatone.util.media.NotificationSoundPlayer
+import io.rudione.chatone.util.media.WallpaperLoader
 import io.rudione.chatone.presentation.theme.i18n.AppLocale
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.settings.TitleBarMode
-import io.rudione.chatone.util.pickAudioFile
-import io.rudione.chatone.util.pickImageFile
-import io.rudione.chatone.util.pickFontFile
-import io.rudione.chatone.util.resolveFontFamily
-import io.rudione.chatone.util.listAvailableFontNames
+import io.rudione.chatone.util.media.pickAudioFile
+import io.rudione.chatone.util.media.pickImageFile
+import io.rudione.chatone.util.font.pickFontFile
+import io.rudione.chatone.util.font.resolveFontFamily
+import io.rudione.chatone.util.font.listAvailableFontNames
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
@@ -102,6 +130,8 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 private enum class SettingsSection(
     val label: String,
@@ -117,6 +147,7 @@ private enum class SettingsSection(
     COMMANDS("Commands", Res.drawable.key_outline, Res.drawable.key_outline),
     ACTIONS("Actions", Res.drawable.ic_sword, Res.drawable.ic_sword),
     MODERATION("Moderation", Res.drawable.shield_filled, Res.drawable.shield_outlined),
+    AI("AI Assistant", Res.drawable.sparkle_filled, null),
     ACCOUNT("Account", Res.drawable.person_filled, Res.drawable.person_filled),
     ABOUT("About", Res.drawable.panel_left_key_16_regular, null);
 
@@ -130,6 +161,7 @@ private enum class SettingsSection(
         COMMANDS -> s.sectionCommands
         ACTIONS -> s.sectionActions
         MODERATION -> s.settingsModeration
+        AI -> s.aiAssistantTitle
         ACCOUNT -> s.settingsAccount
         ABOUT -> s.settingsAbout
     }
@@ -353,11 +385,18 @@ private fun SettingsDialogContent(
                 "правила чата", "сохраненные причины", "повторные сообщения", "ньюк",
                 "блок слова", "бот бейдж"
             ),
+            SettingsSection.AI to listOf(
+                "ai", "assistant", "gpt", "llm", "model", "neural", "ollama", "g4f",
+                "lm studio", "auto mod scan", "ai automod", "endpoint", "base url",
+                "ии", "ассистент", "нейросеть", "модель", "нейро", "искусственный интеллект",
+                "ии автомод", "сканер"
+            ),
             SettingsSection.ACCOUNT to listOf(
                 "account", "login", "token", "auth", "profile", "proxy",
                 "add account", "remove account", "primary account", "logout", "clear cache",
                 "switch account", "multi account", "account proxy", "blocked users",
                 "blocked", "block list", "ignore", "ignored", "unblock",
+                "first party", "first-party", "device auth", "gql token", "integrity",
                 "аккаунт", "логин", "токен", "авторизация", "профиль", "прокси",
                 "добавить аккаунт", "удалить аккаунт", "основной аккаунт", "выйти", "очистить кеш",
                 "переключить аккаунт", "несколько аккаунтов", "прокси аккаунта",
@@ -383,6 +422,12 @@ private fun SettingsDialogContent(
                         section.localizedLabel(s).lowercase().contains(q) ||
                         (sectionKeywords[section]?.any { it.contains(q) } == true)
             }
+        }
+    }
+
+    LaunchedEffect(filteredSections) {
+        if (filteredSections.isNotEmpty() && selectedSection !in filteredSections) {
+            selectedSection = filteredSections.first()
         }
     }
 
@@ -431,30 +476,24 @@ private fun SettingsDialogContent(
                 HorizontalDivider(color = extra.cardBorder)
                 Spacer(Modifier.height(8.dp))
 
-                OutlinedTextField(
+                ChatoneTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp)
                         .heightIn(min = 52.dp),
-                    placeholder = {
-                        Text(
-                            s.settingsSearchPlaceholder,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    },
-                    leadingIcon = {
+                    placeholder = s.settingsSearchPlaceholder,
+                    leading = {
                         Icon(
                             Icons.Filled.Search, null,
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     },
-                    trailingIcon = if (searchQuery.isNotEmpty()) {
+                    trailing = if (searchQuery.isNotEmpty()) {
                         {
-                            IconButton(
+                            ChatoneIconButton(
                                 onClick = { searchQuery = "" },
                                 modifier = Modifier.size(24.dp)
                             ) {
@@ -467,14 +506,7 @@ private fun SettingsDialogContent(
                         }
                     } else null,
                     textStyle = MaterialTheme.typography.bodyMedium,
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                    )
+                    singleLine = true
                 )
 
                 Spacer(Modifier.height(6.dp))
@@ -501,7 +533,7 @@ private fun SettingsDialogContent(
                                 SidebarNavItem(
                                     section = section,
                                     isSelected = selectedSection == section,
-                                    onClick = { selectedSection = section; searchQuery = "" },
+                                    onClick = { selectedSection = section },
                                     highlightQuery = searchQuery
                                 )
                             }
@@ -558,7 +590,7 @@ private fun SettingsFullScreen(
             TopAppBar(
                 title = { Text(s.settingsTitle) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    ChatoneIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, s.back)
                     }
                 },
@@ -793,6 +825,7 @@ private fun SectionContentLazy(
                 SettingsSection.COMMANDS -> commandsLazyItems(state, viewModel)
                 SettingsSection.ACTIONS -> actionsLazyItems(state, viewModel)
                 SettingsSection.MODERATION -> moderationLazyItems(state, viewModel)
+                SettingsSection.AI -> aiLazyItems()
                 SettingsSection.ABOUT -> aboutLazyItems(viewModel)
             }
         }
@@ -851,330 +884,15 @@ private fun SectionContentColumn(
                     onEvent = { viewModel.sendEvent(it) }
                 )
                 SettingsSection.MODERATION -> ModerationContent(state, viewModel)
+                SettingsSection.AI -> {
+                    io.rudione.chatone.presentation.settings.components.AiAssistantConfigCard()
+                    io.rudione.chatone.presentation.settings.components.AiAutoModCard()
+                }
                 SettingsSection.ACCOUNT -> AccountContent(viewModel)
                 SettingsSection.ABOUT -> AboutContent(viewModel)
             }
         }
     }
-}
-
-private fun LazyListScope.appearanceLazyItems(
-    state: SettingsState,
-    onThemeChanged: (Boolean) -> Unit,
-    vm: SettingsViewModel,
-    onOpenThemeCreator: (seedColor: Int?) -> Unit = {},
-) {
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsTheme) {
-            RowDivider()
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(s.settingsAccentColor, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        ExpressivePalettes.getOrNull(state.accentColorIndex)?.name ?: "Violet",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onOpenThemeCreator(null) }
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        s.settingsSetCustom,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Icon(
-                        painterResource(Res.drawable.palette_fill_16),
-                        contentDescription = "Create custom theme",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {
-                ExpressivePalettes.forEachIndexed { index, palette ->
-                    val isSelected = index == state.accentColorIndex
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(palette.previewColor)
-                            .border(
-                                if (isSelected) 2.dp else 0.dp,
-                                if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                                CircleShape
-                            )
-                            .clickable { vm.sendEvent(SettingsEvent.OnAccentColorChanged(index)) }
-                    )
-                }
-            }
-        }
-    }
-
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsDisplay) {
-            ListRow(
-                s.settingsFontSize,
-                state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
-                SettingsState.FontSize.entries.map {
-                    it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
-                }
-            ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
-            UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
-            RowDivider()
-            ListRow(
-                s.settingsEmoteSize,
-                state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
-                SettingsState.EmoteSize.entries.map {
-                    it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
-                }
-            ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
-            RowDivider()
-            ListRow(
-                s.settingsChannelNavigation,
-                when (state.channelNavigation) {
-                    SettingsState.ChannelNavigation.TAB_BAR -> s.settingsTabBar
-                    SettingsState.ChannelNavigation.MINI_RAIL -> s.settingsMiniRail
-                    SettingsState.ChannelNavigation.BOTH -> s.settingsBoth
-                },
-                listOf(s.settingsTabBar, s.settingsMiniRail, s.settingsBoth)
-            ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
-            RowDivider()
-            ListRow(
-                s.settingsMessageSpacing,
-                state.messageSpacing.name.lowercase().replaceFirstChar { it.uppercase() },
-                listOf("None", "Low", "Medium", "High")
-            ) { vm.sendEvent(SettingsEvent.OnMessageSpacingChanged(SettingsState.MessageSpacing.entries[it])) }
-        }
-    }
-    item {
-        FontSettingsCard(state = state, vm = vm)
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsLinks) {
-            ListRow(
-                s.settingsOpenLinks,
-                when (state.linkOpenMode) {
-                    SettingsState.LinkOpenMode.DEFAULT -> s.settingsDefaultBrowser
-                    SettingsState.LinkOpenMode.INCOGNITO -> s.settingsIncognitoMode
-                },
-                listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
-            ) {
-                vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it]))
-            }
-        }
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsWindow) {
-            SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
-                vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
-            }
-            RowDivider()
-            val titleBarOptions = listOf(
-                s.settingsTitleBarDark,
-                s.settingsTitleBarLight,
-                s.settingsTitleBarAdaptive,
-                s.settingsTitleBarSystem
-            )
-            val titleBarModes = listOf(TitleBarMode.DARK, TitleBarMode.LIGHT, TitleBarMode.ADAPTIVE, TitleBarMode.SYSTEM)
-            DropdownRow(
-                label = s.settingsTitleBarMode,
-                description = s.settingsTitleBarModeDesc,
-                options = titleBarOptions,
-                selected = titleBarModes.indexOf(state.titleBarMode).coerceAtLeast(0),
-                onSelected = { vm.sendEvent(SettingsEvent.OnTitleBarModeChanged(titleBarModes[it])) }
-            )
-            RowDivider()
-            run {
-                val locales = AppLocale.all
-                val selectedIdx =
-                    locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0)
-                DropdownRow(
-                    label = s.settingsLanguage,
-                    description = s.settingsLanguageDesc,
-                    options = locales.map { it.displayName },
-                    selected = selectedIdx,
-                    onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
-                )
-            }
-            RowDivider()
-            SwitchRow(
-                s.settingsBlockScroll,
-                s.settingsBlockScrollDesc,
-                state.disableScrollOnAlt
-            ) {
-                vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
-            }
-        }
-    }
-}
-
-private fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewModel) {
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsMessages) {
-            SwitchRow(
-                s.settingsTimestamps, s.settingsShowTimestampsDesc,
-                state.timestampFormat != SettingsState.TimestampFormat.OFF
-            ) { enabled ->
-                vm.sendEvent(
-                    SettingsEvent.OnTimestampFormatChanged(
-                        if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
-                    )
-                )
-            }
-            if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
-                RowDivider()
-                ListRow(
-                    s.settingsTimestampFormat,
-                    when (state.timestampFormat) {
-                        SettingsState.TimestampFormat.H12 -> s.settingsTimestamp12h
-                        SettingsState.TimestampFormat.H24 -> s.settingsTimestamp24h
-                        else -> s.settingsTimestampOff
-                    },
-                    listOf(s.settingsTimestamp12h, s.settingsTimestamp24h)
-                ) {
-                    vm.sendEvent(
-                        SettingsEvent.OnTimestampFormatChanged(
-                            if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
-                        )
-                    )
-                }
-            }
-            RowDivider()
-            SwitchRow(
-                s.settingsShowChatHeader,
-                s.settingsShowChatHeaderDesc,
-                state.showChatHeader
-            ) {
-                vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
-            }
-            RowDivider()
-            SwitchRow(s.chatShowBadges, s.chatShowBadgesDesc, state.showBadges) {
-                vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
-            }
-            RowDivider()
-            SwitchRow(
-                s.settingsShowDeletedMessages,
-                s.settingsShowDeletedMessagesDesc,
-                state.showDeletedMessages
-            ) {
-                vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
-            }
-            RowDivider()
-            SwitchRow(
-                s.settingsShowViewerJoinLeave,
-                s.settingsShowViewerJoinLeaveDesc,
-                state.showViewerJoinLeave
-            ) {
-                vm.sendEvent(SettingsEvent.OnShowViewerJoinLeaveChanged(it))
-            }
-            RowDivider()
-            SwitchRow(
-                s.settingsSmoothChat,
-                s.settingsSmoothChatDesc,
-                state.smoothChatEnabled
-            ) {
-                vm.sendEvent(SettingsEvent.OnSmoothChatEnabledChanged(it))
-            }
-            RowDivider()
-            SwitchRow(
-                s.settingsAlternateRowBg,
-                s.settingsAlternateRowBgDesc,
-                state.alternateRowBackground
-            ) {
-                vm.sendEvent(SettingsEvent.OnAlternateRowBackgroundChanged(it))
-            }
-        }
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsAutoScroll) {
-            SwitchRow(
-                s.settingsPauseOnHover,
-                s.settingsPauseOnHoverDesc,
-                state.pauseOnHover
-            ) {
-                vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
-            }
-        }
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsEmotePicker) {
-            SwitchRow(
-                s.settingsCloseOnMouseLeave,
-                s.settingsCloseOnMouseLeaveDesc,
-                state.closeEmotePickerOnMouseLeave
-            ) {
-                vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
-            }
-        }
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsHistoryGroup) {
-            SliderRow(
-                s.settingsMessageHistoryLimit, state.scrollbackLimit, 100f..2000f, 18,
-                s.settingsMessagesUnit.replace("{0}", state.scrollbackLimit.toString())
-            ) {
-                vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
-            }
-        }
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsChatInputGroup) {
-            SwitchRow(
-                s.settingsHidePlaceholder, s.settingsHidePlaceholderDesc,
-                state.hideChatInputPlaceholder
-            ) { vm.sendEvent(SettingsEvent.OnHideChatPlaceholderChanged(it)) }
-            RowDivider()
-            SwitchRow(
-                s.settingsHideEmojiButton, s.settingsHideEmojiButtonDesc,
-                state.hideEmojiButton
-            ) { vm.sendEvent(SettingsEvent.OnHideEmojiButtonChanged(it)) }
-            RowDivider()
-            SwitchRow(
-                s.settingsChatInputGlow, s.settingsChatInputGlowDesc,
-                state.chatInputEventGlow
-            ) { vm.sendEvent(SettingsEvent.OnChatInputGlowChanged(it)) }
-            RowDivider()
-            SwitchRow(
-                s.settingsShowRepeatedCounter, s.settingsShowRepeatedCounterDesc,
-                state.showRepeatedMessageCounter
-            ) { vm.sendEvent(SettingsEvent.OnShowRepeatedCounterChanged(it)) }
-            if (state.showRepeatedMessageCounter) {
-                RowDivider()
-                SliderRow(
-                    s.settingsRepeatedWindow, state.repeatedMessageWindow, 5f..120f, 11,
-                    s.settingsSecondsUnit.replace("{0}", state.repeatedMessageWindow.toString())
-                ) { vm.sendEvent(SettingsEvent.OnRepeatedWindowChanged(it.toInt())) }
-            }
-        }
-    }
-    item { MentionTabsSettingsGroup(state, vm) }
-    item { TranslationSettingsGroup(state, vm) }
 }
 
 private fun LazyListScope.notificationLazyItems(state: SettingsState, vm: SettingsViewModel) {
@@ -1184,141 +902,8 @@ private fun LazyListScope.notificationLazyItems(state: SettingsState, vm: Settin
     }
 }
 
-private fun LazyListScope.highlightLazyItems(state: SettingsState, vm: SettingsViewModel) {
-    item {
-        val s = LocalStrings.current
-        Text(
-            s.settingsHighlightRulesHint,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-    }
-    val builtInHighlightRules = state.highlightRules.filter { !it.id.startsWith("custom_") }
-    val customHighlightRules = state.highlightRules.filter { it.id.startsWith("custom_") }
-    builtInHighlightRules.chunked(2).forEach { chunk ->
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                chunk.forEach { rule ->
-                    Box(modifier = Modifier.weight(1f)) {
-                        HighlightRuleCardFor(rule = rule, vm = vm, compact = true)
-                    }
-                }
-                if (chunk.size == 1) Spacer(Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(4.dp))
-        }
-    }
-    items(customHighlightRules, key = { it.id }) { rule ->
-        HighlightRuleCardFor(rule = rule, vm = vm)
-        Spacer(Modifier.height(4.dp))
-    }
-    item {
-        var newPattern by remember { mutableStateOf("") }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                .padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedTextField(
-                value = newPattern,
-                onValueChange = { newPattern = it },
-                modifier = Modifier.weight(1f),
-                placeholder = {
-                    val sp = LocalStrings.current
-                    Text(sp.settingsAddHighlightPattern)
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary
-                )
-            )
-            FilledIconButton(
-                onClick = {
-                    if (newPattern.isNotBlank()) {
-                        vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
-                        newPattern = ""
-                    }
-                },
-                enabled = newPattern.isNotBlank()
-            ) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
 private fun LazyListScope.backgroundLazyItems(state: SettingsState, vm: SettingsViewModel) {
     item { BackgroundCard(state, vm) }
-}
-
-private fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsViewModel) {
-    item { HotkeyCombinationsGroup(state, vm) }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsChatControls) {
-            HotkeyRow(s.settingsPauseAutoScroll, s.settingsPauseAutoScrollDesc, state.pauseHotkey) {
-                vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
-            }
-            DropdownRow(
-                label = s.settingsPauseMode,
-                description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) s.settingsPauseModeHoldDesc else s.settingsPauseModeToggleDesc,
-                options = PauseHotkeyMode.entries.map { it.name },
-                selected = state.pauseHotkeyMode.ordinal
-            ) { idx ->
-                vm.sendEvent(SettingsEvent.OnPauseHotkeyModeChanged(PauseHotkeyMode.entries[idx]))
-            }
-        }
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsImageLinks) {
-            DropdownRow(
-                label = s.settingsShowInlineImages,
-                description = s.settingsShowInlineImagesDesc,
-                options = listOf(s.on, s.off, s.blur),
-                selected = state.showInlineImages.ordinal
-            ) { idx ->
-                vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
-            }
-            if (state.showInlineImages != InlineImageMode.OFF) {
-                SliderRow(
-                    label = s.settingsImageMaxHeight,
-                    value = state.inlineImageMaxHeight.toFloat(),
-                    valueRange = 50f..500f,
-                    steps = 8,
-                    valueLabel = s.settingsImageMaxHeightUnit.replace(
-                        "{0}",
-                        state.inlineImageMaxHeight.toString()
-                    )
-                ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
-            }
-            SliderRow(
-                label = s.settingsChatScrollbarWidth,
-                value = state.chatScrollbarWidth.toFloat(),
-                valueRange = 6f..32f,
-                steps = 12,
-                valueLabel = "${state.chatScrollbarWidth} dp"
-            ) { vm.sendEvent(SettingsEvent.OnChatScrollbarWidthChanged(it.toInt())) }
-        }
-    }
-    item {
-        io.rudione.chatone.presentation.settings.components.ImageUploaderSection(
-            state = state,
-            onEvent = { vm.sendEvent(it) }
-        )
-    }
 }
 
 private fun LazyListScope.moderationLazyItems(state: SettingsState, vm: SettingsViewModel) {
@@ -1328,6 +913,12 @@ private fun LazyListScope.moderationLazyItems(state: SettingsState, vm: Settings
             onEvent = { vm.sendEvent(it) }
         )
     }
+    item { io.rudione.chatone.presentation.settings.components.StreamerModeCard() }
+}
+
+private fun LazyListScope.aiLazyItems() {
+    item { io.rudione.chatone.presentation.settings.components.AiAssistantConfigCard() }
+    item { io.rudione.chatone.presentation.settings.components.AiAutoModCard() }
 }
 
 private fun LazyListScope.actionsLazyItems(state: SettingsState, vm: SettingsViewModel) {
@@ -1477,6 +1068,7 @@ private fun AccountContent(viewModel: SettingsViewModel) {
             onClearCache = { viewModel.sendEvent(SettingsEvent.OnClearCacheClicked) }
         )
     }
+    io.rudione.chatone.presentation.settings.components.FirstPartyTokenCard()
     LaunchedEffect(Unit) {
         if (state.blockedUsernames.isEmpty() && !state.isLoadingBlockedUsers) {
             viewModel.sendEvent(SettingsEvent.OnLoadBlockedUsers)
@@ -1510,215 +1102,6 @@ private fun AccountContent(viewModel: SettingsViewModel) {
 }
 
 @Composable
-private fun AppearanceContent(
-    state: SettingsState,
-    onThemeChanged: (Boolean) -> Unit,
-    vm: SettingsViewModel,
-    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
-) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsTheme) {
-        RowDivider()
-        AccentColorPaletteRow(
-            selectedIndex = state.accentColorIndex,
-            onSelect = { vm.sendEvent(SettingsEvent.OnAccentColorChanged(it)) },
-            state = state,
-            onOpenThemeCreator = onOpenThemeCreator,
-            onReset = {
-                vm.sendEvent(SettingsEvent.OnAccentColorChanged(0))
-                vm.sendEvent(SettingsEvent.OnCustomThemeApplied(null))
-            }
-        )
-    }
-
-    SettingsGroup(s.settingsDisplay) {
-        ListRow(
-            s.settingsFontSize, state.fontSize.name.lowercase().replaceFirstChar { it.uppercase() },
-            SettingsState.FontSize.entries.map {
-                it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
-            }
-        ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
-        UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
-        RowDivider()
-        ListRow(
-            s.settingsEmoteSize,
-            state.emoteSize.name.lowercase().replaceFirstChar { it.uppercase() },
-            SettingsState.EmoteSize.entries.map {
-                it.name.lowercase().replaceFirstChar { c -> c.uppercase() }
-            }
-        ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
-        RowDivider()
-        ListRow(
-            s.settingsChannelNavigation,
-            when (state.channelNavigation) {
-                SettingsState.ChannelNavigation.TAB_BAR -> s.settingsTabBar
-                SettingsState.ChannelNavigation.MINI_RAIL -> s.settingsMiniRail
-                SettingsState.ChannelNavigation.BOTH -> s.settingsBoth
-            },
-            listOf(s.settingsTabBar, s.settingsMiniRail, s.settingsBoth)
-        ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
-    }
-    FontSettingsCard(state = state, vm = vm)
-    SettingsGroup(s.settingsLinks) {
-        ListRow(
-            s.settingsOpenLinks,
-            when (state.linkOpenMode) {
-                SettingsState.LinkOpenMode.DEFAULT -> s.settingsDefaultBrowser
-                SettingsState.LinkOpenMode.INCOGNITO -> s.settingsIncognitoMode
-            },
-            listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
-        ) { vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it])) }
-    }
-    SettingsGroup(s.settingsWindow) {
-        SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
-            vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
-        }
-        RowDivider()
-        val titleBarOptions = listOf(
-            s.settingsTitleBarDark,
-            s.settingsTitleBarLight,
-            s.settingsTitleBarAdaptive,
-            s.settingsTitleBarSystem
-        )
-        val titleBarModes = listOf(TitleBarMode.DARK, TitleBarMode.LIGHT, TitleBarMode.ADAPTIVE, TitleBarMode.SYSTEM)
-        DropdownRow(
-            label = s.settingsTitleBarMode,
-            description = s.settingsTitleBarModeDesc,
-            options = titleBarOptions,
-            selected = titleBarModes.indexOf(state.titleBarMode).coerceAtLeast(0),
-            onSelected = { vm.sendEvent(SettingsEvent.OnTitleBarModeChanged(titleBarModes[it])) }
-        )
-        RowDivider()
-        run {
-            val locales = AppLocale.all
-            val selectedIdx = locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0)
-            DropdownRow(
-                label = s.settingsLanguage,
-                description = s.settingsLanguageDesc,
-                options = locales.map { it.displayName },
-                selected = selectedIdx,
-                onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
-            )
-        }
-        RowDivider()
-        SwitchRow(
-            s.settingsBlockScroll,
-            s.settingsBlockScrollDesc,
-            state.disableScrollOnAlt
-        ) {
-            vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
-        }
-    }
-}
-
-@Composable
-private fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsMessages) {
-        SwitchRow(
-            s.settingsTimestamps, s.settingsShowTimestampsDesc,
-            state.timestampFormat != SettingsState.TimestampFormat.OFF
-        ) { enabled ->
-            vm.sendEvent(
-                SettingsEvent.OnTimestampFormatChanged(
-                    if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
-                )
-            )
-        }
-        if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
-            RowDivider()
-            ListRow(
-                s.settingsTimestampFormat,
-                when (state.timestampFormat) {
-                    SettingsState.TimestampFormat.H12 -> s.settingsTimestamp12h
-                    SettingsState.TimestampFormat.H24 -> s.settingsTimestamp24h
-                    else -> s.settingsTimestampOff
-                },
-                listOf(s.settingsTimestamp12h, s.settingsTimestamp24h)
-            ) {
-                vm.sendEvent(
-                    SettingsEvent.OnTimestampFormatChanged(
-                        if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
-                    )
-                )
-            }
-        }
-        RowDivider()
-        SwitchRow(
-            s.settingsShowChatHeader,
-            s.settingsShowChatHeaderDesc,
-            state.showChatHeader
-        ) {
-            vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
-        }
-        RowDivider()
-        SwitchRow(s.chatShowBadges, s.chatShowBadgesDesc, state.showBadges) {
-            vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
-        }
-        RowDivider()
-        SwitchRow(
-            s.settingsShowDeletedMessages,
-            s.settingsShowDeletedMessagesDesc,
-            state.showDeletedMessages
-        ) {
-            vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
-        }
-        RowDivider()
-        SwitchRow(
-            s.settingsShowViewerJoinLeave,
-            s.settingsShowViewerJoinLeaveDesc,
-            state.showViewerJoinLeave
-        ) {
-            vm.sendEvent(SettingsEvent.OnShowViewerJoinLeaveChanged(it))
-        }
-        RowDivider()
-        SwitchRow(
-            s.settingsSmoothChat,
-            s.settingsSmoothChatDesc,
-            state.smoothChatEnabled
-        ) {
-            vm.sendEvent(SettingsEvent.OnSmoothChatEnabledChanged(it))
-        }
-        RowDivider()
-        SwitchRow(
-            s.settingsAlternateRowBg,
-            s.settingsAlternateRowBgDesc,
-            state.alternateRowBackground
-        ) {
-            vm.sendEvent(SettingsEvent.OnAlternateRowBackgroundChanged(it))
-        }
-    }
-    SettingsGroup(s.settingsAutoScroll) {
-        SwitchRow(
-            s.settingsPauseOnHover,
-            s.settingsPauseOnHoverDesc,
-            state.pauseOnHover
-        ) {
-            vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
-        }
-    }
-    SettingsGroup(s.settingsEmotePicker) {
-        SwitchRow(
-            s.settingsCloseOnMouseLeave,
-            s.settingsCloseOnMouseLeaveDesc,
-            state.closeEmotePickerOnMouseLeave
-        ) {
-            vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
-        }
-    }
-    SettingsGroup(s.settingsHistoryGroup) {
-        SliderRow(
-            s.settingsMessageHistoryLimit, state.scrollbackLimit, 100f..2000f, 18,
-            s.settingsMessagesUnit.replace("{0}", state.scrollbackLimit.toString())
-        ) {
-            vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
-        }
-    }
-    MentionTabsSettingsGroup(state, vm)
-    TranslationSettingsGroup(state, vm)
-}
-
-@Composable
 private fun NotificationContent(state: SettingsState, vm: SettingsViewModel) {
     NotificationGroupCard(state, vm)
     if (state.mentionSoundEnabled) {
@@ -1728,127 +1111,8 @@ private fun NotificationContent(state: SettingsState, vm: SettingsViewModel) {
 }
 
 @Composable
-private fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsHighlightRules) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(
-                s.settingsHighlightRulesHint,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-            val builtInHighlightRules = state.highlightRules.filter { !it.id.startsWith("custom_") }
-            val customHighlightRules = state.highlightRules.filter { it.id.startsWith("custom_") }
-            builtInHighlightRules.chunked(2).forEach { chunk ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    chunk.forEach { rule ->
-                        Box(modifier = Modifier.weight(1f)) {
-                            HighlightRuleCardFor(rule = rule, vm = vm, compact = true)
-                        }
-                    }
-                    if (chunk.size == 1) Spacer(Modifier.weight(1f))
-                }
-            }
-            customHighlightRules.forEach { rule ->
-                HighlightRuleCardFor(rule = rule, vm = vm)
-            }
-        }
-    }
-    SettingsGroup(s.settingsAddRule) {
-        var newPattern by remember { mutableStateOf("") }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                .padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedTextField(
-                value = newPattern,
-                onValueChange = { newPattern = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(s.settingsAddHighlightPattern) },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = Color.Transparent,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary
-                )
-            )
-            FilledIconButton(
-                onClick = {
-                    if (newPattern.isNotBlank()) {
-                        vm.sendEvent(SettingsEvent.OnAddHighlightRule(newPattern.trim()))
-                        newPattern = ""
-                    }
-                },
-                enabled = newPattern.isNotBlank()
-            ) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
-@Composable
 private fun BackgroundContent(state: SettingsState, vm: SettingsViewModel) {
     BackgroundCard(state, vm)
-}
-
-@Composable
-private fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    HotkeyCombinationsGroup(state, vm)
-    SettingsGroup(s.settingsChatControls) {
-        HotkeyRow(s.settingsPauseAutoScroll, s.settingsPauseAutoScrollDesc, state.pauseHotkey) {
-            vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
-        }
-        DropdownRow(
-            label = s.settingsPauseMode,
-            description = if (state.pauseHotkeyMode == PauseHotkeyMode.HOLD) s.settingsPauseModeHoldDesc else s.settingsPauseModeToggleDesc,
-            options = PauseHotkeyMode.entries.map { it.name },
-            selected = state.pauseHotkeyMode.ordinal
-        ) { idx ->
-            vm.sendEvent(SettingsEvent.OnPauseHotkeyModeChanged(PauseHotkeyMode.entries[idx]))
-        }
-    }
-    SettingsGroup(s.settingsImageLinks) {
-        DropdownRow(
-            label = s.settingsShowInlineImages,
-            description = s.settingsShowInlineImagesDesc,
-            options = listOf(s.on, s.off, s.blur),
-            selected = state.showInlineImages.ordinal
-        ) { idx ->
-            vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
-        }
-        if (state.showInlineImages != InlineImageMode.OFF) {
-            SliderRow(
-                label = s.settingsImageMaxHeight,
-                value = state.inlineImageMaxHeight.toFloat(),
-                valueRange = 50f..500f,
-                steps = 8,
-                valueLabel = s.settingsImageMaxHeightUnit.replace(
-                    "{0}",
-                    state.inlineImageMaxHeight.toString()
-                )
-            ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
-        }
-    }
-    io.rudione.chatone.presentation.settings.components.ImageUploaderSection(
-        state = state,
-        onEvent = { vm.sendEvent(it) }
-    )
 }
 
 @Composable
@@ -1870,662 +1134,8 @@ private fun AboutContent(vm: SettingsViewModel) {
     AboutCard()
 }
 
-
 @Composable
-private fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsSurface(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                s.settingsMentionSound,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(s.settingsEnableMentionSound, style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        s.settingsEnableMentionSoundDesc,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                io.rudione.chatone.presentation.components.ChatoneSwitch(
-                    checked = state.mentionSoundEnabled,
-                    onCheckedChange = { vm.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) })
-            }
-            if (state.mentionSoundEnabled) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            s.settingsVolume,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "${(state.mentionSoundVolume * 100).toInt()}%",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    ThinSlider(
-                        value = state.mentionSoundVolume,
-                        onValueChange = { vm.sendEvent(SettingsEvent.OnMentionSoundVolumeChanged(it)) },
-                        valueRange = 0f..1f
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    val scope = rememberCoroutineScope()
-    SettingsSurface(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                s.settingsCustomSound,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            if (state.customMentionSoundPath.isNotBlank()) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            painterResource(Res.drawable.musical_notes_outline),
-                            null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            state.customMentionSoundPath.substringAfterLast('/')
-                                .substringAfterLast('\\'),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        IconButton(onClick = {
-                            vm.sendEvent(
-                                SettingsEvent.OnCustomMentionSoundPathChanged(
-                                    ""
-                                )
-                            )
-                        }, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                Icons.Filled.Close,
-                                null,
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                FilledIconButton(
-                    onClick = {
-                        scope.launch {
-                            val picked = pickAudioFile()
-                            if (picked != null) vm.sendEvent(
-                                SettingsEvent.OnCustomMentionSoundPathChanged(picked)
-                            )
-                        }
-                    },
-                    modifier = Modifier.weight(1f).height(40.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Text(
-                        if (state.customMentionSoundPath.isBlank()) s.settingsBrowseSound else s.settingsChangeSound,
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
-                FilledIconButton(
-                    onClick = {
-                        NotificationSoundPlayer.playMentionSound(
-                            volume = state.mentionSoundVolume,
-                            customSoundPath = state.customMentionSoundPath
-                        )
-                    },
-                    modifier = Modifier.size(40.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor = MaterialTheme.colorScheme.onSecondary
-                    )
-                ) { Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp)) }
-            }
-            Text(
-                text = if (state.customMentionSoundPath.isBlank()) s.settingsSoundDefault else s.settingsSoundSupported,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsChatBackgroundImage) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            val scope = rememberCoroutineScope()
-            if (state.wallpaperPath.isNotBlank()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(150.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                ) {
-                    AsyncImage(
-                        model = state.wallpaperPath,
-                        contentDescription = s.settingsBackgroundPreview,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                    Box(
-                        modifier = Modifier.fillMaxSize()
-                            .background(Color.Black.copy(alpha = state.wallpaperBlur / 40f))
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-            if (state.wallpaperPath.isNotBlank()) {
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painterResource(Res.drawable.images),
-                            null,
-                            modifier = Modifier.size(15.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            state.wallpaperPath.substringAfterLast("/").substringAfterLast("\\"),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        IconButton(
-                            onClick = { vm.sendEvent(SettingsEvent.OnWallpaperPathChanged("")) },
-                            modifier = Modifier.size(26.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.Close,
-                                null,
-                                modifier = Modifier.size(13.dp),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(14.dp))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(s.settingsOverlayOpacity, style = MaterialTheme.typography.bodyMedium)
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        "${state.wallpaperBlur.toInt()}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            ThinSlider(
-                value = state.wallpaperBlur,
-                onValueChange = { vm.sendEvent(SettingsEvent.OnWallpaperBlurChanged(it)) },
-                valueRange = 0f..40f,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    s.settingsTransparent,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    s.settingsOpaque,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(
-                onClick = {
-                    scope.launch {
-                        val picked = pickImageFile(); if (picked != null) vm.sendEvent(
-                        SettingsEvent.OnWallpaperPathChanged(
-                            picked
-                        )
-                    )
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    painterResource(Res.drawable.images_outline),
-                    null,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(if (state.wallpaperPath.isBlank()) s.settingsChooseBackgroundImage else s.settingsChangeImage)
-            }
-            if (state.wallpaperPath.isBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    s.settingsSupportsImageFormats,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun AboutCard() {
-
-    val s = LocalStrings.current
-    val uriHandler = LocalUriHandler.current
-
-    SettingsGroup(s.settingsAppInfo) {
-
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-
-                Image(
-                    painter = painterResource(Res.drawable.icon),
-                    contentDescription = s.appName,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                )
-
-                Spacer(Modifier.width(14.dp))
-
-                Column {
-
-                    Text(
-                        s.appName,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text(
-                        "${s.settingsVersion} ${BuildConfig.VERSION}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            Text(
-                s.settingsTelegram,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                text = "https://t.me/rudionee",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable {
-                        uriHandler.openUri("https://t.me/rudionee")
-                    }
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun BackupCard(vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    val scope = rememberCoroutineScope()
-    var menuOpen by remember { mutableStateOf(false) }
-    SettingsGroup(s.settingsBackupTitle) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                s.settingsBackupDesc,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box {
-                    OutlinedButton(onClick = { menuOpen = true }) {
-                        Text(s.automodExport)
-                    }
-                    DropdownMenu(menuOpen, { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text(s.settingsBackupExportJson) },
-                            onClick = {
-                                menuOpen = false
-                                scope.launch {
-                                    val backup =
-                                        io.rudione.chatone.util.SettingsImportExport.snapshot(
-                                            SettingsViewModel.settings
-                                        )
-                                    val text =
-                                        io.rudione.chatone.util.SettingsImportExport.toJson(backup)
-                                    io.rudione.chatone.util.saveAutomodText(
-                                        "chatone-settings.json",
-                                        text
-                                    )
-                                }
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(s.settingsBackupExportCsv) },
-                            onClick = {
-                                menuOpen = false
-                                scope.launch {
-                                    val backup =
-                                        io.rudione.chatone.util.SettingsImportExport.snapshot(
-                                            SettingsViewModel.settings
-                                        )
-                                    val text =
-                                        io.rudione.chatone.util.SettingsImportExport.toCsv(backup)
-                                    io.rudione.chatone.util.saveAutomodText(
-                                        "chatone-settings.csv",
-                                        text
-                                    )
-                                }
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(s.settingsBackupExportXlsx) },
-                            onClick = {
-                                menuOpen = false
-                                scope.launch {
-                                    val backup =
-                                        io.rudione.chatone.util.SettingsImportExport.snapshot(
-                                            SettingsViewModel.settings
-                                        )
-                                    val text =
-                                        io.rudione.chatone.util.SettingsImportExport.toXlsx(backup)
-                                    io.rudione.chatone.util.saveAutomodText(
-                                        "chatone-settings.xlsx",
-                                        text
-                                    )
-                                }
-                            }
-                        )
-                    }
-                }
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        val text = io.rudione.chatone.util.readAutomodText() ?: return@launch
-                        vm.sendEvent(SettingsEvent.OnImportSettingsText(text))
-                    }
-                }) {
-                    Text(s.settingsBackupImport)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Shared settings card surface — the same gradient + subtle border used by the
- * Appearance section, so every settings section reads identically.
- */
-@Composable
-private fun SettingsSurface(
-    modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(16.dp),
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f),
-                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.60f)
-                    )
-                )
-            )
-            .border(
-                1.dp,
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
-                    )
-                ),
-                RoundedCornerShape(16.dp)
-            )
-            .padding(contentPadding)
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        if (title != null) {
-            HighlightedSettingsText(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                letterSpacing = 0.8.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
-            )
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f),
-                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.60f)
-                        )
-                    )
-                )
-                .border(
-                    1.dp,
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
-                        )
-                    ),
-                    RoundedCornerShape(16.dp)
-                )
-        ) {
-            Column(content = content)
-        }
-        Spacer(Modifier.height(6.dp))
-    }
-}
-
-@Composable
-private fun AccentColorPaletteRow(
-    selectedIndex: Int,
-    state: SettingsState,
-    onOpenThemeCreator: (seedColor: Int?) -> Unit = {},
-    onReset: () -> Unit = {},
-    onSelect: (Int) -> Unit
-) {
-    val s = LocalStrings.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(s.themeAccentColor, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    ExpressivePalettes.getOrNull(state.accentColorIndex)?.name ?: "Violet",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-
-                val customThemeManager = LocalCustomThemeManager.current
-                val activeTheme by customThemeManager.currentTheme.collectAsState()
-                if (activeTheme != null || state.accentColorIndex != 0) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onReset() }
-                            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f))
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Reset theme",
-                            tint = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onOpenThemeCreator(null) }
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        "Set custom",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Icon(
-                        painterResource(Res.drawable.palette_fill_16),
-                        contentDescription = "Create custom theme",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            ExpressivePalettes.forEachIndexed { index, palette ->
-                val isSelected = index == selectedIndex
-                val animatedScale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.15f else 1f,
-                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .aspectRatio(1f)
-                        .graphicsLayer {
-                            scaleX = animatedScale
-                            scaleY = animatedScale
-                        }
-                        .clip(CircleShape)
-                        .background(palette.previewColor)
-                        .border(
-                            width = if (isSelected) 2.5.dp else 0.dp,
-                            color = if (isSelected) MaterialTheme.colorScheme.onSurface
-                            else Color.Transparent,
-                            shape = CircleShape
-                        )
-                        .clickable { onSelect(index) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isSelected) {
-                        Icon(
-                            Icons.Outlined.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = Color.White.copy(alpha = 0.9f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RowDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-    )
-}
-
-@Composable
-private fun MentionTabsSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
+internal fun MentionTabsSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
     val s = LocalStrings.current
     SettingsGroup(s.settingsMentionTabs) {
         SwitchRow(s.settingsMentionTabs, s.settingsMentionTabsDesc, state.mentionTabsEnabled) {
@@ -2535,7 +1145,7 @@ private fun MentionTabsSettingsGroup(state: SettingsState, vm: SettingsViewModel
 }
 
 @Composable
-private fun TranslationSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
+internal fun TranslationSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
     val s = LocalStrings.current
     val langs = io.rudione.chatone.presentation.chat.TranslationLanguages
     val currentName = langs.firstOrNull { it.first == state.translationTargetLang }?.second
@@ -2546,555 +1156,14 @@ private fun TranslationSettingsGroup(state: SettingsState, vm: SettingsViewModel
             currentName,
             langs.map { it.second }
         ) { idx -> vm.sendEvent(SettingsEvent.OnTranslationLangChanged(langs[idx].first)) }
-    }
-}
-
-@Composable
-private fun SwitchRow(
-    title: String,
-    subtitle: String? = null,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyMedium)
-            if (subtitle != null) HighlightedSettingsText(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        io.rudione.chatone.presentation.components.ChatoneSwitch(checked = checked, onCheckedChange = onCheckedChange)
-    }
-}
-
-@Composable
-private fun ListRow(
-    title: String,
-    value: String,
-    options: List<String>,
-    onSelected: (Int) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                HighlightedSettingsText(title, style = MaterialTheme.typography.bodyMedium)
-                HighlightedSettingsText(
-                    value,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                painterResource(Res.drawable.unfold_more),
-                null,
-                modifier = Modifier.size(17.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { i, opt ->
-                DropdownMenuItem(
-                    text = { Text(opt) },
-                    onClick = { onSelected(i); expanded = false })
-            }
+        SwitchRow(s.settingsAutoTranslateInput, s.settingsAutoTranslateInputDesc, state.autoTranslateInput) {
+            vm.sendEvent(SettingsEvent.OnAutoTranslateInputChanged(it))
         }
     }
 }
 
 @Composable
-private fun DropdownRow(
-    label: String,
-    description: String,
-    options: List<String>,
-    selected: Int,
-    onSelected: (Int) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                HighlightedSettingsText(label, style = MaterialTheme.typography.bodyLarge)
-                HighlightedSettingsText(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Text(
-                options.getOrElse(selected) { "" },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { i, opt ->
-                DropdownMenuItem(
-                    text = { Text(opt) },
-                    onClick = { onSelected(i); expanded = false })
-            }
-        }
-    }
-}
-
-@Composable
-private fun SliderRow(
-    label: String,
-    value: Float,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    valueLabel: String,
-    onValueChange: (Float) -> Unit
-) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            HighlightedSettingsText(label, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                valueLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        ThinSlider(value = value, onValueChange = onValueChange, valueRange = valueRange)
-    }
-}
-
-@Composable
-private fun SliderRow(
-    title: String,
-    value: Int,
-    valueRange: ClosedFloatingPointRange<Float>,
-    steps: Int,
-    valueLabel: String,
-    isFloat: Boolean = false,
-    onFloatChange: ((Float) -> Unit)? = null,
-    onValueChange: ((Float) -> Unit)? = null
-) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                valueLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        if (isFloat && onFloatChange != null) {
-            Slider(
-                value = value / 100f,
-                onValueChange = onFloatChange,
-                valueRange = valueRange,
-                steps = steps
-            )
-        } else if (onValueChange != null) {
-            Slider(
-                value = value.toFloat(),
-                onValueChange = onValueChange,
-                valueRange = valueRange,
-                steps = steps
-            )
-        }
-    }
-}
-
-@Composable
-private fun HighlightRuleCardFor(
-    rule: HighlightRule,
-    vm: SettingsViewModel,
-    compact: Boolean = false
-) {
-    val isCustom = rule.id.startsWith("custom_")
-    HightlightRuleCard(
-        rule = rule,
-        onToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleToggled(rule.id, it)) },
-        onSoundToggle = { vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, it)) },
-        onColorChange = { color -> vm.sendEvent(SettingsEvent.OnHighlightRuleColorChanged(rule.id, color)) },
-        onSubstringToggle = if (isCustom) {
-            { vm.sendEvent(SettingsEvent.OnHighlightRuleSubstringToggled(rule.id, it)) }
-        } else null,
-        onRemove = if (isCustom) {
-            { vm.sendEvent(SettingsEvent.OnRemoveHighlightRule(rule.id)) }
-        } else null,
-        compact = compact
-    )
-}
-
-@Composable
-private fun HightlightRuleCard(
-    rule: HighlightRule,
-    onToggle: (Boolean) -> Unit,
-    onSoundToggle: (Boolean) -> Unit,
-    onColorChange: (Long) -> Unit = {},
-    onSubstringToggle: ((Boolean) -> Unit)? = null,
-    onRemove: (() -> Unit)?,
-    compact: Boolean = false
-) {
-    var showColorPicker by remember { mutableStateOf(false) }
-    val ruleColor = Color(rule.color)
-
-    Surface(
-        shape = RoundedCornerShape(if (compact) 10.dp else 12.dp),
-        color = ruleColor.copy(alpha = 0.06f),
-        border = BorderStroke(1.dp, ruleColor.copy(alpha = 0.25f)),
-        modifier = if (compact) Modifier.fillMaxWidth() else Modifier
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(
-                    horizontal = if (compact) 8.dp else 12.dp,
-                    vertical = if (compact) 6.dp else 10.dp
-                ),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-
-                Box(
-                    modifier = Modifier
-                        .size(if (compact) 11.dp else 14.dp)
-                        .clip(CircleShape)
-                        .background(ruleColor)
-                        .clickable { showColorPicker = true }
-                )
-                Spacer(Modifier.width(if (compact) 7.dp else 10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        rule.pattern.ifEmpty {
-                            val s = LocalStrings.current
-                            when (rule.id) {
-                                "username" -> s.highlightRuleUsername
-                                "whispers" -> s.highlightRuleWhispers
-                                "subscriptions" -> s.highlightRuleSubscriptions
-                                "first_message" -> s.highlightRuleFirstMessage
-                                "search_match" -> s.highlightRuleSearchMatch
-                                "mention_accent" -> s.highlightRuleMentionAccent
-                                "channel_points" -> s.highlightRuleChannelPoints
-                                else -> rule.id.replace("_", " ")
-                                    .replaceFirstChar { it.uppercase() }
-                            }
-                        },
-                        style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = if (compact) 2 else 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (!compact && rule.isRegex) Text(
-                        LocalStrings.current.settingsRegex,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                IconButton(
-                    onClick = { onSoundToggle(!rule.playSound) },
-                    modifier = Modifier.size(if (compact) 24.dp else 32.dp)
-                ) {
-                    Icon(
-                        if (rule.playSound) Icons.Filled.Notifications else Icons.Outlined.Notifications,
-                        null,
-                        modifier = Modifier.size(if (compact) 13.dp else 16.dp),
-                        tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                io.rudione.chatone.presentation.components.ChatoneSwitch(
-                    checked = rule.enabled,
-                    onCheckedChange = onToggle,
-                    modifier = if (compact) Modifier.scale(0.8f) else Modifier
-                )
-
-                if (onRemove != null) {
-                    IconButton(onClick = onRemove, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            Icons.Filled.Close,
-                            null,
-                            modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-            }
-            if (!compact && onSubstringToggle != null && !rule.isRegex && rule.id.startsWith("custom_")) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSubstringToggle(!rule.matchSubstring) }
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = rule.matchSubstring,
-                        onCheckedChange = { onSubstringToggle(it) },
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            LocalStrings.current.highlightRuleSubstring,
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                        Text(
-                            LocalStrings.current.highlightRuleSubstringDesc,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-
-    if (showColorPicker) {
-        var pickedColor by remember { mutableStateOf(ruleColor) }
-        val hue = remember(pickedColor) {
-            val r = pickedColor.red;
-            val g = pickedColor.green;
-            val b = pickedColor.blue
-            val mx = maxOf(r, g, b);
-            val mn = minOf(r, g, b)
-            if (mx == mn) 0f else when (mx) {
-                r -> ((g - b) / (mx - mn) % 6f) / 6f * 360f
-                g -> ((b - r) / (mx - mn) + 2f) / 6f * 360f
-                else -> ((r - g) / (mx - mn) + 4f) / 6f * 360f
-            }
-        }
-        val sd = LocalStrings.current
-        AlertDialog(
-            onDismissRequest = { showColorPicker = false },
-            title = { Text(sd.settingsHighlightColor) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(48.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(pickedColor)
-                    )
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(
-                            Color(0xFFFF6B6B), Color(0xFFFF9F43), Color(0xFFFFD700),
-                            Color(0xFF2ECC71), Color(0xFF00BFFF), Color(0xFF9B59B6),
-                            Color(0xFFFF69B4), Color(0xFFFF4500)
-                        ).forEach { preset ->
-                            Box(
-                                modifier = Modifier.weight(1f).aspectRatio(1f)
-                                    .clip(CircleShape).background(preset)
-                                    .border(
-                                        if (pickedColor == preset) 2.dp else 0.dp,
-                                        MaterialTheme.colorScheme.onSurface, CircleShape
-                                    )
-                                    .clickable { pickedColor = preset }
-                            )
-                        }
-                    }
-
-                    Text(sd.settingsHue, style = MaterialTheme.typography.labelSmall)
-                    Slider(
-                        value = hue,
-                        onValueChange = { h ->
-                            pickedColor = Color.hsl(h, 0.85f, 0.55f)
-                        },
-                        valueRange = 0f..360f
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-
-                    val argb = pickedColor.copy(alpha = 1f)
-                    val longColor = ((argb.red * 255).toLong() shl 16) or
-                            ((argb.green * 255).toLong() shl 8) or
-                            (argb.blue * 255).toLong() or 0xFF000000L
-                    onColorChange(longColor)
-                    showColorPicker = false
-                }) { Text(sd.apply) }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showColorPicker = false
-                }) { Text(sd.cancel) }
-            }
-        )
-    }
-}
-
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-private fun hotkeyActionLabel(action: HotkeyAction, s: io.rudione.chatone.presentation.theme.i18n.AppStrings): String =
-    when (action) {
-        HotkeyAction.TOGGLE_NAVIGATION -> s.hotkeyToggleNavigation
-        HotkeyAction.TOGGLE_SIDEBAR -> s.hotkeyToggleSidebar
-        HotkeyAction.TOGGLE_MENTIONS -> s.hotkeyToggleMentions
-        HotkeyAction.ADD_CHANNEL -> s.hotkeyAddChannel
-        HotkeyAction.OPEN_SETTINGS -> s.hotkeyOpenSettings
-        HotkeyAction.NEXT_CHANNEL -> s.hotkeyNextChannel
-        HotkeyAction.PREV_CHANNEL -> s.hotkeyPrevChannel
-        HotkeyAction.CLOSE_CHANNEL -> s.hotkeyCloseChannel
-        HotkeyAction.TOGGLE_WHISPERS -> s.hotkeyToggleWhispers
-    }
-
-@Composable
-private fun HotkeyCombinationsGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.hotkeysCombinationsTitle) {
-        SwitchRow(s.settingsNavigationHidden, s.settingsNavigationHiddenDesc, state.navigationHidden) {
-            vm.sendEvent(SettingsEvent.OnNavigationHiddenChanged(it))
-        }
-        HotkeyAction.entries.forEach { action ->
-            RowDivider()
-            HotkeyRow(
-                hotkeyActionLabel(action, s),
-                "",
-                state.hotkeys.comboFor(action)
-            ) { combo -> vm.sendEvent(SettingsEvent.OnHotkeyChanged(action.id, combo)) }
-        }
-    }
-}
-
-@Composable
-private fun HotkeyRow(
-    title: String,
-    subtitle: String,
-    currentHotkey: String,
-    onHotkeyChanged: (String) -> Unit
-) {
-    var isRecording by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                color = if (isRecording) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(
-                    1.dp,
-                    if (isRecording) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                ),
-                modifier = Modifier.widthIn(min = 110.dp)
-                    .onKeyEvent { event ->
-                        if (!isRecording) return@onKeyEvent false
-                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent true
-
-                        if (event.key in listOf(
-                                Key.CtrlLeft,
-                                Key.CtrlRight,
-                                Key.MetaLeft,
-                                Key.MetaRight
-                            )
-                        ) {
-                            if (!event.isAltPressed && !event.isShiftPressed) {
-                                onHotkeyChanged("ctrl"); isRecording = false; return@onKeyEvent true
-                            }
-                        }
-                        if (event.key in listOf(Key.AltLeft, Key.AltRight)) {
-                            val parts2 = mutableListOf<String>()
-                            if (event.isCtrlPressed || event.isMetaPressed) parts2.add("ctrl")
-                            parts2.add("alt")
-                            if (event.isShiftPressed) parts2.add("shift")
-                            onHotkeyChanged(parts2.joinToString("+")); isRecording =
-                                false; return@onKeyEvent true
-                        }
-                        if (event.key in listOf(Key.ShiftLeft, Key.ShiftRight)) {
-                            if (!event.isAltPressed && !(event.isCtrlPressed || event.isMetaPressed)) {
-                                onHotkeyChanged("shift"); isRecording =
-                                    false; return@onKeyEvent true
-                            }
-                        }
-                        if (event.key == Key.Escape) {
-                            onHotkeyChanged(""); isRecording = false; return@onKeyEvent true
-                        }
-                        val parts = mutableListOf<String>()
-                        if (event.isCtrlPressed || event.isMetaPressed) parts.add("ctrl")
-                        if (event.isAltPressed) parts.add("alt")
-                        if (event.isShiftPressed) parts.add("shift")
-                        val keyName = hotkeyKeyToName(event.key)
-                        if (keyName.isNotEmpty()) parts.add(keyName)
-                        onHotkeyChanged(parts.joinToString("+"))
-                        isRecording = false; true
-                    }
-                    .clickable { isRecording = true }
-            ) {
-                val sh = LocalStrings.current
-                Text(
-                    when {
-                        isRecording -> sh.settingsRecording; currentHotkey.isBlank() -> sh.settingsHotkeyNotSet; else -> currentHotkey.uppercase()
-                        .replace("+", " + ")
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = when {
-                        isRecording -> MaterialTheme.colorScheme.onPrimaryContainer; currentHotkey.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                            alpha = 0.45f
-                        ); else -> MaterialTheme.colorScheme.onSurface
-                    },
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
-                )
-            }
-            if (currentHotkey.isNotBlank() || isRecording) {
-                IconButton(
-                    onClick = { onHotkeyChanged(""); isRecording = false },
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        null,
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun hotkeyKeyToName(key: Key): String = when (key) {
-    Key.Spacebar -> "space"; Key.Enter -> "enter"; Key.Tab -> "tab"
-    Key.Backspace -> "backspace"; Key.Delete -> "delete"
-    Key.MoveHome -> "home"; Key.MoveEnd -> "end"
-    Key.PageUp -> "pageup"; Key.PageDown -> "pagedown"
-    Key.DirectionUp -> "up"; Key.DirectionDown -> "down"
-    Key.DirectionLeft -> "left"; Key.DirectionRight -> "right"
-    Key.F1 -> "f1"; Key.F2 -> "f2"; Key.F3 -> "f3"; Key.F4 -> "f4"
-    Key.F5 -> "f5"; Key.F6 -> "f6"; Key.F7 -> "f7"; Key.F8 -> "f8"
-    Key.F9 -> "f9"; Key.F10 -> "f10"; Key.F11 -> "f11"; Key.F12 -> "f12"
-    else -> {
-        val code = key.keyCode
-        when {
-            code in 65L..90L -> ('A' + (code - 65).toInt()).lowercaseChar().toString()
-            code in 48L..57L -> (code - 48).toString()
-            else -> ""
-        }
-    }
-}
-
-@Composable
-private fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
+internal fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -3131,41 +1200,11 @@ private fun SettingsThinScrollbar(
     modifier: Modifier = Modifier,
     coroutineScope: CoroutineScope = rememberCoroutineScope()
 ) {
-    val thumbFraction by remember {
-        derivedStateOf {
-            val info = listState.layoutInfo
-            val total = info.totalItemsCount.takeIf { it > 0 } ?: return@derivedStateOf 0f to 0f
-            val visible = info.visibleItemsInfo.size.toFloat()
-            val thumbSz = (visible / total).coerceIn(0.05f, 1f)
-            val firstIdx = listState.firstVisibleItemIndex.toFloat()
-            val firstOff = listState.firstVisibleItemScrollOffset
-            val avgH = info.visibleItemsInfo.map { it.size }.average().takeIf { it > 0 } ?: 1.0
-            val pos = firstIdx + (firstOff / avgH).toFloat()
-            val maxScroll = (total - visible).coerceAtLeast(0f)
-            val off = if (maxScroll > 0f)
-                (pos / maxScroll) * (1f - thumbSz) else 1f - thumbSz
-            off.coerceIn(0f, 1f - thumbSz) to thumbSz
-        }
-    }
-    Canvas(
-        modifier = modifier.pointerInput(Unit) {
-            detectTapGestures { offset ->
-                val frac = (offset.y / size.height).coerceIn(0f, 1f)
-                val target = (frac * (listState.layoutInfo.totalItemsCount - 1))
-                    .toInt().coerceAtLeast(0)
-                coroutineScope.launch { listState.scrollToItem(target) }
-            }
-        }
-    ) {
-        drawRect(color = Color.White.copy(alpha = 0.05f))
-        val (off, sz) = thumbFraction
-        drawRoundRect(
-            color = Color.White.copy(alpha = 0.22f),
-            topLeft = Offset(1.dp.toPx(), off * size.height),
-            size = Size(size.width - 2.dp.toPx(), (sz * size.height).coerceAtLeast(14.dp.toPx())),
-            cornerRadius = CornerRadius(4.dp.toPx())
-        )
-    }
+    io.rudione.chatone.presentation.components.ChatoneLazyScrollbar(
+        listState = listState,
+        itemCount = listState.layoutInfo.totalItemsCount,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -3173,377 +1212,8 @@ private fun SettingsThinScrollbarScroll(
     scrollState: ScrollState,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
-        drawRect(color = Color.White.copy(alpha = 0.05f))
-        val maxVal = scrollState.maxValue.toFloat().takeIf { it > 0f } ?: return@Canvas
-        val viewFrac = size.height / (size.height + maxVal)
-        val thumbH = (viewFrac * size.height).coerceAtLeast(14.dp.toPx())
-        val thumbTop = (scrollState.value / maxVal) * (size.height - thumbH)
-        drawRoundRect(
-            color = Color.White.copy(alpha = 0.22f),
-            topLeft = Offset(1.dp.toPx(), thumbTop),
-            size = Size(size.width - 2.dp.toPx(), thumbH),
-            cornerRadius = CornerRadius(4.dp.toPx())
-        )
-    }
-}
-
-@Composable
-fun FontSettingsCard(
-    state: SettingsState,
-    vm: SettingsViewModel
-) {
-    val fontNames = remember(state.customFontPaths) {
-        listAvailableFontNames(state.customFontPaths)
-    }
-    val currentFontIndex = remember(state.fontFamilyName, fontNames) {
-        fontNames.indexOfFirst { it == state.fontFamilyName }.coerceAtLeast(0)
-    }
-    val resolvedFamily = remember(state.fontFamilyName, state.customFontPaths) {
-        resolveFontFamily(state.fontFamilyName, state.customFontPaths)
-    }
-    val previewDecoration = when {
-        state.fontUnderline && state.fontStrikethrough -> TextDecoration.combine(
-            listOf(TextDecoration.Underline, TextDecoration.LineThrough)
-        )
-
-        state.fontUnderline -> TextDecoration.Underline
-        state.fontStrikethrough -> TextDecoration.LineThrough
-        else -> TextDecoration.None
-    }
-
-    var fontDropdownExpanded by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    SettingsGroup("Typography") {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-
-                Text(
-                    "Font Family",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Box {
-                    OutlinedButton(
-                        onClick = { fontDropdownExpanded = true },
-                        modifier = Modifier.fillMaxWidth().height(36.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                        )
-                    ) {
-                        Text(
-                            state.fontFamilyName,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = resolvedFamily,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            Icons.Default.KeyboardArrowDown,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = fontDropdownExpanded,
-                        onDismissRequest = { fontDropdownExpanded = false },
-                        modifier = Modifier.heightIn(max = 260.dp)
-                    ) {
-                        fontNames.forEachIndexed { idx, name ->
-                            val isCustom = state.customFontPaths.any { path ->
-                                path.substringAfterLast('/').substringAfterLast('\\')
-                                    .substringBeforeLast('.') == name
-                            }
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        name,
-                                        fontFamily = resolveFontFamily(name, state.customFontPaths),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (idx == currentFontIndex)
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            MaterialTheme.colorScheme.onSurface
-                                    )
-                                },
-                                onClick = {
-                                    vm.sendEvent(SettingsEvent.OnFontFamilyChanged(name))
-                                    fontDropdownExpanded = false
-                                },
-                                trailingIcon = if (isCustom) {
-                                    {
-                                        val matchPath = state.customFontPaths.firstOrNull { p ->
-                                            p.substringAfterLast('/').substringAfterLast('\\')
-                                                .substringBeforeLast('.') == name
-                                        }
-                                        IconButton(
-                                            onClick = {
-                                                if (matchPath != null) {
-                                                    vm.sendEvent(
-                                                        SettingsEvent.OnRemoveCustomFontPath(
-                                                            matchPath
-                                                        )
-                                                    )
-                                                }
-                                                if (state.fontFamilyName == name) {
-                                                    vm.sendEvent(SettingsEvent.OnFontFamilyChanged("Default"))
-                                                }
-                                                fontDropdownExpanded = false
-                                            },
-                                            modifier = Modifier.size(20.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Close,
-                                                contentDescription = "Remove custom font",
-                                                modifier = Modifier.size(12.dp),
-                                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                                            )
-                                        }
-                                    }
-                                } else null
-                            )
-                        }
-
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
-                        DropdownMenuItem(
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Add,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(14.dp),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        "Add font file (.ttf / .otf)…",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            },
-                            onClick = {
-                                fontDropdownExpanded = false
-                                scope.launch {
-                                    val path = pickFontFile()
-                                    if (!path.isNullOrBlank()) {
-                                        vm.sendEvent(SettingsEvent.OnAddCustomFontPath(path))
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
-
-                Text(
-                    "Style & Effects",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FontStyleChip(
-                        label = "I",
-                        active = state.fontStyleItalic,
-                        fontStyle = FontStyle.Italic,
-                        tooltip = "Italic",
-                        onClick = { vm.sendEvent(SettingsEvent.OnFontItalicChanged(!state.fontStyleItalic)) }
-                    )
-                    FontStyleChip(
-                        label = "U",
-                        active = state.fontUnderline,
-                        textDecoration = TextDecoration.Underline,
-                        tooltip = "Underline",
-                        onClick = { vm.sendEvent(SettingsEvent.OnFontUnderlineChanged(!state.fontUnderline)) }
-                    )
-                    FontStyleChip(
-                        label = "S",
-                        active = state.fontStrikethrough,
-                        textDecoration = TextDecoration.LineThrough,
-                        tooltip = "Strikethrough",
-                        onClick = { vm.sendEvent(SettingsEvent.OnFontStrikethroughChanged(!state.fontStrikethrough)) }
-                    )
-                }
-            }
-
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "Preview",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        val fs = if (state.fontStyleItalic) FontStyle.Italic else FontStyle.Normal
-                        Text(
-                            "Aa — The quick brown fox",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = resolvedFamily,
-                                fontStyle = fs,
-                                textDecoration = previewDecoration
-                            )
-                        )
-                        Text(
-                            "0123456789 #!@$%",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = resolvedFamily,
-                                fontStyle = fs,
-                                textDecoration = previewDecoration
-                            ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            state.fontFamilyName,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontFamily = resolvedFamily
-                            ),
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-
-                TextButton(
-                    onClick = {
-                        vm.sendEvent(SettingsEvent.OnFontFamilyChanged("Default"))
-                        vm.sendEvent(SettingsEvent.OnFontItalicChanged(false))
-                        vm.sendEvent(SettingsEvent.OnFontUnderlineChanged(false))
-                        vm.sendEvent(SettingsEvent.OnFontStrikethroughChanged(false))
-                    },
-                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
-                    modifier = Modifier.height(20.dp)
-                ) {
-                    Text(
-                        "Reset to default",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FontStyleChip(
-    label: String,
-    active: Boolean,
-    tooltip: String = "",
-    fontStyle: FontStyle = FontStyle.Normal,
-    textDecoration: TextDecoration? = null,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(6.dp),
-        color = if (active)
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-        else
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.40f),
-        border = if (active)
-            BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            )
-        else null,
-        modifier = Modifier.size(width = 34.dp, height = 30.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontStyle = fontStyle,
-                    textDecoration = textDecoration,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
-                ),
-                color = if (active) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-/**
- * Holds the active settings search query so that nested row labels can render a subtle highlight
- * for matching substrings. Default empty string = no highlight.
- */
-private val LocalSettingsSearch = androidx.compose.runtime.compositionLocalOf { "" }
-
-/**
- * Text wrapper used inside SettingsGroup / row helpers. When the global settings search query
- * has a non-empty match inside `text`, the matched substring gets a light yellow background.
- * Otherwise renders as a plain Text.
- */
-@Composable
-private fun HighlightedSettingsText(
-    text: String,
-    modifier: Modifier = Modifier,
-    style: androidx.compose.ui.text.TextStyle = androidx.compose.material3.LocalTextStyle.current,
-    color: Color = Color.Unspecified,
-    fontWeight: FontWeight? = null,
-    letterSpacing: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
-    maxLines: Int = Int.MAX_VALUE,
-    overflow: TextOverflow = TextOverflow.Clip
-) {
-    val q = LocalSettingsSearch.current.trim()
-    val annotated = remember(text, q) {
-        if (q.isEmpty() || q.length < 2) {
-            buildAnnotatedString { append(text) }
-        } else {
-            val lowerText = text.lowercase()
-            val lowerQ = q.lowercase()
-            buildAnnotatedString {
-                var i = 0
-                while (i < text.length) {
-                    val idx = lowerText.indexOf(lowerQ, i)
-                    if (idx < 0) {
-                        append(text.substring(i))
-                        break
-                    }
-                    if (idx > i) append(text.substring(i, idx))
-                    withStyle(
-                        SpanStyle(
-                            background = Color(0xFFFFEE58).copy(alpha = 0.25f),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    ) { append(text.substring(idx, idx + q.length)) }
-                    i = idx + q.length
-                }
-            }
-        }
-    }
-    Text(
-        text = annotated,
-        modifier = modifier,
-        style = style,
-        color = color,
-        fontWeight = fontWeight,
-        letterSpacing = letterSpacing,
-        maxLines = maxLines,
-        overflow = overflow
+    io.rudione.chatone.presentation.components.ChatoneScrollbar(
+        scrollState = scrollState,
+        modifier = modifier
     )
 }

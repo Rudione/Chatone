@@ -35,7 +35,10 @@ import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -297,7 +300,7 @@ private fun CommandTableRow(
                 )
             )
         }
-        IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+        ChatoneIconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
             Icon(
                 Icons.Filled.Delete, null,
                 modifier = Modifier.size(14.dp),
@@ -368,25 +371,19 @@ private fun CommandEditDialog(
                         )
                     )
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    ChatoneIconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
                         Icon(Icons.Filled.Close, null, modifier = Modifier.size(16.dp))
                     }
                 }
 
                 CompactField(label = s.settingsCommandsTrigger) {
-                    OutlinedTextField(
+                    ChatoneTextField(
                         value = draft.trigger,
                         onValueChange = { draft = draft.copy(trigger = it.trim()) },
-                        placeholder = {
-                            BasicText(
-                                s.settingsCommandsTriggerHint,
-                                style = MaterialTheme.typography.bodySmall.copy(color = scheme.onSurfaceVariant)
-                            )
-                        },
+                        placeholder = s.settingsCommandsTriggerHint,
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp)
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 
@@ -410,18 +407,14 @@ private fun CommandEditDialog(
 
                 if (draft.kind == ChatCommandKind.TEXT) {
                     CompactField(label = s.settingsCommandsReplacement) {
-                        OutlinedTextField(
+                        ChatoneTextField(
                             value = draft.replacement,
                             onValueChange = { draft = draft.copy(replacement = it) },
-                            placeholder = {
-                                BasicText(
-                                    s.settingsCommandsReplacementHint,
-                                    style = MaterialTheme.typography.bodySmall.copy(color = scheme.onSurfaceVariant)
-                                )
-                            },
+                            placeholder = s.settingsCommandsReplacementHint,
+                            singleLine = false,
+                            maxLines = 6,
                             textStyle = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 88.dp, max = 160.dp),
-                            shape = RoundedCornerShape(10.dp)
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 72.dp, max = 160.dp)
                         )
                     }
                 } else {
@@ -577,7 +570,7 @@ private fun MacroPicker(
                 Icon(Icons.Filled.KeyboardArrowDown, null, modifier = Modifier.size(18.dp), tint = scheme.onSurfaceVariant)
             }
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        ChatoneDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             macros.forEach { macro ->
                 DropdownMenuItem(
                     text = {
@@ -665,7 +658,7 @@ private fun HotkeyCapture(hotkey: String, onChanged: (String) -> Unit) {
             )
         }
         if (hotkey.isNotBlank() || recording) {
-            IconButton(
+            ChatoneIconButton(
                 onClick = { onChanged(""); recording = false },
                 modifier = Modifier.size(28.dp)
             ) {

@@ -55,6 +55,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import io.rudione.chatone.presentation.chat.models.EmoteUiData
 import io.rudione.chatone.util.emote.EmoteSearchIndex
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 
 private const val PAGE_SIZE = 100
 private const val PRELOAD_THRESHOLD = 20
@@ -62,15 +64,861 @@ private const val PRELOAD_THRESHOLD = 20
 private data class EmojiCategory(val icon: String, val label: String, val emojis: List<String>)
 
 private val EMOJI_CATEGORIES = listOf(
-    EmojiCategory("😀","Smileys", listOf("😀","😃","😄","😁","😆","😅","🤣","😂","🙂","🙃","🫠","😉","😊","😇","🥰","😍","🤩","😘","😗","😚","😙","🥲","😋","😛","😜","🤪","😝","🤑","🤗","🤭","🫢","🫣","🤫","🤔","🫡","🤐","🤨","😐","😑","😶","🫥","😏","😒","🙄","😬","🤥","😌","😔","😪","🤤","😴","😷","🤒","🤕","🤢","🤮","🤧","🥵","🥶","🥴","😵","🤯","🤠","🥳","🥸","😎","🤓","🧐","😕","🫤","😟","🙁","☹️","😮","😯","😲","😳","🥺","🫣","😦","😧","😨","😰","😥","😢","😭","😱","😖","😣","😞","😓","😩","😫","🥱","😤","😡","😠","🤬","😈","👿","💀","☠️","💩","🤡","👹","👺","👻","👽","👾","🤖")),
-    EmojiCategory("👋","People", listOf("👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏","✍️","💅","🤳","💪","🦾","🦿","🦵","🦶","👂","🦻","👃","🫀","🫁","🧠","🦷","🦴","👀","👁️","👅","👄","🫦","💋","👶","🧒","👦","👧","🧑","👱","👨","🧔","👩","🧓","👴","👵","🙍","🙎","🙅","🙆","💁","🙋","🧏","🙇","🤦","🤷","💆","💇","🚶","🧍","🧎","🏃","💃","🕺","👫","👬","👭","💑","👨‍👩‍👦","👨‍👩‍👧")),
-    EmojiCategory("🐶","Animals", listOf("🐶","🐱","🐭","🐹","🐰","🦊","🐻","🐼","🐨","🐯","🦁","🐮","🐷","🐸","🐵","🙈","🙉","🙊","🐒","🐔","🐧","🐦","🐤","🦆","🦅","🦉","🦇","🐺","🐗","🐴","🦄","🐝","🪱","🐛","🦋","🐌","🐞","🐜","🦟","🦗","🦂","🐢","🐍","🦎","🦖","🦕","🐙","🦑","🦐","🦞","🦀","🐡","🐠","🐟","🐬","🐳","🐋","🦈","🦭","🐊","🐅","🐆","🦓","🦍","🦧","🦣","🐘","🦛","🦏","🐪","🐫","🦒","🦘","🦬","🐃","🐂","🐄","🐎","🐖","🐏","🐑","🦙","🐐","🦌","🐕","🐩","🦮","🐈","🐈‍⬛","🪶","🐓","🦃","🦤","🦚","🦜")),
-    EmojiCategory("🍎","Food", listOf("🍎","🍊","🍋","🍇","🍓","🫐","🍈","🍒","🍑","🥭","🍍","🥥","🥝","🍅","🍆","🥑","🥦","🥬","🥒","🌶️","🫑","🧄","🧅","🥔","🍠","🫘","🌰","🥜","🍞","🥐","🥖","🫓","🥨","🥯","🧀","🥚","🍳","🧈","🥞","🧇","🥓","🥩","🍗","🍖","🦴","🌭","🍔","🍟","🍕","🫔","🌮","🌯","🥙","🧆","🍿","🧂","🍱","🍘","🍙","🍚","🍛","🍜","🍝","🦪","🍣","🍤","🥟","🍦","🍧","🍨","🍩","🍪","🎂","🍰","🧁","🥧","🍫","🍬","🍭","🍮","🍯","🍼","🥛","☕","🫖","🍵","🧃","🥤","🧋","🍶","🍺","🍻","🥂")),
-    EmojiCategory("⚽","Activities", listOf("⚽","🏀","🏈","⚾","🥎","🎾","🏐","🏉","🥏","🎱","🪀","🏓","🏸","🏒","🏑","🥍","🏏","🪃","🥅","⛳","🪁","🎣","🤿","🎽","🎿","🛷","🥌","🎯","🎱","🔮","🪄","🎮","🕹️","🎲","♟️","🧩","🧸","🪅","🎭","🎨","🖼️","🎪","🤹","🎬","🎤","🎧","🎼","🎵","🎶","🎹","🥁","🪘","🎷","🎺","🪗","🎸","🪕","🎻","🏆","🥇","🥈","🥉","🏅","🎖️","🏵️","🎗️","🎫","🎟️")),
-    EmojiCategory("🚗","Travel", listOf("🚗","🚕","🚙","🚌","🚎","🏎️","🚓","🚑","🚒","🚐","🛻","🚚","🚛","🚜","🏍️","🛵","🚲","🛴","🛹","🛼","🚢","✈️","🛩️","🛫","🛬","🪂","💺","🚁","🚟","🚠","🚡","🛰️","🚀","🛸","🪐","⭐","🌟","💫","✨","🌈","☀️","🌤️","⛅","🌥️","🌦️","🌧️","⛈️","🌩️","🌨️","🌪️","🌫️","🌬️","🌀","🌊","🌁","🏔️","⛰️","🌋","🗻","🏕️","🏖️","🏜️","🏝️")),
-    EmojiCategory("💡","Objects", listOf("⌚","📱","💻","⌨️","🖥️","🖨️","🖱️","💾","💿","📀","📷","📸","📹","🎥","📽️","🎞️","📞","☎️","📟","📠","📺","📻","🧭","⏱️","⏲️","⏰","🕰️","⌛","⏳","📡","🔋","🔌","💡","🔦","🕯️","🧱","💰","💴","💵","💶","💷","💸","💳","🧾","📈","📉","📊","📋","📌","📍","📎","🖇️","📏","📐","✂️","🗃️","🗄️","🗑️","🔒","🔓","🔏","🔐","🔑","🗝️","🔨","🪓","⛏️","⚒️","🛠️","🗡️","⚔️","🛡️","🪚","🔧","🪛","🔩","⚙️","🗜️","⚖️","🦯","🔗","⛓️","🪝","🧲","🪜","⚗️","🧪","🧫","🧬","🔭","🔬","🩺","💊","💉","🩹","🩼")),
-    EmojiCategory("❤️","Symbols", listOf("❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❤️‍🔥","❤️‍🩹","💕","💞","💓","💗","💖","💘","💝","💟","☮️","✝️","☪️","🕉️","☸️","✡️","🔯","🕎","☯️","🛐","⛎","♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓","🆔","⚛️","☢️","☣️","📴","📳","✴️","🆚","💮","🉐","㊙️","㊗️","🈴","🈵","🈹","🈲","🅰️","🅱️","🆎","🆑","🅾️","🆘","❌","⭕","🛑","⛔","📛","🚫","💯","💢","♨️","™️","©️","®️","〰️","➰","➿","🔚","🔙")),
-    EmojiCategory("🎌","Flags", listOf("🏳️","🏴","🏁","🚩","🏳️‍🌈","🏳️‍⚧️","🏴‍☠️","🇦🇫","🇦🇱","🇩🇿","🇦🇩","🇦🇴","🇦🇷","🇦🇲","🇦🇺","🇦🇹","🇦🇿","🇧🇸","🇧🇭","🇧🇩","🇧🇧","🇧🇾","🇧🇪","🇧🇿","🇧🇯","🇧🇹","🇧🇴","🇧🇦","🇧🇼","🇧🇷","🇧🇳","🇧🇬","🇧🇫","🇧🇮","🇨🇻","🇰🇭","🇨🇲","🇨🇦","🇨🇫","🇹🇩","🇨🇱","🇨🇳","🇨🇴","🇨🇷","🇭🇷","🇨🇺","🇨🇾","🇨🇿","🇩🇰","🇩🇯","🇩🇴","🇪🇨","🇪🇬","🇸🇻","🇬🇶","🇪🇷","🇪🇪","🇸🇿","🇪🇹","🇫🇯","🇫🇮","🇫🇷","🇬🇦","🇬🇲","🇬🇪","🇩🇪","🇬🇭","🇬🇷","🇬🇹","🇬🇳","🇬🇼","🇬🇾","🇭🇹","🇭🇳","🇭🇺","🇮🇸","🇮🇳","🇮🇩","🇮🇷","🇮🇶","🇮🇪","🇮🇱","🇮🇹","🇯🇲","🇯🇵","🇯🇴","🇰🇿","🇰🇪","🇰🇷","🇰🇼","🇰🇬","🇱🇦","🇱🇻","🇱🇧","🇱🇸","🇱🇷","🇱🇾","🇱🇮"))
+    EmojiCategory(
+        "😀",
+        "Smileys",
+        listOf(
+            "😀",
+            "😃",
+            "😄",
+            "😁",
+            "😆",
+            "😅",
+            "🤣",
+            "😂",
+            "🙂",
+            "🙃",
+            "🫠",
+            "😉",
+            "😊",
+            "😇",
+            "🥰",
+            "😍",
+            "🤩",
+            "😘",
+            "😗",
+            "😚",
+            "😙",
+            "🥲",
+            "😋",
+            "😛",
+            "😜",
+            "🤪",
+            "😝",
+            "🤑",
+            "🤗",
+            "🤭",
+            "🫢",
+            "🫣",
+            "🤫",
+            "🤔",
+            "🫡",
+            "🤐",
+            "🤨",
+            "😐",
+            "😑",
+            "😶",
+            "🫥",
+            "😏",
+            "😒",
+            "🙄",
+            "😬",
+            "🤥",
+            "😌",
+            "😔",
+            "😪",
+            "🤤",
+            "😴",
+            "😷",
+            "🤒",
+            "🤕",
+            "🤢",
+            "🤮",
+            "🤧",
+            "🥵",
+            "🥶",
+            "🥴",
+            "😵",
+            "🤯",
+            "🤠",
+            "🥳",
+            "🥸",
+            "😎",
+            "🤓",
+            "🧐",
+            "😕",
+            "🫤",
+            "😟",
+            "🙁",
+            "☹️",
+            "😮",
+            "😯",
+            "😲",
+            "😳",
+            "🥺",
+            "🫣",
+            "😦",
+            "😧",
+            "😨",
+            "😰",
+            "😥",
+            "😢",
+            "😭",
+            "😱",
+            "😖",
+            "😣",
+            "😞",
+            "😓",
+            "😩",
+            "😫",
+            "🥱",
+            "😤",
+            "😡",
+            "😠",
+            "🤬",
+            "😈",
+            "👿",
+            "💀",
+            "☠️",
+            "💩",
+            "🤡",
+            "👹",
+            "👺",
+            "👻",
+            "👽",
+            "👾",
+            "🤖"
+        )
+    ),
+    EmojiCategory(
+        "👋",
+        "People",
+        listOf(
+            "👋",
+            "🤚",
+            "🖐️",
+            "✋",
+            "🖖",
+            "🫱",
+            "🫲",
+            "🫳",
+            "🫴",
+            "👌",
+            "🤌",
+            "🤏",
+            "✌️",
+            "🤞",
+            "🫰",
+            "🤟",
+            "🤘",
+            "🤙",
+            "👈",
+            "👉",
+            "👆",
+            "🖕",
+            "👇",
+            "☝️",
+            "🫵",
+            "👍",
+            "👎",
+            "✊",
+            "👊",
+            "🤛",
+            "🤜",
+            "👏",
+            "🙌",
+            "🫶",
+            "👐",
+            "🤲",
+            "🤝",
+            "🙏",
+            "✍️",
+            "💅",
+            "🤳",
+            "💪",
+            "🦾",
+            "🦿",
+            "🦵",
+            "🦶",
+            "👂",
+            "🦻",
+            "👃",
+            "🫀",
+            "🫁",
+            "🧠",
+            "🦷",
+            "🦴",
+            "👀",
+            "👁️",
+            "👅",
+            "👄",
+            "🫦",
+            "💋",
+            "👶",
+            "🧒",
+            "👦",
+            "👧",
+            "🧑",
+            "👱",
+            "👨",
+            "🧔",
+            "👩",
+            "🧓",
+            "👴",
+            "👵",
+            "🙍",
+            "🙎",
+            "🙅",
+            "🙆",
+            "💁",
+            "🙋",
+            "🧏",
+            "🙇",
+            "🤦",
+            "🤷",
+            "💆",
+            "💇",
+            "🚶",
+            "🧍",
+            "🧎",
+            "🏃",
+            "💃",
+            "🕺",
+            "👫",
+            "👬",
+            "👭",
+            "💑",
+            "👨‍👩‍👦",
+            "👨‍👩‍👧"
+        )
+    ),
+    EmojiCategory(
+        "🐶",
+        "Animals",
+        listOf(
+            "🐶",
+            "🐱",
+            "🐭",
+            "🐹",
+            "🐰",
+            "🦊",
+            "🐻",
+            "🐼",
+            "🐨",
+            "🐯",
+            "🦁",
+            "🐮",
+            "🐷",
+            "🐸",
+            "🐵",
+            "🙈",
+            "🙉",
+            "🙊",
+            "🐒",
+            "🐔",
+            "🐧",
+            "🐦",
+            "🐤",
+            "🦆",
+            "🦅",
+            "🦉",
+            "🦇",
+            "🐺",
+            "🐗",
+            "🐴",
+            "🦄",
+            "🐝",
+            "🪱",
+            "🐛",
+            "🦋",
+            "🐌",
+            "🐞",
+            "🐜",
+            "🦟",
+            "🦗",
+            "🦂",
+            "🐢",
+            "🐍",
+            "🦎",
+            "🦖",
+            "🦕",
+            "🐙",
+            "🦑",
+            "🦐",
+            "🦞",
+            "🦀",
+            "🐡",
+            "🐠",
+            "🐟",
+            "🐬",
+            "🐳",
+            "🐋",
+            "🦈",
+            "🦭",
+            "🐊",
+            "🐅",
+            "🐆",
+            "🦓",
+            "🦍",
+            "🦧",
+            "🦣",
+            "🐘",
+            "🦛",
+            "🦏",
+            "🐪",
+            "🐫",
+            "🦒",
+            "🦘",
+            "🦬",
+            "🐃",
+            "🐂",
+            "🐄",
+            "🐎",
+            "🐖",
+            "🐏",
+            "🐑",
+            "🦙",
+            "🐐",
+            "🦌",
+            "🐕",
+            "🐩",
+            "🦮",
+            "🐈",
+            "🐈‍⬛",
+            "🪶",
+            "🐓",
+            "🦃",
+            "🦤",
+            "🦚",
+            "🦜"
+        )
+    ),
+    EmojiCategory(
+        "🍎",
+        "Food",
+        listOf(
+            "🍎",
+            "🍊",
+            "🍋",
+            "🍇",
+            "🍓",
+            "🫐",
+            "🍈",
+            "🍒",
+            "🍑",
+            "🥭",
+            "🍍",
+            "🥥",
+            "🥝",
+            "🍅",
+            "🍆",
+            "🥑",
+            "🥦",
+            "🥬",
+            "🥒",
+            "🌶️",
+            "🫑",
+            "🧄",
+            "🧅",
+            "🥔",
+            "🍠",
+            "🫘",
+            "🌰",
+            "🥜",
+            "🍞",
+            "🥐",
+            "🥖",
+            "🫓",
+            "🥨",
+            "🥯",
+            "🧀",
+            "🥚",
+            "🍳",
+            "🧈",
+            "🥞",
+            "🧇",
+            "🥓",
+            "🥩",
+            "🍗",
+            "🍖",
+            "🦴",
+            "🌭",
+            "🍔",
+            "🍟",
+            "🍕",
+            "🫔",
+            "🌮",
+            "🌯",
+            "🥙",
+            "🧆",
+            "🍿",
+            "🧂",
+            "🍱",
+            "🍘",
+            "🍙",
+            "🍚",
+            "🍛",
+            "🍜",
+            "🍝",
+            "🦪",
+            "🍣",
+            "🍤",
+            "🥟",
+            "🍦",
+            "🍧",
+            "🍨",
+            "🍩",
+            "🍪",
+            "🎂",
+            "🍰",
+            "🧁",
+            "🥧",
+            "🍫",
+            "🍬",
+            "🍭",
+            "🍮",
+            "🍯",
+            "🍼",
+            "🥛",
+            "☕",
+            "🫖",
+            "🍵",
+            "🧃",
+            "🥤",
+            "🧋",
+            "🍶",
+            "🍺",
+            "🍻",
+            "🥂"
+        )
+    ),
+    EmojiCategory(
+        "⚽",
+        "Activities",
+        listOf(
+            "⚽",
+            "🏀",
+            "🏈",
+            "⚾",
+            "🥎",
+            "🎾",
+            "🏐",
+            "🏉",
+            "🥏",
+            "🎱",
+            "🪀",
+            "🏓",
+            "🏸",
+            "🏒",
+            "🏑",
+            "🥍",
+            "🏏",
+            "🪃",
+            "🥅",
+            "⛳",
+            "🪁",
+            "🎣",
+            "🤿",
+            "🎽",
+            "🎿",
+            "🛷",
+            "🥌",
+            "🎯",
+            "🎱",
+            "🔮",
+            "🪄",
+            "🎮",
+            "🕹️",
+            "🎲",
+            "♟️",
+            "🧩",
+            "🧸",
+            "🪅",
+            "🎭",
+            "🎨",
+            "🖼️",
+            "🎪",
+            "🤹",
+            "🎬",
+            "🎤",
+            "🎧",
+            "🎼",
+            "🎵",
+            "🎶",
+            "🎹",
+            "🥁",
+            "🪘",
+            "🎷",
+            "🎺",
+            "🪗",
+            "🎸",
+            "🪕",
+            "🎻",
+            "🏆",
+            "🥇",
+            "🥈",
+            "🥉",
+            "🏅",
+            "🎖️",
+            "🏵️",
+            "🎗️",
+            "🎫",
+            "🎟️"
+        )
+    ),
+    EmojiCategory(
+        "🚗",
+        "Travel",
+        listOf(
+            "🚗",
+            "🚕",
+            "🚙",
+            "🚌",
+            "🚎",
+            "🏎️",
+            "🚓",
+            "🚑",
+            "🚒",
+            "🚐",
+            "🛻",
+            "🚚",
+            "🚛",
+            "🚜",
+            "🏍️",
+            "🛵",
+            "🚲",
+            "🛴",
+            "🛹",
+            "🛼",
+            "🚢",
+            "✈️",
+            "🛩️",
+            "🛫",
+            "🛬",
+            "🪂",
+            "💺",
+            "🚁",
+            "🚟",
+            "🚠",
+            "🚡",
+            "🛰️",
+            "🚀",
+            "🛸",
+            "🪐",
+            "⭐",
+            "🌟",
+            "💫",
+            "✨",
+            "🌈",
+            "☀️",
+            "🌤️",
+            "⛅",
+            "🌥️",
+            "🌦️",
+            "🌧️",
+            "⛈️",
+            "🌩️",
+            "🌨️",
+            "🌪️",
+            "🌫️",
+            "🌬️",
+            "🌀",
+            "🌊",
+            "🌁",
+            "🏔️",
+            "⛰️",
+            "🌋",
+            "🗻",
+            "🏕️",
+            "🏖️",
+            "🏜️",
+            "🏝️"
+        )
+    ),
+    EmojiCategory(
+        "💡",
+        "Objects",
+        listOf(
+            "⌚",
+            "📱",
+            "💻",
+            "⌨️",
+            "🖥️",
+            "🖨️",
+            "🖱️",
+            "💾",
+            "💿",
+            "📀",
+            "📷",
+            "📸",
+            "📹",
+            "🎥",
+            "📽️",
+            "🎞️",
+            "📞",
+            "☎️",
+            "📟",
+            "📠",
+            "📺",
+            "📻",
+            "🧭",
+            "⏱️",
+            "⏲️",
+            "⏰",
+            "🕰️",
+            "⌛",
+            "⏳",
+            "📡",
+            "🔋",
+            "🔌",
+            "💡",
+            "🔦",
+            "🕯️",
+            "🧱",
+            "💰",
+            "💴",
+            "💵",
+            "💶",
+            "💷",
+            "💸",
+            "💳",
+            "🧾",
+            "📈",
+            "📉",
+            "📊",
+            "📋",
+            "📌",
+            "📍",
+            "📎",
+            "🖇️",
+            "📏",
+            "📐",
+            "✂️",
+            "🗃️",
+            "🗄️",
+            "🗑️",
+            "🔒",
+            "🔓",
+            "🔏",
+            "🔐",
+            "🔑",
+            "🗝️",
+            "🔨",
+            "🪓",
+            "⛏️",
+            "⚒️",
+            "🛠️",
+            "🗡️",
+            "⚔️",
+            "🛡️",
+            "🪚",
+            "🔧",
+            "🪛",
+            "🔩",
+            "⚙️",
+            "🗜️",
+            "⚖️",
+            "🦯",
+            "🔗",
+            "⛓️",
+            "🪝",
+            "🧲",
+            "🪜",
+            "⚗️",
+            "🧪",
+            "🧫",
+            "🧬",
+            "🔭",
+            "🔬",
+            "🩺",
+            "💊",
+            "💉",
+            "🩹",
+            "🩼"
+        )
+    ),
+    EmojiCategory(
+        "❤️",
+        "Symbols",
+        listOf(
+            "❤️",
+            "🧡",
+            "💛",
+            "💚",
+            "💙",
+            "💜",
+            "🖤",
+            "🤍",
+            "🤎",
+            "💔",
+            "❤️‍🔥",
+            "❤️‍🩹",
+            "💕",
+            "💞",
+            "💓",
+            "💗",
+            "💖",
+            "💘",
+            "💝",
+            "💟",
+            "☮️",
+            "✝️",
+            "☪️",
+            "🕉️",
+            "☸️",
+            "✡️",
+            "🔯",
+            "🕎",
+            "☯️",
+            "🛐",
+            "⛎",
+            "♈",
+            "♉",
+            "♊",
+            "♋",
+            "♌",
+            "♍",
+            "♎",
+            "♏",
+            "♐",
+            "♑",
+            "♒",
+            "♓",
+            "🆔",
+            "⚛️",
+            "☢️",
+            "☣️",
+            "📴",
+            "📳",
+            "✴️",
+            "🆚",
+            "💮",
+            "🉐",
+            "㊙️",
+            "㊗️",
+            "🈴",
+            "🈵",
+            "🈹",
+            "🈲",
+            "🅰️",
+            "🅱️",
+            "🆎",
+            "🆑",
+            "🅾️",
+            "🆘",
+            "❌",
+            "⭕",
+            "🛑",
+            "⛔",
+            "📛",
+            "🚫",
+            "💯",
+            "💢",
+            "♨️",
+            "™️",
+            "©️",
+            "®️",
+            "〰️",
+            "➰",
+            "➿",
+            "🔚",
+            "🔙"
+        )
+    ),
+    EmojiCategory(
+        "🎌",
+        "Flags",
+        listOf(
+            "🏳️",
+            "🏴",
+            "🏁",
+            "🚩",
+            "🏳️‍🌈",
+            "🏳️‍⚧️",
+            "🏴‍☠️",
+            "🇦🇫",
+            "🇦🇱",
+            "🇩🇿",
+            "🇦🇩",
+            "🇦🇴",
+            "🇦🇷",
+            "🇦🇲",
+            "🇦🇺",
+            "🇦🇹",
+            "🇦🇿",
+            "🇧🇸",
+            "🇧🇭",
+            "🇧🇩",
+            "🇧🇧",
+            "🇧🇾",
+            "🇧🇪",
+            "🇧🇿",
+            "🇧🇯",
+            "🇧🇹",
+            "🇧🇴",
+            "🇧🇦",
+            "🇧🇼",
+            "🇧🇷",
+            "🇧🇳",
+            "🇧🇬",
+            "🇧🇫",
+            "🇧🇮",
+            "🇨🇻",
+            "🇰🇭",
+            "🇨🇲",
+            "🇨🇦",
+            "🇨🇫",
+            "🇹🇩",
+            "🇨🇱",
+            "🇨🇳",
+            "🇨🇴",
+            "🇨🇷",
+            "🇭🇷",
+            "🇨🇺",
+            "🇨🇾",
+            "🇨🇿",
+            "🇩🇰",
+            "🇩🇯",
+            "🇩🇴",
+            "🇪🇨",
+            "🇪🇬",
+            "🇸🇻",
+            "🇬🇶",
+            "🇪🇷",
+            "🇪🇪",
+            "🇸🇿",
+            "🇪🇹",
+            "🇫🇯",
+            "🇫🇮",
+            "🇫🇷",
+            "🇬🇦",
+            "🇬🇲",
+            "🇬🇪",
+            "🇩🇪",
+            "🇬🇭",
+            "🇬🇷",
+            "🇬🇹",
+            "🇬🇳",
+            "🇬🇼",
+            "🇬🇾",
+            "🇭🇹",
+            "🇭🇳",
+            "🇭🇺",
+            "🇮🇸",
+            "🇮🇳",
+            "🇮🇩",
+            "🇮🇷",
+            "🇮🇶",
+            "🇮🇪",
+            "🇮🇱",
+            "🇮🇹",
+            "🇯🇲",
+            "🇯🇵",
+            "🇯🇴",
+            "🇰🇿",
+            "🇰🇪",
+            "🇰🇷",
+            "🇰🇼",
+            "🇰🇬",
+            "🇱🇦",
+            "🇱🇻",
+            "🇱🇧",
+            "🇱🇸",
+            "🇱🇷",
+            "🇱🇾",
+            "🇱🇮"
+        )
+    )
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,7 +956,8 @@ fun EmotePickerSheet(
     }
 
     fun toggleFavoriteEmoji(emoji: String) {
-        favoriteEmojis = if (emoji in favoriteEmojis) favoriteEmojis - emoji else favoriteEmojis + emoji
+        favoriteEmojis =
+            if (emoji in favoriteEmojis) favoriteEmojis - emoji else favoriteEmojis + emoji
         settings.putString("favorite_emojis", favoriteEmojis.joinToString(","))
     }
 
@@ -139,19 +988,28 @@ fun EmotePickerSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .wrapContentHeight()
-                .shadow(24.dp, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                .shadow(
+                    24.dp, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
                     ambientColor = Color.Black.copy(alpha = 0.3f),
-                    spotColor = Color.Black.copy(alpha = 0.4f))
+                    spotColor = Color.Black.copy(alpha = 0.4f)
+                )
                 .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                 .background(
-                    Brush.verticalGradient(listOf(
-                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
-                        MaterialTheme.colorScheme.surfaceContainerHigh
-                    ))
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
+                            MaterialTheme.colorScheme.surfaceContainerHigh
+                        )
+                    )
                 )
                 .border(
                     1.dp,
-                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.04f))),
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.18f),
+                            Color.White.copy(alpha = 0.04f)
+                        )
+                    ),
                     RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
                 )
                 .then(
@@ -161,15 +1019,22 @@ fun EmotePickerSheet(
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
                                 when (event.type) {
-                                    PointerEventType.Enter -> { dismissJob?.cancel(); dismissJob = null }
-                                    PointerEventType.Exit -> { dismissJob = scope.launch { delay(250); onDismiss() } }
+                                    PointerEventType.Enter -> {
+                                        dismissJob?.cancel(); dismissJob = null
+                                    }
+
+                                    PointerEventType.Exit -> {
+                                        dismissJob = scope.launch { delay(250); onDismiss() }
+                                    }
                                 }
                             }
                         }
                     } else Modifier
                 )
                 .heightIn(max = 520.dp)
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) {}
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }) {}
         ) {
             Box(
                 modifier = Modifier
@@ -292,7 +1157,8 @@ private fun CompactEmoteSearchBar(
 @Composable
 private fun EmoteSectionHeader(title: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+        modifier = Modifier.fillMaxWidth()
+            .padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -302,7 +1168,10 @@ private fun EmoteSectionHeader(title: String) {
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        )
     }
 }
 
@@ -333,11 +1202,31 @@ internal fun EmoteTab(
     val bttv = channelEmotes.byProvider[EmoteProvider.BTTV] ?: emptyList()
     val ffz = channelEmotes.byProvider[EmoteProvider.FFZ] ?: emptyList()
 
-    val tabs = remember(allEmotes.size, favoriteEmotes.size, hasTwitch, hasSub, sevenTv.size, bttv.size, ffz.size) {
+    val tabs = remember(
+        allEmotes.size,
+        favoriteEmotes.size,
+        hasTwitch,
+        hasSub,
+        sevenTv.size,
+        bttv.size,
+        ffz.size
+    ) {
         buildList<TabEntry> {
-            if (favoriteEmotes.isNotEmpty()) add(TabEntry("★ ${favoriteEmotes.size}", PickerTab.Favorites, favoriteEmotes.size))
+            if (favoriteEmotes.isNotEmpty()) add(
+                TabEntry(
+                    "★ ${favoriteEmotes.size}",
+                    PickerTab.Favorites,
+                    favoriteEmotes.size
+                )
+            )
             add(TabEntry("All (${allEmotes.size})", PickerTab.All, allEmotes.size))
-            if (hasTwitch) add(TabEntry("Twitch", PickerTab.Twitch, twitchChannel.size + twitchGlobal.size))
+            if (hasTwitch) add(
+                TabEntry(
+                    "Twitch",
+                    PickerTab.Twitch,
+                    twitchChannel.size + twitchGlobal.size
+                )
+            )
             if (hasSub) add(TabEntry("Sub ★", PickerTab.TwitchSubscribed, twitchSubscribed.size))
             if (sevenTv.isNotEmpty()) add(TabEntry("7TV", PickerTab.SevenTv, sevenTv.size))
             if (bttv.isNotEmpty()) add(TabEntry("BTTV", PickerTab.Bttv, bttv.size))
@@ -351,27 +1240,47 @@ internal fun EmoteTab(
     val currentTab = tabs.getOrNull(safeTab)
     val isEmojiTab = currentTab?.tab == PickerTab.Emoji
 
-    val baseSections: List<EmoteSection> = remember(currentTab, allEmotes, favoriteEmotes, twitchChannel, twitchGlobal, twitchSubscribed, sevenTv, bttv, ffz) {
+    val baseSections: List<EmoteSection> = remember(
+        currentTab,
+        allEmotes,
+        favoriteEmotes,
+        twitchChannel,
+        twitchGlobal,
+        twitchSubscribed,
+        sevenTv,
+        bttv,
+        ffz
+    ) {
         val channelName = twitchChannel.firstOrNull()?.authorName?.takeIf { it.isNotBlank() }
         when (currentTab?.tab) {
             PickerTab.Favorites -> listOf(EmoteSection(null, favoriteEmotes))
             PickerTab.All -> buildList {
-                if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Twitch · $it" } ?: "Twitch", twitchChannel))
+                if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Twitch · $it" }
+                    ?: "Twitch", twitchChannel))
                 if (twitchGlobal.isNotEmpty()) add(EmoteSection("Twitch Global", twitchGlobal))
                 if (sevenTv.isNotEmpty()) add(EmoteSection("7TV", sevenTv))
                 if (bttv.isNotEmpty()) add(EmoteSection("BTTV", bttv))
                 if (ffz.isNotEmpty()) add(EmoteSection("FFZ", ffz))
-                if (twitchSubscribed.isNotEmpty()) add(EmoteSection("Subscriptions", twitchSubscribed))
+                if (twitchSubscribed.isNotEmpty()) add(
+                    EmoteSection(
+                        "Subscriptions",
+                        twitchSubscribed
+                    )
+                )
             }
+
             PickerTab.Twitch -> buildList {
-                if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Channel · $it" } ?: "Channel", twitchChannel))
+                if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Channel · $it" }
+                    ?: "Channel", twitchChannel))
                 if (twitchGlobal.isNotEmpty()) add(EmoteSection("Global", twitchGlobal))
             }
+
             PickerTab.TwitchSubscribed -> twitchSubscribed
                 .groupBy { it.authorName.ifBlank { "Other" } }
                 .toList()
                 .sortedBy { it.first.lowercase() }
                 .map { (chan, list) -> EmoteSection(chan, list) }
+
             PickerTab.SevenTv -> listOf(EmoteSection(null, sevenTv))
             PickerTab.Bttv -> listOf(EmoteSection(null, bttv))
             PickerTab.Ffz -> listOf(EmoteSection(null, ffz))
@@ -382,43 +1291,49 @@ internal fun EmoteTab(
     val flatSource = remember(baseSections) { baseSections.flatMap { it.emotes } }
     val currentEmoteSource = flatSource
 
-    val searchIndex by produceState<EmoteSearchIndex?>(initialValue = null, flatSource.size, currentTab) {
-        if (isEmojiTab) { value = null; return@produceState }
-        value = withContext(Dispatchers.Default) { EmoteSearchIndex().also { it.build(flatSource) } }
+    val searchIndex by produceState<EmoteSearchIndex?>(
+        initialValue = null,
+        flatSource.size,
+        currentTab
+    ) {
+        if (isEmojiTab) {
+            value = null; return@produceState
+        }
+        value =
+            withContext(Dispatchers.Default) { EmoteSearchIndex().also { it.build(flatSource) } }
     }
     val allIndex by produceState<EmoteSearchIndex?>(initialValue = null, allEmotes.size) {
         value = withContext(Dispatchers.Default) { EmoteSearchIndex().also { it.build(allEmotes) } }
     }
 
-    val displaySections: List<EmoteSection> = remember(baseSections, searchQuery, searchIndex, allIndex) {
-        if (isEmojiTab) emptyList()
-        else if (searchQuery.isBlank() || searchIndex == null) baseSections
-        else {
-            val matched = searchIndex!!.search(searchQuery, limit = 500).map { it.listKey }.toSet()
-            val filtered = baseSections
-                .map { sec -> sec.copy(emotes = sec.emotes.filter { it.listKey in matched }) }
-                .filter { it.emotes.isNotEmpty() }
-            if (filtered.isNotEmpty()) filtered
-            else (allIndex?.search(searchQuery, limit = 500) ?: emptyList())
-                .groupBy { it.provider }
-                .toList()
-                .map { (prov, list) -> EmoteSection("${providerName(prov)} · search", list) }
+    val displaySections: List<EmoteSection> =
+        remember(baseSections, searchQuery, searchIndex, allIndex) {
+            if (isEmojiTab) emptyList()
+            else if (searchQuery.isBlank() || searchIndex == null) baseSections
+            else {
+                val matched =
+                    searchIndex!!.search(searchQuery, limit = 500).map { it.listKey }.toSet()
+                val filtered = baseSections
+                    .map { sec -> sec.copy(emotes = sec.emotes.filter { it.listKey in matched }) }
+                    .filter { it.emotes.isNotEmpty() }
+                if (filtered.isNotEmpty()) filtered
+                else (allIndex?.search(searchQuery, limit = 500) ?: emptyList())
+                    .groupBy { it.provider }
+                    .toList()
+                    .map { (prov, list) -> EmoteSection("${providerName(prov)} · search", list) }
+            }
         }
-    }
 
     val isEmpty = displaySections.all { it.emotes.isEmpty() }
     val gridState = rememberLazyGridState()
-    var isScrolling by remember { mutableStateOf(false) }
-    LaunchedEffect(gridState) {
-        snapshotFlow { gridState.isScrollInProgress }.collect { isScrolling = it }
-    }
+    val scrollActivity =
+        io.rudione.chatone.presentation.chat.rendering.rememberScrollActivity(gridState)
     LaunchedEffect(safeTab, searchQuery) {
         if (gridState.canScrollForward || gridState.canScrollBackward) gridState.scrollToItem(0)
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Emoji can only be "searched" by pasting the emoji itself, which is useless —
-        // hide the bar there instead of pretending it works.
+
         if (!isEmojiTab) {
             CompactEmoteSearchBar(
                 value = searchQuery,
@@ -456,11 +1371,16 @@ internal fun EmoteTab(
                 }
             }
             if (currentTab?.tab == PickerTab.Favorites && favoriteEmotes.isNotEmpty()) {
-                IconButton(
+                ChatoneIconButton(
                     onClick = { onFavoriteAll(currentEmoteSource) },
                     modifier = Modifier.padding(end = 4.dp)
                 ) {
-                    Icon(Icons.Default.Star, contentDescription = "Favorite all", tint = Color(0xFFFFD700), modifier = Modifier.size(18.dp))
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = "Favorite all",
+                        tint = Color(0xFFFFD700),
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
@@ -475,7 +1395,7 @@ internal fun EmoteTab(
                 onToggleFavoriteEmoji = onToggleFavoriteEmoji
             )
         } else if (currentTab?.tab == PickerTab.Favorites && favoriteEmojis.isNotEmpty() && isEmpty) {
-            // Show favorite emojis when there are no favorite emotes but there are fav emoji
+
             EmojiTab(
                 searchQuery = "",
                 onSearchQueryChange = {},
@@ -491,10 +1411,14 @@ internal fun EmoteTab(
                 onClearSearch = { onSearchQueryChange("") }
             )
         } else {
+          CompositionLocalProvider(
+            io.rudione.chatone.presentation.chat.rendering.LocalScrollActivity provides scrollActivity
+          ) {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(56.dp),
                 state = gridState,
-                modifier = Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(min = 120.dp, max = 280.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                    .heightIn(min = 120.dp, max = 280.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -515,17 +1439,20 @@ internal fun EmoteTab(
                         contentType = { it.provider }
                     ) { emote ->
                         val uiData = remember(emote.listKey, favoriteIds) {
-                            EmoteUiData.fromEmote(emote, "${emote.provider}_${emote.id}" in favoriteIds)
+                            EmoteUiData.fromEmote(
+                                emote,
+                                "${emote.provider}_${emote.id}" in favoriteIds
+                            )
                         }
                         EmoteGridItemFlyweight(
                             uiData = uiData,
-                            isScrolling = isScrolling,
                             onClick = { onEmoteSelected(emote) },
                             onToggleFavorite = { onToggleFavorite(emote) }
                         )
                     }
                 }
             }
+          }
         }
     }
 }
@@ -589,16 +1516,19 @@ private fun EmojiTab(
 ) {
     var selectedCategoryIndex by remember { mutableIntStateOf(0) }
 
-    val displayEmojis = remember(searchQuery, selectedCategoryIndex, showOnlyFavorites, favoriteEmojis) {
-        when {
-            showOnlyFavorites -> favoriteEmojis.toList()
-            searchQuery.isNotBlank() -> EMOJI_CATEGORIES.flatMap { it.emojis }.filter { it.contains(searchQuery) }
-            else -> EMOJI_CATEGORIES.getOrNull(selectedCategoryIndex)?.emojis ?: emptyList()
+    val displayEmojis =
+        remember(searchQuery, selectedCategoryIndex, showOnlyFavorites, favoriteEmojis) {
+            when {
+                showOnlyFavorites -> favoriteEmojis.toList()
+                searchQuery.isNotBlank() -> EMOJI_CATEGORIES.flatMap { it.emojis }
+                    .filter { it.contains(searchQuery) }
+
+                else -> EMOJI_CATEGORIES.getOrNull(selectedCategoryIndex)?.emojis ?: emptyList()
+            }
         }
-    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Favorites row — shown above categories when not in showOnlyFavorites mode
+
         if (!showOnlyFavorites && favoriteEmojis.isNotEmpty() && searchQuery.isBlank()) {
             Text(
                 "★ ${LocalStrings.current.emotePickerFavoritesSection}",
@@ -626,12 +1556,17 @@ private fun EmojiTab(
         }
         if (searchQuery.isBlank()) {
             ScrollableTabRow(
-                selectedTabIndex = selectedCategoryIndex, modifier = Modifier.fillMaxWidth(),
-                containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.primary,
-                edgePadding = 8.dp, divider = {}
+                selectedTabIndex = selectedCategoryIndex,
+                modifier = Modifier.fillMaxWidth(),
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.primary,
+                edgePadding = 8.dp,
+                divider = {}
             ) {
                 EMOJI_CATEGORIES.forEachIndexed { index, category ->
-                    Tab(selected = selectedCategoryIndex == index, onClick = { selectedCategoryIndex = index },
+                    Tab(
+                        selected = selectedCategoryIndex == index,
+                        onClick = { selectedCategoryIndex = index },
                         modifier = Modifier.padding(horizontal = 2.dp)
                     ) {
                         Box(
@@ -658,13 +1593,21 @@ private fun EmojiTab(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
         if (displayEmojis.isEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                Text(LocalStrings.current.emoteNoEmojiFound, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    LocalStrings.current.emoteNoEmojiFound,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
             }
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(44.dp),
-                modifier = Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(min = 100.dp, max = 280.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                    .heightIn(min = 100.dp, max = 280.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
@@ -714,7 +1657,7 @@ private fun EmojiGridItem(
     ) {
         Text(text = emoji, fontSize = 22.sp, textAlign = TextAlign.Center)
 
-        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+        ChatoneDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
             DropdownMenuItem(
                 text = {
                     Text(

@@ -3,7 +3,6 @@ package io.rudione.chatone.presentation.chat.rendering
 import androidx.compose.runtime.Stable
 import io.rudione.chatone.presentation.settings.SettingsState
 
-
 @Stable
 data class ChatScreenPropsBundle(
     val channelLogin: String,
@@ -15,7 +14,6 @@ data class ChatScreenPropsBundle(
     val renderParams: MessageRenderParams,
     val style: StableChatStyle
 )
-
 
 fun buildChatScreenProps(
     channelLogin: String,

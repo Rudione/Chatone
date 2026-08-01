@@ -11,8 +11,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.datetime.Clock
-
+import kotlin.time.Clock
 
 class EnrichedPersonalEmoteBackfiller(
     private val emoteRepository: EmoteRepository,
@@ -32,8 +31,10 @@ class EnrichedPersonalEmoteBackfiller(
     private val lock = Mutex()
     private var workJob: Job? = null
 
-    private val _granted = MutableSharedFlow<String>(extraBufferCapacity = 64)
-    val granted: SharedFlow<String> = _granted.asSharedFlow()
+    data class Grant(val twitchUserId: String, val emoteSetId: String)
+
+    private val _granted = MutableSharedFlow<Grant>(extraBufferCapacity = 64)
+    val granted: SharedFlow<Grant> = _granted.asSharedFlow()
 
     fun request(twitchUserId: String) {
         if (twitchUserId.isBlank()) return
@@ -75,7 +76,7 @@ class EnrichedPersonalEmoteBackfiller(
                 val emotes = emoteRepository.grantPersonalEmoteSet(twitchUserId, setId)
                 if (!emotes.isNullOrEmpty()) {
                     Napier.d("Granted personal set $setId for $twitchUserId (${emotes.size})", tag = TAG)
-                    _granted.emit(twitchUserId)
+                    _granted.emit(Grant(twitchUserId, setId))
                 }
             } else {
                 lock.withLock {

@@ -17,7 +17,6 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-
 internal fun formatTimestamp(
     timestamp: Long,
     format: SettingsState.TimestampFormat = SettingsState.TimestampFormat.H24
@@ -36,7 +35,6 @@ internal fun formatTimestamp(
         SettingsState.TimestampFormat.OFF -> ""
     }
 }
-
 
 internal fun parseColor(hexColor: String?): Color? {
     if (hexColor == null || !hexColor.startsWith("#")) return null
@@ -60,7 +58,6 @@ internal fun argbToColor(argb: Int): Color {
     return Color(r, g, b, a)
 }
 
-
 internal fun computeEmoteDisplaySize(
     origWidth: Int,
     origHeight: Int,
@@ -73,7 +70,6 @@ internal fun computeEmoteDisplaySize(
     )).sp to baseHeightSp
 }
 
-
 internal fun isImageUrl(url: String): Boolean {
     val lower = url.lowercase()
     if (lower.matches(Regex(""".*\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$"""))) return true
@@ -85,7 +81,6 @@ internal fun isImageUrl(url: String): Boolean {
             lower.contains("media.discordapp.net/") || lower.contains("cdn.discordapp.com/attachments/") ||
             lower.contains("i.redd.it/") || lower.contains("preview.redd.it/")
 }
-
 
 internal fun userRoleRank(
     isBroadcaster: Boolean, isGrandMod: Boolean = false,
@@ -110,7 +105,6 @@ internal fun canActOnUser(
     )
     return actorRank > targetRank
 }
-
 
 internal fun isCtrlKey(key: Key): Boolean =
     key == Key.CtrlLeft || key == Key.CtrlRight || key == Key.MetaLeft || key == Key.MetaRight
@@ -184,60 +178,27 @@ internal fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
     else -> if (name.length == 1) charToKey[name[0].uppercaseChar()] == key else false
 }
 
-
-internal fun adjustReadableColor(color: Color, background: Color): Color {
-    val bgLum = 0.299f * background.red + 0.587f * background.green + 0.114f * background.blue
-    val isDarkBg = bgLum < 0.5f
-
-    val r = color.red; val g = color.green; val b = color.blue
-    val max = maxOf(r, g, b); val min = minOf(r, g, b)
-    val l = (max + min) / 2f
-    val d = max - min
-
-    var h = 0f
-    var s = 0f
-    if (d > 0.0001f) {
-        s = if (l > 0.5f) d / (2f - max - min) else d / (max + min)
-        h = when (max) {
-            r -> (g - b) / d + if (g < b) 6f else 0f
-            g -> (b - r) / d + 2f
-            else -> (r - g) / d + 4f
-        } / 6f
-    }
-
-    val targetL = if (isDarkBg) l.coerceIn(0.50f, 0.78f) else l.coerceIn(0.24f, 0.60f)
-    val targetS = s.coerceAtMost(0.90f)
-
-    return hslToColor(h, targetS, targetL).copy(alpha = color.alpha)
-}
-
-private fun hslToColor(h: Float, s: Float, l: Float): Color {
-    if (s <= 0.0001f) return Color(l, l, l)
-    val q = if (l < 0.5f) l * (1f + s) else l + s - l * s
-    val p = 2f * l - q
-    fun hue(t: Float): Float {
-        var tt = t
-        if (tt < 0f) tt += 1f
-        if (tt > 1f) tt -= 1f
-        return when {
-            tt < 1f / 6f -> p + (q - p) * 6f * tt
-            tt < 1f / 2f -> q
-            tt < 2f / 3f -> p + (q - p) * (2f / 3f - tt) * 6f
-            else -> p
-        }
-    }
-    return Color(hue(h + 1f / 3f), hue(h), hue(h - 1f / 3f))
-}
+private val TWITCH_USERNAME_COLORS = longArrayOf(
+    0xFFFF0000L,
+    0xFF0000FFL,
+    0xFF00FF00L,
+    0xFFB22222L,
+    0xFFFF7F50L,
+    0xFF9ACD32L,
+    0xFFFF4500L,
+    0xFF2E8B57L,
+    0xFFDAA520L,
+    0xFFD2691EL,
+    0xFF5F9EA0L,
+    0xFF1E90FFL,
+    0xFFFF69B4L,
+    0xFF8A2BE2L,
+    0xFF00FF7FL
+)
 
 internal fun stableUserColor(login: String): Color {
-    val palette = longArrayOf(
-        0xFFFF4A80L, 0xFF1E90FFL, 0xFF2ECC71L, 0xFFFF7F50L,
-        0xFF9B59B6L, 0xFFF1C40F, 0xFF00CED1L, 0xFFFF6B6BL,
-        0xFF8A2BE2L, 0xFF20C997L, 0xFFFFA500L, 0xFFD9534FL
-    )
     val key = login.lowercase()
-    var h = 0
-    for (c in key) h = (h * 31 + c.code)
-    val idx = ((h.toLong() and 0x7FFFFFFFL) % palette.size).toInt()
-    return Color(palette[idx] or 0xFF000000L)
+    if (key.isEmpty()) return Color(TWITCH_USERNAME_COLORS[0])
+    val idx = (key.first().code + key.last().code) % TWITCH_USERNAME_COLORS.size
+    return Color(TWITCH_USERNAME_COLORS[idx])
 }

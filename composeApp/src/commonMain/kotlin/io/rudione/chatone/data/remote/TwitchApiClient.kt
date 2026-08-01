@@ -39,7 +39,11 @@ class TwitchApiClient(
         private const val TAG = "TwitchApiClient"
     }
 
-    suspend fun getAccessToken(code: String, clientSecret: String, redirectUri: String): Result<TokenResponse> {
+    suspend fun getAccessToken(
+        code: String,
+        clientSecret: String,
+        redirectUri: String
+    ): Result<TokenResponse> {
         return try {
             val response = httpClient.post("$authUrl/token") {
                 parameter("client_id", clientId)
@@ -56,7 +60,10 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun refreshAccessToken(refreshToken: String, clientSecret: String): Result<TokenResponse> {
+    suspend fun refreshAccessToken(
+        refreshToken: String,
+        clientSecret: String
+    ): Result<TokenResponse> {
         return try {
             val response = httpClient.post("$authUrl/token") {
                 parameter("client_id", clientId)
@@ -107,7 +114,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getUsers(accessToken: String, logins: List<String> = emptyList(), ids: List<String> = emptyList()): Result<UsersResponse> {
+    suspend fun getUsers(
+        accessToken: String,
+        logins: List<String> = emptyList(),
+        ids: List<String> = emptyList()
+    ): Result<UsersResponse> {
         return try {
             val response = httpClient.get("$baseUrl/users") {
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
@@ -139,8 +150,57 @@ class TwitchApiClient(
         }
     }
 
+    suspend fun getClipsBySlugs(
+        accessToken: String,
+        slugs: List<String>
+    ): Result<ClipsResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/clips") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                header("Client-ID", clientId)
+                slugs.take(100).forEach { slug ->
+                    url { parameters.append("id", slug) }
+                }
+            }
+            if (response.status.isSuccess()) {
+                Result.Success(response.body())
+            } else {
+                Result.Error(Exception("Failed to get clips: ${response.status}"))
+            }
+        } catch (e: Exception) {
+            Napier.e("Exception in getClipsBySlugs: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
 
-    suspend fun searchChannels(accessToken: String, query: String, first: Int = 20): Result<SearchChannelsResponse> {
+    suspend fun getGames(
+        accessToken: String,
+        ids: List<String>
+    ): Result<GamesResponse> {
+        return try {
+            val response = httpClient.get("$baseUrl/games") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                header("Client-ID", clientId)
+                ids.take(100).forEach { id ->
+                    url { parameters.append("id", id) }
+                }
+            }
+            if (response.status.isSuccess()) {
+                Result.Success(response.body())
+            } else {
+                Result.Error(Exception("Failed to get games: ${response.status}"))
+            }
+        } catch (e: Exception) {
+            Napier.e("Exception in getGames: ${e.message}", e, tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    suspend fun searchChannels(
+        accessToken: String,
+        query: String,
+        first: Int = 20
+    ): Result<SearchChannelsResponse> {
         return try {
             val response = httpClient.get("$baseUrl/search/channels") {
                 header("Authorization", "Bearer $accessToken")
@@ -157,7 +217,12 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getStreams(accessToken: String, userIds: List<String> = emptyList(), userLogins: List<String> = emptyList(), first: Int = 100): Result<ChannelsResponse> {
+    suspend fun getStreams(
+        accessToken: String,
+        userIds: List<String> = emptyList(),
+        userLogins: List<String> = emptyList(),
+        first: Int = 100
+    ): Result<ChannelsResponse> {
         val validLogins = userLogins.filter { it.isNotBlank() && it.all { c -> c.code in 32..126 } }
         if (validLogins.isEmpty() && userIds.isEmpty()) return Result.Success(ChannelsResponse(data = emptyList()))
         return try {
@@ -190,7 +255,10 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getChannelBadges(broadcasterId: String, accessToken: String): Result<BadgesResponse> {
+    suspend fun getChannelBadges(
+        broadcasterId: String,
+        accessToken: String
+    ): Result<BadgesResponse> {
         return try {
             val response = httpClient.get("$baseUrl/chat/badges") {
                 header("Authorization", "Bearer $accessToken")
@@ -203,7 +271,6 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-
 
     suspend fun banUser(
         accessToken: String,
@@ -238,7 +305,12 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun unbanUser(accessToken: String, broadcasterId: String, moderatorId: String, userId: String): Result<Unit> {
+    suspend fun unbanUser(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        userId: String
+    ): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/moderation/bans") {
                 header("Authorization", "Bearer $accessToken")
@@ -254,7 +326,12 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun deleteMessage(accessToken: String, broadcasterId: String, moderatorId: String, messageId: String): Result<Unit> {
+    suspend fun deleteMessage(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        messageId: String
+    ): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/moderation/chat") {
                 header("Authorization", "Bearer $accessToken")
@@ -270,7 +347,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun clearChat(accessToken: String, broadcasterId: String, moderatorId: String): Result<Unit> {
+    suspend fun clearChat(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String
+    ): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/moderation/chat") {
                 header("Authorization", "Bearer $accessToken")
@@ -284,7 +365,6 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-
 
     suspend fun updateChatSettings(
         accessToken: String,
@@ -320,7 +400,12 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun sendWhisper(accessToken: String, fromUserId: String, toUserId: String, message: String): Result<Unit> {
+    suspend fun sendWhisper(
+        accessToken: String,
+        fromUserId: String,
+        toUserId: String,
+        message: String
+    ): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/whispers") {
                 header("Authorization", "Bearer $accessToken")
@@ -336,7 +421,6 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-
 
     suspend fun sendChatMessage(
         accessToken: String,
@@ -384,7 +468,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun addModerator(accessToken: String, broadcasterId: String, userId: String): Result<Unit> {
+    suspend fun addModerator(
+        accessToken: String,
+        broadcasterId: String,
+        userId: String
+    ): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/moderation/moderators") {
                 header("Authorization", "Bearer $accessToken")
@@ -399,7 +487,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun removeModerator(accessToken: String, broadcasterId: String, userId: String): Result<Unit> {
+    suspend fun removeModerator(
+        accessToken: String,
+        broadcasterId: String,
+        userId: String
+    ): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/moderation/moderators") {
                 header("Authorization", "Bearer $accessToken")
@@ -429,7 +521,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun removeVip(accessToken: String, broadcasterId: String, userId: String): Result<Unit> {
+    suspend fun removeVip(
+        accessToken: String,
+        broadcasterId: String,
+        userId: String
+    ): Result<Unit> {
         return try {
             httpClient.delete("$baseUrl/channels/vips") {
                 header("Authorization", "Bearer $accessToken")
@@ -444,7 +540,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getChatSettings(accessToken: String, broadcasterId: String, moderatorId: String? = null): Result<ChatSettingsResponse> {
+    suspend fun getChatSettings(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String? = null
+    ): Result<ChatSettingsResponse> {
         return try {
             val response = httpClient.get("$baseUrl/chat/settings") {
                 header("Authorization", "Bearer $accessToken")
@@ -460,7 +560,13 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun sendAnnouncement(accessToken: String, broadcasterId: String, moderatorId: String, message: String, color: String = "primary"): Result<Unit> {
+    suspend fun sendAnnouncement(
+        accessToken: String,
+        broadcasterId: String,
+        moderatorId: String,
+        message: String,
+        color: String = "primary"
+    ): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/chat/announcements") {
                 header("Authorization", "Bearer $accessToken")
@@ -480,7 +586,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun startRaid(accessToken: String, fromBroadcasterId: String, toBroadcasterId: String): Result<Unit> {
+    suspend fun startRaid(
+        accessToken: String,
+        fromBroadcasterId: String,
+        toBroadcasterId: String
+    ): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/raids") {
                 header("Authorization", "Bearer $accessToken")
@@ -599,7 +709,14 @@ class TwitchApiClient(
                 put("broadcaster_id", JsonPrimitive(broadcasterId))
                 put("title", JsonPrimitive(title))
                 put("outcomes", buildJsonArray {
-                    outcomes.forEach { o -> add(buildJsonObject { put("title", JsonPrimitive(o)) }) }
+                    outcomes.forEach { o ->
+                        add(buildJsonObject {
+                            put(
+                                "title",
+                                JsonPrimitive(o)
+                            )
+                        })
+                    }
                 })
                 put("prediction_window", JsonPrimitive(predictionWindowSeconds))
             }
@@ -629,7 +746,10 @@ class TwitchApiClient(
                 put("broadcaster_id", JsonPrimitive(broadcasterId))
                 put("id", JsonPrimitive(predictionId))
                 put("status", JsonPrimitive(status))
-                if (winningOutcomeId != null) put("winning_outcome_id", JsonPrimitive(winningOutcomeId))
+                if (winningOutcomeId != null) put(
+                    "winning_outcome_id",
+                    JsonPrimitive(winningOutcomeId)
+                )
             }
             httpClient.patch("$baseUrl/predictions") {
                 header("Authorization", "Bearer $accessToken")
@@ -661,7 +781,12 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun sendShoutout(accessToken: String, fromBroadcasterId: String, toBroadcasterId: String, moderatorId: String): Result<Unit> {
+    suspend fun sendShoutout(
+        accessToken: String,
+        fromBroadcasterId: String,
+        toBroadcasterId: String,
+        moderatorId: String
+    ): Result<Unit> {
         return try {
             httpClient.post("$baseUrl/chat/shoutouts") {
                 header("Authorization", "Bearer $accessToken")
@@ -856,11 +981,6 @@ class TwitchApiClient(
     @kotlinx.serialization.Serializable
     private data class ChatColorResponse(val data: List<ChatColorEntry> = emptyList())
 
-    /**
-     * Returns the user's current chat color as a hex string (e.g. "#38D7FF"), or null if Twitch
-     * hasn't assigned one yet. Used to pre-populate the local-echo colour when sending a message
-     * before the IRC USERSTATE tag has arrived in a freshly-joined channel.
-     */
     suspend fun getUserChatColor(accessToken: String, userId: String): Result<String?> {
         return try {
             val resp = httpClient.get("$baseUrl/chat/color") {
@@ -875,7 +995,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun updateUserChatColor(accessToken: String, userId: String, color: String): Result<Unit> {
+    suspend fun updateUserChatColor(
+        accessToken: String,
+        userId: String,
+        color: String
+    ): Result<Unit> {
         return try {
             httpClient.put("$baseUrl/chat/color") {
                 header("Authorization", "Bearer $accessToken")
@@ -918,7 +1042,11 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getChannelFollower(accessToken: String, broadcasterId: String, userId: String): Result<FollowersResponse> {
+    suspend fun getChannelFollower(
+        accessToken: String,
+        broadcasterId: String,
+        userId: String
+    ): Result<FollowersResponse> {
         return try {
             val response = httpClient.get("$baseUrl/channels/followers") {
                 header("Authorization", "Bearer $accessToken")
@@ -932,7 +1060,6 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-
 
     suspend fun getModeratedChannels(
         accessToken: String,
@@ -955,12 +1082,20 @@ class TwitchApiClient(
                         body.data.forEach { ids.add(it.broadcasterId) }
                         cursor = body.pagination?.cursor?.takeIf { it.isNotEmpty() }
                     }
+
                     HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -> {
-                        Napier.d("getModeratedChannels: missing scope or unauthorized (${response.status})", tag = TAG)
+                        Napier.d(
+                            "getModeratedChannels: missing scope or unauthorized (${response.status})",
+                            tag = TAG
+                        )
                         return Result.Error(Exception("Missing scope user:read:moderated_channels"))
                     }
+
                     else -> {
-                        Napier.w("getModeratedChannels unexpected status ${response.status}", tag = TAG)
+                        Napier.w(
+                            "getModeratedChannels unexpected status ${response.status}",
+                            tag = TAG
+                        )
                         return Result.Error(Exception("HTTP ${response.status.value}"))
                     }
                 }
@@ -989,16 +1124,22 @@ class TwitchApiClient(
                 HttpStatusCode.OK -> {
                     Result.Success(response.body<ModeratorsResponse>())
                 }
+
                 HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden -> {
                     Napier.d("No permission to check moderators (401/403)", tag = TAG)
                     Result.Success(ModeratorsResponse(emptyList()))
                 }
+
                 HttpStatusCode.TooManyRequests -> {
                     Napier.w("Rate limited on moderators endpoint", tag = TAG)
                     Result.Error(Exception("Rate limited"))
                 }
+
                 else -> {
-                    Napier.w("Unexpected status ${response.status} on moderators endpoint", tag = TAG)
+                    Napier.w(
+                        "Unexpected status ${response.status} on moderators endpoint",
+                        tag = TAG
+                    )
                     Result.Error(Exception("HTTP ${response.status.value}"))
                 }
             }
@@ -1010,7 +1151,6 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-
 
     suspend fun getChatters(
         accessToken: String,
@@ -1035,7 +1175,6 @@ class TwitchApiClient(
         }
     }
 
-
     suspend fun blockUser(accessToken: String, targetUserId: String): Result<Unit> {
         return try {
             httpClient.put("$baseUrl/users/blocks") {
@@ -1049,7 +1188,6 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-
 
     suspend fun unblockUser(accessToken: String, targetUserId: String): Result<Unit> {
         return try {
@@ -1065,8 +1203,11 @@ class TwitchApiClient(
         }
     }
 
-
-    suspend fun getBlockedUsers(accessToken: String, broadcasterId: String, first: Int = 100): Result<BlockedUsersResponse> {
+    suspend fun getBlockedUsers(
+        accessToken: String,
+        broadcasterId: String,
+        first: Int = 100
+    ): Result<BlockedUsersResponse> {
         return try {
             val response = httpClient.get("$baseUrl/users/blocks") {
                 header("Authorization", "Bearer $accessToken")
@@ -1080,7 +1221,6 @@ class TwitchApiClient(
             Result.Error(e)
         }
     }
-
 
     suspend fun manageAutoModMessage(
         accessToken: String,
@@ -1106,10 +1246,6 @@ class TwitchApiClient(
         }
     }
 
-    /** Lists custom channel-point rewards of the channel (broadcaster token required).
-     * Note: PATCH/DELETE/redemption-queue only work for rewards created by this same
-     * client-id — a Helix restriction, not ours. Pass [onlyManageable] to get the subset
-     * this app is allowed to modify. */
     suspend fun getCustomRewards(
         accessToken: String,
         broadcasterId: String,
@@ -1129,7 +1265,6 @@ class TwitchApiClient(
         }
     }
 
-    /** Only works for rewards created by Chatone (same client-id) — Helix restriction. */
     suspend fun updateCustomReward(
         accessToken: String,
         broadcasterId: String,
@@ -1212,7 +1347,12 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getUserEmotes(accessToken: String, userId: String, broadcasterId: String? = null, after: String? = null): Result<UserEmotesResponse> {
+    suspend fun getUserEmotes(
+        accessToken: String,
+        userId: String,
+        broadcasterId: String? = null,
+        after: String? = null
+    ): Result<UserEmotesResponse> {
         return try {
             val response = httpClient.get("$baseUrl/chat/emotes/user") {
                 header("Authorization", "Bearer $accessToken")
@@ -1228,7 +1368,10 @@ class TwitchApiClient(
         }
     }
 
-    suspend fun getChannelTwitchEmotes(accessToken: String, broadcasterId: String): Result<UserEmotesResponse> {
+    suspend fun getChannelTwitchEmotes(
+        accessToken: String,
+        broadcasterId: String
+    ): Result<UserEmotesResponse> {
         return try {
             val response = httpClient.get("$baseUrl/chat/emotes") {
                 header("Authorization", "Bearer $accessToken")

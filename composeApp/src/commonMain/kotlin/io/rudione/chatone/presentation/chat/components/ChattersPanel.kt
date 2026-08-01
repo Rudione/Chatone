@@ -32,7 +32,8 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 @Composable
 fun ChattersPanel(
@@ -107,30 +108,22 @@ fun ChattersPanel(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                ChatoneIconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Filled.Close, null, modifier = Modifier.size(15.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-
-            OutlinedTextField(
+            ChatoneTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 6.dp),
-                placeholder = { Text(LocalStrings.current.panelSearchViewers, style = MaterialTheme.typography.bodySmall) },
-                leadingIcon = { Icon(Icons.Filled.Search, null, modifier = Modifier.size(16.dp)) },
+                placeholder = LocalStrings.current.panelSearchViewers,
+                leading = { Icon(Icons.Filled.Search, null, modifier = Modifier.size(16.dp)) },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodySmall,
-                shape = RoundedCornerShape(10.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
-                    focusedContainerColor = Color.White.copy(alpha = 0.04f),
-                    unfocusedContainerColor = Color.White.copy(alpha = 0.02f)
-                ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = {})
             )

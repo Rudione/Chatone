@@ -8,7 +8,6 @@ enum class AutomodScope { GLOBAL, LOCAL }
 @Serializable
 enum class AutomodAction { DELETE, TIMEOUT, BAN }
 
-
 @Serializable
 data class AutomodRule(
     val id: String,
@@ -19,6 +18,7 @@ data class AutomodRule(
     val isRegex: Boolean = false,
     val caseSensitive: Boolean = false,
     val wholeWord: Boolean = false,
+    val ignoreLinks: Boolean = false,
     val action: AutomodAction = AutomodAction.DELETE,
     val timeoutMs: Long = 60_000L,
     val frequencyThreshold: Int = 0,
@@ -31,7 +31,7 @@ data class AutomodRule(
     val createdAt: Long = 0L,
     val updatedAt: Long = 0L
 ) {
-    
+
     val allPatterns: List<String>
         get() = (listOf(pattern) + alternates).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
 
@@ -44,7 +44,6 @@ data class AutomodRule(
             AutomodScope.LOCAL -> "#${channelLogin.orEmpty()}"
         }
 }
-
 
 internal const val AUTOMOD_ALT_DELIM = "\n"
 

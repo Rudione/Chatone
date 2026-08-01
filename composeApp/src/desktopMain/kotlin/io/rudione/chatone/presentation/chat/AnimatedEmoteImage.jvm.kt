@@ -32,42 +32,13 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.EmoteProvider
 import io.rudione.chatone.domain.model.GenericEmote
+import io.rudione.chatone.presentation.chat.rendering.LocalScrollActivity
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.EmoteAnimationCache
-import kotlinx.coroutines.Dispatchers
+import io.rudione.chatone.util.emote.AnimatedEmoteLoader
+import io.rudione.chatone.util.emote.AnimatedFrames
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
-import org.jetbrains.skia.Bitmap
-import org.jetbrains.skia.Codec
-import org.jetbrains.skia.Data
-import java.net.URI
-import java.util.concurrent.ConcurrentHashMap
-
-
-private const val FRAME_CACHE_MAX = 150
-private const val FRAME_IDLE_TTL_MS = 5 * 60 * 1000L
-
-private val animatedCache = object : LinkedHashMap<String, AnimatedFrames>(64, 0.75f, true) {
-    override fun removeEldestEntry(eldest: Map.Entry<String, AnimatedFrames>) = size > FRAME_CACHE_MAX
-}
-private val animatedCacheLock = java.util.concurrent.locks.ReentrantReadWriteLock()
-private val staticUrls = ConcurrentHashMap.newKeySet<String>()
-
-private class AnimatedFrames(
-    val frames: List<ImageBitmap>,
-    val durations: IntArray,
-    @Volatile var lastAccess: Long = System.currentTimeMillis()
-)
-
-// Idle eviction (ImageExpirationPool-style): drop decoded frames not shown for a while
-// so animated emotes don't keep their off-heap pixel buffers alive during idle periods.
-private fun sweepIdleFrames(now: Long) {
-    val it = animatedCache.entries.iterator()
-    while (it.hasNext()) {
-        if (now - it.next().value.lastAccess > FRAME_IDLE_TTL_MS) it.remove()
-    }
-}
 
 @Composable
 actual fun AnimatedEmoteImage(
@@ -118,14 +89,12 @@ fun EmoteTooltip(emote: GenericEmote) {
                     .heightIn(min = 40.dp, max = 120.dp)
             )
 
-
             Text(
                 text = emote.code,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-
 
             if (emote.originalName.isNotEmpty() && emote.originalName != emote.code) {
                 Surface(
@@ -152,7 +121,6 @@ fun EmoteTooltip(emote: GenericEmote) {
                 }
             }
 
-
             if (emote.authorName.isNotEmpty()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -172,7 +140,6 @@ fun EmoteTooltip(emote: GenericEmote) {
                 }
             }
 
-
             val (providerLabel, providerColor) = when (emote.provider) {
                 EmoteProvider.SEVEN_TV -> "7TV" to Color(0xFF0288D1)
                 EmoteProvider.BTTV -> "BTTV" to Color(0xFF43A047)
@@ -191,7 +158,6 @@ fun EmoteTooltip(emote: GenericEmote) {
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                 )
             }
-
 
             if (emote.provider == EmoteProvider.SEVEN_TV) {
                 Text(
@@ -213,82 +179,12 @@ fun AnimatedEmoteImageCore(
     entranceAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 150),
     isScrolling: Boolean = false
 ) {
-    var animData by remember(url) { mutableStateOf<AnimatedFrames?>(animatedCache[url]) }
-    var isStatic by remember(url) { mutableStateOf(url in staticUrls) }
+    var animData by remember(url) { mutableStateOf(AnimatedEmoteLoader.peek(url)) }
     var currentFrame by remember(url) { mutableIntStateOf(0) }
 
     LaunchedEffect(url) {
-        if (animData != null) return@LaunchedEffect
-        if (isStatic) return@LaunchedEffect
-
-        withContext(Dispatchers.IO) {
-            try {
-                val cached = animatedCacheLock.readLock().let { lock ->
-                    lock.lock()
-                    try { animatedCache[url] } finally { lock.unlock() }
-                }
-                if (cached != null) {
-                    cached.lastAccess = System.currentTimeMillis()
-                    animData = cached
-                    return@withContext
-                }
-                if (url in staticUrls) {
-                    isStatic = true
-                    return@withContext
-                }
-
-                val conn = URI(url).toURL().openConnection()
-                conn.connectTimeout = 10_000
-                conn.readTimeout = 15_000
-                val bytes = conn.getInputStream().use { it.readBytes() }
-                val data = Data.makeFromBytes(bytes)
-                val codec = Codec.makeFromData(data)
-
-                try {
-                    if (codec.frameCount > 1) {
-                        val imageInfo = codec.imageInfo
-                        val infos = codec.framesInfo
-                        val durations = IntArray(codec.frameCount) { i ->
-                            infos[i].duration.coerceAtLeast(16)
-                        }
-                        val frames = (0 until codec.frameCount).map { i ->
-                            // Decode the frame into a native Skia bitmap, copy it into an
-                            // independent ImageBitmap, then release the native bitmap right away.
-                            // Without bmp.close() the off-heap pixel buffers accumulate and are
-                            // only reclaimed by delayed finalizers — the main cause of the RAM growth.
-                            val bmp = Bitmap()
-                            try {
-                                bmp.allocPixels(imageInfo)
-                                codec.readPixels(bmp, i)
-                                bmp.toComposeImageBitmap()
-                            } finally {
-                                bmp.close()
-                            }
-                        }
-                        val result = AnimatedFrames(frames, durations)
-                        animatedCacheLock.writeLock().let { lock ->
-                            lock.lock()
-                            try {
-                                animatedCache[url] = result
-                                sweepIdleFrames(System.currentTimeMillis())
-                            } finally { lock.unlock() }
-                        }
-                        animData = result
-                    } else {
-                        staticUrls.add(url)
-                        isStatic = true
-                    }
-                } finally {
-                    // Release the native decoder and the encoded-data buffer deterministically
-                    // instead of waiting for the GC/finalizer to run.
-                    codec.close()
-                    data.close()
-                }
-            } catch (_: Exception) {
-                staticUrls.add(url)
-                isStatic = true
-            }
-        }
+        if (animData != null || AnimatedEmoteLoader.isKnownStatic(url)) return@LaunchedEffect
+        animData = AnimatedEmoteLoader.load(url)
     }
 
     val entranceProgress = if (emoteId != null) {
@@ -309,10 +205,10 @@ fun AnimatedEmoteImageCore(
 
     val data = animData
     if (data != null && data.frames.isNotEmpty()) {
-        LaunchedEffect(data, isScrolling) {
-            // Freeze on the current frame while the list is scrolling — advancing frames
-            // (and the recomposition each advance triggers) is the bulk of the scroll cost.
-            if (isScrolling) return@LaunchedEffect
+        val listScrolling = LocalScrollActivity.current.isScrolling
+        val paused = isScrolling || listScrolling
+        LaunchedEffect(data, paused) {
+            if (paused) return@LaunchedEffect
             while (isActive) {
                 val frameDuration = data.durations.getOrElse(currentFrame) { 100 }
                 delay(frameDuration.toLong())
@@ -320,12 +216,11 @@ fun AnimatedEmoteImageCore(
             }
         }
         Image(
-            bitmap = data.frames[currentFrame],
+            bitmap = data.frames[currentFrame.coerceIn(0, data.frames.lastIndex)],
             contentDescription = contentDescription,
             modifier = modifier.alpha(entranceProgress)
         )
     } else {
-
 
         AsyncImage(
             model = url,
@@ -334,9 +229,4 @@ fun AnimatedEmoteImageCore(
             contentScale = ContentScale.Fit
         )
     }
-}
-
-private fun Bitmap.toComposeImageBitmap(): ImageBitmap {
-    val image = org.jetbrains.skia.Image.makeFromBitmap(this)
-    return image.toComposeImageBitmap()
 }

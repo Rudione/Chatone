@@ -23,8 +23,8 @@ abstract class BaseViewModel<State : UiState, Event : UiEvent, Effect : UIEffect
     open val showStateLog = false
     val state: StateFlow<State> get() = _state
     private val _effect: MutableSharedFlow<Effect> = MutableSharedFlow()
-    val effect: SharedFlow<Effect>
-        get() = _effect.shareIn(viewModelScope, SharingStarted.WhileSubscribed())
+
+    val effect: SharedFlow<Effect> = _effect.shareIn(viewModelScope, SharingStarted.WhileSubscribed())
     val effectSubscription get() = _effect.subscriptionCount
     private val _events: MutableSharedFlow<Event> = MutableSharedFlow()
     open val listenerFlowsOnLifeCycle: Flow<Any> = flowOf(Unit)

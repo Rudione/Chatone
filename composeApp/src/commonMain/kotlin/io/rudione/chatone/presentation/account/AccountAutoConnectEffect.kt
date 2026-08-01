@@ -7,7 +7,6 @@ import androidx.compose.runtime.getValue
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
 
-
 @Composable
 fun AccountAutoConnectEffect(
     authRepository: AuthRepository,

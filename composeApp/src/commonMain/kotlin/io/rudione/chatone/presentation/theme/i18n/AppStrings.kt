@@ -29,6 +29,9 @@ interface AppStrings {
     val chatFollowersOnly: String
     val chatScrollToBottom: String
     val chatClearMessage: String
+    val chatBannedWordTitle: String
+    val chatBannedWordMessage: String
+    val chatBannedWordSendAnyway: String
     val chatBanUser: String
     val chatTimeoutUser: String
     val chatUnbanUser: String
@@ -264,6 +267,39 @@ interface AppStrings {
     val rewardHighlightMyMessage: String
     val rewardChannelPoints: String
     val chatYouAreBanned: String
+    val chatPinnedBy: String
+    val chatHidePin: String
+    val chatUnpinMessage: String
+    val chatHideEventBanner: String
+    val chatShowHiddenEvents: String
+    val predictionBetTitle: String
+    val predictionBetBalance: String
+    val predictionBetAmount: String
+    val predictionBetAllIn: String
+    val predictionBetPlace: String
+    val predictionBetCancel: String
+    val predictionBetPotentialReturn: String
+    val predictionResolveTitle: String
+    val predictionResolveSubtitle: String
+    val predictionResolveComplete: String
+    val predictionResolveLock: String
+    val predictionResolveDetach: String
+    val pollCreateTitle: String
+    val pollCreateQuestionHint: String
+    val pollCreateChoiceHint: String
+    val pollCreateAddChoice: String
+    val pollCreateDuration: String
+    val pollCreateSubmit: String
+    val predictionCreateTitle: String
+    val predictionCreateQuestionHint: String
+    val predictionCreateOutcomeHint: String
+    val predictionCreateAddOutcome: String
+    val predictionCreateWindow: String
+    val predictionCreateSubmit: String
+    val pointsBitsGetBits: String
+    val pointsBitsNoRewards: String
+    val pointsBitsUnavailableRewards: String
+    val creationRepeatFromHistory: String
     val settingsChatControls: String
     val settingsPauseAutoScroll: String
     val settingsPauseAutoScrollDesc: String
@@ -309,6 +345,8 @@ interface AppStrings {
     val search: String
     val clear: String
     val copy: String
+    val cut: String
+    val paste: String
     val delete: String
     val apply: String
     val back: String
@@ -374,7 +412,6 @@ interface AppStrings {
     val unitHours: String
     val unitDay: String
     val unitDays: String
-
 
     val modSettingsTitle: String
     val modConfirmActions: String
@@ -503,9 +540,12 @@ interface AppStrings {
     val mainViewersList: String
     val mainChannelBadgesBits: String
     val mainChannelBadgesBitsSoon: String
+    val mainTogglePinnedMessage: String
     val mainChannelsHeader: String
     val mainNoChannelsToAdd: String
     val mainOpenSidebar: String
+    val mainCollapseMiniRail: String
+    val mainExpandMiniRail: String
     val mainCollapseSidebar: String
     val mainExpandSidebar: String
     val mainChannelOptions: String
@@ -523,11 +563,152 @@ interface AppStrings {
     val mainAddChannelTitle: String
     val mainCreateFolderTitle: String
 
+    val openChannelTitle: String
+    val openChannelChannelLabel: String
+    val openChannelChannelDesc: String
+    val openChannelLiveLabel: String
+    val openChannelLiveDesc: String
+    val openChannelAutomodLabel: String
+    val openChannelAutomodDesc: String
+    val openChannelSpecialHeader: String
+    val monitorChannelInputHint: String
+
+    val aiAssistantTitle: String
+    val aiThinking: String
+    val aiInputPlaceholder: String
+    val aiNewChat: String
+    val aiHistory: String
+    val aiHistoryEmpty: String
+    val aiConnectError: String
+    val aiGreetingTitle: String
+    val aiGreetingBody: String
+    val aiClose: String
+    val aiPresetSummary: String
+    val aiPresetMood: String
+    val aiPresetMentions: String
+    val aiPresetRisky: String
+    val aiPresetReply: String
+    val aiPresetIdea: String
+    val aiPresetSummaryPrompt: String
+    val aiPresetMoodPrompt: String
+    val aiPresetMentionsPrompt: String
+    val aiPresetRiskyPrompt: String
+    val aiPresetReplyPrompt: String
+    val aiPresetIdeaPrompt: String
+    val aiPersonaLanguage: String
+
+    val tokenCardTitle: String
+    val tokenCardDesc: String
+    val tokenCardLinkedAs: String
+    val tokenCardLabel: String
+    val tokenCardRejected: String
+    val tokenCardValidate: String
+    val tokenCardRemove: String
+    val tokenCardConnectAutomatically: String
+    val tokenCardDeviceCodeHint: String
+    val tokenCardOpenTwitch: String
+    val tokenCardValidating: String
+    val tokenCardManualHint: String
+    val authFirstPartyTitle: String
+    val authFirstPartyDesc: String
+    val authFirstPartySkip: String
+    val authFirstPartyGranted: String
+    val streamerModeTitle: String
+    val streamerModeHideData: String
+    val streamerModeObs: String
+    val streamerMaskTokens: String
+    val streamerHideMod: String
+    val streamerMaskChannels: String
+    val streamerHideThumbs: String
+    val streamerSuppressNotif: String
+    val streamerStaysOn: String
+    val aiConfigTitle: String
+    val aiEnable: String
+    val aiEnableDesc: String
+    val aiBaseUrl: String
+    val aiModel: String
+    val aiDetectModels: String
+    val aiServerHint: String
+    val aiCheckConnection: String
+    val aiServerReachable: String
+    val aiServerUnreachable: String
+    val aiLocalNotRunning: String
+    val aiSetupTitle: String
+    val aiSetupIntro: String
+    val aiSetupCloud: String
+    val aiSetupLocal: String
+    val aiSetupApiKey: String
+    val aiProviderNeedsKeyHint: String
+    val aiProviderNoKeyHint: String
+    val aiLocalModelGenericHint: String
+    val aiSetupGetKey: String
+    val aiSetupSave: String
+    val aiSetupSkip: String
+    val aiSetupInstalled: String
+    val aiSetupUse: String
+    val aiSetupActive: String
+    val aiSetupInstall: String
+    val aiSetupDownloading: String
+    val aiSetupManage: String
+    val aiSetupLocalSource: String
+    val aiSetupNeedOllama: String
+    val aiModelNoteLlama321b: String
+    val aiModelNoteLlama323b: String
+    val aiModelNoteQwen253b: String
+    val aiModelNoteGemma22b: String
+    val aiModelNotePhi3Mini: String
+    val aiModelNoteQwen257b: String
+    val aiModelNoteDeepseekR17b: String
+    val aiModelNoteMistral7b: String
+    val aiDefaultChatTitle: String
+    val aiFlaggedMessagesNotice: String
+    val chatBanReasonHint: String
+    val chatBanReasonPlaceholder: String
+    val aiAssistantContentDescription: String
+    val aiAttachChat: String
+    val aiPresetRule: String
+    val aiPresetRulePrompt: String
+    val aiActionProposedRule: String
+    val aiActionApply: String
+    val aiActionDismiss: String
+    val aiActionApplied: String
+    val aiDlDownloading: String
+    val aiDlVerifying: String
+    val aiDlRetrying: String
+    val aiDlFailed: String
+    val aiDlCancel: String
+    val aiDlRetry: String
+    val aiDlResumeNote: String
+    val aiTemperature: String
+    val aiTemperatureHint: String
+    val aiEndpointPresets: String
+    val aiConnectErrorTitle: String
+    val aiConnectErrorHint: String
+    val aiAutoModTitle: String
+    val aiMonitorTitle: String
+    val aiMonitorDesc: String
+    val aiSensitivity: String
+    val aiSensLow: String
+    val aiSensMed: String
+    val aiSensHigh: String
+    val aiActiveHours: String
+    val aiExtraInstructions: String
+
     val profileDeleteNote: String
     val profileDeleteNoteConfirm: String
     val profileTabUsercard: String
     val profileTabMessages: String
     val profileTabMessagesCount: String
+    val profileTabHistory: String
+    val profileHistoryBans: String
+    val profileHistoryTimeouts: String
+    val profileHistoryWarnings: String
+    val profileHistoryEmpty: String
+    val profileHistoryBanEntry: String
+    val profileHistoryTimeoutEntry: String
+    val profileHistoryWarnEntry: String
+    val profileHistoryReason: String
+    val profileHistoryByModerator: String
     val profileJoined: String
     val profileFollowingSince: String
     val profileNote: String
@@ -540,6 +721,11 @@ interface AppStrings {
     val profileNotePlaceholder: String
     val profileSectionModeration: String
     val profileNoMessagesInSession: String
+    val profileLoadHistory: String
+    val profileLoadingHistory: String
+    val profileLoadMoreHistory: String
+    val profileHistoryLoadFailed: String
+    val profileLocalHistory: String
 
     val panelViewers: String
     val panelViewersInChat: String
@@ -566,7 +752,6 @@ interface AppStrings {
     val panelWhispersEmpty: String
     val panelWhispersHint: String
     val panelMessagePlaceholder: String
-
 
     val emoteTabEmotes: String
     val emoteTabEmoji: String
@@ -617,10 +802,16 @@ interface AppStrings {
     val automodSectionMatching: String
     val automodCaseSensitive: String
     val automodCaseSensitiveDesc: String
+    val automodCaseSensitiveGuide: String
     val automodWholeWordOnly: String
     val automodWholeWordDesc: String
+    val automodWholeWordGuide: String
     val automodRegularExpression: String
     val automodRegexDesc: String
+    val automodRegexGuide: String
+    val automodIgnoreLinks: String
+    val automodIgnoreLinksDesc: String
+    val automodIgnoreLinksGuide: String
     val automodSectionAction: String
     val automodTimeoutMs: String
     val automodTimeoutSeconds: String
@@ -743,6 +934,7 @@ interface AppStrings {
     val themeUseAutoGenerator: String
     val themeCreateTheme: String
     val themeAccentColor: String
+    val themeAccentColorHint: String
     val themeFontPreview: String
 
     val settingsTitleBarMode: String
@@ -863,6 +1055,9 @@ interface AppStrings {
     val colorsGroupModeration: String
     val colorsGroupAutomod: String
     val colorsResetGroup: String
+    val colorsGroupHighlightsHint: String
+    val colorsGroupModerationHint: String
+    val colorsGroupAutomodHint: String
     val colorMentionBg: String
     val colorHighlightBg: String
     val colorOwnMessageBg: String
@@ -873,6 +1068,10 @@ interface AppStrings {
     val chatTranslationError: String
     val settingsTranslationLang: String
     val settingsTranslationLangDesc: String
+    val settingsAutoTranslateInput: String
+    val settingsAutoTranslateInputDesc: String
+    val inputTranslate: String
+    val inputAutoTranslate: String
     val settingsMentionTabs: String
     val settingsMentionTabsDesc: String
     val mentionTabsTitle: String
@@ -890,7 +1089,6 @@ interface AppStrings {
     val hotkeyCloseChannel: String
     val hotkeyToggleWhispers: String
 
-    // Stream header / channel top bar
     val chatOffline: String
     val streamTooltipHint: String
     val streamOpenInBrowser: String
@@ -899,16 +1097,13 @@ interface AppStrings {
     val unitMinuteShort: String
     val chatBanConfirmText: String
 
-    // Mention toast
     val mentionInChannel: String
 
-    // ViewModel system messages / notifications
     val actionsAutoClaimFailed: String
     val tokenStaleWarning: String
     val liveNotifyTitle: String
     val liveNotifyBody: String
 
-    // Polls / predictions (moderation panel)
     val pollEnd: String
     val pollCancel: String
     val pollStart: String
@@ -923,16 +1118,13 @@ interface AppStrings {
     val pollOptionPlaceholder: String
     val raidChannelPlaceholder: String
 
-    // Auth / accounts
     val tryAgain: String
     val oauthTokenLabel: String
     val authBrowser: String
     val authPasteToken: String
 
-    // Automod
     val automodAddVariant: String
 
-    // Profile
     val profileMessageDeleted: String
 
     companion object {

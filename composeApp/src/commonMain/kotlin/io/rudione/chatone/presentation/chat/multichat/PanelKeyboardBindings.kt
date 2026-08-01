@@ -13,7 +13,6 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun Modifier.panelKeyboardShortcuts(panelManager: ChatPanelManager): Modifier {

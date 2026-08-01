@@ -2,7 +2,6 @@ package io.rudione.chatone.presentation.chat.multichat
 
 import androidx.compose.runtime.Stable
 
-
 @Stable
 data class ChannelDragPayload(
     val channelLogin: String,

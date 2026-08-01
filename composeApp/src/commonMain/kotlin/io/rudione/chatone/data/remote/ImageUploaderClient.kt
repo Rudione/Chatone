@@ -12,7 +12,7 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import io.rudione.chatone.domain.model.ImageUploaderConfig
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -37,19 +37,20 @@ class ImageUploaderClient(private val httpClient: HttpClient) {
         private const val TAG = "ImageUploader"
         private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-        fun mimeTypeFor(fileName: String): String = when (fileName.substringAfterLast('.', "").lowercase()) {
-            "png" -> "image/png"
-            "jpg", "jpeg" -> "image/jpeg"
-            "gif" -> "image/gif"
-            "webp" -> "image/webp"
-            "bmp" -> "image/bmp"
-            "avif" -> "image/avif"
-            "mp4" -> "video/mp4"
-            "webm" -> "video/webm"
-            "mov" -> "video/quicktime"
-            "mkv" -> "video/x-matroska"
-            else -> "application/octet-stream"
-        }
+        fun mimeTypeFor(fileName: String): String =
+            when (fileName.substringAfterLast('.', "").lowercase()) {
+                "png" -> "image/png"
+                "jpg", "jpeg" -> "image/jpeg"
+                "gif" -> "image/gif"
+                "webp" -> "image/webp"
+                "bmp" -> "image/bmp"
+                "avif" -> "image/avif"
+                "mp4" -> "video/mp4"
+                "webm" -> "video/webm"
+                "mov" -> "video/quicktime"
+                "mkv" -> "video/x-matroska"
+                else -> "application/octet-stream"
+            }
 
         fun isSupportedFile(fileName: String): Boolean =
             mimeTypeFor(fileName) != "application/octet-stream"
@@ -75,7 +76,9 @@ class ImageUploaderClient(private val httpClient: HttpClient) {
                 when {
                     value != null -> value
                     path == "url" -> trimmed
-                    else -> { missing = true; "" }
+                    else -> {
+                        missing = true; ""
+                    }
                 }
             }
             return result.takeIf { !missing && it.isNotBlank() }
@@ -152,7 +155,12 @@ class ImageUploaderClient(private val httpClient: HttpClient) {
         val start = Clock.System.now().toEpochMilliseconds()
         return try {
             val response = httpClient.head(config.requestUrl) {
-                parseExtraHeaders(config.extraHeaders).forEach { (name, value) -> header(name, value) }
+                parseExtraHeaders(config.extraHeaders).forEach { (name, value) ->
+                    header(
+                        name,
+                        value
+                    )
+                }
             }
             val latency = Clock.System.now().toEpochMilliseconds() - start
             UploaderStatus(reachable = true, httpCode = response.status.value, latencyMs = latency)

@@ -2,7 +2,6 @@ package io.rudione.chatone.presentation.chat.moderation
 
 import io.rudione.chatone.domain.model.IrcEvent
 
-
 object ModerationActionFormatter {
 
     fun shortLabel(event: IrcEvent.ModeratorAction): String = when (event.action) {
@@ -18,7 +17,6 @@ object ModerationActionFormatter {
         IrcEvent.ModeratorAction.ACTION_UNVIP -> "unvipped"
         else -> "moderation"
     }
-
 
     fun severity(action: String): Int = when (action) {
         IrcEvent.ModeratorAction.ACTION_BAN -> 3

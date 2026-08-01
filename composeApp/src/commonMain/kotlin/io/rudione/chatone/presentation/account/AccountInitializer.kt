@@ -6,7 +6,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-
 class AccountInitializer(
     private val authRepository: AuthRepository,
     private val accountManager: AccountManager,

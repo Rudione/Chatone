@@ -3,7 +3,6 @@ package io.rudione.chatone.presentation.chat.moderation
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.format
 
-
 object LocalizedModerationNotice {
 
     fun ban(strings: AppStrings, target: String, durationSec: Int?, moderator: String?): String {

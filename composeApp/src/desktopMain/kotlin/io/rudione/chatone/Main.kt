@@ -20,12 +20,13 @@ import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.window.ChatoneTitleBar
 import io.rudione.chatone.presentation.window.NATIVE_WINDOW_BG
+import io.rudione.chatone.presentation.window.applyMinimumSize
 import io.rudione.chatone.presentation.window.isWindowsOs
 import io.rudione.chatone.presentation.window.resolveTitleBar
 import io.rudione.chatone.presentation.window.useCustomTitleBar
-import io.rudione.chatone.util.AutoUpdater
-import io.rudione.chatone.util.GlobalKeyDispatcher
-import io.rudione.chatone.util.WindowsTitleBar
+import io.rudione.chatone.util.system.AutoUpdater
+import io.rudione.chatone.util.system.GlobalKeyDispatcher
+import io.rudione.chatone.util.system.WindowsTitleBar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,7 +48,6 @@ private const val WIN_MAX = "win_maximized"
 fun main() {
     System.setProperty("apple.awt.application.appearance", "system")
     System.setProperty("apple.awt.application.name", "Chatone")
-
 
     System.setProperty("http.maxConnections", "64")
     System.setProperty("jdk.httpclient.connectionPoolSize", "64")
@@ -116,8 +116,8 @@ fun main() {
 
         val trayState = rememberTrayState()
         DisposableEffect(trayState) {
-            io.rudione.chatone.util.DesktopTrayHolder.trayState = trayState
-            onDispose { io.rudione.chatone.util.DesktopTrayHolder.trayState = null }
+            io.rudione.chatone.util.system.DesktopTrayHolder.trayState = trayState
+            onDispose { io.rudione.chatone.util.system.DesktopTrayHolder.trayState = null }
         }
         Tray(
             state = trayState,
@@ -143,6 +143,7 @@ fun main() {
                     override fun windowOpened(e: java.awt.event.WindowEvent) {
                         window.background = NATIVE_WINDOW_BG
                         window.contentPane.background = NATIVE_WINDOW_BG
+                        window.applyMinimumSize()
                         if (isWindowsOs && useCustomTitleBar) {
                             WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
                         }

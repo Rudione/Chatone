@@ -5,7 +5,7 @@ import io.rudione.chatone.domain.model.MentionEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 class MentionRepository(private val database: ChatoneDatabase) {
 

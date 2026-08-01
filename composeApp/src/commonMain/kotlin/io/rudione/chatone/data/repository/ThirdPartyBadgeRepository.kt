@@ -12,18 +12,12 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
-/** A global FFZ or BTTV badge (bot/developer/supporter/subwoofer…) shown left of the
- * username, like moltorino/Chatterino do. */
 data class ThirdPartyBadge(
     val title: String,
     val imageUrl: String,
     val colorHex: String?
 )
 
-/**
- * Global third-party badge sets. FFZ keys badge membership by LOGIN, BTTV by Twitch user ID —
- * both are fetched once per app run; lookups are O(1) map hits at message-render time.
- */
 class ThirdPartyBadgeRepository(private val httpClient: HttpClient) {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -34,9 +28,44 @@ class ThirdPartyBadgeRepository(private val httpClient: HttpClient) {
     private val _bttvByUserId = MutableStateFlow<Map<String, ThirdPartyBadge>>(emptyMap())
     val bttvByUserId: StateFlow<Map<String, ThirdPartyBadge>> = _bttvByUserId
 
+    private val _chatoneByUserId = MutableStateFlow<Map<String, List<ThirdPartyBadge>>>(emptyMap())
+    val chatoneByUserId: StateFlow<Map<String, List<ThirdPartyBadge>>> = _chatoneByUserId
+
     suspend fun loadAll() {
         loadFfz()
         loadBttv()
+        loadChatone()
+    }
+
+    private suspend fun loadChatone() {
+        if (CHATONE_BADGES_PUBLISHABLE_KEY.isBlank()) return
+        try {
+            val raw = httpClient.get(
+                "$CHATONE_BADGES_URL/rest/v1/chatone_badges" +
+                    "?select=id,tooltip,image_url,sort,chatone_badge_users(user_id)&order=sort"
+            ) {
+                headers.append("apikey", CHATONE_BADGES_PUBLISHABLE_KEY)
+            }.bodyAsText()
+            val byUserId = mutableMapOf<String, MutableList<ThirdPartyBadge>>()
+            var categories = 0
+            json.parseToJsonElement(raw).jsonArray.forEach { el ->
+                val o = el.jsonObject
+                val tooltip = o["tooltip"]?.jsonPrimitive?.contentOrNull
+                    ?: o["id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                val url = o["image_url"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                val badge = ThirdPartyBadge(title = tooltip, imageUrl = url, colorHex = null)
+                categories++
+                o["chatone_badge_users"]?.jsonArray?.forEach { userEl ->
+                    val userId = userEl.jsonObject["user_id"]?.jsonPrimitive?.contentOrNull
+                        ?: return@forEach
+                    byUserId.getOrPut(userId) { mutableListOf() }.add(badge)
+                }
+            }
+            _chatoneByUserId.value = byUserId
+            Napier.d("Chatone badges loaded: $categories badges, ${byUserId.size} users", tag = TAG)
+        } catch (e: Exception) {
+            Napier.w("Chatone badges load failed: ${e.message}", tag = TAG)
+        }
     }
 
     private suspend fun loadFfz() {
@@ -47,7 +76,7 @@ class ThirdPartyBadgeRepository(private val httpClient: HttpClient) {
             root["badges"]?.jsonArray?.forEach { el ->
                 val o = el.jsonObject
                 val id = o["id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
-                // urls["2"] is the 2x png; fall back to base image
+
                 val url = o["urls"]?.jsonObject?.get("2")?.jsonPrimitive?.contentOrNull
                     ?: o["image"]?.jsonPrimitive?.contentOrNull ?: return@forEach
                 badgesById[id] = ThirdPartyBadge(
@@ -96,5 +125,9 @@ class ThirdPartyBadgeRepository(private val httpClient: HttpClient) {
 
     companion object {
         private const val TAG = "ThirdPartyBadges"
+
+        private const val CHATONE_BADGES_URL = "https://zupjweowhttidaxqgxjq.supabase.co"
+
+        private const val CHATONE_BADGES_PUBLISHABLE_KEY = ""
     }
 }

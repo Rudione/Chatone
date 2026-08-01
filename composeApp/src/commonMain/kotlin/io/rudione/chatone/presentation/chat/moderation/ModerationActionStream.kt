@@ -6,13 +6,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 
-
 class ModerationActionStream(private val pubSubClient: TwitchPubSubClient) {
-
 
     fun actions(): Flow<IrcEvent.ModeratorAction> =
         pubSubClient.events.filterIsInstance<IrcEvent.ModeratorAction>()
-
 
     fun byAction(action: String): Flow<IrcEvent.ModeratorAction> =
         actions().map { if (it.action == action) it else null }
@@ -21,7 +18,6 @@ class ModerationActionStream(private val pubSubClient: TwitchPubSubClient) {
                     flow.collect { if (it != null) emit(it) }
                 }
             }
-
 
     fun byModerator(login: String): Flow<IrcEvent.ModeratorAction> =
         actions().map { if (it.moderator.equals(login, ignoreCase = true)) it else null }

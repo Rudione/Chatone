@@ -24,17 +24,16 @@ data class ChatColorConfig(
 
 @Serializable
 data class PanelColorConfig(
-   
+
     val useSidebarCustomColor: Boolean = false,
     val sidebarCustomColor: Int? = null,
     val sidebarAlpha: Float = 0.92f,
     val sidebarBrightness: Float = 0f,
-    
+
     val sidebarBlurRadius: Float = 0f,
-    
+
     val sidebarGlassIntensity: Float = 0.72f,
 
-   
     val useTopBarCustomColor: Boolean = false,
     val topBarCustomColor: Int? = null,
     val topBarAlpha: Float = 0.88f,
@@ -42,7 +41,6 @@ data class PanelColorConfig(
     val topBarBlurRadius: Float = 0f,
     val topBarGlassIntensity: Float = 0.80f,
 
-   
     val useBottomBarCustomColor: Boolean = false,
     val bottomBarCustomColor: Int? = null,
     val bottomBarAlpha: Float = 0.90f,
@@ -58,11 +56,10 @@ data class WallpaperDisplayConfig(
     val overlayDimming: Float = 0.55f,
     val chatColorConfig: ChatColorConfig = ChatColorConfig(),
     val panelColorConfig: PanelColorConfig = PanelColorConfig(),
-   
-    
+
     val masterColor: Int? = null,
     val useMasterColor: Boolean = false,
-   
+
     val globalBrightness: Float = 0f,
     val globalContrast: Float = 1f,
     val globalSaturation: Float = 1f,

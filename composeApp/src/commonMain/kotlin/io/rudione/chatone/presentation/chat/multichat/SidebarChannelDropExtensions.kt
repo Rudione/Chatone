@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
-
 @Composable
 fun SidebarChannelItem(
     channelLogin: String,
@@ -16,7 +15,6 @@ fun SidebarChannelItem(
     }
 }
 
-
 @Composable
 fun TabBarChannelItem(
     channelLogin: String,
@@ -27,7 +25,6 @@ fun TabBarChannelItem(
         content()
     }
 }
-
 
 @Composable
 fun MiniRailChannelItem(

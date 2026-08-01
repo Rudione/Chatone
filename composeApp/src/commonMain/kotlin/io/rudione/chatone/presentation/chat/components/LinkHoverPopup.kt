@@ -19,8 +19,8 @@ import coil3.compose.AsyncImage
 import io.ktor.client.HttpClient
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.luminance
-import io.rudione.chatone.util.LinkPreview
-import io.rudione.chatone.util.LinkPreviewCache
+import io.rudione.chatone.util.media.LinkPreview
+import io.rudione.chatone.util.media.LinkPreviewCache
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 
@@ -52,7 +52,7 @@ fun LinkHoverPopup(url: String) {
         modifier = Modifier.widthIn(min = 130.dp, max = 320.dp)
     ) {
         when {
-           
+
             p == null || p.isEmpty -> {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -69,7 +69,6 @@ fun LinkHoverPopup(url: String) {
                 }
             }
 
-           
             p.mediaType == LinkPreview.MediaType.AUDIO -> {
                 MediaFileCard(
                     icon = Icons.Outlined.VolumeUp,
@@ -85,7 +84,6 @@ fun LinkHoverPopup(url: String) {
                 )
             }
 
-           
             p.mediaType == LinkPreview.MediaType.VIDEO -> {
                 MediaFileCard(
                     icon = Icons.Outlined.PlayArrow,
@@ -101,7 +99,6 @@ fun LinkHoverPopup(url: String) {
                 )
             }
 
-           
             p.isImage -> {
                 AsyncImage(
                     model = p.imageUrl ?: url,
@@ -114,7 +111,6 @@ fun LinkHoverPopup(url: String) {
                 )
             }
 
-           
             else -> {
                 Column(
                     modifier = Modifier.padding(8.dp),
@@ -164,7 +160,7 @@ fun LinkHoverPopup(url: String) {
                             }
                         }
                     }
-                   
+
                     val host = runCatching { io.ktor.http.Url(url).host }.getOrNull() ?: displayUrl
                     Text(
                         p.siteName?.takeIf { it.isNotBlank() } ?: host,

@@ -7,7 +7,6 @@ import androidx.compose.ui.Modifier
 import io.rudione.chatone.presentation.chat.ChatViewModel
 import org.koin.compose.koinInject
 
-
 @Composable
 fun PanelChatSlot(
     panelId: String,

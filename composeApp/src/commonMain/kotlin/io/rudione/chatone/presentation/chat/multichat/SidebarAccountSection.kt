@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.presentation.account.AccountSwitcher
 
-
 @Composable
 fun SidebarAccountSection(
     accounts: List<TwitchAccount>,

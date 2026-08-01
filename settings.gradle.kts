@@ -30,9 +30,9 @@ dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
            
-            version("kotlin", "2.1.10")
-            version("compose", "1.7.3")
-            version("agp", "8.7.3")
+            version("kotlin", "2.2.20")
+            version("compose", "1.10.3")
+            version("agp", "8.9.1")
 
            
             version("ktor", "3.1.1")
@@ -51,7 +51,7 @@ dependencyResolutionManagement {
             version("coroutines", "1.9.0")
 
            
-            version("datetime", "0.6.1")
+            version("datetime", "0.7.1")
 
            
             version("napier", "2.7.1")
@@ -70,7 +70,10 @@ dependencyResolutionManagement {
 
             version("jna", "5.14.0")
 
-           
+
+            version("nav3", "1.1.1")
+
+
             plugin("kotlinMultiplatform", "org.jetbrains.kotlin.multiplatform").versionRef("kotlin")
             plugin("androidApplication", "com.android.application").versionRef("agp")
             plugin("composeMultiplatform", "org.jetbrains.compose").versionRef("compose")
@@ -142,6 +145,9 @@ dependencyResolutionManagement {
 
             library("jna", "net.java.dev.jna", "jna").versionRef("jna")
             library("jna-platform", "net.java.dev.jna", "jna-platform").versionRef("jna")
+
+
+            library("navigation3-ui", "org.jetbrains.androidx.navigation3", "navigation3-ui").versionRef("nav3")
         }
     }
 }

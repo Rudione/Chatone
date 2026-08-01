@@ -29,7 +29,6 @@ import io.rudione.chatone.presentation.chat.models.EmoteUiData
 @Composable
 fun EmoteGridItemFlyweight(
     uiData: EmoteUiData,
-    isScrolling: Boolean,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit
 ) {
@@ -61,7 +60,6 @@ fun EmoteGridItemFlyweight(
             AnimatedEmoteImage(
                 url = uiData.imageUrl,
                 contentDescription = uiData.displayCode,
-                isScrolling = isScrolling,
                 modifier = Modifier
                     .fillMaxSize()
                     .clip(RoundedCornerShape(4.dp)),

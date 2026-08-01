@@ -23,6 +23,7 @@ import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.i18n.format
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 fun BlockedUsersSection(
@@ -69,14 +70,14 @@ fun BlockedUsersSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onRefresh, modifier = Modifier.size(28.dp)) {
                 Icon(
                     Icons.Filled.Refresh, null,
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            IconButton(
+            ChatoneIconButton(
                 onClick = { expanded = !expanded },
                 modifier = Modifier.size(28.dp)
             ) {
@@ -222,7 +223,7 @@ private fun BlockedUserRow(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
-        IconButton(
+        ChatoneIconButton(
             onClick = { showConfirm = true },
             modifier = Modifier.size(28.dp)
         ) {

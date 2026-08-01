@@ -11,15 +11,21 @@ import io.ktor.http.contentType
 import io.rudione.chatone.data.remote.dto.*
 import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.domain.model.SevenTvUserCosmetic
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.async
 
-class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
+class SevenTvCosmeticsClient(
+    private val httpClient: HttpClient,
+    private val scope: CoroutineScope
+) {
     companion object {
         private const val TAG = "7TV-Cosmetics"
         private const val BASE_URL = "https://7tv.io/v3"
 
-       
         private val GQL_USER_COSMETICS = """
             query GetUserCosmetics(${'$'}id: String!) {
               user(id: ${'$'}id) {
@@ -50,26 +56,47 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
     }
 
     private val userCosmeticsCache = mutableMapOf<String, SevenTvUserCosmetic>()
-    private val cacheMutex = Mutex()
+    private val inflight = mutableMapOf<String, Deferred<SevenTvUserCosmetic?>>()
 
+    @OptIn(InternalCoroutinesApi::class)
+    private val cacheLock = SynchronizedObject()
+
+    @OptIn(InternalCoroutinesApi::class)
+    private fun readCached(twitchUserId: String): SevenTvUserCosmetic? =
+        synchronized(cacheLock) { userCosmeticsCache[twitchUserId] }
+
+    @OptIn(InternalCoroutinesApi::class)
+    private fun writeCached(twitchUserId: String, value: SevenTvUserCosmetic) {
+        synchronized(cacheLock) { userCosmeticsCache[twitchUserId] = value }
+    }
+
+    @OptIn(InternalCoroutinesApi::class)
     suspend fun getUserCosmetics(twitchUserId: String): SevenTvUserCosmetic? {
-        cacheMutex.withLock {
+        val request = synchronized(cacheLock) {
             userCosmeticsCache[twitchUserId]?.let { cached ->
-               
                 return if (cached.sevenTvId.isEmpty()) null else cached
             }
+            inflight[twitchUserId] ?: scope.async { fetchUserCosmetics(twitchUserId) }.also { started ->
+                inflight[twitchUserId] = started
+                started.invokeOnCompletion {
+                    synchronized(cacheLock) {
+                        if (inflight[twitchUserId] === started) inflight.remove(twitchUserId)
+                    }
+                }
+            }
         }
+        return request.await()
+    }
 
+    private suspend fun fetchUserCosmetics(twitchUserId: String): SevenTvUserCosmetic? {
         return try {
-           
+
             val response = httpClient.get("$BASE_URL/users/twitch/$twitchUserId")
                 .body<SevenTvUserResponse>()
 
             val inlineUser = response.user
             if (inlineUser == null) {
-                cacheMutex.withLock {
-                    userCosmeticsCache[twitchUserId] = SevenTvUserCosmetic(sevenTvId = "", paint = null, badge = null, nameColor = null)
-                }
+                writeCached(twitchUserId, SevenTvUserCosmetic(sevenTvId = "", paint = null, badge = null, nameColor = null))
                 return null
             }
 
@@ -80,13 +107,10 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
             val hasPaint = inlineStyle.paint != null || !inlineStyle.paintId.isNullOrEmpty()
 
             if (!hasBadge && !hasPaint && inlineStyle.color == null) {
-                cacheMutex.withLock {
-                    userCosmeticsCache[twitchUserId] = SevenTvUserCosmetic(sevenTvId = sevenTvId, paint = null, badge = null, nameColor = null)
-                }
+                writeCached(twitchUserId, SevenTvUserCosmetic(sevenTvId = sevenTvId, paint = null, badge = null, nameColor = null))
                 return null
             }
 
-           
             val inlineBadge = inlineStyle.badge?.toCosmetic()
             val inlinePaint = inlineStyle.paint?.toCosmetic()
 
@@ -97,19 +121,19 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
                 Napier.d("7TV: inline cosmetics for $twitchUserId badge=${inlineBadge?.name} paint=${inlinePaint?.name}", tag = TAG)
                 SevenTvUserCosmetic(sevenTvId = sevenTvId, paint = inlinePaint, badge = inlineBadge, nameColor = inlineStyle.color)
             } else {
-               
+
                 Napier.d("7TV: requesting GQL for $twitchUserId (7tv=$sevenTvId) badge_id=${inlineStyle.badgeId} paint_id=${inlineStyle.paintId}", tag = TAG)
                 val gqlResult = fetchViaGql(sevenTvId, inlineStyle.color)
 
                 gqlResult ?: run {
-                   
+
                     val badge = inlineBadge ?: inlineStyle.badgeId?.let { loadBadgeById(it) }
                     val paint = inlinePaint ?: inlineStyle.paintId?.let { loadPaintById(it) }
                     SevenTvUserCosmetic(sevenTvId = sevenTvId, paint = paint, badge = badge, nameColor = inlineStyle.color)
                 }
             }
 
-            cacheMutex.withLock { userCosmeticsCache[twitchUserId] = cosmetic }
+            writeCached(twitchUserId, cosmetic)
             Napier.d("7TV final cosmetics for $twitchUserId: badge=${cosmetic.badge?.name} paint=${cosmetic.paint?.name} color=${cosmetic.nameColor}", tag = TAG)
             return cosmetic.takeIf { it.badge != null || it.paint != null || it.nameColor != null }
 
@@ -164,13 +188,13 @@ class SevenTvCosmeticsClient(private val httpClient: HttpClient) {
         }
     }
 
-    fun getCachedCosmetics(twitchUserId: String): SevenTvUserCosmetic? {
-        return userCosmeticsCache[twitchUserId]?.takeIf { it.sevenTvId.isNotEmpty() }
+    fun getCachedCosmetics(twitchUserId: String): SevenTvUserCosmetic? =
+        readCached(twitchUserId)?.takeIf { it.sevenTvId.isNotEmpty() }
+
+    @OptIn(InternalCoroutinesApi::class)
+    fun clearCache() {
+        synchronized(cacheLock) { userCosmeticsCache.clear() }
     }
-
-    fun clearCache() { userCosmeticsCache.clear() }
-
-   
 
     private fun SevenTvPaint.toCosmetic() = SevenTvCosmetics.Paint(
         id = id, name = name, function = function, color = color,

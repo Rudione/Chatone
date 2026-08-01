@@ -6,7 +6,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-
 class AccountMigration(
     private val authRepository: AuthRepository,
     private val accountManager: AccountManager,

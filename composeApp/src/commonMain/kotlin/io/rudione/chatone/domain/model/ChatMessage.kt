@@ -37,10 +37,10 @@ data class Badge(
     val id: String,
     val version: String,
     val imageUrl: String,
-    val months: Int? = null,          
-    val tooltip: String = "",         
-    val setId: String = "",           
-    val isGlobal: Boolean = false     
+    val months: Int? = null,
+    val tooltip: String = "",
+    val setId: String = "",
+    val isGlobal: Boolean = false
 )
 
 fun List<Badge>.hasGrandModBadge(): Boolean = any { badge ->

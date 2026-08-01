@@ -1,6 +1,5 @@
 package io.rudione.chatone.domain.model
 
-
 sealed class IrcEvent {
     data class PrivMsg(val message: ChatMessage) : IrcEvent()
 
@@ -98,7 +97,6 @@ sealed class IrcEvent {
     data class Reconnect(val reason: String = "Server requested reconnect") : IrcEvent()
     data class Error(val message: String) : IrcEvent()
 
-
     data class ModeratorAction(
         val channel: String,
         val action: String,
@@ -124,12 +122,6 @@ sealed class IrcEvent {
         }
     }
 
-    /**
-     * Live pin update from PubSub `pinned-chat-updates-v1`. The payload carries the full pin
-     * content, which matters because Twitch's private GQL (the fetch-on-demand path) rejects
-     * third-party client tokens — this event is the only reliable source of pin data.
-     * [pin] is set for pin-message/update-message, null for unpin-message.
-     */
     data class PinnedChatUpdated(
         val channel: String,
         val pin: PinnedChatPayload? = null,
@@ -138,8 +130,17 @@ sealed class IrcEvent {
         val unpinnedBy: String? = null
     ) : IrcEvent()
 
-    /** Bonus-chest claim became available (PubSub community-points-user-v1). */
     data class PointsClaimAvailable(val channelId: String, val claimId: String) : IrcEvent()
+
+    data class PollUpdated(
+        val channelId: String,
+        val poll: io.rudione.chatone.data.remote.dto.PollData?
+    ) : IrcEvent()
+
+    data class PredictionUpdated(
+        val channelId: String,
+        val prediction: io.rudione.chatone.data.remote.dto.PredictionData?
+    ) : IrcEvent()
 
     data class PinnedChatPayload(
         val pinId: String,
@@ -150,6 +151,8 @@ sealed class IrcEvent {
         val senderLogin: String,
         val senderColor: String?,
         val endsAtEpochMs: Long?,
-        val pinnerName: String
+        val pinnerName: String,
+        val pinnerUserId: String = "",
+        val pinnerLogin: String = ""
     )
 }

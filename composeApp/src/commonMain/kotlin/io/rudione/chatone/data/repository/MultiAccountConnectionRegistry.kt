@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-
 class MultiAccountConnectionRegistry(
     private val ircFactory: IrcConnectionFactory,
     private val accountManager: AccountManager,

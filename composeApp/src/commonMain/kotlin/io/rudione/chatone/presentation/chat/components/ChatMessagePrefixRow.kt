@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,12 +15,22 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,23 +45,47 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.emoji_icon
+import io.rudione.chatone.data.remote.TranslationClient
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
+import io.rudione.chatone.util.chat.BannedWordsGuard
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.bottomBarBackgroundColor
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.theme.panelBlur
+import io.rudione.chatone.util.Result
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 import org.jetbrains.compose.resources.painterResource
+import org.koin.compose.koinInject
+
+private object NoOpTextContextMenuProvider :
+    androidx.compose.foundation.text.contextmenu.provider.TextContextMenuProvider {
+    override suspend fun showTextContextMenu(
+        dataProvider: androidx.compose.foundation.text.contextmenu.provider.TextContextMenuDataProvider
+    ) {
+    }
+}
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -92,7 +127,13 @@ internal fun MessageInput(
     uploadProgress: Float? = null,
     uploadedLink: String? = null,
     onCopyUploadedLink: () -> Unit = {},
-    onDismissUploadedLink: () -> Unit = {}
+    onDismissUploadedLink: () -> Unit = {},
+    translationTargetLang: String = "en",
+    autoTranslateEnabled: Boolean = false,
+    onToggleAutoTranslate: (Boolean) -> Unit = {},
+    onFocusChanged: (Boolean) -> Unit = {},
+    slowModeSeconds: Int = 0,
+    lastMessageSentAtMs: Long = 0L
 ) {
     val MAX_CHARS = 500
     val WARN_CHARS = 480
@@ -118,6 +159,9 @@ internal fun MessageInput(
     val charCount = tfv.text.length
     val isOverLimit = charCount > MAX_CHARS
     val isNearLimit = charCount >= WARN_CHARS && !isOverLimit
+    val bannedWordHit = remember(tfv.text) {
+        BannedWordsGuard.containsBannedWord(tfv.text)
+    }
 
     val canSend =
         enabled &&
@@ -127,6 +171,28 @@ internal fun MessageInput(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
+    LaunchedEffect(isFocused) { onFocusChanged(isFocused) }
+
+    var slowmodeRemainingMs by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(slowModeSeconds, lastMessageSentAtMs) {
+        if (slowModeSeconds <= 0 || lastMessageSentAtMs <= 0L) {
+            slowmodeRemainingMs = 0L
+            return@LaunchedEffect
+        }
+        val totalMs = slowModeSeconds * 1000L
+        while (true) {
+            val elapsed = Clock.System.now().toEpochMilliseconds() - lastMessageSentAtMs
+            val remaining = (totalMs - elapsed).coerceAtLeast(0L)
+            slowmodeRemainingMs = remaining
+            if (remaining <= 0L) break
+            delay(100)
+        }
+    }
+    val slowmodeFraction by animateFloatAsState(
+        if (slowModeSeconds > 0) (1f - slowmodeRemainingMs.toFloat() / (slowModeSeconds * 1000f)).coerceIn(0f, 1f) else 0f,
+        tween(150)
+    )
+    val slowmodeColor = ChatoneTheme.extraColors.modTimeout
 
     val errorRed = Color(0xFFCF6679)
     val warnAmber = Color(0xFFD4A017)
@@ -135,6 +201,7 @@ internal fun MessageInput(
     val borderColor by animateColorAsState(
         when {
             isBanned -> errorRed
+            bannedWordHit != null -> errorRed
             isOverLimit -> errorRed
             isNearLimit -> warnAmber
             isFocused -> primaryCol.copy(alpha = 0.92f)
@@ -145,7 +212,7 @@ internal fun MessageInput(
 
     val borderWidth by animateDpAsState(
         when {
-            isBanned || isOverLimit -> 1.8.dp
+            isBanned || isOverLimit || bannedWordHit != null -> 1.8.dp
             isFocused -> 1.55.dp
             else -> 1.15.dp
         },
@@ -202,6 +269,52 @@ internal fun MessageInput(
     )
 
     val s = LocalStrings.current
+
+    val clipboardManager = LocalClipboardManager.current
+    val translationClient: TranslationClient = koinInject()
+    val translateScope = rememberCoroutineScope()
+    var isTranslatingInput by remember { mutableStateOf(false) }
+    var showInputContextMenu by remember { mutableStateOf(false) }
+    var inputContextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
+
+    fun translateInputInPlace() {
+        val text = tfv.text
+        if (text.isBlank() || isTranslatingInput) return
+        isTranslatingInput = true
+        translateScope.launch {
+            val result = translationClient.translate(text, translationTargetLang)
+            if (result is Result.Success && result.data.text.isNotBlank()) {
+                onValueChange(result.data.text)
+            }
+            isTranslatingInput = false
+        }
+    }
+
+    var showBannedWordConfirm by remember { mutableStateOf(false) }
+    var pendingKeepTextForConfirm by remember { mutableStateOf(false) }
+
+    fun proceedSend(keepText: Boolean) {
+        if (autoTranslateEnabled && tfv.text.isNotBlank()) {
+            translateScope.launch {
+                val result = translationClient.translate(tfv.text, translationTargetLang)
+                if (result is Result.Success && result.data.text.isNotBlank()) {
+                    onValueChange(result.data.text)
+                }
+                if (keepText) onSendKeepText() else onSend()
+            }
+        } else {
+            if (keepText) onSendKeepText() else onSend()
+        }
+    }
+
+    fun performSend(keepText: Boolean) {
+        if (bannedWordHit != null) {
+            pendingKeepTextForConfirm = keepText
+            showBannedWordConfirm = true
+            return
+        }
+        proceedSend(keepText)
+    }
 
     Column(
         modifier = modifier.fillMaxWidth()
@@ -276,6 +389,33 @@ internal fun MessageInput(
                         .clip(RoundedCornerShape(24.dp))
                         .background(containerColor)
                 ) {
+
+                    if (slowmodeFraction > 0f) {
+                        val cornerRadiusPx = with(LocalDensity.current) { 24.dp.toPx() }
+                        val strokePx = with(LocalDensity.current) { 2.5.dp.toPx() }
+                        Canvas(modifier = Modifier.matchParentSize()) {
+                            val inset = strokePx / 2f
+                            val roundRect = RoundRect(
+                                left = inset,
+                                top = inset,
+                                right = size.width - inset,
+                                bottom = size.height - inset,
+                                cornerRadius = CornerRadius(
+                                    (cornerRadiusPx - inset).coerceAtLeast(0f),
+                                    (cornerRadiusPx - inset).coerceAtLeast(0f)
+                                )
+                            )
+                            val fullPath = Path().apply { addRoundRect(roundRect) }
+                            val measure = PathMeasure().apply { setPath(fullPath, false) }
+                            val segment = Path()
+                            measure.getSegment(0f, measure.length * slowmodeFraction, segment, true)
+                            drawPath(
+                                path = segment,
+                                color = slowmodeColor,
+                                style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                            )
+                        }
+                    }
 
                     Box(
                         modifier = Modifier
@@ -393,6 +533,10 @@ internal fun MessageInput(
                                 )
                             }
 
+                            CompositionLocalProvider(
+                                androidx.compose.foundation.text.contextmenu.provider.LocalTextContextMenuDropdownProvider provides NoOpTextContextMenuProvider,
+                                androidx.compose.foundation.text.contextmenu.provider.LocalTextContextMenuToolbarProvider provides NoOpTextContextMenuProvider
+                            ) {
                             BasicTextField(
                                 value = tfv,
                                 onValueChange = { newTfv ->
@@ -404,6 +548,22 @@ internal fun MessageInput(
                                     .padding(vertical = 4.dp)
                                     .focusRequester(focusRequester)
                                     .focusable(interactionSource = interactionSource)
+                                    .pointerInput(Unit) {
+                                        awaitPointerEventScope {
+                                            while (true) {
+                                                val event = awaitPointerEvent()
+                                                if (event.type == PointerEventType.Press &&
+                                                    event.buttons.isSecondaryPressed
+                                                ) {
+                                                    val pos = event.changes.first().position
+                                                    inputContextMenuOffset =
+                                                        IntOffset(pos.x.toInt(), pos.y.toInt())
+                                                    showInputContextMenu = true
+                                                    event.changes.forEach { it.consume() }
+                                                }
+                                            }
+                                        }
+                                    }
                                     .onPreviewKeyEvent { event ->
 
                                         if (event.type != KeyEventType.KeyDown) {
@@ -480,7 +640,7 @@ internal fun MessageInput(
                                                     }
 
                                                     canSend -> {
-                                                        onSend()
+                                                        performSend(false)
                                                         true
                                                     }
 
@@ -489,7 +649,7 @@ internal fun MessageInput(
                                             }
 
                                             isCtrl && event.key == Key.Enter -> {
-                                                onSendKeepText()
+                                                performSend(true)
                                                 true
                                             }
 
@@ -640,6 +800,122 @@ internal fun MessageInput(
                                     inner()
                                 }
                             )
+                            }
+
+                            if (showInputContextMenu) {
+                                Popup(
+                                    alignment = Alignment.TopStart,
+                                    offset = inputContextMenuOffset + IntOffset(8, 8),
+                                    properties = PopupProperties(
+                                        focusable = true,
+                                        dismissOnBackPress = true,
+                                        dismissOnClickOutside = true
+                                    ),
+                                    onDismissRequest = { showInputContextMenu = false }
+                                ) {
+                                    io.rudione.chatone.presentation.components.LiquidGlassSurface(
+                                        modifier = Modifier.widthIn(min = 180.dp, max = 260.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        contentPadding = PaddingValues(vertical = 4.dp),
+                                        backgroundAlphaHigh = 0.94f,
+                                        backgroundAlphaLow = 0.85f,
+                                        borderAlphaHigh = 0f,
+                                        borderAlphaLow = 0f
+                                    ) {
+                                        Column {
+                                            io.rudione.chatone.presentation.components.LiquidGlassDropdownItem(
+                                                text = s.cut,
+                                                icon = Icons.Outlined.ContentCut,
+                                                iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                onClick = {
+                                                    showInputContextMenu = false
+                                                    val selection = tfv.selection
+                                                    if (!selection.collapsed) {
+                                                        clipboardManager.setText(
+                                                            AnnotatedString(
+                                                                tfv.text.substring(selection.min, selection.max)
+                                                            )
+                                                        )
+                                                        val newText = tfv.text.removeRange(selection.min, selection.max)
+                                                        tfv = TextFieldValue(newText, TextRange(selection.min))
+                                                        onValueChange(newText)
+                                                    } else if (tfv.text.isNotEmpty()) {
+                                                        clipboardManager.setText(AnnotatedString(tfv.text))
+                                                        tfv = TextFieldValue("", TextRange(0))
+                                                        onValueChange("")
+                                                    }
+                                                }
+                                            )
+                                            io.rudione.chatone.presentation.components.LiquidGlassDropdownItem(
+                                                text = s.copy,
+                                                icon = Icons.Outlined.ContentCopy,
+                                                iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                onClick = {
+                                                    showInputContextMenu = false
+                                                    val selection = tfv.selection
+                                                    val textToCopy = if (!selection.collapsed) {
+                                                        tfv.text.substring(selection.min, selection.max)
+                                                    } else {
+                                                        tfv.text
+                                                    }
+                                                    if (textToCopy.isNotEmpty()) {
+                                                        clipboardManager.setText(AnnotatedString(textToCopy))
+                                                    }
+                                                }
+                                            )
+                                            io.rudione.chatone.presentation.components.LiquidGlassDropdownItem(
+                                                text = s.paste,
+                                                icon = Icons.Outlined.ContentPaste,
+                                                iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                onClick = {
+                                                    showInputContextMenu = false
+                                                    val clip = clipboardManager.getText()?.text
+                                                    if (!clip.isNullOrEmpty()) {
+                                                        val selection = tfv.selection
+                                                        val newText = tfv.text.replaceRange(selection.min, selection.max, clip)
+                                                        tfv = TextFieldValue(newText, TextRange(selection.min + clip.length))
+                                                        onValueChange(newText)
+                                                    }
+                                                }
+                                            )
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(vertical = 4.dp),
+                                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                            )
+                                            io.rudione.chatone.presentation.components.LiquidGlassDropdownItem(
+                                                text = s.inputTranslate,
+                                                icon = Icons.Outlined.Translate,
+                                                iconTint = MaterialTheme.colorScheme.primary,
+                                                onClick = {
+                                                    showInputContextMenu = false
+                                                    translateInputInPlace()
+                                                }
+                                            )
+                                            HorizontalDivider(
+                                                modifier = Modifier.padding(vertical = 4.dp),
+                                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                                            )
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    s.inputAutoTranslate,
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                io.rudione.chatone.presentation.components.ChatoneSwitch(
+                                                    checked = autoTranslateEnabled,
+                                                    onCheckedChange = onToggleAutoTranslate
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
                             Spacer(
                                 modifier = Modifier.width(0.dp)
@@ -733,7 +1009,7 @@ internal fun MessageInput(
                                             },
                                             indication = null,
                                             enabled = canSend,
-                                            onClick = onSend
+                                            onClick = { performSend(false) }
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -769,12 +1045,50 @@ internal fun MessageInput(
                                         }
                                     )
                                 }
+
+                                if (slowmodeRemainingMs > 0L) {
+                                    Text(
+                                        text = formatSlowmodeRemaining(slowmodeRemainingMs),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                                        color = slowmodeColor,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
         }
+
+        if (showBannedWordConfirm) {
+            AlertDialog(
+                onDismissRequest = { showBannedWordConfirm = false },
+                title = { Text(s.chatBannedWordTitle) },
+                text = { Text(s.chatBannedWordMessage) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showBannedWordConfirm = false
+                            proceedSend(pendingKeepTextForConfirm)
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = errorRed)
+                    ) { Text(s.chatBannedWordSendAnyway) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBannedWordConfirm = false }) { Text(s.cancel) }
+                }
+            )
+        }
+    }
+}
+
+private fun formatSlowmodeRemaining(ms: Long): String {
+    val totalSeconds = ((ms + 999) / 1000).toInt().coerceAtLeast(0)
+    return if (totalSeconds >= 60) {
+        "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
+    } else {
+        "${totalSeconds}s"
     }
 }
 
@@ -787,7 +1101,7 @@ fun LiquidGlassTooltipBox(
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
         tooltip = {
-           
+
             io.rudione.chatone.presentation.components.LiquidGlassSurface(
                 shape = RoundedCornerShape(8.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
@@ -833,6 +1147,36 @@ fun LiquidGlassRichTooltipBox(
     ) {
         content()
     }
+}
+
+@Composable
+fun ReplyParentHoverTooltip(
+    parentName: String,
+    parentBody: String,
+    parentColor: Color,
+    content: @Composable () -> Unit
+) {
+    LiquidGlassRichTooltipBox(
+        tooltipContent = {
+            Column(
+                modifier = Modifier.widthIn(max = 360.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Text(
+                    text = "@$parentName",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = parentColor
+                )
+                Text(
+                    text = parentBody,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        },
+        content = content
+    )
 }
 
 private fun formatTimestampFor(

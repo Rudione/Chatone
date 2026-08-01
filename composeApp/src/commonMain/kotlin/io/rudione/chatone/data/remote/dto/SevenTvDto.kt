@@ -3,11 +3,11 @@ package io.rudione.chatone.data.remote.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-
 @Serializable
 data class SevenTvUserResponse(
     @SerialName("emote_set") val emoteSet: SevenTvEmoteSet? = null,
-   
+    @SerialName("emote_set_id") val emoteSetId: String? = null,
+
     val user: SevenTvFullUserInline? = null
 )
 
@@ -23,10 +23,10 @@ data class SevenTvFullUserInline(
 @Serializable
 data class SevenTvUserStyleInline(
     val color: Int? = null,
-   
+
     val badge: SevenTvBadge? = null,
     val paint: SevenTvPaint? = null,
-   
+
     @SerialName("badge_id") val badgeId: String? = null,
     @SerialName("paint_id") val paintId: String? = null
 )

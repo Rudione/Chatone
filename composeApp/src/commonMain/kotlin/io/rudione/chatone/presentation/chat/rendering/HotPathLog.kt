@@ -1,7 +1,7 @@
 package io.rudione.chatone.presentation.chat.rendering
 
 import io.github.aakira.napier.Napier
-
+import kotlin.concurrent.Volatile
 
 object HotPathLog {
 
@@ -12,7 +12,6 @@ object HotPathLog {
     fun enable(enabled: Boolean) {
         debugEnabled = enabled
     }
-
 
     inline fun debug(tag: String, message: () -> String) {
         if (debugEnabled) {

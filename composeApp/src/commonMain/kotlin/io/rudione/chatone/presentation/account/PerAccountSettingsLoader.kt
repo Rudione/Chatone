@@ -2,7 +2,7 @@ package io.rudione.chatone.presentation.account
 
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.SettingsImportExport
+import io.rudione.chatone.util.settings.SettingsImportExport
 
 class PerAccountSettingsLoader(private val accountManager: AccountManager) {
 

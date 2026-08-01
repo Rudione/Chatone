@@ -1,0 +1,20 @@
+CREATE TABLE ModerationEventEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    channelId TEXT NOT NULL,
+    targetUserId TEXT NOT NULL,
+    targetLogin TEXT NOT NULL,
+    action TEXT NOT NULL,
+    durationSeconds INTEGER,
+    reason TEXT,
+    moderatorLogin TEXT,
+    timestamp INTEGER NOT NULL
+);
+
+CREATE INDEX idx_moderation_event_target ON ModerationEventEntity(channelId, targetUserId);
+
+insertEvent:
+INSERT INTO ModerationEventEntity (id, channelId, targetUserId, targetLogin, action, durationSeconds, reason, moderatorLogin, timestamp)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+getEventsForUser:
+SELECT * FROM ModerationEventEntity WHERE channelId = ? AND targetUserId = ? ORDER BY timestamp DESC;

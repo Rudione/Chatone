@@ -10,7 +10,6 @@ import io.rudione.chatone.domain.model.ChatPanel
 import io.rudione.chatone.domain.model.PanelLayoutMode
 import io.rudione.chatone.domain.model.layoutMode
 
-
 @Composable
 fun MultiChatContainer(
     panelManager: ChatPanelManager,

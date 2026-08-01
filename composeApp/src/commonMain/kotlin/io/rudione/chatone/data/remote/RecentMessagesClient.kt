@@ -7,8 +7,8 @@ import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.rudione.chatone.domain.model.ChatMessage
-import io.rudione.chatone.util.IrcMessage
-import io.rudione.chatone.util.IrcMessageParser
+import io.rudione.chatone.util.chat.IrcMessage
+import io.rudione.chatone.util.chat.IrcMessageParser
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -19,6 +19,16 @@ data class RecentMessagesResponse(
     @SerialName("error_code") val errorCode: String? = null
 )
 
+sealed interface RecentMessagesResult {
+    data class Success(val messages: List<ChatMessage>) : RecentMessagesResult
+
+    data object Pending : RecentMessagesResult
+
+    data object Unavailable : RecentMessagesResult
+
+    data object Failed : RecentMessagesResult
+}
+
 class RecentMessagesClient(
     private val httpClient: HttpClient
 ) {
@@ -28,13 +38,17 @@ class RecentMessagesClient(
         private const val TAG = "RecentMessages"
         private const val REQUEST_TIMEOUT_MS = 8000L
         private const val CONNECT_TIMEOUT_MS = 5000L
+
+        private val PERMANENT_ERROR_CODES = setOf(
+            "channel_ignored",
+            "channel_not_found",
+            "invalid_channel_name"
+        )
     }
 
-    /** Returns null if the fetch itself failed (timeout/network/parse error) — distinct from
-     * an empty list, which means the request succeeded but the channel has no tracked history. */
-    suspend fun getRecentMessages(channel: String, limit: Int = 100): List<ChatMessage>? {
+    suspend fun getRecentMessages(channel: String, limit: Int = 100): RecentMessagesResult {
+        val channelName = channel.lowercase().removePrefix("#")
         return try {
-            val channelName = channel.lowercase().removePrefix("#")
             val response = httpClient.get("$baseUrl/$channelName") {
                 parameter("limit", limit)
                 timeout {
@@ -44,23 +58,31 @@ class RecentMessagesClient(
             }.body<RecentMessagesResponse>()
 
             if (response.error != null) {
-                Napier.w("Recent messages error for $channelName: ${response.error}", tag = TAG)
-                return emptyList()
-            }
-
-            response.messages.mapNotNull { raw ->
-                try {
-                    val ircMsg = IrcMessage.parse(raw) ?: return@mapNotNull null
-                    if (ircMsg.command == "PRIVMSG") {
-                        IrcMessageParser.parsePrivMsg(ircMsg)
-                    } else null
-                } catch (e: Exception) {
-                    null
+                Napier.d(
+                    "Recent messages unavailable for $channelName: ${response.error} (${response.errorCode})",
+                    tag = TAG
+                )
+                return when {
+                    response.errorCode in PERMANENT_ERROR_CODES -> RecentMessagesResult.Unavailable
+                    else -> RecentMessagesResult.Pending
                 }
             }
+
+            RecentMessagesResult.Success(
+                response.messages.mapNotNull { raw ->
+                    try {
+                        val ircMsg = IrcMessage.parse(raw) ?: return@mapNotNull null
+                        if (ircMsg.command == "PRIVMSG") {
+                            IrcMessageParser.parsePrivMsg(ircMsg)
+                        } else null
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            )
         } catch (e: Exception) {
-            Napier.e("Failed to get recent messages: ${e.message}", e, tag = TAG)
-            null
+            Napier.w("Failed to get recent messages for $channelName: ${e.message}", tag = TAG)
+            RecentMessagesResult.Failed
         }
     }
 }

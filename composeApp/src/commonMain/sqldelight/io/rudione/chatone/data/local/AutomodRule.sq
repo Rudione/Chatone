@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS AutomodRuleEntity (
     isRegex INTEGER NOT NULL DEFAULT 0,
     caseSensitive INTEGER NOT NULL DEFAULT 0,
     wholeWord INTEGER NOT NULL DEFAULT 0,
+    ignoreLinks INTEGER NOT NULL DEFAULT 0,
     -- shared action
     action TEXT NOT NULL DEFAULT 'DELETE',       -- 'DELETE' | 'TIMEOUT' | 'BAN'
     timeoutMs INTEGER NOT NULL DEFAULT 60000,
@@ -53,10 +54,10 @@ CREATE INDEX IF NOT EXISTS idx_automod_kind     ON AutomodRuleEntity(ruleKind);
 
 upsertWordRule:
 INSERT OR REPLACE INTO AutomodRuleEntity(
-    id, ruleKind, scope, channelLogin, pattern, alternates, isRegex, caseSensitive, wholeWord,
+    id, ruleKind, scope, channelLogin, pattern, alternates, isRegex, caseSensitive, wholeWord, ignoreLinks,
     action, timeoutMs, frequencyThreshold, frequencyWindowMs,
     exemptMods, exemptSubs, exemptVips, enabled, note, createdAt, updatedAt
-) VALUES (?, 'WORD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, 'WORD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getAllWordRules:
 SELECT * FROM AutomodRuleEntity WHERE ruleKind = 'WORD'
@@ -139,10 +140,10 @@ SELECT ruleKind, COUNT(*) AS cnt FROM AutomodRuleEntity GROUP BY ruleKind;
 -- Legacy compat (old callers used upsertRule / getEnabledRulesForChannel)
 upsertRule:
 INSERT OR REPLACE INTO AutomodRuleEntity(
-    id, ruleKind, scope, channelLogin, pattern, alternates, isRegex, caseSensitive, wholeWord,
+    id, ruleKind, scope, channelLogin, pattern, alternates, isRegex, caseSensitive, wholeWord, ignoreLinks,
     action, timeoutMs, frequencyThreshold, frequencyWindowMs,
     exemptMods, exemptSubs, exemptVips, enabled, note, createdAt, updatedAt
-) VALUES (?, 'WORD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, 'WORD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getEnabledRulesForChannel:
 SELECT * FROM AutomodRuleEntity

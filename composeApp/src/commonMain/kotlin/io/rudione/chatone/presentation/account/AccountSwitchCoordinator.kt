@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-
 class AccountSwitchCoordinator(
     private val accountManager: AccountManager,
     private val ircClient: TwitchIrcClient,
@@ -40,9 +39,7 @@ class AccountSwitchCoordinator(
             try {
                 Napier.d("Switching to account ${account.login}", tag = TAG)
 
-
                 emoteRepository.invalidatePersonalEmotes()
-
 
                 try { pubSubClient.disconnect() } catch (e: Exception) {
                     Napier.w("PubSub disconnect failed: ${e.message}", tag = TAG)
@@ -53,7 +50,6 @@ class AccountSwitchCoordinator(
                 try { ircClient.disconnect() } catch (e: Exception) {
                     Napier.w("IRC disconnect failed: ${e.message}", tag = TAG)
                 }
-
 
                 val previousId = accountManager.activeAccountId.value
                 if (previousId != account.userId) {
@@ -76,7 +72,7 @@ class AccountSwitchCoordinator(
 
                 ircClient.connect(username = account.login, oauthToken = account.accessToken)
 
-                _lastSwitchedAt.value = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+                _lastSwitchedAt.value = kotlin.time.Clock.System.now().toEpochMilliseconds()
                 Napier.d("Switched to ${account.login}", tag = TAG)
                 onComplete(true)
             } catch (e: Exception) {

@@ -51,7 +51,7 @@ import io.rudione.chatone.domain.model.AccountProxyConfig
 import io.rudione.chatone.domain.model.ProxyType
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 @Composable
 fun AccountsSettingsSectionCompact(
@@ -370,18 +370,18 @@ private fun ProxyExpandableRow(
                     }) { Text(typeLabel) }
                 }
                 Row {
-                    OutlinedTextField(
+                    ChatoneTextField(
                         value = host,
                         onValueChange = { host = it },
-                        label = { Text(strings.accountsProxyHost) },
+                        label = strings.accountsProxyHost,
                         modifier = Modifier.weight(2f),
                         singleLine = true
                     )
                     Spacer(Modifier.width(4.dp))
-                    OutlinedTextField(
+                    ChatoneTextField(
                         value = port,
                         onValueChange = { port = it.filter { ch -> ch.isDigit() }.take(5) },
-                        label = { Text(strings.accountsProxyPort) },
+                        label = strings.accountsProxyPort,
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true
@@ -389,18 +389,18 @@ private fun ProxyExpandableRow(
                 }
                 Spacer(Modifier.height(4.dp))
                 Row {
-                    OutlinedTextField(
+                    ChatoneTextField(
                         value = username,
                         onValueChange = { username = it },
-                        label = { Text(strings.accountsProxyUsername) },
+                        label = strings.accountsProxyUsername,
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
                     Spacer(Modifier.width(4.dp))
-                    OutlinedTextField(
+                    ChatoneTextField(
                         value = password,
                         onValueChange = { password = it },
-                        label = { Text(strings.accountsProxyPassword) },
+                        label = strings.accountsProxyPassword,
                         modifier = Modifier.weight(1f),
                         visualTransformation = PasswordVisualTransformation(),
                         singleLine = true

@@ -32,10 +32,15 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
     suspend fun getChannelEmotesWithSetId(userId: String): SevenTvChannelResult {
         return try {
             val response = httpClient.get("$baseUrl/users/twitch/$userId").body<SevenTvUserResponse>()
-            SevenTvChannelResult(
-                emotes = response.emoteSet?.emotes?.mapNotNull { it.toGenericEmote() } ?: emptyList(),
-                emoteSetId = response.emoteSet?.id
-            )
+            val setId = response.emoteSet?.id ?: response.emoteSetId
+            val inlineEmotes = response.emoteSet?.emotes?.mapNotNull { it.toGenericEmote() } ?: emptyList()
+
+            val emotes = if (inlineEmotes.isNotEmpty() || setId.isNullOrBlank()) {
+                inlineEmotes
+            } else {
+                getEmoteSet(setId)
+            }
+            SevenTvChannelResult(emotes = emotes, emoteSetId = setId)
         } catch (e: Exception) {
             Napier.e("Failed to get 7TV channel emotes: ${e.message}", tag = TAG)
             SevenTvChannelResult(emotes = emptyList(), emoteSetId = null)
@@ -52,7 +57,6 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
         }
     }
 
-    
     suspend fun getEmoteSet(emoteSetId: String): List<GenericEmote> {
         return try {
             httpClient.get("$baseUrl/emote-sets/$emoteSetId")
@@ -79,10 +83,6 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
         val host = emoteData.host
         val baseUrl = "https:${host.url}"
 
-        // Prefer WEBP (decodes on every platform). Fall back to AVIF/GIF/PNG so emotes that
-        // 7TV only ships in a newer format (common for newer/personal emotes) are still shown
-        // instead of being silently dropped — this is why some users' emotes were invisible
-        // here while Chatterino, which also reads AVIF, showed them.
         val files = EMOTE_FORMAT_PREFERENCE
             .firstNotNullOfOrNull { fmt -> host.files.filter { it.format == fmt }.takeIf { it.isNotEmpty() } }
             ?: return null

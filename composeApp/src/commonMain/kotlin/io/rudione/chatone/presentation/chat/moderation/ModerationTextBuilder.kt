@@ -4,7 +4,6 @@ import io.rudione.chatone.domain.model.IrcEvent
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.format
 
-
 object ModerationTextBuilder {
 
     fun ban(strings: AppStrings, target: String, moderator: String?): String {
@@ -67,7 +66,6 @@ object ModerationTextBuilder {
         return if (!moderator.isNullOrBlank()) "Chat was cleared" + strings.format(strings.modActionBy, moderator)
         else base
     }
-
 
     fun fromEvent(strings: AppStrings, event: IrcEvent.ModeratorAction): String {
         val target = event.target ?: "—"

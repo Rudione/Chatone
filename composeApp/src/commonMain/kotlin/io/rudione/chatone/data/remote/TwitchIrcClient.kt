@@ -9,12 +9,13 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.IrcEvent
-import io.rudione.chatone.util.IrcMessage
-import io.rudione.chatone.util.IrcMessageParser
+import io.rudione.chatone.util.chat.IrcMessage
+import io.rudione.chatone.util.chat.IrcMessageParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import io.rudione.chatone.presentation.chat.rendering.HotPathLog
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,7 +101,6 @@ class TwitchIrcClient(
                 session = this
                 Napier.d("WebSocket connected", tag = TAG)
 
-
                 send(Frame.Text("CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership"))
 
                 if (isAnonymous) {
@@ -116,12 +116,10 @@ class TwitchIrcClient(
 
                 startPingJob()
 
-
                 if (joinedChannels.isNotEmpty()) {
                     val channels = joinedChannels.toList()
                     rejoinChannels(channels)
                 }
-
 
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
@@ -145,8 +143,7 @@ class TwitchIrcClient(
 
     private suspend fun handleIncomingMessage(text: String) {
         text.split("\r\n").filter { it.isNotBlank() }.forEach { line ->
-            Napier.v("IRC: $line", tag = TAG)
-
+            HotPathLog.verbose(TAG) { "IRC: $line" }
 
             if (line.startsWith("PING")) {
                 val server = line.substringAfter("PING ")
@@ -181,10 +178,20 @@ class TwitchIrcClient(
                     val userMsg = if (ircMsg.params.size > 1) {
                         try {
                             IrcMessageParser.parsePrivMsg(ircMsg)
-                        } catch (e: Exception) { null }
+                        } catch (e: Exception) {
+                            null
+                        }
                     } else null
                     val msgId = ircMsg.tags["msg-id"]
-                    _events.emit(IrcEvent.UserNotice(channel, systemMsg, userMsg, msgId, ircMsg.tags))
+                    _events.emit(
+                        IrcEvent.UserNotice(
+                            channel,
+                            systemMsg,
+                            userMsg,
+                            msgId,
+                            ircMsg.tags
+                        )
+                    )
                     Napier.d("USERNOTICE #$channel: $systemMsg", tag = TAG)
                 }
 
@@ -287,8 +294,10 @@ class TwitchIrcClient(
                     val who = ircMsg.nick
                     if (who.isNotEmpty() && !who.equals(currentUsername, ignoreCase = true)) {
                         _events.emit(IrcEvent.UserPart(ircMsg.channel, who))
+                        HotPathLog.verbose(TAG) { "$who left #${ircMsg.channel}" }
+                    } else {
+                        Napier.d("Left #${ircMsg.channel}", tag = TAG)
                     }
-                    Napier.d("Left #${ircMsg.channel}", tag = TAG)
                 }
 
                 "001", "002", "003", "004", "353", "366", "372", "375", "376", "CAP" -> {
@@ -382,8 +391,14 @@ class TwitchIrcClient(
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
             reconnectAttempts++
-            val delay = baseReconnectDelay * (1L shl (reconnectAttempts - 1)) + Random.nextLong(0, maxJitter)
-            Napier.d("Reconnecting in ${delay}ms (attempt $reconnectAttempts/$maxReconnectAttempts)", tag = TAG)
+            val delay = baseReconnectDelay * (1L shl (reconnectAttempts - 1)) + Random.nextLong(
+                0,
+                maxJitter
+            )
+            Napier.d(
+                "Reconnecting in ${delay}ms (attempt $reconnectAttempts/$maxReconnectAttempts)",
+                tag = TAG
+            )
             delay(delay)
 
             if (currentUsername.isNotEmpty()) {

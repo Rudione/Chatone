@@ -39,15 +39,15 @@ import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 enum class MentionFilter { ALL, UNREAD, TODAY, BY_USER, BY_CHANNEL }
 enum class MentionSort { NEWEST, OLDEST, BY_USER, BY_CHANNEL }
-
 
 @Composable
 fun MentionsFeed(
@@ -114,7 +114,6 @@ fun MentionsFeed(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
 
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -143,7 +142,7 @@ fun MentionsFeed(
                     modifier = Modifier.weight(1f)
                 )
                 Box {
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = { showFilterMenu = true },
                         modifier = Modifier.size(28.dp)
                     ) {
@@ -185,7 +184,7 @@ fun MentionsFeed(
                         )
                     }
                 }
-                IconButton(
+                ChatoneIconButton(
                     onClick = { showUserSearchBar = !showUserSearchBar; if (!showUserSearchBar) userSearchQuery = "" },
                     modifier = Modifier.size(28.dp)
                 ) {
@@ -196,7 +195,7 @@ fun MentionsFeed(
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                IconButton(
+                ChatoneIconButton(
                     onClick = { onCloseClick?.invoke() ?: onEvent(MainEvent.HideMentionsFeed) },
                     modifier = Modifier.size(28.dp)
                 ) {
@@ -212,34 +211,22 @@ fun MentionsFeed(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedTextField(
+                    ChatoneTextField(
                         value = userSearchQuery,
                         onValueChange = { userSearchQuery = it },
-                        modifier = Modifier.weight(1f).height(42.dp),
-                        placeholder = {
-                            Text(
-                                LocalStrings.current.panelMentionsFilterByUserSearch,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        },
+                        modifier = Modifier.weight(1f).heightIn(min = 40.dp),
+                        placeholder = LocalStrings.current.panelMentionsFilterByUserSearch,
                         textStyle = MaterialTheme.typography.bodySmall,
                         singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ),
-                        leadingIcon = {
+                        leading = {
                             Icon(Icons.Filled.Search, null, modifier = Modifier.size(14.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         },
-                        trailingIcon = if (userSearchQuery.isNotEmpty()) {
-                            { IconButton(onClick = { userSearchQuery = "" }, modifier = Modifier.size(20.dp)) {
+                        trailing = if (userSearchQuery.isNotEmpty()) {
+                            { ChatoneIconButton(onClick = { userSearchQuery = "" }, modifier = Modifier.size(20.dp)) {
                                 Icon(Icons.Filled.Close, null, modifier = Modifier.size(12.dp)) }
                             }
                         } else null
@@ -248,7 +235,6 @@ fun MentionsFeed(
             }
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
 
             if (displayedMentions.isEmpty()) {
                 Box(

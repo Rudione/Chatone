@@ -22,18 +22,18 @@ fun LiquidGlassDropdown(
     content: @Composable ColumnScope.() -> Unit
 ) {
     if (expanded) {
-       
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     detectTapGestures(
-                       
+
                         onPress = { onDismissRequest() }
                     )
                 }
         ) {
-           
+
             LiquidGlassSurface(
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(vertical = 4.dp),
@@ -41,8 +41,7 @@ fun LiquidGlassDropdown(
                 backgroundAlphaLow = 0.85f,
                 modifier = modifier
                     .widthIn(min = 160.dp, max = 240.dp)
-                   
-                   
+
                     .pointerInput(Unit) {
                         detectTapGestures(onTap = {  })
                     }

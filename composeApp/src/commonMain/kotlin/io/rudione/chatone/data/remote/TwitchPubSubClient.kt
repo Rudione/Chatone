@@ -89,16 +89,32 @@ class TwitchPubSubClient(
                         send(Frame.Text(pinListen))
                         Napier.d("Subscribed to PubSub topic: $pinTopic", tag = TAG)
 
-                        // Bonus-chest claim-available events for the auto-claim automation.
                         val pointsTopic = "community-points-user-v1.$currentUserId"
                         val pointsListen =
                             """{"type":"LISTEN","nonce":"points","data":{"topics":["$pointsTopic"],"auth_token":"$currentToken"}}"""
                         send(Frame.Text(pointsListen))
                         Napier.d("Subscribed to PubSub topic: $pointsTopic", tag = TAG)
 
+                        val pollTopic = "polls.$currentChannelId"
+                        send(
+                            Frame.Text(
+                                """{"type":"LISTEN","nonce":"polls","data":{"topics":["$pollTopic"],"auth_token":"$currentToken"}}"""
+                            )
+                        )
+                        Napier.d("Subscribed to PubSub topic: $pollTopic", tag = TAG)
+
+                        val predictionTopic = "predictions-channel-v1.$currentChannelId"
+                        send(
+                            Frame.Text(
+                                """{"type":"LISTEN","nonce":"predictions","data":{"topics":["$predictionTopic"],"auth_token":"$currentToken"}}"""
+                            )
+                        )
+                        Napier.d("Subscribed to PubSub topic: $predictionTopic", tag = TAG)
+
                         if (currentIsMod) {
                             val automodTopic = "automod-queue.$currentUserId.$currentChannelId"
-                            val modActionsTopic = "chat_moderator_actions.$currentUserId.$currentChannelId"
+                            val modActionsTopic =
+                                "chat_moderator_actions.$currentUserId.$currentChannelId"
 
                             val automodListen =
                                 """{"type":"LISTEN","nonce":"automod","data":{"topics":["$automodTopic"],"auth_token":"$currentToken"}}"""
@@ -159,7 +175,8 @@ class TwitchPubSubClient(
                 "RESPONSE" -> {
                     val error = obj["error"]?.jsonPrimitive?.content
                     if (!error.isNullOrEmpty()) {
-                        Napier.e("PubSub LISTEN error: $error", tag = TAG)
+                        val nonce = obj["nonce"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        Napier.e("PubSub LISTEN error [$nonce]: $error", tag = TAG)
                     }
                 }
 
@@ -170,9 +187,23 @@ class TwitchPubSubClient(
 
                     when {
                         topic.startsWith("automod-queue.") -> handleAutoModMessage(messageStr)
-                        topic.startsWith("chat_moderator_actions.") -> handleModActionMessage(messageStr)
-                        topic.startsWith("pinned-chat-updates-v1.") -> handlePinnedChatUpdate(messageStr)
-                        topic.startsWith("community-points-user-v1.") -> handleCommunityPoints(messageStr)
+                        topic.startsWith("chat_moderator_actions.") -> handleModActionMessage(
+                            messageStr
+                        )
+
+                        topic.startsWith("pinned-chat-updates-v1.") -> handlePinnedChatUpdate(
+                            messageStr
+                        )
+
+                        topic.startsWith("community-points-user-v1.") -> handleCommunityPoints(
+                            messageStr
+                        )
+
+                        topic.startsWith("polls.") -> handlePollUpdate(messageStr)
+
+                        topic.startsWith("predictions-channel-v1.") -> handlePredictionUpdate(
+                            messageStr
+                        )
                     }
                 }
             }
@@ -181,7 +212,6 @@ class TwitchPubSubClient(
         }
     }
 
-    /** `claim-available` events carry the bonus-chest claim id the auto-claim automation needs. */
     private fun handleCommunityPoints(messageStr: String) {
         try {
             val root = json.parseToJsonElement(messageStr).jsonObject
@@ -195,12 +225,84 @@ class TwitchPubSubClient(
         }
     }
 
-    // Payload shapes (same as moltorino's PubSubPinnedChatUpdatesV1Message):
-    //  pin-message / update-message: data.{id, pinned_by{display_name}, message{id, sender{id,
-    //    display_name, login, chat_color}, content{text}, ends_at(epoch sec)}}
-    //  unpin-message: data.{id|pin_id|pinned_chat_message_id, unpinned_by{display_name}}
-    // The payload is parsed in full because the GQL fallback fetch is rejected (401) for
-    // third-party client tokens — this is the only working source of pin content.
+    private fun handlePollUpdate(messageStr: String) {
+        try {
+            val root = json.parseToJsonElement(messageStr).jsonObject
+            val type = root["type"]?.jsonPrimitive?.contentOrNull ?: return
+            if (type.equals("POLL_ARCHIVE", ignoreCase = true)) {
+                scope.launch { _events.emit(IrcEvent.PollUpdated(currentChannelId, null)) }
+                return
+            }
+            val poll = root["data"]?.jsonObject?.get("poll")?.jsonObject ?: return
+            val id = poll["poll_id"]?.jsonPrimitive?.contentOrNull ?: return
+            val choices = poll["choices"]?.jsonArray?.mapNotNull { c ->
+                val co = c.jsonObject
+                val cid = co["choice_id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val votes = co["votes"]?.jsonObject
+                io.rudione.chatone.data.remote.dto.PollChoice(
+                    id = cid,
+                    title = co["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    votes = votes?.get("base")?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0,
+                    channelPointsVotes = votes?.get("channel_points")?.jsonPrimitive
+                        ?.contentOrNull?.toIntOrNull() ?: 0,
+                    bitsVotes = votes?.get("bits")?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+                )
+            }.orEmpty()
+            val data = io.rudione.chatone.data.remote.dto.PollData(
+                id = id,
+                broadcasterId = poll["owned_by"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                title = poll["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                choices = choices,
+                status = poll["status"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                duration = poll["duration_seconds"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0,
+                startedAt = poll["started_at"]?.jsonPrimitive?.contentOrNull,
+                endedAt = poll["ended_at"]?.jsonPrimitive?.contentOrNull,
+                remainingMs = poll["remaining_duration_milliseconds"]?.jsonPrimitive
+                    ?.contentOrNull?.toLongOrNull()
+            )
+            Napier.d("PubSub poll $type: ${data.title} (${data.status})", tag = TAG)
+            scope.launch { _events.emit(IrcEvent.PollUpdated(currentChannelId, data)) }
+        } catch (e: Exception) {
+            Napier.w("PubSub poll parse failed: ${e.message}", tag = TAG)
+        }
+    }
+
+    private fun handlePredictionUpdate(messageStr: String) {
+        try {
+            val root = json.parseToJsonElement(messageStr).jsonObject
+            val event = root["data"]?.jsonObject?.get("event")?.jsonObject ?: return
+            val id = event["id"]?.jsonPrimitive?.contentOrNull ?: return
+            val outcomes = event["outcomes"]?.jsonArray?.mapNotNull { o ->
+                val oo = o.jsonObject
+                val oid = oo["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                io.rudione.chatone.data.remote.dto.PredictionOutcome(
+                    id = oid,
+                    title = oo["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    users = oo["total_users"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0,
+                    channelPoints = oo["total_points"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0,
+                    color = oo["color"]?.jsonPrimitive?.contentOrNull ?: "BLUE"
+                )
+            }.orEmpty()
+            val data = io.rudione.chatone.data.remote.dto.PredictionData(
+                id = id,
+                broadcasterId = event["channel_id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                title = event["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                winningOutcomeId = event["winning_outcome_id"]?.jsonPrimitive?.contentOrNull,
+                outcomes = outcomes,
+                predictionWindow = event["prediction_window_seconds"]?.jsonPrimitive
+                    ?.contentOrNull?.toIntOrNull() ?: 0,
+                status = event["status"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                createdAt = event["created_at"]?.jsonPrimitive?.contentOrNull,
+                endedAt = event["ended_at"]?.jsonPrimitive?.contentOrNull,
+                lockedAt = event["locked_at"]?.jsonPrimitive?.contentOrNull
+            )
+            Napier.d("PubSub prediction: ${data.title} (${data.status})", tag = TAG)
+            scope.launch { _events.emit(IrcEvent.PredictionUpdated(currentChannelId, data)) }
+        } catch (e: Exception) {
+            Napier.w("PubSub prediction parse failed: ${e.message}", tag = TAG)
+        }
+    }
+
     private fun handlePinnedChatUpdate(messageStr: String) {
         val channelId = currentChannelId
         try {
@@ -213,7 +315,8 @@ class TwitchPubSubClient(
                     val msg = data?.get("message")?.jsonObject
                     val sender = msg?.get("sender")?.jsonObject
                     val pin = if (msg != null) {
-                        val senderName = sender?.get("display_name")?.jsonPrimitive?.contentOrNull.orEmpty()
+                        val senderName =
+                            sender?.get("display_name")?.jsonPrimitive?.contentOrNull.orEmpty()
                         IrcEvent.PinnedChatPayload(
                             pinId = data["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                             messageId = msg["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
@@ -226,7 +329,11 @@ class TwitchPubSubClient(
                             endsAtEpochMs = msg["ends_at"]?.jsonPrimitive?.contentOrNull
                                 ?.toLongOrNull()?.takeIf { it > 0 }?.times(1000),
                             pinnerName = data["pinned_by"]?.jsonObject
-                                ?.get("display_name")?.jsonPrimitive?.contentOrNull.orEmpty()
+                                ?.get("display_name")?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            pinnerUserId = data["pinned_by"]?.jsonObject
+                                ?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            pinnerLogin = data["pinned_by"]?.jsonObject
+                                ?.get("login")?.jsonPrimitive?.contentOrNull.orEmpty()
                         )
                     } else null
                     scope.launch { _events.emit(IrcEvent.PinnedChatUpdated(channelId, pin = pin)) }
@@ -240,7 +347,10 @@ class TwitchPubSubClient(
                     scope.launch {
                         _events.emit(
                             IrcEvent.PinnedChatUpdated(
-                                channelId, isUnpin = true, unpinId = unpinId, unpinnedBy = unpinnedBy
+                                channelId,
+                                isUnpin = true,
+                                unpinId = unpinId,
+                                unpinnedBy = unpinnedBy
                             )
                         )
                     }
@@ -296,6 +406,7 @@ class TwitchPubSubClient(
             val reason = when (action) {
                 IrcEvent.ModeratorAction.ACTION_BAN,
                 IrcEvent.ModeratorAction.ACTION_UNBAN -> args.getOrNull(1)
+
                 IrcEvent.ModeratorAction.ACTION_TIMEOUT -> args.getOrNull(2)
                 else -> null
             }
@@ -390,7 +501,8 @@ class TwitchPubSubClient(
                             try {
                                 val itemObj = item.jsonObject
                                 val cat = itemObj["category"]?.jsonPrimitive?.content
-                                val lvl = itemObj["level"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                                val lvl =
+                                    itemObj["level"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
                                 if (cat != null && lvl > maxLevel) {
                                     maxLevel = lvl
                                     reasonCategory = cat

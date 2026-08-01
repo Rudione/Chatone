@@ -5,7 +5,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
-
 @Composable
 fun AccountSwitchEffect(
     accountManager: AccountManager,

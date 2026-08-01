@@ -3,7 +3,6 @@ package io.rudione.chatone.data.remote.dto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-
 @Serializable
 data class SevenTvPaint(
     val id: String,
@@ -33,7 +32,6 @@ data class SevenTvPaintShadow(
     val color: Int = 0
 )
 
-
 @Serializable
 data class SevenTvBadge(
     val id: String,
@@ -42,7 +40,6 @@ data class SevenTvBadge(
     val tag: String = "",
     val host: SevenTvHost = SevenTvHost()
 )
-
 
 @Serializable
 data class SevenTvGqlRequest(
@@ -78,7 +75,6 @@ data class SevenTvGqlStyle(
 data class SevenTvGqlError(
     val message: String = ""
 )
-
 
 @Serializable
 data class SevenTvUserConnection(
@@ -122,13 +118,11 @@ data class SevenTvUserStyle(
     @SerialName("badge_id") val badgeId: String? = null
 )
 
-
 @Serializable
 data class SevenTvCosmeticsResponse(
     val paints: List<SevenTvPaint> = emptyList(),
     val badges: List<SevenTvBadge> = emptyList()
 )
-
 
 @Serializable
 data class SevenTvEventMessage(

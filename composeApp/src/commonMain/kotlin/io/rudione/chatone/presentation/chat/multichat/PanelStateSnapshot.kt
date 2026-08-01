@@ -2,13 +2,11 @@ package io.rudione.chatone.presentation.chat.multichat
 
 import io.rudione.chatone.domain.model.ChatPanel
 
-
 data class PanelStateSnapshot(
     val panels: List<ChatPanel>,
     val activePanelId: String?,
     val timestamp: Long
 )
-
 
 class PanelStateHistory(private val capacity: Int = 20) {
     private val undoStack = ArrayDeque<PanelStateSnapshot>()

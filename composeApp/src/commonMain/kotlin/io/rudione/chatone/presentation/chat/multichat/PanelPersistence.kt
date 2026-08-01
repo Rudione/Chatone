@@ -2,7 +2,6 @@ package io.rudione.chatone.presentation.chat.multichat
 
 import com.russhwolf.settings.Settings
 
-
 class PanelPersistence(private val settings: Settings) {
     companion object {
         private const val KEY_PANELS = "multichat_open_panels"

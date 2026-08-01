@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.theme
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,7 +26,8 @@ data class ChatFontSettings(
 
 val LocalChatFont = compositionLocalOf { ChatFontSettings() }
 
-val FirstMessageColor = Color(0xFF7B2FBE)
+val FirstMessageColor =
+    Color(io.rudione.chatone.domain.model.HighlightRule.FIRST_MESSAGE_RULE.color)
 
 object ChatoneColors {
 
@@ -40,7 +42,6 @@ object ChatoneColors {
     val Violet800 = Color(0xFF4520A0)
     val Violet900 = Color(0xFF2E1570)
 
-
     val Cyan50 = Color(0xFFE0FEFF)
     val Cyan100 = Color(0xFFB3FCFF)
     val Cyan200 = Color(0xFF7AF7FF)
@@ -49,10 +50,8 @@ object ChatoneColors {
     val Cyan500 = Color(0xFF00C8E0)
     val Cyan600 = Color(0xFF009DB3)
 
-
     val Rose400 = Color(0xFFFF6B8A)
     val Rose500 = Color(0xFFFF4571)
-
 
     val Success = Color(0xFF34D399)
     val SuccessDark = Color(0xFF059669)
@@ -61,7 +60,6 @@ object ChatoneColors {
     val Error = Color(0xFFF87171)
     val ErrorDark = Color(0xFFDC2626)
     val Live = Color(0xFFEB0400)
-
 
     val DarkBg = Color(0xFF0A0A0F)
     val DarkSurface = Color(0xFF1E1E28)
@@ -73,12 +71,10 @@ object ChatoneColors {
     val DarkTextSecondary = Color(0xFFA0A0B8)
     val DarkTextTertiary = Color(0xFF6B6B82)
 
-
     val GlassDark = Color(0x1AFFFFFF)
     val GlassBorderDark = Color(0x26FFFFFF)
     val GlassLight = Color(0x33FFFFFF)
     val GlassBorderLight = Color(0x40FFFFFF)
-
 
     val LightBg = Color(0xFFF8F8FC)
     val LightSurface = Color(0xFFFFFFFF)
@@ -90,90 +86,14 @@ object ChatoneColors {
     val LightTextSecondary = Color(0xFF4A4A60)
     val LightTextTertiary = Color(0xFF8888A0)
 
-
     val MentionHighlightDark = Color(0x269B6DFF)
     val MentionHighlightLight = Color(0x1A7C4DFF)
-
 
     val ModTimeout = Color(0xFFFBBF24)
     val ModBan = Color(0xFFF87171)
     val ModDelete = Color(0xFFFF8C42)
     val ModUnban = Color(0xFF34D399)
 }
-
-
-private val ChatoneDarkScheme = darkColorScheme(
-    primary = ChatoneColors.Violet500,
-    onPrimary = Color.White,
-    primaryContainer = ChatoneColors.Violet800,
-    onPrimaryContainer = ChatoneColors.Violet200,
-    secondary = ChatoneColors.Violet300,
-    onSecondary = ChatoneColors.Violet900,
-    secondaryContainer = ChatoneColors.Violet700,
-    onSecondaryContainer = ChatoneColors.Violet100,
-    tertiary = ChatoneColors.Rose400,
-    onTertiary = Color.Black,
-    tertiaryContainer = Color(0xFF5C1031),
-    onTertiaryContainer = Color(0xFFFFD9E4),
-    error = ChatoneColors.Error,
-    onError = Color.White,
-    errorContainer = Color(0xFF93000A),
-    onErrorContainer = Color(0xFFFFDAD6),
-    background = ChatoneColors.DarkBg,
-    onBackground = ChatoneColors.DarkTextPrimary,
-    surface = ChatoneColors.DarkSurface,
-    onSurface = ChatoneColors.DarkTextPrimary,
-    surfaceVariant = ChatoneColors.DarkSurfaceElevated,
-    onSurfaceVariant = ChatoneColors.DarkTextSecondary,
-    surfaceContainerLowest = Color(0xFF060609),
-    surfaceContainerLow = Color(0xFF0E0E14),
-    surfaceContainer = ChatoneColors.DarkSurface,
-    surfaceContainerHigh = ChatoneColors.DarkSurfaceElevated,
-    surfaceContainerHighest = ChatoneColors.DarkSurfaceHighest,
-    outline = ChatoneColors.DarkBorder,
-    outlineVariant = ChatoneColors.DarkBorderSubtle,
-    inverseSurface = ChatoneColors.LightSurface,
-    inverseOnSurface = ChatoneColors.LightTextPrimary,
-    inversePrimary = ChatoneColors.Violet700,
-    scrim = Color(0xCC000000)
-)
-
-private val ChatoneLightScheme = lightColorScheme(
-    primary = ChatoneColors.Violet600,
-    onPrimary = Color.White,
-    primaryContainer = ChatoneColors.Violet100,
-    onPrimaryContainer = ChatoneColors.Violet900,
-    secondary = ChatoneColors.Violet400,
-    onSecondary = Color.White,
-    secondaryContainer = ChatoneColors.Violet100,
-    onSecondaryContainer = ChatoneColors.Violet900,
-    tertiary = ChatoneColors.Rose500,
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFD9E4),
-    onTertiaryContainer = Color(0xFF3E001F),
-    error = ChatoneColors.ErrorDark,
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002),
-    background = ChatoneColors.LightBg,
-    onBackground = ChatoneColors.LightTextPrimary,
-    surface = ChatoneColors.LightSurface,
-    onSurface = ChatoneColors.LightTextPrimary,
-    surfaceVariant = ChatoneColors.LightSurfaceElevated,
-    onSurfaceVariant = ChatoneColors.LightTextSecondary,
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = Color(0xFFFCFCFF),
-    surfaceContainer = ChatoneColors.LightSurfaceElevated,
-    surfaceContainerHigh = ChatoneColors.LightSurfaceHighest,
-    surfaceContainerHighest = Color(0xFFE2E2EC),
-    outline = ChatoneColors.LightBorder,
-    outlineVariant = ChatoneColors.LightBorderSubtle,
-    inverseSurface = ChatoneColors.DarkSurface,
-    inverseOnSurface = ChatoneColors.DarkTextPrimary,
-    inversePrimary = ChatoneColors.Violet300,
-    scrim = Color(0x66000000)
-)
-
 
 data class ChatoneExtraColors(
     val mentionHighlight: Color,
@@ -229,7 +149,7 @@ private val DarkExtraColors = ChatoneExtraColors(
     modDelete = ChatoneColors.ModDelete,
     modUnban = ChatoneColors.ModUnban,
     connected = ChatoneColors.Success,
-   
+
     sidebarSurface = Color(0xFF18182A),
     sidebarSelected = Color(0xFF2E2E46),
     chatInputSurface = Color(0xFF1C1C2E),
@@ -260,7 +180,6 @@ private val LightExtraColors = ChatoneExtraColors(
     elevatedShadow = Color(0x14000000)
 )
 
-
 val LocalChatoneColorTokens = staticCompositionLocalOf { ChatoneColorTokens() }
 
 object ChatoneTheme {
@@ -284,7 +203,7 @@ fun ChatoneTheme(
     colorTokens: ChatoneColorTokens = ChatoneColorTokens(),
     content: @Composable () -> Unit
 ) {
-   
+
     val colorScheme = if (customTheme != null) {
         var base = ColorSchemeGenerator.generateFromSeed(
             customTheme.seedColor,
@@ -296,11 +215,9 @@ fun ChatoneTheme(
         }
         base
     } else {
-        applyAccentPalette(ChatoneDarkScheme, accentColorIndex, true)
+        accentColorScheme(accentPaletteAt(accentColorIndex))
     }
-    // Every panel token below reads from the SAME already-accent-tinted colorScheme surfaces
-    // (see applyAccentPalette), so sidebar/topbar/bottombar/mod-panel/chat-pane all move
-    // together with the chosen accent instead of drifting independently.
+
     val extraColors = DarkExtraColors.copy(
         modTimeout = Color(colorTokens.modTimeout),
         modBan = Color(colorTokens.modBan),
@@ -338,163 +255,13 @@ fun ChatoneTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = typography,
-            shapes = ChatoneShapes,
-            content = content
-        )
-    }
-}
-
-data class AccentPalette(
-    val name: String,
-    val darkPrimary: Color,
-    val darkSecondary: Color,
-    val darkTertiary: Color,
-    val lightPrimary: Color,
-    val lightSecondary: Color,
-    val lightTertiary: Color,
-    val previewColor: Color
-)
-
-val ExpressivePalettes = listOf(
-    AccentPalette(
-        name = "Violet",
-        darkPrimary = ChatoneColors.Violet500,
-        darkSecondary = ChatoneColors.Violet300,
-        darkTertiary = ChatoneColors.Rose400,
-        lightPrimary = ChatoneColors.Violet600,
-        lightSecondary = ChatoneColors.Violet400,
-        lightTertiary = ChatoneColors.Rose500,
-        previewColor = ChatoneColors.Violet500
-    ),
-    AccentPalette(
-        name = "Aurora",
-        darkPrimary = Color(0xFF00BFA5),
-        darkSecondary = Color(0xFF80DEEA),
-        darkTertiary = Color(0xFFFF8A65),
-        lightPrimary = Color(0xFF00897B),
-        lightSecondary = Color(0xFF00ACC1),
-        lightTertiary = Color(0xFFFF7043),
-        previewColor = Color(0xFF00BFA5)
-    ),
-    AccentPalette(
-        name = "Ember",
-        darkPrimary = Color(0xFFFF6E6E),
-        darkSecondary = Color(0xFFFFB347),
-        darkTertiary = Color(0xFFB39DDB),
-        lightPrimary = Color(0xFFD32F2F),
-        lightSecondary = Color(0xFFF57C00),
-        lightTertiary = Color(0xFF7B1FA2),
-        previewColor = Color(0xFFFF6E6E)
-    ),
-    AccentPalette(
-        name = "Ocean",
-        darkPrimary = Color(0xFF4FC3F7),
-        darkSecondary = Color(0xFF80CBC4),
-        darkTertiary = Color(0xFFCE93D8),
-        lightPrimary = Color(0xFF0277BD),
-        lightSecondary = Color(0xFF00695C),
-        lightTertiary = Color(0xFF6A1B9A),
-        previewColor = Color(0xFF4FC3F7)
-    ),
-    AccentPalette(
-        name = "Forest",
-        darkPrimary = Color(0xFF81C784),
-        darkSecondary = Color(0xFFA5D6A7),
-        darkTertiary = Color(0xFFFFD54F),
-        lightPrimary = Color(0xFF2E7D32),
-        lightSecondary = Color(0xFF388E3C),
-        lightTertiary = Color(0xFFF9A825),
-        previewColor = Color(0xFF81C784)
-    ),
-    AccentPalette(
-        name = "Candy",
-        darkPrimary = Color(0xFFF48FB1),
-        darkSecondary = Color(0xFFCE93D8),
-        darkTertiary = Color(0xFF80DEEA),
-        lightPrimary = Color(0xFFC2185B),
-        lightSecondary = Color(0xFF7B1FA2),
-        lightTertiary = Color(0xFF0097A7),
-        previewColor = Color(0xFFF48FB1)
-    ),
-    AccentPalette(
-        name = "Solar",
-        darkPrimary = Color(0xFFFFD54F),
-        darkSecondary = Color(0xFFFFCC02),
-        darkTertiary = Color(0xFF80CBC4),
-        lightPrimary = Color(0xFFF57F17),
-        lightSecondary = Color(0xFFE65100),
-        lightTertiary = Color(0xFF00695C),
-        previewColor = Color(0xFFFFD54F)
-    ),
-    AccentPalette(
-        name = "Midnight",
-        darkPrimary = Color(0xFF9FA8DA),
-        darkSecondary = Color(0xFF80DEEA),
-        darkTertiary = Color(0xFFEF9A9A),
-        lightPrimary = Color(0xFF283593),
-        lightSecondary = Color(0xFF00838F),
-        lightTertiary = Color(0xFFB71C1C),
-        previewColor = Color(0xFF9FA8DA)
-    )
-)
-
-private fun applyAccentPalette(base: ColorScheme, index: Int, dark: Boolean): ColorScheme {
-    val palette = ExpressivePalettes.getOrElse(index) { ExpressivePalettes[0] }
-    return if (dark) {
-        val accent = palette.darkPrimary
-        val t = 0.05f
-        base.copy(
-            primary = palette.darkPrimary,
-            onPrimary = Color.White,
-            primaryContainer = palette.darkPrimary.copy(alpha = 0.25f).compositeOver(Color(0xFF1A1A22)),
-            onPrimaryContainer = palette.darkPrimary.copy(alpha = 0.9f),
-            secondary = palette.darkSecondary,
-            onSecondary = Color.Black,
-            secondaryContainer = palette.darkSecondary.copy(alpha = 0.22f).compositeOver(Color(0xFF1A1A22)),
-            onSecondaryContainer = palette.darkSecondary,
-            tertiary = palette.darkTertiary,
-            onTertiary = Color.Black,
-            tertiaryContainer = palette.darkTertiary.copy(alpha = 0.22f).compositeOver(Color(0xFF1A1A22)),
-            onTertiaryContainer = palette.darkTertiary,
-            inversePrimary = palette.lightPrimary,
-
-            // Same relative accent tint on every surface step, so sidebar/topbar/bottombar/chat
-            // pane/mod panel/settings/automod all shift together instead of only some of them.
-            background = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkBg),
-            surface = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurface),
-            surfaceVariant = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurfaceElevated),
-            surfaceContainerLowest = accent.copy(alpha = t).compositeOver(Color(0xFF060609)),
-            surfaceContainerLow = accent.copy(alpha = t).compositeOver(Color(0xFF0E0E14)),
-            surfaceContainer = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurface),
-            surfaceContainerHigh = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurfaceElevated),
-            surfaceContainerHighest = accent.copy(alpha = t).compositeOver(ChatoneColors.DarkSurfaceHighest)
-        )
-    } else {
-        val accent = palette.lightPrimary
-        val t = 0.06f
-        base.copy(
-            primary = palette.lightPrimary,
-            onPrimary = Color.White,
-            primaryContainer = palette.lightPrimary.copy(alpha = 0.12f).compositeOver(Color.White),
-            onPrimaryContainer = palette.lightPrimary,
-            secondary = palette.lightSecondary,
-            onSecondary = Color.White,
-            secondaryContainer = palette.lightSecondary.copy(alpha = 0.12f).compositeOver(Color.White),
-            onSecondaryContainer = palette.lightSecondary,
-            tertiary = palette.lightTertiary,
-            onTertiary = Color.White,
-            tertiaryContainer = palette.lightTertiary.copy(alpha = 0.12f).compositeOver(Color.White),
-            onTertiaryContainer = palette.lightTertiary,
-            inversePrimary = palette.darkPrimary,
-            background = accent.copy(alpha = t * 0.5f).compositeOver(ChatoneColors.LightBg),
-            surface = accent.copy(alpha = t).compositeOver(ChatoneColors.LightSurface),
-            surfaceVariant = accent.copy(alpha = t).compositeOver(ChatoneColors.LightSurfaceElevated),
-            surfaceContainerLowest = accent.copy(alpha = t * 0.5f).compositeOver(Color.White),
-            surfaceContainerLow = accent.copy(alpha = t * 0.6f).compositeOver(Color(0xFFFCFCFF)),
-            surfaceContainer = accent.copy(alpha = t).compositeOver(ChatoneColors.LightSurfaceElevated),
-            surfaceContainerHigh = accent.copy(alpha = t).compositeOver(ChatoneColors.LightSurfaceHighest),
-            surfaceContainerHighest = accent.copy(alpha = t * 1.2f).compositeOver(Color(0xFFE2E2EC))
-        )
+            shapes = ChatoneShapes
+        ) {
+            CompositionLocalProvider(
+                LocalIndication provides ChatoneIndication,
+                content = content
+            )
+        }
     }
 }
 
@@ -508,7 +275,6 @@ internal fun Color.compositeOver(background: Color): Color {
         alpha = 1f
     )
 }
-
 
 val ChatoneTypography = Typography(
     displayLarge = TextStyle(
@@ -586,7 +352,6 @@ val ChatoneTypography = Typography(
         letterSpacing = 0.5.sp
     )
 )
-
 
 val ChatoneShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),

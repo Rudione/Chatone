@@ -8,7 +8,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import io.rudione.chatone.domain.model.ChatPanel
 
-
 class PanelMentionTracker {
     private val unread = mutableMapOf<String, Int>()
 
@@ -27,7 +26,6 @@ class PanelMentionTracker {
 
 @Composable
 fun rememberPanelMentionTracker(): PanelMentionTracker = remember { PanelMentionTracker() }
-
 
 @Composable
 fun PanelMentionEffect(

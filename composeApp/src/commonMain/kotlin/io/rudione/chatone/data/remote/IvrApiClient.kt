@@ -17,7 +17,6 @@ data class SubAgeInfo(
     val hidden: Boolean
 )
 
-/** ivr.fi public API — sub-age lookup needs no Twitch token at all. */
 class IvrApiClient(private val httpClient: HttpClient) {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -28,7 +27,8 @@ class IvrApiClient(private val httpClient: HttpClient) {
                 .get("https://api.ivr.fi/v2/twitch/subage/$userLogin/$channelLogin")
                 .bodyAsText()
             val root = json.parseToJsonElement(raw).jsonObject
-            val hidden = root["statusHidden"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
+            val hidden =
+                root["statusHidden"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
             val cumulative = root["cumulative"]?.let { el ->
                 (el as? kotlinx.serialization.json.JsonObject
                     ?: el.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonObject)
@@ -40,7 +40,12 @@ class IvrApiClient(private val httpClient: HttpClient) {
             val tier = root["meta"]?.let { el ->
                 (el as? kotlinx.serialization.json.JsonObject)?.get("tier")?.jsonPrimitive?.contentOrNull
             }
-            SubAgeInfo(cumulativeMonths = cumulative, streakMonths = streak, tier = tier, hidden = hidden)
+            SubAgeInfo(
+                cumulativeMonths = cumulative,
+                streakMonths = streak,
+                tier = tier,
+                hidden = hidden
+            )
         } catch (e: Exception) {
             Napier.w("IVR subage failed: ${e.message}", tag = "IvrApi")
             null

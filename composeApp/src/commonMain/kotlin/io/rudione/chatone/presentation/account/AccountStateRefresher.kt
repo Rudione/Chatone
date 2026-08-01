@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-
 class AccountStateRefresher(
     private val authRepository: AuthRepository,
     private val accountManager: AccountManager,

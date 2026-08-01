@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -35,7 +35,10 @@ interface ChatRepository {
     suspend fun getFavoriteChannels(): Flow<List<Channel>>
     suspend fun updateFavorite(channelId: String, isFavorite: Boolean)
     suspend fun saveMessage(message: ChatMessage)
+    suspend fun saveMessages(messages: List<ChatMessage>)
+    suspend fun getLocalHistoryForChannel(channelId: String, limit: Long = 200): List<ChatMessage>
     suspend fun getMessagesForChannel(channelId: String, limit: Long): Flow<List<ChatMessage>>
+    suspend fun getLocalHistoryForUser(channelId: String, userId: String, limit: Long = 500): List<ChatMessage>
 }
 
 class ChatRepositoryImpl(
@@ -71,7 +74,6 @@ class ChatRepositoryImpl(
         Napier.d("Joining channel: $channelName", tag = TAG)
         ircClient.joinChannel(channelName)
 
-       
         val channel = database.channelQueries.getChannelById(channelName).executeAsOneOrNull()
         if (channel != null) {
             database.channelQueries.updateLastJoined(
@@ -214,6 +216,25 @@ class ChatRepositoryImpl(
     }
 
     override suspend fun saveMessage(message: ChatMessage) {
+        insertMessage(message)
+    }
+
+    override suspend fun saveMessages(messages: List<ChatMessage>) {
+        if (messages.isEmpty()) return
+        database.messageQueries.transaction {
+            messages.forEach { insertMessage(it) }
+        }
+    }
+
+    override suspend fun getLocalHistoryForChannel(channelId: String, limit: Long): List<ChatMessage> {
+        if (channelId.isBlank()) return emptyList()
+        return database.messageQueries.getMessagesByChannel(channelId, limit)
+            .executeAsList()
+            .map { it.toChatMessage() }
+            .reversed()
+    }
+
+    private fun insertMessage(message: ChatMessage) {
         database.messageQueries.insertMessage(
             id = message.id,
             channelId = message.channelId,
@@ -238,35 +259,42 @@ class ChatRepositoryImpl(
     override suspend fun getMessagesForChannel(channelId: String, limit: Long): Flow<List<ChatMessage>> = flow {
         val messages = database.messageQueries.getMessagesByChannel(channelId, limit)
             .executeAsList()
-            .map { entity ->
-                ChatMessage(
-                    id = entity.id,
-                    channelId = entity.channelId,
-                    channelName = entity.channelName,
-                    userId = entity.userId,
-                    username = entity.username,
-                    displayName = entity.displayName,
-                    message = entity.message,
-                    timestamp = entity.timestamp,
-                    color = entity.color,
-                    badges = try {
-                        Json.decodeFromString(entity.badges)
-                    } catch (e: Exception) {
-                        emptyList()
-                    },
-                    emotes = try {
-                        Json.decodeFromString(entity.emotes)
-                    } catch (e: Exception) {
-                        emptyList()
-                    },
-                    isModerator = entity.isModerator == 1L,
-                    isSubscriber = entity.isSubscriber == 1L,
-                    isVip = entity.isVip == 1L,
-                    isBroadcaster = entity.isBroadcaster == 1L,
-                    isMention = entity.isMention == 1L,
-                    isAction = entity.isAction == 1L
-                )
-            }
+            .map { it.toChatMessage() }
         emit(messages.reversed())
     }
+
+    override suspend fun getLocalHistoryForUser(channelId: String, userId: String, limit: Long): List<ChatMessage> {
+        return database.messageQueries.getMessagesByChannelAndUser(channelId, userId, limit)
+            .executeAsList()
+            .map { it.toChatMessage() }
+            .reversed()
+    }
+
+    private fun io.rudione.chatone.data.local.MessageEntity.toChatMessage(): ChatMessage = ChatMessage(
+        id = id,
+        channelId = channelId,
+        channelName = channelName,
+        userId = userId,
+        username = username,
+        displayName = displayName,
+        message = message,
+        timestamp = timestamp,
+        color = color,
+        badges = try {
+            Json.decodeFromString(badges)
+        } catch (e: Exception) {
+            emptyList()
+        },
+        emotes = try {
+            Json.decodeFromString(emotes)
+        } catch (e: Exception) {
+            emptyList()
+        },
+        isModerator = isModerator == 1L,
+        isSubscriber = isSubscriber == 1L,
+        isVip = isVip == 1L,
+        isBroadcaster = isBroadcaster == 1L,
+        isMention = isMention == 1L,
+        isAction = isAction == 1L
+    )
 }

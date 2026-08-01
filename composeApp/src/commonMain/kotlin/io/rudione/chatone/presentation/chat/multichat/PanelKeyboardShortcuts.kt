@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 
-
 object PanelKeyboardShortcuts {
 
     fun closeActive(panelManager: ChatPanelManager): Boolean {
@@ -33,7 +32,6 @@ object PanelKeyboardShortcuts {
         return true
     }
 }
-
 
 @Composable
 fun rememberActivePanelChannel(panelManager: ChatPanelManager): String? {

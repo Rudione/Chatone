@@ -9,7 +9,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import io.rudione.chatone.domain.model.ChatPanel
 
-
 @Composable
 fun MultiChatScope(
     panelManager: ChatPanelManager,
@@ -23,7 +22,6 @@ fun MultiChatScope(
     modifier: Modifier = Modifier
 ) {
     val panels by panelManager.panels.collectAsState()
-
 
     if (enablePersistence && panelPersistence != null) {
         LaunchedEffect(Unit) { panelPersistence.load(panelManager) }

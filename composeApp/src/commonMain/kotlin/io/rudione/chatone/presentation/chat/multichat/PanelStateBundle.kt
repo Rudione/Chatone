@@ -7,7 +7,6 @@ import io.rudione.chatone.domain.model.ChatPanel
 import io.rudione.chatone.domain.model.PanelLayoutMode
 import io.rudione.chatone.domain.model.layoutMode
 
-
 data class PanelStateBundle(
     val panels: List<ChatPanel>,
     val activePanelId: String?,

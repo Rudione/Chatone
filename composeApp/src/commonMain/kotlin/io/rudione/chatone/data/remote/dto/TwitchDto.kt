@@ -13,6 +13,41 @@ data class TokenResponse(
 )
 
 @Serializable
+data class ClipsResponse(
+    val data: List<ClipData> = emptyList()
+)
+
+@Serializable
+data class ClipData(
+    val id: String,
+    val url: String,
+    @SerialName("embed_url") val embedUrl: String = "",
+    @SerialName("broadcaster_id") val broadcasterId: String = "",
+    @SerialName("broadcaster_name") val broadcasterName: String = "",
+    @SerialName("creator_id") val creatorId: String = "",
+    @SerialName("creator_name") val creatorName: String = "",
+    @SerialName("video_id") val videoId: String = "",
+    @SerialName("game_id") val gameId: String = "",
+    val title: String = "",
+    @SerialName("view_count") val viewCount: Int = 0,
+    @SerialName("created_at") val createdAt: String = "",
+    @SerialName("thumbnail_url") val thumbnailUrl: String = "",
+    val duration: Double = 0.0
+)
+
+@Serializable
+data class GamesResponse(
+    val data: List<GameData> = emptyList()
+)
+
+@Serializable
+data class GameData(
+    val id: String,
+    val name: String,
+    @SerialName("box_art_url") val boxArtUrl: String = ""
+)
+
+@Serializable
 data class ValidateTokenResponse(
     @SerialName("client_id") val clientId: String,
     @SerialName("login") val login: String,
@@ -238,7 +273,6 @@ data class UserEmoteData(
     @SerialName("theme_mode") val themeMode: List<String> = emptyList()
 )
 
-
 @Serializable
 data class PollChoice(
     val id: String = "",
@@ -263,7 +297,9 @@ data class PollData(
     val status: String = "",
     val duration: Int = 0,
     @SerialName("started_at") val startedAt: String? = null,
-    @SerialName("ended_at") val endedAt: String? = null
+    @SerialName("ended_at") val endedAt: String? = null,
+    val selfVoteChoiceId: String? = null,
+    val remainingMs: Long? = null
 )
 
 @Serializable
@@ -291,7 +327,9 @@ data class PredictionData(
     val status: String = "",
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("ended_at") val endedAt: String? = null,
-    @SerialName("locked_at") val lockedAt: String? = null
+    @SerialName("locked_at") val lockedAt: String? = null,
+    val selfOutcomeId: String? = null,
+    val selfPoints: Int? = null
 )
 
 @Serializable

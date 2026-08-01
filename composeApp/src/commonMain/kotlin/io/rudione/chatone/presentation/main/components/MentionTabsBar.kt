@@ -33,7 +33,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.MentionEntry
-import io.rudione.chatone.presentation.chat.adjustReadableColor
 import io.rudione.chatone.presentation.chat.parseColor
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
@@ -85,11 +84,10 @@ fun MentionTabsBar(
 @Composable
 private fun MentionTab(data: MentionTabData, active: Boolean, onClick: () -> Unit) {
     val accent = MaterialTheme.colorScheme.primary
-    val surfaceBg = MaterialTheme.colorScheme.surface
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val senderColor = remember(data.latest.fromColor, surfaceBg) {
+    val senderColor = remember(data.latest.fromColor) {
         parseColor(data.latest.fromColor)
-    }?.let { adjustReadableColor(it, surfaceBg) } ?: MaterialTheme.colorScheme.onSurface
+    } ?: MaterialTheme.colorScheme.onSurface
 
     Surface(
         shape = RoundedCornerShape(8.dp),

@@ -60,25 +60,33 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.OutlinedButton
 import io.github.aakira.napier.Napier
+import io.rudione.chatone.data.repository.DeviceAuthState
+import io.rudione.chatone.data.repository.FirstPartyDeviceAuthController
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+
+private enum class AuthPhase { CHECKING, LOADING, FIRST_PARTY, CONTENT }
 
 @Composable
 fun AuthScreen(
     onAuthSuccess: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: AuthViewModel = koinViewModel()
+    viewModel: AuthViewModel = koinViewModel(),
+    firstPartyController: FirstPartyDeviceAuthController = koinInject()
 ) {
     val state by viewModel.state.collectAsState()
+    val deviceState by firstPartyController.state.collectAsState()
     val uriHandler = LocalUriHandler.current
 
-   
     val backgroundColor = MaterialTheme.colorScheme.background
     val primaryColor = MaterialTheme.colorScheme.primary
     val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
-   
     val fadeIn by animateFloatAsState(
         targetValue = 1f,
         animationSpec = tween(durationMillis = 600, easing = EaseOutCubic),
@@ -125,14 +133,25 @@ fun AuthScreen(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
+            val phase = when {
+                state.isCheckingToken -> AuthPhase.CHECKING
+                state.isLoading -> AuthPhase.LOADING
+                state.awaitingFirstParty -> AuthPhase.FIRST_PARTY
+                else -> AuthPhase.CONTENT
+            }
             AnimatedContent(
-                targetState = state.isCheckingToken to state.isLoading,
+                targetState = phase,
                 label = "authStateTransition"
-            ) { (isChecking, isLoading) ->
-                when {
-                    isChecking -> CheckingAuthState()
-                    isLoading -> LoadingAuthState()
-                    else -> AuthContentState(
+            ) { p ->
+                when (p) {
+                    AuthPhase.CHECKING -> CheckingAuthState()
+                    AuthPhase.LOADING -> LoadingAuthState()
+                    AuthPhase.FIRST_PARTY -> FirstPartyAuthStep(
+                        deviceState = deviceState,
+                        onOpenVerificationUrl = { url -> uriHandler.openUri(url) },
+                        onSkip = { viewModel.sendEvent(AuthEvent.OnSkipFirstParty) }
+                    )
+                    AuthPhase.CONTENT -> AuthContentState(
                         state = state,
                         onLoginClick = { viewModel.sendEvent(AuthEvent.OnLoginClicked) },
                         onGuestClick = { viewModel.sendEvent(AuthEvent.OnGuestClicked) },
@@ -169,7 +188,7 @@ private fun DecorativeBackgroundOrbs() {
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-       
+
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -185,7 +204,6 @@ private fun DecorativeBackgroundOrbs() {
                     shape = RoundedCornerShape(50)
                 )
         )
-
 
         Box(
             modifier = Modifier
@@ -264,6 +282,130 @@ private fun LoadingAuthState() {
 }
 
 @Composable
+private fun FirstPartyAuthStep(
+    deviceState: DeviceAuthState,
+    onOpenVerificationUrl: (String) -> Unit,
+    onSkip: () -> Unit
+) {
+    val s = LocalStrings.current
+
+    LiquidGlassSurface(
+        modifier = Modifier
+            .padding(24.dp)
+            .widthIn(max = 420.dp),
+        backgroundAlphaHigh = 0.88f,
+        backgroundAlphaLow = 0.75f,
+        borderAlphaHigh = 0.25f,
+        borderAlphaLow = 0.08f
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = s.authFirstPartyTitle,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = s.authFirstPartyDesc,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+
+            when (deviceState) {
+                is DeviceAuthState.WaitingForApproval -> {
+                    Text(
+                        text = s.tokenCardDeviceCodeHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = deviceState.userCode,
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    ModernAuthButton(
+                        text = s.tokenCardOpenTwitch,
+                        onClick = { onOpenVerificationUrl(deviceState.verificationUri) },
+                        isLoading = false,
+                        isPrimary = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                DeviceAuthState.Validating -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = s.tokenCardValidating,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                is DeviceAuthState.Success -> {
+                    Icon(
+                        imageVector = Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = s.authFirstPartyGranted,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                is DeviceAuthState.Error -> {
+                    Text(
+                        text = deviceState.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
+                }
+
+                DeviceAuthState.Idle -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            OutlinedButton(
+                onClick = onSkip,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(s.authFirstPartySkip)
+            }
+        }
+    }
+}
+
+@Composable
 private fun PulsingLogo() {
     val infiniteTransition = rememberInfiniteTransition(label = "logoPulse")
     val scale by infiniteTransition.animateFloat(
@@ -293,7 +435,6 @@ private fun AuthContentState(
 ) {
     val uriHandler = LocalUriHandler.current
 
-
     LiquidGlassSurface(
         modifier = Modifier
             .padding(24.dp)
@@ -307,7 +448,7 @@ private fun AuthContentState(
             modifier = Modifier.padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-           
+
             AnimatedVisibility(
                 visible = true,
                 enter = fadeIn() + slideInVertically { -20 }
@@ -329,7 +470,6 @@ private fun AuthContentState(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-           
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -362,7 +502,6 @@ private fun AuthContentState(
                 }
             }
 
-           
             AnimatedVisibility(
                 visible = state.error != null,
                 enter = fadeIn() + expandVertically(),
@@ -416,7 +555,6 @@ private fun AuthContentState(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-           
             AnimatedVisibility(
                 visible = true,
                 enter = fadeIn() + slideInVertically { 10 }

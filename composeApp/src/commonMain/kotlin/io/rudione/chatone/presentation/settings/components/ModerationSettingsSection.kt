@@ -38,12 +38,15 @@ import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.MacroStep
 import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
+import io.rudione.chatone.presentation.components.SettingsCard
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 @Composable
 fun ModerationSettingsSection(
@@ -127,22 +130,20 @@ fun ModerationSettingsSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            OutlinedTextField(
+            ChatoneTextField(
                 value = state.savedTimeoutReason,
                 onValueChange = { onEvent(SettingsEvent.OnSavedTimeoutReasonChanged(it)) },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(s.modSavedTimeoutReasonLabel) },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp)
+                label = s.modSavedTimeoutReasonLabel,
+                singleLine = true
             )
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
+            ChatoneTextField(
                 value = state.savedBanReason,
                 onValueChange = { onEvent(SettingsEvent.OnSavedBanReasonChanged(it)) },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(s.modSavedBanReasonLabel) },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp)
+                label = s.modSavedBanReasonLabel,
+                singleLine = true
             )
         }
     }
@@ -315,7 +316,7 @@ private fun ModActionButtonsSection(
                             }
                         }
                         if (!btn.isDefault) {
-                            IconButton(
+                            ChatoneIconButton(
                                 onClick = { editingButton = btn },
                                 modifier = Modifier.size(28.dp)
                             ) {
@@ -325,7 +326,7 @@ private fun ModActionButtonsSection(
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            IconButton(
+                            ChatoneIconButton(
                                 onClick = { onEvent(SettingsEvent.OnRemoveModButton(btn.id)) },
                                 modifier = Modifier.size(28.dp)
                             ) {
@@ -439,17 +440,17 @@ private fun ModButtonRow(
             )
         }
         Row {
-            IconButton(onClick = onMoveUp, enabled = !isFirst, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onMoveUp, enabled = !isFirst, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Filled.KeyboardArrowUp, null, modifier = Modifier.size(16.dp))
             }
-            IconButton(onClick = onMoveDown, enabled = !isLast, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onMoveDown, enabled = !isLast, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Filled.KeyboardArrowDown, null, modifier = Modifier.size(16.dp))
             }
-            IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.primary)
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Outlined.Delete, null, modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.error)
             }
@@ -492,13 +493,13 @@ private fun AddModButtonDialog(
                         )
                     }
                 }
-                OutlinedTextField(
+                ChatoneTextField(
                     value = seconds,
                     onValueChange = { seconds = it.filter { c -> c.isDigit() } },
-                    label = { Text(s.modDurationSeconds) },
+                    label = s.modDurationSeconds,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
-                    trailingIcon = {
+                    trailing = {
                         secsInt?.let {
                             Text(ModActionButton.formatDuration(it),
                                 style = MaterialTheme.typography.labelSmall,
@@ -508,11 +509,11 @@ private fun AddModButtonDialog(
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
+                ChatoneTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text(s.modCustomLabelOptional) },
-                    placeholder = { Text(secsInt?.let { ModActionButton.formatDuration(it) } ?: s.modAuto) },
+                    label = s.modCustomLabelOptional,
+                    placeholder = secsInt?.let { ModActionButton.formatDuration(it) } ?: s.modAuto,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -528,7 +529,6 @@ private fun AddModButtonDialog(
         }
     }
 }
-
 
 @Composable
 fun MacrosSection(
@@ -546,7 +546,6 @@ fun MacrosSection(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
 
             if (state.macros.any { it.pinnedIndex >= 0 }) {
                 Text(s.modQuickBar, style = MaterialTheme.typography.labelSmall,
@@ -659,7 +658,7 @@ private fun MacroRow(
             )
         }
         Box {
-            IconButton(
+            ChatoneIconButton(
                 onClick = { showPinMenu = true },
                 modifier = Modifier.size(32.dp)
             ) {
@@ -670,7 +669,7 @@ private fun MacroRow(
                     tint = if (isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            DropdownMenu(expanded = showPinMenu, onDismissRequest = { showPinMenu = false }) {
+            ChatoneDropdownMenu(expanded = showPinMenu, onDismissRequest = { showPinMenu = false }) {
                 if (isPinned) {
                     DropdownMenuItem(
                         text = { Text(s.modUnpinFromBar) },
@@ -689,15 +688,14 @@ private fun MacroRow(
                 }
             }
         }
-        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+        ChatoneIconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
         }
-        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+        ChatoneIconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Outlined.Delete, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
         }
     }
 }
-
 
 @Composable
 private fun MacroNameDialog(
@@ -713,9 +711,11 @@ private fun MacroNameDialog(
         Surface(shape = RoundedCornerShape(20.dp), tonalElevation = 8.dp) {
             Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(s.modNewMacro, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                OutlinedTextField(
-                    value = name, onValueChange = { name = it },
-                    label = { Text(s.modMacroName) }, singleLine = true,
+                ChatoneTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = s.modMacroName,
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(s.modChooseIcon, style = MaterialTheme.typography.labelSmall,
@@ -743,7 +743,6 @@ private fun MacroNameDialog(
         }
     }
 }
-
 
 @Composable
 fun MacroEditorDialog(
@@ -779,33 +778,29 @@ fun MacroEditorDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(macroName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
-                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, null) }
+                    ChatoneIconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, null) }
                 }
-
 
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
-                    OutlinedTextField(
+                    io.rudione.chatone.presentation.components.ChatoneTextField(
                         value = macroIcon,
                         onValueChange = { if (it.length <= 2) macroIcon = it },
-                        label = { Text(s.modIcon) },
-                        modifier = Modifier.width(72.dp),
-                        singleLine = true
+                        label = s.modIcon,
+                        modifier = Modifier.width(88.dp)
                     )
-                    OutlinedTextField(
+                    io.rudione.chatone.presentation.components.ChatoneTextField(
                         value = macroName,
                         onValueChange = { macroName = it },
-                        label = { Text(s.modMacroName) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
+                        label = s.modMacroName,
+                        modifier = Modifier.weight(1f)
                     )
                 }
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider()
-
 
                 LazyColumn(
                     modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
@@ -876,7 +871,6 @@ fun MacroEditorDialog(
         }
     }
 
-
     if (showAddStep) {
         AddMacroStepDialog(
             initialStep = null,
@@ -887,7 +881,6 @@ fun MacroEditorDialog(
             onDismiss = { showAddStep = false }
         )
     }
-
 
     editingStepIndex?.let { idx ->
         val stepToEdit = steps.getOrNull(idx)
@@ -942,17 +935,17 @@ private fun MacroStepRow(
             modifier = Modifier.weight(1f), maxLines = 2)
         Row {
 
-            IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Outlined.Edit, null, modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
             }
-            IconButton(onClick = onMoveUp, enabled = !isFirst, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onMoveUp, enabled = !isFirst, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Filled.KeyboardArrowUp, null, modifier = Modifier.size(14.dp))
             }
-            IconButton(onClick = onMoveDown, enabled = !isLast, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onMoveDown, enabled = !isLast, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Filled.KeyboardArrowDown, null, modifier = Modifier.size(14.dp))
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+            ChatoneIconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
                 Icon(Icons.Outlined.Delete, null, modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
             }
@@ -979,7 +972,6 @@ private fun stepDescription(step: MacroStep, s: AppStrings): Pair<String, String
     is MacroStep.Delay -> "⏳" to s.modStepDescDelay.replace("{0}", step.seconds.toString())
     is MacroStep.ClearChat -> "🗑️" to s.modStepDescClear
 }
-
 
 @Composable
 private fun AddMacroStepDialog(
@@ -1075,7 +1067,6 @@ private fun AddMacroStepDialog(
         ) {
             Row(modifier = Modifier.fillMaxSize()) {
 
-
                 Column(
                     modifier = Modifier
                         .width(200.dp)
@@ -1124,9 +1115,7 @@ private fun AddMacroStepDialog(
                     }
                 }
 
-
                 VerticalDivider()
-
 
                 Column(
                     modifier = Modifier
@@ -1147,16 +1136,20 @@ private fun AddMacroStepDialog(
                         }
 
                         when (selected) {
-                            "send" -> OutlinedTextField(
-                                value = messageText, onValueChange = { messageText = it },
-                                label = { Text(s.modMessageText) }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            "insert" -> OutlinedTextField(
-                                value = messageText, onValueChange = { messageText = it },
-                                label = { Text(s.modTextToInsert) }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            "send" -> ChatoneTextField(
+            value = messageText,
+            onValueChange = { messageText = it },
+            label = s.modMessageText,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+                            "insert" -> ChatoneTextField(
+            value = messageText,
+            onValueChange = { messageText = it },
+            label = s.modTextToInsert,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
                             "sub", "emote", "r9k" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(s.modAction, style = MaterialTheme.typography.labelMedium)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1170,13 +1163,14 @@ private fun AddMacroStepDialog(
                                     FilterChip(selected = boolState, onClick = { boolState = true }, label = { Text(s.modEnable) })
                                     FilterChip(selected = !boolState, onClick = { boolState = false }, label = { Text(s.modDisable) })
                                 }
-                                if (boolState) OutlinedTextField(
-                                    value = slowSeconds,
-                                    onValueChange = { slowSeconds = it.filter { c -> c.isDigit() } },
-                                    label = { Text(s.modSlowModeSeconds) }, singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                if (boolState) ChatoneTextField(
+            value = slowSeconds,
+            onValueChange = { slowSeconds = it.filter { c -> c.isDigit() } },
+            label = s.modSlowModeSeconds,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
                             }
                             "followers" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(s.modAction, style = MaterialTheme.typography.labelMedium)
@@ -1184,38 +1178,43 @@ private fun AddMacroStepDialog(
                                     FilterChip(selected = boolState, onClick = { boolState = true }, label = { Text(s.modEnable) })
                                     FilterChip(selected = !boolState, onClick = { boolState = false }, label = { Text(s.modDisable) })
                                 }
-                                if (boolState) OutlinedTextField(
-                                    value = followerMinutes,
-                                    onValueChange = { followerMinutes = it.filter { c -> c.isDigit() } },
-                                    label = { Text(s.modDurationMinutes) }, singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                if (boolState) ChatoneTextField(
+            value = followerMinutes,
+            onValueChange = { followerMinutes = it.filter { c -> c.isDigit() } },
+            label = s.modDurationMinutes,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
                             }
-                            "raid" -> OutlinedTextField(
-                                value = raidTarget, onValueChange = { raidTarget = it },
-                                label = { Text(s.modChannelToRaid) }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            "pin" -> OutlinedTextField(
-                                value = pinMessage, onValueChange = { pinMessage = it },
-                                label = { Text(s.modMessageToPin) }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            "delay" -> OutlinedTextField(
-                                value = delaySeconds,
-                                onValueChange = { delaySeconds = it.filter { c -> c.isDigit() } },
-                                label = { Text(s.modWaitSeconds) }, singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                            "raid" -> ChatoneTextField(
+            value = raidTarget,
+            onValueChange = { raidTarget = it },
+            label = s.modChannelToRaid,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+                            "pin" -> ChatoneTextField(
+            value = pinMessage,
+            onValueChange = { pinMessage = it },
+            label = s.modMessageToPin,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+                            "delay" -> ChatoneTextField(
+            value = delaySeconds,
+            onValueChange = { delaySeconds = it.filter { c -> c.isDigit() } },
+            label = s.modWaitSeconds,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
                             "clear" -> Text(
                                 s.modClearWarning,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
-
 
                         if (selected in listOf("send", "insert", "delay")) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -1225,7 +1224,7 @@ private fun AddMacroStepDialog(
                             ) {
                                 Text(s.modRepeat, style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.width(60.dp))
-                                OutlinedTextField(
+                                ChatoneTextField(
                                     value = repeatCount,
                                     onValueChange = { v ->
                                         val n = v.filter { it.isDigit() }
@@ -1240,7 +1239,6 @@ private fun AddMacroStepDialog(
                             }
                         }
                     }
-
 
                     val canConfirm = when (selected) {
                         "send" -> messageText.isNotBlank()
@@ -1296,49 +1294,4 @@ private fun buildStep(
     "delay" -> delay.toIntOrNull()?.takeIf { it > 0 }?.let { MacroStep.Delay(it, repeatCount.coerceAtLeast(1)) }
     "clear" -> MacroStep.ClearChat()
     else -> null
-}
-
-
-@Composable
-fun SettingsCard(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-            letterSpacing = 0.8.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f),
-                            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.60f)
-                        )
-                    )
-                )
-                .border(
-                    1.dp,
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.20f),
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
-                        )
-                    ),
-                    RoundedCornerShape(16.dp)
-                )
-        ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                content()
-            }
-        }
-    }
 }

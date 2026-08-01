@@ -6,7 +6,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import org.koin.compose.koinInject
 
-
 @Composable
 fun PreviewMultiChatIntegration(
     primaryChannel: String,

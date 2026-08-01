@@ -3,70 +3,50 @@ package io.rudione.chatone.util.emote
 import io.rudione.chatone.domain.model.GenericEmote
 
 class EmoteSearchIndex {
-    private data class TrieNode(
-        val children: MutableMap<Char, TrieNode> = mutableMapOf(),
-        val emotes: MutableList<GenericEmote> = mutableListOf()
-    )
+    private var codes: Array<String> = emptyArray()
+    private var emotes: Array<GenericEmote> = emptyArray()
 
-    private val root = TrieNode()
-    private val reverseRoot = TrieNode()
-
-    fun build(emotes: List<GenericEmote>) {
-        root.children.clear()
-        reverseRoot.children.clear()
-        for (emote in emotes) {
-            val code = emote.code.lowercase()
-            insert(root, code, emote)
-            insert(reverseRoot, code.reversed(), emote)
+    fun build(source: List<GenericEmote>) {
+        val seen = HashSet<String>(source.size)
+        val deduped = ArrayList<GenericEmote>(source.size)
+        for (emote in source) {
+            if (seen.add(emote.listKey)) deduped.add(emote)
         }
-    }
-
-    private fun insert(root: TrieNode, code: String, emote: GenericEmote) {
-        var node = root
-        for (char in code) {
-            node = node.children.getOrPut(char) { TrieNode() }
-        }
-        if (!node.emotes.any { it.id == emote.id }) {
-            node.emotes.add(emote)
-        }
+        emotes = deduped.toTypedArray()
+        codes = Array(deduped.size) { deduped[it].code.lowercase() }
     }
 
     fun search(query: String, limit: Int = Int.MAX_VALUE): List<GenericEmote> {
-        if (query.isBlank()) return emptyList()
+        if (query.isBlank() || emotes.isEmpty()) return emptyList()
         val q = query.lowercase()
-        val results = mutableSetOf<GenericEmote>()
-        collectMatches(root, q, results)
-        collectMatches(reverseRoot, q.reversed(), results)
-        return results.sortedWith(
-            compareByDescending<GenericEmote> { emote ->
-                val code = emote.code.lowercase()
-                when {
-                    code == q -> 3
-                    code.startsWith(q) -> 2
-                    code.endsWith(q) -> 1
-                    else -> 0
-                }
+
+        val exact = ArrayList<GenericEmote>()
+        val prefix = ArrayList<GenericEmote>()
+        val suffix = ArrayList<GenericEmote>()
+
+        for (i in codes.indices) {
+            val code = codes[i]
+            when {
+                code == q -> exact.add(emotes[i])
+                code.startsWith(q) -> prefix.add(emotes[i])
+                code.endsWith(q) -> suffix.add(emotes[i])
             }
-        ).take(limit)
-    }
-
-    private fun collectMatches(root: TrieNode, query: String, results: MutableSet<GenericEmote>) {
-        var node = root
-        for (char in query) {
-            node = node.children[char] ?: return
         }
-        collectFromNode(node, results)
-    }
 
-    private fun collectFromNode(node: TrieNode, results: MutableSet<GenericEmote>) {
-        results.addAll(node.emotes)
-        for (child in node.children.values) {
-            collectFromNode(child, results)
+        if (limit == Int.MAX_VALUE) return exact + prefix + suffix
+
+        val result = ArrayList<GenericEmote>(minOf(limit, exact.size + prefix.size + suffix.size))
+        for (bucket in listOf(exact, prefix, suffix)) {
+            for (emote in bucket) {
+                if (result.size >= limit) return result
+                result.add(emote)
+            }
         }
+        return result
     }
 
     fun clear() {
-        root.children.clear()
-        reverseRoot.children.clear()
+        codes = emptyArray()
+        emotes = emptyArray()
     }
 }

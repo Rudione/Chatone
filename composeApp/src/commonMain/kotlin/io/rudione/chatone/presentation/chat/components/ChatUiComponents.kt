@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,18 +16,24 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
@@ -34,15 +42,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.GenericEmote
+import coil3.compose.AsyncImage
+import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.theme.FirstMessageColor
+import io.rudione.chatone.presentation.components.chatoneGlassPanel
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.util.MessageToken
+import io.rudione.chatone.util.chat.MessageToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 private fun formatRemaining(totalSeconds: Long): String {
     val m = totalSeconds / 60
@@ -55,53 +67,93 @@ internal fun PinnedMessageBar(
     message: DisplayMessage.PrivMsg,
     canUnpin: Boolean,
     endsAtMs: Long? = null,
-    onUnpin: () -> Unit
+    pinnedByName: String? = null,
+    pinnedByBadges: List<Badge> = emptyList(),
+    onUnpin: () -> Unit,
+    onHide: () -> Unit = {}
 ) {
-    val surfaceColor = MaterialTheme.colorScheme.surfaceContainerHigh
     val primaryColor = MaterialTheme.colorScheme.primary
-    Surface(modifier = Modifier.fillMaxWidth(), color = Color.Transparent, tonalElevation = 2.dp) {
-        Box(
-            modifier = Modifier.fillMaxWidth()
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(
-                            primaryColor.copy(alpha = 0.08f),
-                            surfaceColor.copy(alpha = 0.92f),
-                            primaryColor.copy(alpha = 0.05f)
-                        )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 4.dp)
+            .chatoneGlassPanel(RoundedCornerShape(12.dp))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        color = primaryColor.copy(alpha = 0.9f),
+                        size = Size(3.dp.toPx(), size.height)
                     )
-                )
-                .border(
-                    0.5.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            primaryColor.copy(alpha = 0.3f),
-                            primaryColor.copy(alpha = 0.1f),
-                            primaryColor.copy(alpha = 0.2f)
-                        )
-                    ),
-                    RoundedCornerShape(0.dp)
-                )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                }
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    Icons.Filled.Place,
-                    contentDescription = "Pinned",
-                    modifier = Modifier.size(16.dp),
-                    tint = primaryColor.copy(alpha = 0.8f)
-                )
-                Spacer(Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        message.displayName,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = parseColor(message.color) ?: primaryColor
+                if (canUnpin) {
+                    LiquidGlassTooltipBox(tooltip = LocalStrings.current.chatUnpinMessage) {
+                        ChatoneIconButton(onClick = onUnpin, modifier = Modifier.size(24.dp)) {
+                            Icon(
+                                Icons.Filled.PushPin,
+                                contentDescription = LocalStrings.current.chatUnpinMessage,
+                                modifier = Modifier.size(16.dp),
+                                tint = primaryColor
+                            )
+                        }
+                    }
+                } else {
+                    Icon(
+                        Icons.Filled.PushPin,
+                        contentDescription = "Pinned",
+                        modifier = Modifier.size(16.dp),
+                        tint = primaryColor
                     )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            message.displayName,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = parseColor(message.color) ?: primaryColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (!pinnedByName.isNullOrBlank()) {
+                            Spacer(Modifier.width(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                pinnedByBadges.forEach { badge ->
+                                    if (badge.imageUrl.isNotEmpty()) {
+                                        AsyncImage(
+                                            model = badge.imageUrl,
+                                            contentDescription = badge.tooltip.ifBlank { badge.id },
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    pinnedByName,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
                     Text(
                         message.tokens.joinToString("") { token ->
                             when (token) {
@@ -111,7 +163,7 @@ internal fun PinnedMessageBar(
                             }
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                         maxLines = 2, overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -128,23 +180,61 @@ internal fun PinnedMessageBar(
                     Text(
                         if (remainingSec > 0) formatRemaining(remainingSec) else "0:00",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.padding(end = 6.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
-                if (canUnpin) IconButton(onClick = onUnpin, modifier = Modifier.size(24.dp)) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "Unpin",
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                LiquidGlassTooltipBox(tooltip = LocalStrings.current.chatHidePin) {
+                    ChatoneIconButton(onClick = onHide, modifier = Modifier.size(24.dp)) {
+                        Icon(
+                            Icons.Outlined.VisibilityOff,
+                            contentDescription = LocalStrings.current.chatHidePin,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+@Composable
+internal fun HiddenEventsRestoreButton(count: Int, onClick: () -> Unit) {
+    val s = LocalStrings.current
+    LiquidGlassTooltipBox(tooltip = s.chatShowHiddenEvents) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .chatoneGlassPanel(CircleShape, elevation = 8.dp)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Filled.PushPin,
+                contentDescription = s.chatShowHiddenEvents,
+                modifier = Modifier.size(15.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            if (count > 1) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(13.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        count.toString(),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 internal fun ReplyBar(displayName: String, messagePreview: String, onCancel: () -> Unit) {
@@ -177,7 +267,7 @@ internal fun ReplyBar(displayName: String, messagePreview: String, onCancel: () 
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = onCancel, modifier = Modifier.size(24.dp)) {
+            ChatoneIconButton(onClick = onCancel, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Icons.Filled.Close,
                     contentDescription = "Cancel reply",
@@ -189,15 +279,15 @@ internal fun ReplyBar(displayName: String, messagePreview: String, onCancel: () 
     }
 }
 
-
 @Composable
 internal fun RaidBanner(
     targetLogin: String,
     startedAtMs: Long,
     onCancel: () -> Unit,
-    onRaidNow: () -> Unit
+    onRaidNow: () -> Unit,
+    accessToken: String = ""
 ) {
-    val totalSeconds = 90;
+    val totalSeconds = 90
     val lockSeconds = 10
     var remaining by remember(startedAtMs) {
         val e = ((Clock.System.now().toEpochMilliseconds() - startedAtMs) / 1000L).toInt()
@@ -209,179 +299,129 @@ internal fun RaidBanner(
     }
     LaunchedEffect(startedAtMs) {
         while (remaining > 0) {
-            delay(1000)
-            val e = ((Clock.System.now().toEpochMilliseconds() - startedAtMs) / 1000L).toInt()
-            elapsedSec = e.coerceAtLeast(0)
-            remaining = (totalSeconds - e).coerceIn(0, totalSeconds)
+            delay(200)
+            val e = (Clock.System.now().toEpochMilliseconds() - startedAtMs) / 1000.0
+            elapsedSec = e.toInt().coerceAtLeast(0)
+            remaining = (totalSeconds - e.toInt()).coerceIn(0, totalSeconds)
         }
         onCancel()
     }
     val raidNowEnabled = elapsedSec >= lockSeconds
     val accent = MaterialTheme.colorScheme.tertiary
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+
+    var avatarUrl by remember(targetLogin) {
+        mutableStateOf(io.rudione.chatone.util.media.ChannelAvatarCache.cached(targetLogin))
+    }
+    if (avatarUrl == null && accessToken.isNotBlank()) {
+        val apiClient: io.rudione.chatone.data.remote.TwitchApiClient = org.koin.compose.koinInject()
+        LaunchedEffect(targetLogin, accessToken) {
+            avatarUrl = io.rudione.chatone.util.media.ChannelAvatarCache.fetch(apiClient, accessToken, targetLogin)
+        }
+    }
+
+    val progressFraction by animateFloatAsState(
+        targetValue = (remaining.toFloat() / totalSeconds).coerceIn(0f, 1f),
+        label = "raidProgress"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp, vertical = 4.dp)
+            .shadow(
+                10.dp, RoundedCornerShape(12.dp),
+                ambientColor = Color.Black.copy(alpha = 0.25f),
+                spotColor = Color.Black.copy(alpha = 0.3f)
+            )
             .clip(RoundedCornerShape(12.dp))
             .background(
-                Brush.horizontalGradient(
+                Brush.verticalGradient(
                     listOf(
-                        accent.copy(alpha = 0.18f),
-                        accent.copy(alpha = 0.08f)
+                        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.99f),
+                        MaterialTheme.colorScheme.surfaceContainerHigh
                     )
                 )
             )
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.04f))
+                ),
+                RoundedCornerShape(12.dp)
+            )
     ) {
-        Icon(Icons.Filled.Star, null, modifier = Modifier.size(18.dp), tint = accent)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                LocalStrings.current.raidStarted.replace("{0}", "@$targetLogin"),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                when {
-                    remaining <= 0 -> "Raid sent!"
-                    !raidNowEnabled -> "Preparing… ${lockSeconds - elapsedSec}s (${remaining}s total)"
-                    else -> "Sending viewers in ${remaining}s"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        TextButton(onClick = onRaidNow, enabled = raidNowEnabled) {
-            Text(
-                LocalStrings.current.raidNow,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (raidNowEnabled) accent else accent.copy(alpha = 0.38f)
-            )
-        }
-        TextButton(onClick = onCancel) {
-            Text(
-                LocalStrings.current.cancel,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.error
-            )
-        }
-    }
-}
-
-
-@Composable
-internal fun HighlightScrollbar(
-    listState: LazyListState,
-    messages: List<DisplayMessage>,
-    modifier: Modifier = Modifier
-) {
-    val coroutineScope = rememberCoroutineScope()
-    val thumbFraction by remember {
-        derivedStateOf {
-            val info = listState.layoutInfo;
-            val total = info.totalItemsCount
-            if (total == 0) return@derivedStateOf 0f to 0.1f
-            val viewportHeight = info.viewportSize.height.toFloat()
-            val visibleItems = info.visibleItemsInfo
-            val avgHeight = if (visibleItems.isNotEmpty()) visibleItems.map { it.size }.average()
-                .toFloat() else 50f
-            val totalContentHeight = avgHeight * total
-            val firstVisible = visibleItems.firstOrNull() ?: return@derivedStateOf 0f to 0.1f
-            val scrollOffset = firstVisible.index * avgHeight + firstVisible.offset.toFloat()
-            val thumbSize = (viewportHeight / totalContentHeight).coerceIn(0.05f, 1f)
-            val maxScroll = (totalContentHeight - viewportHeight).coerceAtLeast(0f)
-            val thumbOffset =
-                if (maxScroll > 0f) (scrollOffset / maxScroll * (1f - thumbSize)).coerceIn(
-                    0f,
-                    1f - thumbSize
-                ) else 0f
-            thumbOffset to thumbSize
-        }
-    }
-    Canvas(
-        modifier = modifier
-            // Single unified press+drag handler: a plain click jumps to that position (like a
-            // normal scrollbar track click), and dragging from anywhere in the hit area keeps
-            // scrolling relative to the pointer. Previously tap and drag were two separate
-            // pointerInput gesture detectors racing over the same events, which made most of the
-            // bar feel unresponsive and only a thin sliver reliably "catch" the cursor.
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    val fraction = (down.position.y / size.height).coerceIn(0f, 1f)
-                    val target =
-                        (fraction * (messages.size - 1)).toInt().coerceIn(0, messages.lastIndex.coerceAtLeast(0))
-                    coroutineScope.launch { listState.scrollToItem(target) }
-                    down.consume()
-                    var pointerId = down.id
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
-                        if (!change.pressed) break
-                        if (change.positionChanged()) {
-                            val dragAmountY = change.position.y - change.previousPosition.y
-                            val layoutInfo = listState.layoutInfo
-                            val viewportHeight = layoutInfo.viewportSize.height.toFloat()
-                            val avgHeight =
-                                if (layoutInfo.visibleItemsInfo.isNotEmpty()) layoutInfo.visibleItemsInfo.map { it.size }
-                                    .average().toFloat() else 50f
-                            val totalContentHeight = avgHeight * layoutInfo.totalItemsCount
-                            val scrollRange = (totalContentHeight - viewportHeight).coerceAtLeast(0f)
-                            val scrollDelta =
-                                if (viewportHeight > 0f && scrollRange > 0f) dragAmountY * (scrollRange / viewportHeight) else 0f
-                            coroutineScope.launch { listState.scrollBy(scrollDelta) }
-                            change.consume()
-                        }
-                        pointerId = change.id
-                    }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(30.dp).clip(CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!avatarUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = targetLogin,
+                        modifier = Modifier.size(30.dp).clip(CircleShape)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier.size(30.dp).clip(CircleShape)
+                            .background(accent.copy(alpha = 0.25f))
+                    )
                 }
             }
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        if (event.type == PointerEventType.Scroll) {
-                            val scrollAmount = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
-                            if (scrollAmount != 0f) {
-                                coroutineScope.launch { listState.scrollBy(scrollAmount) }; event.changes.forEach { it.consume() }
-                            }
-                        }
-                    }
-                }
-            }
-    ) {
-        drawRect(color = Color.White.copy(alpha = 0.06f))
-        val (thumbOffset, thumbSize) = thumbFraction
-        val thumbTop = thumbOffset * size.height
-        val thumbHeightPx = (thumbSize * size.height).coerceAtLeast(24.dp.toPx())
-        drawRoundRect(
-            color = Color.White.copy(alpha = 0.35f),
-            topLeft = Offset(1.dp.toPx(), thumbTop),
-            size = androidx.compose.ui.geometry.Size(size.width - 2.dp.toPx(), thumbHeightPx),
-            cornerRadius = CornerRadius(4.dp.toPx())
-        )
-        val total = messages.size.takeIf { it > 0 } ?: return@Canvas
-        messages.forEachIndexed { index, msg ->
-            if (msg !is DisplayMessage.PrivMsg) return@forEachIndexed
-            val tickColor = when {
-                msg.isMention -> if (msg.highlightColor != null) Color(msg.highlightColor) else Color(
-                    0xFFFF6B6B
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    LocalStrings.current.raidStarted.replace("{0}", "@$targetLogin"),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-
-                msg.isHighlighted -> Color(0xFFFFD700)
-                msg.isFirstMessage -> FirstMessageColor.copy(alpha = 0.8f)
-                else -> return@forEachIndexed
+                Text(
+                    when {
+                        remaining <= 0 -> LocalStrings.current.raidSuccess
+                        !raidNowEnabled -> "${lockSeconds - elapsedSec}s · ${remaining}s"
+                        else -> "${remaining}s"
+                    },
+                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-            val y = (index.toFloat() / total) * size.height
-            drawRect(
-                color = tickColor.copy(alpha = 0.85f),
-                topLeft = Offset(0f, y - 1.dp.toPx()),
-                size = androidx.compose.ui.geometry.Size(size.width, 2.dp.toPx())
-            )
+            TextButton(
+                onClick = onRaidNow,
+                enabled = raidNowEnabled,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    LocalStrings.current.raidNow,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (raidNowEnabled) accent else accent.copy(alpha = 0.38f)
+                )
+            }
+            TextButton(
+                onClick = onCancel,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+            ) {
+                Text(
+                    LocalStrings.current.cancel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
+        LinearProgressIndicator(
+            progress = { progressFraction },
+            modifier = Modifier.fillMaxWidth().height(3.dp),
+            color = if (raidNowEnabled) accent else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            trackColor = Color.Transparent,
+            strokeCap = StrokeCap.Round
+        )
     }
 }
-
 
 @Composable
 internal fun rememberStaggeredMessages(
@@ -417,7 +457,6 @@ internal fun rememberStaggeredMessages(
     }
     return visible
 }
-
 
 @Composable
 internal fun EmoteAutocompleteRow(
@@ -489,7 +528,6 @@ internal fun EmoteAutocompleteRow(
         }
     }
 }
-
 
 @Composable
 internal fun MentionAutocompleteRow(

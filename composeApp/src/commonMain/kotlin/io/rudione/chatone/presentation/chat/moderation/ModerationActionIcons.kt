@@ -13,7 +13,6 @@ import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.rudione.chatone.domain.model.IrcEvent
 
-
 object ModerationActionIcons {
     fun iconFor(action: String): ImageVector = when (action) {
         IrcEvent.ModeratorAction.ACTION_BAN -> Icons.Outlined.Block

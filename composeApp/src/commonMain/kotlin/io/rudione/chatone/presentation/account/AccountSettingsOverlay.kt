@@ -1,6 +1,5 @@
 package io.rudione.chatone.presentation.account
 
-
 object AccountSettingsOverlay {
 
     fun getEffectiveOverrideJson(
@@ -12,7 +11,6 @@ object AccountSettingsOverlay {
         return accountManager.getSettingsOverrideJson(userId)
     }
 
-
     fun saveOverrideJson(
         userId: String,
         accountManager: AccountManager,
@@ -21,7 +19,6 @@ object AccountSettingsOverlay {
         if (userId.isBlank()) return
         accountManager.saveSettingsOverrideJson(userId, json)
     }
-
 
     fun clearOverride(userId: String, accountManager: AccountManager) {
         accountManager.saveSettingsOverrideJson(userId, null)

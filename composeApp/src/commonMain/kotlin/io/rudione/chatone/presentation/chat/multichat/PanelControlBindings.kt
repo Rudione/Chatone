@@ -3,7 +3,6 @@ package io.rudione.chatone.presentation.chat.multichat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 
-
 @Composable
 fun PanelEventDispatcher(
     bus: PanelEventBus,

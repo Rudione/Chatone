@@ -5,7 +5,6 @@ import androidx.compose.runtime.Stable
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-
 @Stable
 data class CompactChatLayout(
     val showBadges: Boolean,

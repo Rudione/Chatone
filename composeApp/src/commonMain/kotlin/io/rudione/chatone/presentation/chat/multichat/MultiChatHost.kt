@@ -32,7 +32,7 @@ import io.rudione.chatone.domain.model.ChatPanel
 import io.rudione.chatone.domain.model.PanelLayoutMode
 import io.rudione.chatone.domain.model.layoutMode
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 fun MultiChatHost(
@@ -105,7 +105,7 @@ private fun PanelHeader(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
-        IconButton(
+        ChatoneIconButton(
             onClick = onClose,
             modifier = Modifier.size(if (compact) 16.dp else 20.dp)
         ) {

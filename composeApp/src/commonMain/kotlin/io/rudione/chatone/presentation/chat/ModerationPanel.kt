@@ -60,6 +60,7 @@ import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 fun ModerationPanel(
@@ -104,7 +105,6 @@ fun ModerationPanel(
     var shoutoutTarget by remember { mutableStateOf("") }
     var showChannelPoints by remember { mutableStateOf(false) }
 
-
     LiquidGlassSurface(
         modifier = modifier
             .fillMaxWidth()
@@ -137,7 +137,7 @@ fun ModerationPanel(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                ChatoneIconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Filled.Close,
                         contentDescription = "Close",
@@ -146,7 +146,6 @@ fun ModerationPanel(
                     )
                 }
             }
-
 
             if (pinnedMacros.isNotEmpty()) {
                 PanelSectionLabel("Macros")
@@ -168,7 +167,6 @@ fun ModerationPanel(
                 }
                 PanelDivider()
             }
-
 
             PanelSectionLabel("Chat Modes")
             Row(
@@ -213,7 +211,6 @@ fun ModerationPanel(
                 }
             }
 
-
             PanelDivider()
             PanelSectionLabel("Slow Mode")
             Row(
@@ -240,7 +237,6 @@ fun ModerationPanel(
                         }
                     }
             }
-
 
             AnimatedVisibility(
                 visible = roomState.followersOnly >= 0,
@@ -271,7 +267,6 @@ fun ModerationPanel(
                     }
                 }
             }
-
 
             PanelDivider()
             PanelSectionLabel("Quick Actions")
@@ -329,10 +324,7 @@ fun ModerationPanel(
                     isToggled = showChannelPoints
                 ) { showChannelPoints = !showChannelPoints }
 
-
-                
             }
-
 
             AnimatedVisibility(
                 visible = showPin,
@@ -354,7 +346,6 @@ fun ModerationPanel(
                 )
             }
 
-
             AnimatedVisibility(
                 visible = showShoutout,
                 enter = expandVertically(tween(200)) + fadeIn(tween(150)),
@@ -374,7 +365,6 @@ fun ModerationPanel(
                     }
                 )
             }
-
 
             AnimatedVisibility(
                 visible = showAnnouncement,
@@ -433,7 +423,6 @@ fun ModerationPanel(
                     )
                 }
             }
-
 
             AnimatedVisibility(
                 visible = showRaid,
@@ -597,8 +586,7 @@ private fun ChannelPointsSection(
                     error = r.exception.message ?: "Failed to load rewards"
                 else -> {}
             }
-            // Separate call: Helix only reveals which rewards this app may PATCH/DELETE
-            // through the only_manageable_rewards filter.
+
             when (val m = apiClient.getCustomRewards(accessToken, channelId, onlyManageable = true)) {
                 is io.rudione.chatone.util.Result.Success ->
                     manageableIds = m.data.data.map { it.id }.toSet()
@@ -674,7 +662,7 @@ private fun ChannelPointsSection(
                         )
                     }
                     if (manageable) {
-                        IconButton(
+                        ChatoneIconButton(
                             onClick = {
                                 scope.launch {
                                     val r = apiClient.updateCustomReward(
@@ -695,7 +683,7 @@ private fun ChannelPointsSection(
                                 tint = MaterialTheme.colorScheme.secondary
                             )
                         }
-                        IconButton(
+                        ChatoneIconButton(
                             onClick = {
                                 scope.launch {
                                     val r = apiClient.deleteCustomReward(accessToken, channelId, reward.id)
@@ -759,7 +747,7 @@ private fun ChannelPointsSection(
             ) {
                 Text(LocalStrings.current.create, style = MaterialTheme.typography.labelSmall)
             }
-            IconButton(onClick = { reload() }, modifier = Modifier.size(26.dp)) {
+            ChatoneIconButton(onClick = { reload() }, modifier = Modifier.size(26.dp)) {
                 Icon(
                     Icons.Filled.Refresh,
                     contentDescription = "Refresh rewards",
@@ -785,8 +773,6 @@ private fun parseHexColorOrDefault(hex: String, fallback: Color): Color = try {
     fallback
 }
 
-/** 34dp bordered pill field — OutlinedTextField's 56dp minimum makes the mod panel forms
- * twice as tall as they need to be. */
 @Composable
 internal fun CompactModField(
     value: String,
@@ -897,7 +883,7 @@ private fun PollPredictionForm(
                     accent = submitColor
                 )
                 if (rows.size > 2) {
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = {
                             rows.removeAt(idx)
                             onOptionsChange(rows.joinToString("\n"))
@@ -947,7 +933,6 @@ private fun PollPredictionForm(
         }
     }
 }
-
 
 @Composable
 private fun ModPanelButton(
@@ -1061,7 +1046,6 @@ private fun ModPanelInputRow(
         }
         Spacer(Modifier.width(6.dp))
 
-
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -1086,7 +1070,6 @@ private fun ModPanelInputRow(
         }
     }
 }
-
 
 @Composable
 private fun PanelSectionLabel(text: String) {

@@ -6,7 +6,6 @@ import androidx.compose.runtime.remember
 import io.rudione.chatone.presentation.settings.InlineImageMode
 import io.rudione.chatone.presentation.settings.SettingsState
 
-
 @Stable
 data class StableChatStyle(
     val showBadges: Boolean,
@@ -23,7 +22,6 @@ data class StableChatStyle(
     val closeEmotePickerOnMouseLeave: Boolean,
     val scrollbackLimit: Int
 )
-
 
 @Composable
 fun rememberStableChatStyle(s: SettingsState): StableChatStyle {

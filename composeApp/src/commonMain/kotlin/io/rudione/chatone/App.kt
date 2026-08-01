@@ -7,9 +7,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.ui.NavDisplay
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -18,7 +21,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import coil3.compose.setSingletonImageLoaderFactory
 import com.russhwolf.settings.Settings
-import io.github.aakira.napier.DebugAntilog
+import io.github.aakira.napier.Antilog
+import io.github.aakira.napier.LogLevel
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import io.rudione.chatone.presentation.auth.AuthScreen
@@ -33,21 +37,47 @@ import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperController
-import io.rudione.chatone.util.WallpaperLoader
-import io.rudione.chatone.util.createAnimatedImageLoader
+import io.rudione.chatone.util.media.WallpaperLoader
+import io.rudione.chatone.util.media.createAnimatedImageLoader
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.util.resolveFontFamily
+import io.rudione.chatone.util.font.resolveFontFamilyWithBundled
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
-sealed class Screen {
-    object Loading : Screen()
-    object Auth : Screen()
-    object Main : Screen()
+private data object LoadingRoute
+private data object AuthRoute
+private data object MainRoute
+
+private fun MutableList<Any>.replaceWith(route: Any) {
+    clear()
+    add(route)
+}
+
+private class ChatoneAntilog : Antilog() {
+    override fun isEnable(priority: LogLevel, tag: String?): Boolean =
+        priority > LogLevel.VERBOSE
+
+    override fun performLog(priority: LogLevel, tag: String?, throwable: Throwable?, message: String?) {
+        val level = when (priority) {
+            LogLevel.DEBUG -> "D"
+            LogLevel.INFO -> "I"
+            LogLevel.WARNING -> "W"
+            LogLevel.ERROR -> "E"
+            LogLevel.ASSERT -> "A"
+            else -> "V"
+        }
+        val line = buildString {
+            append("[").append(level).append("]")
+            if (!tag.isNullOrBlank()) append(" ").append(tag)
+            if (!message.isNullOrBlank()) append(": ").append(message)
+        }
+        println(line)
+        throwable?.printStackTrace()
+    }
 }
 
 @Composable
@@ -64,7 +94,7 @@ fun App(
     val settings = Settings()
 
     LaunchedEffect(Unit) {
-        Napier.base(DebugAntilog())
+        Napier.base(ChatoneAntilog())
     }
 
     setSingletonImageLoaderFactory { context ->
@@ -75,7 +105,7 @@ fun App(
 
     KoinContext {
         var isDarkTheme by remember { mutableStateOf(darkTheme) }
-        var currentScreen by remember { mutableStateOf<Screen>(Screen.Loading) }
+        val backStack = remember { mutableStateListOf<Any>(LoadingRoute) }
         val getFirstValidAccount: GetFirstValidAccountUseCase = koinInject()
         val settingsViewModel: SettingsViewModel = koinViewModel()
         val settingsState by settingsViewModel.state.collectAsState()
@@ -93,8 +123,9 @@ fun App(
         val thirdPartyBadgeRepository: io.rudione.chatone.data.repository.ThirdPartyBadgeRepository = koinInject()
         val ffzBadges by thirdPartyBadgeRepository.ffzByLogin.collectAsState()
         val bttvBadges by thirdPartyBadgeRepository.bttvByUserId.collectAsState()
-        val thirdPartyBadgeMaps = remember(ffzBadges, bttvBadges) {
-            io.rudione.chatone.presentation.chat.ThirdPartyBadgeMaps(ffzBadges, bttvBadges)
+        val chatoneBadges by thirdPartyBadgeRepository.chatoneByUserId.collectAsState()
+        val thirdPartyBadgeMaps = remember(ffzBadges, bttvBadges, chatoneBadges) {
+            io.rudione.chatone.presentation.chat.ThirdPartyBadgeMaps(ffzBadges, bttvBadges, chatoneBadges)
         }
 
         LaunchedEffect(settingsState.alwaysOnTop) {
@@ -105,15 +136,10 @@ fun App(
             onTitleBarModeChanged?.invoke(settingsState.titleBarMode)
         }
 
-
-
         LaunchedEffect(Unit) {
             val saved = settingsState.wallpaperDisplayConfig
             wallpaperController.setDisplayConfig(saved)
         }
-
-
-
 
         LaunchedEffect(settingsState.wallpaperPath, settingsState.wallpaperBlur) {
             if (settingsState.wallpaperPath.isBlank()) {
@@ -156,7 +182,6 @@ fun App(
             }
         }
 
-
         LaunchedEffect(customThemeManager.savedThemes.value, activeCustomTheme) {
             settingsViewModel.sendEvent(
                 SettingsEvent.OnCustomThemesJsonChanged(customThemeManager.serialize())
@@ -166,17 +191,15 @@ fun App(
             }
         }
 
-
         LaunchedEffect(Unit) {
             try {
                 val account = getFirstValidAccount()
-                currentScreen = if (account != null) Screen.Main else Screen.Auth
+                backStack.replaceWith(if (account != null) MainRoute else AuthRoute)
             } catch (e: Exception) {
                 Napier.w("Auto-login check failed: ${e.message}", tag = "App")
-                currentScreen = Screen.Auth
+                backStack.replaceWith(AuthRoute)
             }
         }
-
 
         LaunchedEffect(Unit) {
             val themes = settingsState.customThemes
@@ -188,19 +211,22 @@ fun App(
             }
         }
 
-
         val uiScale = settingsState.uiScale
         val currentStrings = remember(settingsState.language) {
             AppStrings.forLocale(settingsState.language)
         }
+        val resolvedChatFontFamily = resolveFontFamilyWithBundled(
+            settingsState.fontFamilyName, settingsState.customFontPaths
+        )
         val chatFontSettings = remember(
             settingsState.fontFamilyName,
             settingsState.fontStyleItalic,
             settingsState.fontUnderline,
             settingsState.fontStrikethrough,
-            settingsState.customFontPaths
+            settingsState.customFontPaths,
+            resolvedChatFontFamily
         ) {
-            val ff = resolveFontFamily(settingsState.fontFamilyName, settingsState.customFontPaths)
+            val ff = resolvedChatFontFamily
             val dec = when {
                 settingsState.fontUnderline && settingsState.fontStrikethrough ->
                     TextDecoration.combine(listOf(TextDecoration.Underline, TextDecoration.LineThrough))
@@ -253,20 +279,27 @@ fun App(
                             }
                         }
                 ) {
-                    when (currentScreen) {
-                        Screen.Loading -> LoadingScreen()
-                        Screen.Auth -> {
-                            AuthScreen(onAuthSuccess = { currentScreen = Screen.Main })
+                    NavDisplay(
+                        backStack = backStack,
+                        onBack = {},
+                        entryProvider = entryProvider {
+                            entry<LoadingRoute> { LoadingScreen() }
+                            entry<AuthRoute> {
+                                AuthScreen(onAuthSuccess = { backStack.replaceWith(MainRoute) })
+                            }
+                            entry<MainRoute> {
+                                MainScreen(
+                                    onNavigateToAuth = { backStack.replaceWith(AuthRoute) },
+                                    onThemeChanged = { dark ->
+                                        isDarkTheme = dark
+                                        onThemeChanged?.invoke(dark)
+                                    }
+                                )
+                            }
                         }
-                        Screen.Main -> {
-                            MainScreen(
-                                onNavigateToAuth = { currentScreen = Screen.Auth },
-                                onThemeChanged = { dark ->
-                                    isDarkTheme = dark
-                                    onThemeChanged?.invoke(dark)
-                                }
-                            )
-                        }
+                    )
+                    if (backStack.lastOrNull() == MainRoute) {
+                        io.rudione.chatone.presentation.ai.AiAssistantOverlay()
                     }
                 }
             }

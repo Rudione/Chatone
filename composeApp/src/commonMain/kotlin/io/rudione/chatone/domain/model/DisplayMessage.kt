@@ -1,7 +1,7 @@
 package io.rudione.chatone.domain.model
 
 import androidx.compose.runtime.Immutable
-import io.rudione.chatone.util.MessageToken
+import io.rudione.chatone.util.chat.MessageToken
 
 @Immutable
 sealed class DisplayMessage {
@@ -71,7 +71,6 @@ sealed class DisplayMessage {
             BAN, TIMEOUT, DELETE, CLEAR, UNBAN
         }
     }
-
 
     data class AutoModMsg(
         override val id: String,

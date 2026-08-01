@@ -30,9 +30,9 @@ import io.rudione.chatone.presentation.components.ExpressiveCheckbox
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
-/** Compact 28dp pill field for the Actions forms. */
 @Composable
 private fun ActionField(
     value: String,
@@ -101,10 +101,6 @@ private fun CardTitle(text: String, subtitle: String? = null) {
     }
 }
 
-/**
- * "Действия" — automations useful for regular viewers: timed messages, auto-replies,
- * keyword sound alerts, auto point claiming, and phrase muting.
- */
 @Composable
 fun ActionsSection(
     state: SettingsState,
@@ -212,7 +208,7 @@ fun ActionsSection(
                         checked = auto.enabled,
                         onCheckedChange = { onEvent(SettingsEvent.OnToggleAutomation(auto.id, it)) }
                     )
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = {
                             editingId = auto.id
                             kind = auto.kind
@@ -232,7 +228,7 @@ fun ActionsSection(
                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                         )
                     }
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = {
                             if (editingId == auto.id) resetForm()
                             onEvent(SettingsEvent.OnRemoveAutomation(auto.id))
@@ -407,20 +403,6 @@ fun ActionsSection(
             )
         }
 
-        /*
-        SectionCard {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    CardTitle(s.actionsAutoClaim, s.actionsAutoClaimHint)
-                }
-                ChatoneSwitch(
-                    checked = state.autoClaimPoints,
-                    onCheckedChange = { onEvent(SettingsEvent.OnAutoClaimPointsChanged(it)) }
-                )
-            }
-        }
-        */
-
         SectionCard {
             CardTitle(s.actionsMutedPhrases, s.actionsMutedPhrasesHint)
             state.mutedPhrases.forEach { phrase ->
@@ -436,7 +418,7 @@ fun ActionsSection(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = { onEvent(SettingsEvent.OnRemoveMutedPhrase(phrase)) },
                         modifier = Modifier.size(24.dp)
                     ) {

@@ -19,7 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.util.SlashCommand
+import io.rudione.chatone.util.chat.SlashCommand
 
 @Composable
 fun SlashCommandSuggestionsRow(

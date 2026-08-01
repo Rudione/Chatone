@@ -41,6 +41,7 @@ val generateBuildConfig by tasks.registering {
 kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
+        freeCompilerArgs.add("-opt-in=kotlin.time.ExperimentalTime")
     }
 
     androidTarget {
@@ -58,12 +59,15 @@ kotlin {
         }
     }
 
-    listOf(iosX64(), iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
-        iosTarget.binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
-        }
-    }
+    // iOS targets temporarily disabled: navigation3-ui's iOS klibs (all versions, incl. 1.1.1)
+    // are built with Kotlin/Native ABI 2.3.0, unreadable by our Kotlin 2.2.20 toolchain.
+    // Re-enable once the project moves to Kotlin 2.3.x + Compose Multiplatform 1.11.x.
+    // listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
+    //     iosTarget.binaries.framework {
+    //         baseName = "ComposeApp"
+    //         isStatic = true
+    //     }
+    // }
 
     sourceSets {
         val desktopMain by getting
@@ -99,8 +103,9 @@ kotlin {
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
             implementation(libs.coil.svg)
-            implementation("org.jetbrains.kotlinx:atomicfu:0.32.1")
+            implementation("org.jetbrains.kotlinx:atomicfu:0.27.0")
             implementation(compose.materialIconsExtended)
+            implementation(libs.navigation3.ui)
         }
 
         androidMain.dependencies {
@@ -115,10 +120,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
         }
 
-        iosMain.dependencies {
-            implementation(libs.ktor.client.darwin)
-            implementation(libs.sqldelight.driver.native)
-        }
+        // iosMain.dependencies {
+        //     implementation(libs.ktor.client.darwin)
+        //     implementation(libs.sqldelight.driver.native)
+        // }
 
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
@@ -143,7 +148,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().con
 
 android {
     namespace = "io.rudione.chatone"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "io.rudione.chatone"
         minSdk = 24

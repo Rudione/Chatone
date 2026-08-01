@@ -1,7 +1,7 @@
 package io.rudione.chatone.data.repository
 
 import io.rudione.chatone.data.local.ChatoneDatabase
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 class UserNoteRepository(private val database: ChatoneDatabase) {
 

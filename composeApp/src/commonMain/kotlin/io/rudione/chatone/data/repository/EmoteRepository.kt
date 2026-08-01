@@ -6,6 +6,9 @@ import io.rudione.chatone.data.remote.emote.FfzApiClient
 import io.rudione.chatone.data.remote.emote.SevenTvApiClient
 import io.rudione.chatone.domain.model.ChannelEmotes
 import io.rudione.chatone.domain.model.GenericEmote
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,10 +28,25 @@ class EmoteRepository(
             "SoSnowy", "IceCold", "SantaHat", "TopHat",
             "ReinDeer", "CandyCane", "cvMask", "cvHazmat"
         )
+
+        private val EMPTY_EMOTES = ChannelEmotes()
     }
 
     private val channelEmotesMap = mutableMapOf<String, MutableStateFlow<ChannelEmotes>>()
     private val channelEmoteSetIds = mutableMapOf<String, String>()
+
+    @OptIn(InternalCoroutinesApi::class)
+    private val channelLock = SynchronizedObject()
+
+    @OptIn(InternalCoroutinesApi::class)
+    private fun channelFlow(key: String): MutableStateFlow<ChannelEmotes>? =
+        synchronized(channelLock) { channelEmotesMap[key] }
+
+    @OptIn(InternalCoroutinesApi::class)
+    private fun channelFlowOrCreate(key: String): MutableStateFlow<ChannelEmotes> =
+        synchronized(channelLock) {
+            channelEmotesMap.getOrPut(key) { MutableStateFlow(ChannelEmotes()) }
+        }
 
     private val personalEmoteSetsByUser = mutableMapOf<String, MutableSet<String>>()
     private val personalEmoteSetContents = mutableMapOf<String, List<GenericEmote>>()
@@ -41,20 +59,36 @@ class EmoteRepository(
 
     private var globalLoaded = false
 
-    fun getSevenTvEmoteSetId(channelName: String): String? {
-        return channelEmoteSetIds[channelName.lowercase()]
-    }
+    @OptIn(InternalCoroutinesApi::class)
+    fun getSevenTvEmoteSetId(channelName: String): String? =
+        synchronized(channelLock) { channelEmoteSetIds[channelName.lowercase()] }
 
-    fun getChannelEmotes(channelName: String): StateFlow<ChannelEmotes> {
-        return channelEmotesMap.getOrPut(channelName.lowercase()) {
-            MutableStateFlow(ChannelEmotes())
-        }
-    }
+    fun getChannelEmotes(channelName: String): StateFlow<ChannelEmotes> =
+        channelFlowOrCreate(channelName.lowercase())
 
+    private class ResolvedEmotes(
+        val channelSource: ChannelEmotes,
+        val globalSource: ChannelEmotes,
+        val merged: ChannelEmotes
+    )
+
+    private val resolvedCache = mutableMapOf<String, ResolvedEmotes>()
+    private val resolvedLock = SynchronizedObject()
+
+    @OptIn(InternalCoroutinesApi::class)
     fun getResolvedEmotes(channelName: String): ChannelEmotes {
-        val channel = channelEmotesMap[channelName.lowercase()]?.value ?: ChannelEmotes()
+        val key = channelName.lowercase()
+        val channel = channelFlow(key)?.value ?: EMPTY_EMOTES
         val global = _globalEmotes.value
-        return ChannelEmotes(
+
+        synchronized(resolvedLock) {
+            val cached = resolvedCache[key]
+            if (cached != null && cached.channelSource === channel && cached.globalSource === global) {
+                return cached.merged
+            }
+        }
+
+        val merged = ChannelEmotes(
             twitchEmotes = channel.twitchEmotes,
             sevenTvChannel = channel.sevenTvChannel,
             sevenTvGlobal = global.sevenTvGlobal,
@@ -63,6 +97,10 @@ class EmoteRepository(
             ffzChannel = channel.ffzChannel,
             ffzGlobal = global.ffzGlobal
         )
+        synchronized(resolvedLock) {
+            resolvedCache[key] = ResolvedEmotes(channel, global, merged)
+        }
+        return merged
     }
 
     suspend fun loadGlobalEmotes() {
@@ -89,9 +127,7 @@ class EmoteRepository(
     }
 
     suspend fun loadChannelEmotes(channelName: String, channelId: String) {
-        val flow = channelEmotesMap.getOrPut(channelName.lowercase()) {
-            MutableStateFlow(ChannelEmotes())
-        }
+        val flow = channelFlowOrCreate(channelName.lowercase())
 
         coroutineScope {
             val sevenTv = async { sevenTvApi.getChannelEmotesWithSetId(channelId) }
@@ -102,9 +138,8 @@ class EmoteRepository(
             val bttvEmotes = bttv.await()
             val ffzEmotes = ffz.await()
 
-
             sevenTvResult.emoteSetId?.let { setId ->
-                channelEmoteSetIds[channelName.lowercase()] = setId
+                synchronized(channelLock) { channelEmoteSetIds[channelName.lowercase()] = setId }
             }
 
             flow.value = flow.value.copy(
@@ -121,10 +156,9 @@ class EmoteRepository(
         return emote.isZeroWidth || emote.code in OVERLAY_EMOTES
     }
 
-
     fun patchChannelEmote(channelName: String, emote: GenericEmote) {
         val key = channelName.lowercase()
-        val flow = channelEmotesMap.getOrPut(key) { MutableStateFlow(ChannelEmotes()) }
+        val flow = channelFlowOrCreate(key)
         val current = flow.value
         val updated = current.sevenTvChannel
             .filterNot { it.id == emote.id } + emote
@@ -132,10 +166,9 @@ class EmoteRepository(
         Napier.d("Patched 7TV emote ${emote.code} in $channelName", tag = TAG)
     }
 
-
     fun removeChannelEmote(channelName: String, emoteId: String, emoteName: String) {
         val key = channelName.lowercase()
-        val flow = channelEmotesMap[key] ?: return
+        val flow = channelFlow(key) ?: return
         val current = flow.value
         flow.value = current.copy(
             sevenTvChannel = current.sevenTvChannel.filterNot { it.id == emoteId || it.code == emoteName }
@@ -143,10 +176,9 @@ class EmoteRepository(
         Napier.d("Removed 7TV emote $emoteName from $channelName", tag = TAG)
     }
 
-
     fun renameChannelEmote(channelName: String, emoteId: String, newName: String) {
         val key = channelName.lowercase()
-        val flow = channelEmotesMap[key] ?: return
+        val flow = channelFlow(key) ?: return
         val current = flow.value
         flow.value = current.copy(
             sevenTvChannel = current.sevenTvChannel.map {
@@ -158,8 +190,8 @@ class EmoteRepository(
 
     fun invalidateChannel(channelName: String) {
         val key = channelName.lowercase()
-        channelEmotesMap[key]?.value = ChannelEmotes()
-        channelEmoteSetIds.remove(key)
+        channelFlow(key)?.value = ChannelEmotes()
+        synchronized(channelLock) { channelEmoteSetIds.remove(key) }
         Napier.d("Invalidated emote cache for $channelName", tag = TAG)
     }
 
@@ -189,13 +221,6 @@ class EmoteRepository(
             for (e in emotes) merged[e.code] = e
         }
         return merged.values.toList()
-    }
-
-    @Suppress("UNUSED_PARAMETER")
-    suspend fun loadPersonalEmotes(twitchUserId: String): List<GenericEmote> {
-        if (twitchUserId.isBlank()) return emptyList()
-        markPersonalEmotesAttempted(twitchUserId)
-        return getCachedPersonalEmotes(twitchUserId)
     }
 
     suspend fun grantPersonalEmoteSet(

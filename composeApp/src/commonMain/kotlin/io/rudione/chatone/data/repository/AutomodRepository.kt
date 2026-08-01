@@ -12,12 +12,11 @@ import io.rudione.chatone.domain.model.decodeAlternates
 import io.rudione.chatone.domain.model.encodeAlternates
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 class AutomodRepository(private val database: ChatoneDatabase) {
     private val _rules = MutableStateFlow<List<AutomodRule>>(emptyList())
     val rules: StateFlow<List<AutomodRule>> = _rules
-
 
     private val _chatRules = MutableStateFlow<List<ChatRule>>(emptyList())
     val chatRules: StateFlow<List<ChatRule>> = _chatRules
@@ -57,6 +56,7 @@ class AutomodRepository(private val database: ChatoneDatabase) {
             isRegex = r.isRegex.toLong(),
             caseSensitive = r.caseSensitive.toLong(),
             wholeWord = r.wholeWord.toLong(),
+            ignoreLinks = r.ignoreLinks.toLong(),
             action = r.action.name,
             timeoutMs = r.timeoutMs,
             frequencyThreshold = r.frequencyThreshold.toLong(),
@@ -96,7 +96,6 @@ class AutomodRepository(private val database: ChatoneDatabase) {
         rules.forEach { upsert(it.copy(createdAt = 0L)) }
         reload()
     }
-
 
     fun chatRulesForChannel(channelLogin: String): List<ChatRule> = runCatching {
         database.automodRuleQueries
@@ -164,12 +163,10 @@ class AutomodRepository(private val database: ChatoneDatabase) {
         reload()
     }
 
-
     fun importMergeChatRules(rules: List<ChatRule>) {
         rules.forEach { upsertChatRule(it.copy(createdAt = 0L)) }
         reload()
     }
-
 
     private fun Boolean.toLong(): Long = if (this) 1L else 0L
 
@@ -182,6 +179,7 @@ class AutomodRepository(private val database: ChatoneDatabase) {
         isRegex = isRegex == 1L,
         caseSensitive = caseSensitive == 1L,
         wholeWord = wholeWord == 1L,
+        ignoreLinks = ignoreLinks == 1L,
         action = runCatching { AutomodAction.valueOf(action) }.getOrDefault(AutomodAction.DELETE),
         timeoutMs = timeoutMs,
         frequencyThreshold = frequencyThreshold.toInt(),

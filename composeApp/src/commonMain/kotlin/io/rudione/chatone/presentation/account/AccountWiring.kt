@@ -10,7 +10,6 @@ import androidx.compose.runtime.setValue
 import io.rudione.chatone.domain.model.TwitchAccount
 import kotlinx.coroutines.flow.Flow
 
-
 @Composable
 fun rememberAccountListState(loader: AccountListLoader): List<TwitchAccount> {
     var list by remember { mutableStateOf<List<TwitchAccount>>(emptyList()) }
@@ -19,7 +18,6 @@ fun rememberAccountListState(loader: AccountListLoader): List<TwitchAccount> {
     }
     return list
 }
-
 
 @Composable
 fun rememberAccountUiState(

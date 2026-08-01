@@ -4,7 +4,6 @@ import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.domain.model.AccountProxyConfig
 import io.rudione.chatone.domain.model.ProxyType
 
-
 object AccountSnapshotJson {
 
     fun toJsonSafe(account: TwitchAccount): String {
@@ -12,7 +11,6 @@ object AccountSnapshotJson {
         val d = account.displayName.replace("\"", "\\\"")
         return "{\"userId\":\"${account.userId}\",\"login\":\"$l\",\"displayName\":\"$d\"}"
     }
-
 
     fun proxyToJsonSafe(proxy: AccountProxyConfig?): String {
         if (proxy == null) return "null"

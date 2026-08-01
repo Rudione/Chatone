@@ -6,7 +6,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import io.rudione.chatone.data.repository.EmoteRepository
 
-
 @Composable
 fun AccountSwitchInvalidateEmotes(
     accountManager: AccountManager,

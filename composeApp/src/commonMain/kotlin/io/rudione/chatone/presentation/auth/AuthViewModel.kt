@@ -2,22 +2,28 @@ package io.rudione.chatone.presentation.auth
 
 import androidx.lifecycle.viewModelScope
 import io.github.aakira.napier.Napier
-import io.rudione.chatone.auth.PlatformAuthHandler
+import io.rudione.chatone.data.auth.PlatformAuthHandler
 import io.rudione.chatone.base.BaseViewModel
 import io.rudione.chatone.base.UIEffect
 import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
+import io.rudione.chatone.data.repository.DeviceAuthState
+import io.rudione.chatone.data.repository.FirstPartyDeviceAuthController
+import io.rudione.chatone.data.repository.ModerationAuthStore
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.domain.usecase.AuthenticateWithTokenUseCase
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
-import io.rudione.chatone.util.AppConfig
+import io.rudione.chatone.util.settings.AppConfig
 import io.rudione.chatone.util.Result
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class AuthState(
     val isLoading: Boolean = true,
     val isCheckingToken: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val awaitingFirstParty: Boolean = false
 ) : UiState
 
 sealed class AuthEvent : UiEvent {
@@ -25,6 +31,7 @@ sealed class AuthEvent : UiEvent {
     object OnLoginClicked : AuthEvent()
     object OnGuestClicked : AuthEvent()
     object OnRetry : AuthEvent()
+    object OnSkipFirstParty : AuthEvent()
 }
 
 sealed class AuthEffect : UIEffect {
@@ -36,7 +43,9 @@ sealed class AuthEffect : UIEffect {
 class AuthViewModel(
     private val authenticateWithTokenUseCase: AuthenticateWithTokenUseCase,
     private val getFirstValidAccountUseCase: GetFirstValidAccountUseCase,
-    private val platformAuthHandler: PlatformAuthHandler
+    private val platformAuthHandler: PlatformAuthHandler,
+    private val firstPartyDeviceAuthController: FirstPartyDeviceAuthController,
+    private val moderationAuthStore: ModerationAuthStore
 ) : BaseViewModel<AuthState, AuthEvent, AuthEffect>(AuthState()) {
 
     companion object {
@@ -49,6 +58,8 @@ class AuthViewModel(
     }
 
     private var authInProgress = false
+    private var pendingAccount: TwitchAccount? = null
+    private var firstPartyWatchJob: Job? = null
 
     override suspend fun onEvent(event: AuthEvent) {
         when (event) {
@@ -61,6 +72,7 @@ class AuthViewModel(
                 update { it.copy(error = null) }
                 if (!authInProgress) startOAuth()
             }
+            AuthEvent.OnSkipFirstParty -> finishFirstPartyStep()
         }
     }
 
@@ -90,7 +102,8 @@ class AuthViewModel(
 
             val redirectUri = platformAuthHandler.getRedirectUri()
             val clientId = platformAuthHandler.getClientId()
-            val authUrl = AppConfig.getAuthUrl(clientId, redirectUri)
+            val state = platformAuthHandler.newAuthSession()
+            val authUrl = AppConfig.getAuthUrl(clientId, redirectUri, state)
             Napier.d("═══════════════════════════════════════", tag = TAG)
             Napier.d("OAuth URL: $authUrl", tag = TAG)
             Napier.d("Redirect URI: $redirectUri", tag = TAG)
@@ -99,11 +112,9 @@ class AuthViewModel(
             Napier.d("═══════════════════════════════════════", tag = TAG)
 
             try {
-               
-               
+
                 platformAuthHandler.startAuth(authUrl)
 
-               
                 val token = platformAuthHandler.awaitToken()
                 if (token != null) {
                     Napier.d("Token received, authenticating...", tag = TAG)
@@ -134,8 +145,13 @@ class AuthViewModel(
             when (val result = authenticateWithTokenUseCase(token)) {
                 is Result.Success -> {
                     Napier.d("Authentication successful", tag = TAG)
+                    pendingAccount = result.data
                     update { it.copy(isLoading = false) }
-                    sendEffect(AuthEffect.NavigateToHome(result.data))
+                    if (moderationAuthStore.identity.value != null) {
+                        sendEffect(AuthEffect.NavigateToHome(result.data))
+                    } else {
+                        startFirstPartyStep()
+                    }
                 }
                 is Result.Error -> {
                     val errorMessage = result.exception.message ?: "Authentication failed"
@@ -146,6 +162,30 @@ class AuthViewModel(
                 is Result.Loading -> {}
             }
         }
+    }
+
+    private fun startFirstPartyStep() {
+        update { it.copy(awaitingFirstParty = true) }
+        firstPartyDeviceAuthController.start()
+        firstPartyWatchJob?.cancel()
+        firstPartyWatchJob = viewModelScope.launch {
+            var lastState: DeviceAuthState? = null
+            firstPartyDeviceAuthController.state.collect { deviceState ->
+                if (deviceState is DeviceAuthState.Success && lastState !is DeviceAuthState.Success) {
+                    delay(900)
+                    finishFirstPartyStep()
+                }
+                lastState = deviceState
+            }
+        }
+    }
+
+    private fun finishFirstPartyStep() {
+        firstPartyWatchJob?.cancel()
+        firstPartyWatchJob = null
+        firstPartyDeviceAuthController.cancel()
+        update { it.copy(awaitingFirstParty = false) }
+        sendEffect(AuthEffect.NavigateToHome(pendingAccount))
     }
 
     private fun handleGuestLogin() {

@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
-
 @Composable
 fun MultiChatGuidedTour(
     onDismiss: () -> Unit,

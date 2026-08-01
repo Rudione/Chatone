@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -112,7 +112,7 @@ class TwitchEventSubClient(
                     subscribeAll(sessionId)
                 }
 
-                "session_keepalive" -> {  }
+                "session_keepalive" -> {}
 
                 "session_reconnect" -> {
                     val newUrl = payload?.get("session")?.jsonObject

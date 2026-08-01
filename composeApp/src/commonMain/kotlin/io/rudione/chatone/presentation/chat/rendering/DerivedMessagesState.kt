@@ -5,7 +5,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import io.rudione.chatone.domain.model.DisplayMessage
 
-
 @Composable
 fun rememberDedupedMessages(
     messages: List<DisplayMessage>,
@@ -26,7 +25,6 @@ fun rememberDedupedMessages(
         }
     }
 }
-
 
 @Composable
 fun rememberLastMessageId(messages: List<DisplayMessage>): String? {

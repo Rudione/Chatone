@@ -1,6 +1,6 @@
 package io.rudione.chatone.domain.entitlements
 
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 class RefreshEntitlementsUseCase(private val repository: EntitlementsRepository) {
     suspend operator fun invoke(): Boolean = repository.refresh()

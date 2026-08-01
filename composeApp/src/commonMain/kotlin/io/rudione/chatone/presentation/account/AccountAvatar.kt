@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.TwitchAccount
 
-
 @Composable
 fun AccountAvatar(
     account: TwitchAccount,

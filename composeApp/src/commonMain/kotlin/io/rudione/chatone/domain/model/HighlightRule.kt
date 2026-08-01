@@ -23,12 +23,15 @@ data class HighlightRule(
             color = 0xFFFF6B6B
         )
 
+        const val LEGACY_WHISPER_COLOR = 0xFF9B59B6
+        const val LEGACY_FIRST_MESSAGE_COLOR = 0xFFF39C12
+
         val WHISPER_RULE = HighlightRule(
             id = "whispers",
             pattern = "",
             playSound = true,
             showInMentions = true,
-            color = 0xFF9B59B6
+            color = LEGACY_FIRST_MESSAGE_COLOR
         )
 
         val SUBSCRIPTION_RULE = HighlightRule(
@@ -44,8 +47,22 @@ data class HighlightRule(
             pattern = "",
             playSound = false,
             showInMentions = false,
-            color = 0xFFF39C12
+            color = LEGACY_WHISPER_COLOR
         )
+
+        fun swapLegacyDefaultColors(rules: List<HighlightRule>): List<HighlightRule> {
+            val firstMessage = rules.firstOrNull { it.id == "first_message" } ?: return rules
+            val whisper = rules.firstOrNull { it.id == "whispers" } ?: return rules
+            if (firstMessage.color != LEGACY_FIRST_MESSAGE_COLOR) return rules
+            if (whisper.color != LEGACY_WHISPER_COLOR) return rules
+            return rules.map {
+                when (it.id) {
+                    "first_message" -> it.copy(color = LEGACY_WHISPER_COLOR)
+                    "whispers" -> it.copy(color = LEGACY_FIRST_MESSAGE_COLOR)
+                    else -> it
+                }
+            }
+        }
 
         val SEARCH_MATCH_RULE = HighlightRule(
             id = "search_match",

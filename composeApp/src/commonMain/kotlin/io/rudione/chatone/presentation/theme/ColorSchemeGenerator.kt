@@ -14,10 +14,8 @@ import kotlin.math.sqrt
 import kotlin.math.PI
 import kotlin.math.atan2
 
-
 object ColorSchemeGenerator {
 
-   
     private val DARK_TONES = mapOf(
         "primary" to 80,
         "onPrimary" to 20,
@@ -172,24 +170,19 @@ object ColorSchemeGenerator {
         )
     }
 
-   
-
     private data class Hct(val hue: Float, val chroma: Float, val tone: Float)
 
     private fun rgbToHct(color: Color): Hct {
         val (r, g, b) = listOf(color.red, color.green, color.blue).map { it.coerceIn(0f, 1f) }
 
-       
         val linearR = if (r <= 0.04045f) r / 12.92f else ((r + 0.055f) / 1.055f).pow(2.4f)
         val linearG = if (g <= 0.04045f) g / 12.92f else ((g + 0.055f) / 1.055f).pow(2.4f)
         val linearB = if (b <= 0.04045f) b / 12.92f else ((b + 0.055f) / 1.055f).pow(2.4f)
 
-       
         val x = linearR * 0.4124f + linearG * 0.3576f + linearB * 0.1805f
         val y = linearR * 0.2126f + linearG * 0.7152f + linearB * 0.0722f
         val z = linearR * 0.0193f + linearG * 0.1192f + linearB * 0.9505f
 
-       
         val xyzToLab = { v: Float ->
             if (v > 0.008856f) v.pow(1f / 3f) else (7.787f * v) + (16f / 116f)
         }
@@ -202,7 +195,7 @@ object ColorSchemeGenerator {
         val bVal = 200f * (fy - fz)
 
         val chroma = sqrt(a * a + bVal * bVal)
-       
+
         val hue = (atan2(bVal.toDouble(), a.toDouble()) * 180 / PI).toFloat()
         val normalizedHue = if (hue < 0f) hue + 360f else hue
 
@@ -220,7 +213,6 @@ object ColorSchemeGenerator {
         val l = targetTone.toFloat()
         val fy = (l + 16f) / 116f
 
-       
         val hueRad = hct.hue * (PI / 180f).toFloat()
         val fx = fy + (cos(hueRad.toDouble()).toFloat() * adjustedChroma) / 500f
         val fz = fy - (sin(hueRad.toDouble()).toFloat() * adjustedChroma) / 200f

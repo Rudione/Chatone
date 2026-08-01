@@ -8,9 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import io.rudione.chatone.data.repository.AutomodRepository
-import io.rudione.chatone.util.AutomodImportExport
-import io.rudione.chatone.util.readAutomodText
-import io.rudione.chatone.util.saveAutomodText
+import io.rudione.chatone.util.automod.AutomodImportExport
+import io.rudione.chatone.util.automod.readAutomodText
+import io.rudione.chatone.util.automod.saveAutomodText
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 

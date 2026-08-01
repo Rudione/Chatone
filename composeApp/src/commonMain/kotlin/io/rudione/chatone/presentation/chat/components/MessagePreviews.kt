@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.util.MessageToken
+import io.rudione.chatone.util.chat.MessageToken
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private fun samplePrivMsg(

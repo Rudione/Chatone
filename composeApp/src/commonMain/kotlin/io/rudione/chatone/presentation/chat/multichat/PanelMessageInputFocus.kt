@@ -6,7 +6,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.focus.FocusRequester
 
-
 @Composable
 fun PanelFocusEffect(
     panelManager: ChatPanelManager,

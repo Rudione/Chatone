@@ -3,7 +3,6 @@ package io.rudione.chatone.presentation.chat.multichat
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 
-
 class PanelViewModelStore : ViewModelStoreOwner {
     private val store = ViewModelStore()
     override val viewModelStore: ViewModelStore get() = store
@@ -12,7 +11,6 @@ class PanelViewModelStore : ViewModelStoreOwner {
         store.clear()
     }
 }
-
 
 class PanelViewModelStoreRegistry {
     private val owners = mutableMapOf<String, PanelViewModelStore>()

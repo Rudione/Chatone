@@ -2,8 +2,10 @@ package io.rudione.chatone.data.remote.proxy
 
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.presentation.account.AccountManager
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.CoroutineScope
-
+import kotlinx.coroutines.InternalCoroutinesApi
 
 class IrcConnectionFactory(
     private val httpClientFactory: HttpClientFactory,
@@ -12,25 +14,36 @@ class IrcConnectionFactory(
 ) {
     private val clients = mutableMapOf<String, TwitchIrcClient>()
 
+    @OptIn(InternalCoroutinesApi::class)
+    private val lock = SynchronizedObject()
+
+    @OptIn(InternalCoroutinesApi::class)
     fun forAccount(userId: String): TwitchIrcClient {
-        clients[userId]?.let { return it }
+        synchronized(lock) { clients[userId] }?.let { return it }
+
         val httpClient = httpClientFactory.forAccount(userId)
         val client = TwitchIrcClient(httpClient = httpClient, scope = scope)
-        clients[userId] = client
-        return client
+        return synchronized(lock) { clients.getOrPut(userId) { client } }
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     suspend fun disconnect(userId: String) {
-        clients.remove(userId)?.disconnect()
+        synchronized(lock) { clients.remove(userId) }?.disconnect()
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     suspend fun disconnectAll() {
-        clients.values.toList().forEach { it.disconnect() }
-        clients.clear()
+        val all = synchronized(lock) {
+            val snapshot = clients.values.toList()
+            clients.clear()
+            snapshot
+        }
+        all.forEach { it.disconnect() }
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     fun activeAccountIrc(): TwitchIrcClient? {
         val activeId = accountManager.activeAccountId.value
-        return clients[activeId]
+        return synchronized(lock) { clients[activeId] }
     }
 }

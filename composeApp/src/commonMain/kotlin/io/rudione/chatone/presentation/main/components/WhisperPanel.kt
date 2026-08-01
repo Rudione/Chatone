@@ -36,7 +36,8 @@ import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 @Composable
 fun WhisperPanel(
@@ -55,7 +56,7 @@ fun WhisperPanel(
             .heightIn(max = 520.dp),
         shape = RoundedCornerShape(20.dp),
         contentPadding = PaddingValues(0.dp),
-       
+
         glassIntensity = 0.96f,
         backgroundAlphaHigh = 0.97f,
         backgroundAlphaLow = 0.92f,
@@ -77,7 +78,7 @@ fun WhisperPanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (activeConversation != null) {
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = { onEvent(MainEvent.OpenWhisperWith("", "", "")) },
                         modifier = Modifier.size(28.dp)
                     ) {
@@ -120,7 +121,7 @@ fun WhisperPanel(
                         Spacer(Modifier.width(6.dp))
                     }
                 }
-                IconButton(
+                ChatoneIconButton(
                     onClick = {
 
                         onEvent(MainEvent.HideWhisperPanel)
@@ -138,7 +139,6 @@ fun WhisperPanel(
             }
 
             HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
 
             if (activeConversation != null) {
                 WhisperChat(
@@ -198,7 +198,6 @@ fun WhisperPanel(
     }
 }
 
-
 @Composable
 private fun WhisperConversationRow(conv: WhisperConversation, onClick: () -> Unit) {
     Row(
@@ -250,7 +249,6 @@ private fun WhisperConversationRow(conv: WhisperConversation, onClick: () -> Uni
     )
 }
 
-
 @Composable
 private fun WhisperChat(
     conversation: WhisperConversation,
@@ -281,31 +279,19 @@ private fun WhisperChat(
 
         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedTextField(
+            ChatoneTextField(
                 value = inputText,
                 onValueChange = { inputText = it },
                 modifier = Modifier.weight(1f),
-                placeholder = {
-                    Text(LocalStrings.current.panelMessagePlaceholder.replace("{0}", conversation.username),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                },
+                placeholder = LocalStrings.current.panelMessagePlaceholder.replace("{0}", conversation.username),
                 textStyle = MaterialTheme.typography.bodySmall,
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
-                    focusedContainerColor = Color.White.copy(alpha = 0.04f),
-                    unfocusedContainerColor = Color.White.copy(alpha = 0.02f)
-                ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = {
                     if (inputText.isNotBlank()) { onSend(inputText.trim()); inputText = "" }
@@ -329,7 +315,6 @@ private fun WhisperChat(
         }
     }
 }
-
 
 @Composable
 private fun WhisperBubble(msg: WhisperMessage) {
@@ -366,7 +351,6 @@ private fun WhisperBubble(msg: WhisperMessage) {
         }
     }
 }
-
 
 @Composable
 private fun WhisperAvatar(conv: WhisperConversation, size: Int) {

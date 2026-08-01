@@ -1,6 +1,5 @@
 package io.rudione.chatone.domain.model
 
-
 object SevenTvCosmetics {
 
     data class Paint(
@@ -36,7 +35,6 @@ object SevenTvCosmetics {
         val url3x: String
     )
 }
-
 
 data class SevenTvUserCosmetic(
     val sevenTvId: String,

@@ -11,8 +11,7 @@ actual fun AnimatedEmoteImage(
     modifier: Modifier,
     isScrolling: Boolean
 ) {
-    // Coil already throttles animated-image decoding/playback, so there is nothing extra
-    // to pause here; isScrolling is accepted to satisfy the expect contract.
+
     AsyncImage(
         model = url,
         contentDescription = contentDescription,

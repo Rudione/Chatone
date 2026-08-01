@@ -6,7 +6,6 @@ import io.rudione.chatone.domain.model.TwitchAccount
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-
 class AccountActions(
     private val authRepository: AuthRepository,
     private val accountManager: AccountManager,

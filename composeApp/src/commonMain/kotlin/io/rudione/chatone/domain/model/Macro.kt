@@ -4,7 +4,6 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
-
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class ModActionButton(
@@ -40,7 +39,6 @@ data class ModActionButton(
         fun defaultOrderedList() = listOf(DEFAULT_DELETE, DEFAULT_TIMEOUT, DEFAULT_BAN)
     }
 }
-
 
 @Serializable
 data class Macro(

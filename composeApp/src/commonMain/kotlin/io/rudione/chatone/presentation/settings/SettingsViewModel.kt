@@ -16,12 +16,15 @@ import io.rudione.chatone.domain.model.ImageUploaderConfig
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
+import io.rudione.chatone.presentation.theme.ACCENT_PALETTE_SCHEMA_VERSION
 import io.rudione.chatone.presentation.theme.CustomThemeConfig
+import io.rudione.chatone.presentation.theme.DEFAULT_ACCENT_INDEX
+import io.rudione.chatone.presentation.theme.ExpressivePalettes
 import io.rudione.chatone.presentation.theme.WallpaperDisplayConfig
 import io.rudione.chatone.presentation.theme.WallpaperState
-import io.rudione.chatone.util.AppDataCleaner
-import io.rudione.chatone.util.AppRestarter
-import io.rudione.chatone.util.WallpaperLoader
+import io.rudione.chatone.util.system.AppDataCleaner
+import io.rudione.chatone.util.system.AppRestarter
+import io.rudione.chatone.util.media.WallpaperLoader
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +35,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -71,7 +74,7 @@ data class SettingsState(
     val pauseHotkeyMode: PauseHotkeyMode = PauseHotkeyMode.TOGGLE,
     val showInlineImages: InlineImageMode = InlineImageMode.ON,
     val inlineImageMaxHeight: Int = 200,
-    val chatScrollbarWidth: Int = 16,
+    val chatScrollbarWidth: Int = 12,
     val automations: List<io.rudione.chatone.domain.model.ChatAutomation> = emptyList(),
     val autoClaimPoints: Boolean = false,
     val mutedPhrases: List<String> = emptyList(),
@@ -103,7 +106,7 @@ data class SettingsState(
     val showThemeCreator: Boolean = false,
     val themeCreatorSeedColor: Int? = null,
     val language: String = "en",
-    val fontFamilyName: String = "Default",
+    val fontFamilyName: String = "Inter",
     val fontStyleItalic: Boolean = false,
     val fontUnderline: Boolean = false,
     val fontStrikethrough: Boolean = false,
@@ -124,9 +127,10 @@ data class SettingsState(
     val chatCommands: List<ChatCommand> = emptyList(),
     val colorTokens: ChatoneColorTokens = ChatoneColorTokens(),
     val translationTargetLang: String = "en",
+    val autoTranslateInput: Boolean = false,
     val mentionTabsEnabled: Boolean = false,
     val navigationHidden: Boolean = false,
-    val hotkeys: Map<String, String> = io.rudione.chatone.util.defaultHotkeys(),
+    val hotkeys: Map<String, String> = io.rudione.chatone.util.system.defaultHotkeys(),
 ) : UiState {
     enum class TimestampFormat { H12, H24, OFF }
     enum class LinkOpenMode { DEFAULT, INCOGNITO }
@@ -225,7 +229,6 @@ sealed class SettingsEvent : UiEvent {
     data class OnShowDefaultBanChanged(val show: Boolean) : SettingsEvent()
     data class OnReorderModButtons(val from: Int, val to: Int) : SettingsEvent()
 
-
     data class OnAddMacro(val name: String, val icon: String) : SettingsEvent()
     data class OnRemoveMacro(val id: String) : SettingsEvent()
     data class OnUpdateMacro(val macro: Macro) : SettingsEvent()
@@ -247,6 +250,7 @@ sealed class SettingsEvent : UiEvent {
 
     data class OnColorTokensChanged(val tokens: ChatoneColorTokens) : SettingsEvent()
     data class OnTranslationLangChanged(val code: String) : SettingsEvent()
+    data class OnAutoTranslateInputChanged(val enabled: Boolean) : SettingsEvent()
     data class OnMentionTabsChanged(val enabled: Boolean) : SettingsEvent()
     data class OnNavigationHiddenChanged(val hidden: Boolean) : SettingsEvent()
     data class OnHotkeyChanged(val actionId: String, val combo: String) : SettingsEvent()
@@ -318,6 +322,7 @@ class SettingsViewModel(
         private const val KEY_DISABLE_SCROLL_ON_ALT = "disable_scroll_on_alt"
         private const val KEY_LINK_OPEN_MODE = "link_open_mode"
         private const val KEY_ACCENT_COLOR_INDEX = "accent_color_index"
+        private const val KEY_ACCENT_PALETTE_SCHEMA = "accent_palette_schema"
         private const val KEY_TITLE_BAR_MODE = "title_bar_mode"
         private const val KEY_SHOW_BLOCKED_MODE = "show_blocked_mode"
         private const val KEY_HIDE_CHAT_PLACEHOLDER = "hide_chat_input_placeholder"
@@ -329,6 +334,7 @@ class SettingsViewModel(
         private const val KEY_SAVED_BAN_REASON = "saved_ban_reason"
         private const val KEY_COLOR_TOKENS = "color_tokens"
         private const val KEY_TRANSLATION_LANG = "translation_target_lang"
+        private const val KEY_AUTO_TRANSLATE_INPUT = "auto_translate_input"
         private const val KEY_MENTION_TABS = "mention_tabs_enabled"
         private const val KEY_NAVIGATION_HIDDEN = "navigation_hidden"
         private const val KEY_HOTKEYS = "hotkeys_map"
@@ -365,7 +371,16 @@ class SettingsViewModel(
             _changeBroadcast.tryEmit(-Clock.System.now().toEpochMilliseconds())
         }
 
+        private fun migrateAccentPalette() {
+            val stored = settings.getInt(KEY_ACCENT_PALETTE_SCHEMA, 0)
+            if (stored >= ACCENT_PALETTE_SCHEMA_VERSION) return
+            settings.putInt(KEY_ACCENT_COLOR_INDEX, DEFAULT_ACCENT_INDEX)
+            settings.putString(KEY_ACTIVE_THEME_ID, "")
+            settings.putInt(KEY_ACCENT_PALETTE_SCHEMA, ACCENT_PALETTE_SCHEMA_VERSION)
+        }
+
         fun loadInitialState(): SettingsState {
+            migrateAccentPalette()
             val rules = try {
                 val j = settings.getStringOrNull(KEY_HIGHLIGHT_RULES)
                 if (j != null) json.decodeFromString<List<HighlightRule>>(j) else null
@@ -475,7 +490,9 @@ class SettingsViewModel(
                     val defaults = SettingsState().highlightRules
                     val loaded = (rules ?: defaults).filter { it.id != "mention_accent" }
                     val loadedIds = loaded.map { it.id }.toSet()
-                    loaded + defaults.filter { it.id !in loadedIds }
+                    HighlightRule.swapLegacyDefaultColors(
+                        loaded + defaults.filter { it.id !in loadedIds }
+                    )
                 },
                 mentionSoundEnabled = settings.getBoolean(KEY_MENTION_SOUND, true),
                 mentionSoundVolume = settings.getFloat(KEY_MENTION_VOLUME, 0.8f),
@@ -492,7 +509,7 @@ class SettingsViewModel(
                     settings.getInt(KEY_SHOW_INLINE_IMAGES, 0)
                 ) ?: InlineImageMode.ON,
                 inlineImageMaxHeight = settings.getInt(KEY_INLINE_IMAGE_MAX_HEIGHT, 200),
-                chatScrollbarWidth = settings.getInt(KEY_CHAT_SCROLLBAR_WIDTH, 16),
+                chatScrollbarWidth = settings.getInt(KEY_CHAT_SCROLLBAR_WIDTH, 12),
                 wallpaperPath = settings.getStringOrNull(KEY_WALLPAPER_PATH) ?: "",
                 wallpaperBlur = settings.getFloat(KEY_WALLPAPER_BLUR, 12f),
                 wallpaperDisplayConfig = wallpaperDisplayConfig,
@@ -527,7 +544,8 @@ class SettingsViewModel(
                 } catch (_: Exception) {
                     SettingsState.LinkOpenMode.DEFAULT
                 },
-                accentColorIndex = settings.getInt(KEY_ACCENT_COLOR_INDEX, 0),
+                accentColorIndex = settings.getInt(KEY_ACCENT_COLOR_INDEX, DEFAULT_ACCENT_INDEX)
+                    .coerceIn(0, ExpressivePalettes.lastIndex),
                 allModButtons = allModBtns ?: run {
                     val defaults = ModActionButton.defaultOrderedList()
                     val combined = (defaults + modButtons).distinctBy { it.id }
@@ -536,7 +554,7 @@ class SettingsViewModel(
                 customThemes = customThemes,
                 activeCustomThemeId = activeThemeId,
                 activeCustomTheme = activeCustomTheme,
-                fontFamilyName = settings.getString(KEY_FONT_FAMILY, "Default"),
+                fontFamilyName = settings.getString(KEY_FONT_FAMILY, "Inter"),
                 fontStyleItalic = settings.getBoolean(KEY_FONT_ITALIC, false),
                 fontUnderline = settings.getBoolean(KEY_FONT_UNDERLINE, false),
                 fontStrikethrough = settings.getBoolean(KEY_FONT_STRIKETHROUGH, false),
@@ -563,14 +581,15 @@ class SettingsViewModel(
                 chatCommands = chatCommands,
                 colorTokens = colorTokens,
                 translationTargetLang = settings.getString(KEY_TRANSLATION_LANG, "en"),
+                autoTranslateInput = settings.getBoolean(KEY_AUTO_TRANSLATE_INPUT, false),
                 mentionTabsEnabled = settings.getBoolean(KEY_MENTION_TABS, false),
                 navigationHidden = settings.getBoolean(KEY_NAVIGATION_HIDDEN, false),
                 hotkeys = try {
                     val j = settings.getStringOrNull(KEY_HOTKEYS)
                     val stored = if (j != null) json.decodeFromString<Map<String, String>>(j) else emptyMap()
-                    io.rudione.chatone.util.defaultHotkeys() + stored
+                    io.rudione.chatone.util.system.defaultHotkeys() + stored
                 } catch (_: Exception) {
-                    io.rudione.chatone.util.defaultHotkeys()
+                    io.rudione.chatone.util.system.defaultHotkeys()
                 },
             )
         }
@@ -710,9 +729,9 @@ class SettingsViewModel(
             }
 
             is SettingsEvent.OnImportSettingsText -> {
-                val backup = io.rudione.chatone.util.SettingsImportExport.fromJson(event.text)
+                val backup = io.rudione.chatone.util.settings.SettingsImportExport.fromJson(event.text)
                 if (backup != null) {
-                    io.rudione.chatone.util.SettingsImportExport.applyReplace(settings, backup)
+                    io.rudione.chatone.util.settings.SettingsImportExport.applyReplace(settings, backup)
                     update { loadInitialState() }
                 }
             }
@@ -1354,6 +1373,11 @@ class SettingsViewModel(
             is SettingsEvent.OnTranslationLangChanged -> {
                 settings.putString(KEY_TRANSLATION_LANG, event.code)
                 update { it.copy(translationTargetLang = event.code) }
+            }
+
+            is SettingsEvent.OnAutoTranslateInputChanged -> {
+                settings.putBoolean(KEY_AUTO_TRANSLATE_INPUT, event.enabled)
+                update { it.copy(autoTranslateInput = event.enabled) }
             }
 
             is SettingsEvent.OnMentionTabsChanged -> {

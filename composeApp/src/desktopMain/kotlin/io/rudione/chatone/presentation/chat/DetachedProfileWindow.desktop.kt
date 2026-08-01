@@ -14,9 +14,9 @@ import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.ic_lock
 import chatone.composeapp.generated.resources.ic_unlock
 import io.rudione.chatone.domain.model.DisplayMessage
-import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.window.ChatoneDetachedWindow
 import org.jetbrains.compose.resources.painterResource
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 actual fun DetachedProfileWindow(
@@ -49,86 +49,84 @@ actual fun DetachedProfileWindow(
         alwaysOnTop = isPinned,
         onCloseRequest = onClose
     ) {
-        ChatoneTheme {
-            val pinTint by animateColorAsState(
-                targetValue = if (isPinned) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                animationSpec = tween(200)
-            )
+        val pinTint by animateColorAsState(
+            targetValue = if (isPinned) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            animationSpec = tween(200)
+        )
 
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.surface
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.fillMaxWidth()
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Text(
+                            text = msg.displayName,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        ChatoneIconButton(
+                            onClick = { isPinned = !isPinned },
+                            modifier = Modifier.size(28.dp)
                         ) {
-                            Text(
-                                text = msg.displayName,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f)
+                            Icon(
+                                painter = if (isPinned) painterResource(Res.drawable.ic_lock) else painterResource(
+                                    Res.drawable.ic_unlock
+                                ),
+                                contentDescription = if (isPinned) "Unpin (always on top)" else "Pin (always on top)",
+                                modifier = Modifier.size(16.dp),
+                                tint = pinTint
                             )
+                        }
 
-                            IconButton(
-                                onClick = { isPinned = !isPinned },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(
-                                    painter = if (isPinned) painterResource(Res.drawable.ic_lock) else painterResource(
-                                        Res.drawable.ic_unlock
-                                    ),
-                                    contentDescription = if (isPinned) "Unpin (always on top)" else "Pin (always on top)",
-                                    modifier = Modifier.size(16.dp),
-                                    tint = pinTint
-                                )
-                            }
-
-                            IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
-                                Icon(
-                                    Icons.Filled.Close,
-                                    contentDescription = "Close",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        ChatoneIconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "Close",
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
-
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                    )
-
-                    UserProfileContent(
-                        msg = msg,
-                        channelMessages = channelMessages,
-                        accessToken = accessToken,
-                        channelId = channelId,
-                        showModActions = showModActions,
-                        currentUserIsBroadcaster = currentUserIsBroadcaster,
-                        isBlocked = isBlocked,
-                        onBlock = onBlock,
-                        onUnblock = onUnblock,
-                        onTimeout = onTimeout,
-                        onBan = onBan,
-                        onUnban = onUnban,
-                        onMod = onMod,
-                        onUnmod = onUnmod,
-                        onVip = onVip,
-                        onUnvip = onUnvip,
-                        onWhisper = onWhisper,
-                        onDismiss = onClose
-                    )
                 }
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+                )
+
+                UserProfileContent(
+                    msg = msg,
+                    channelMessages = channelMessages,
+                    accessToken = accessToken,
+                    channelId = channelId,
+                    showModActions = showModActions,
+                    currentUserIsBroadcaster = currentUserIsBroadcaster,
+                    isBlocked = isBlocked,
+                    onBlock = onBlock,
+                    onUnblock = onUnblock,
+                    onTimeout = onTimeout,
+                    onBan = onBan,
+                    onUnban = onUnban,
+                    onMod = onMod,
+                    onUnmod = onUnmod,
+                    onVip = onVip,
+                    onUnvip = onUnvip,
+                    onWhisper = onWhisper,
+                    onDismiss = onClose
+                )
             }
         }
     }

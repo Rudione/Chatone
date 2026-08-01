@@ -1,15 +1,14 @@
 package io.rudione.chatone.presentation.chat.multichat
 
 import io.rudione.chatone.presentation.chat.ChatViewModel
-import org.koin.core.context.GlobalContext
-
+import org.koin.mp.KoinPlatformTools
 
 class ChatViewModelPerPanelFactory {
     private val cache = mutableMapOf<String, ChatViewModel>()
 
     fun get(panelId: String): ChatViewModel {
         cache[panelId]?.let { return it }
-        val vm = GlobalContext.get().get<ChatViewModel>()
+        val vm = KoinPlatformTools.defaultContext().get().get<ChatViewModel>()
         cache[panelId] = vm
         return vm
     }

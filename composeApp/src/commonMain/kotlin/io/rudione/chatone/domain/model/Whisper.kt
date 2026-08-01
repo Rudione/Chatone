@@ -1,7 +1,6 @@
 package io.rudione.chatone.domain.model
 
-import kotlinx.datetime.Clock
-
+import kotlin.time.Clock
 
 data class WhisperMessage(
     val id: String = "whisper_${Clock.System.now().toEpochMilliseconds()}",
@@ -15,7 +14,6 @@ data class WhisperMessage(
     val isOwn: Boolean = false
 )
 
-
 data class WhisperConversation(
     val userId: String,
     val username: String,
@@ -27,7 +25,6 @@ data class WhisperConversation(
 ) {
     val lastMessage: WhisperMessage? get() = messages.lastOrNull()
 }
-
 
 data class MentionEntry(
     val messageId: String,

@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 fun PanelHeaderTabs(
@@ -64,7 +64,7 @@ fun PanelHeaderTabs(
                     color = if (isActive) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurface
                 )
-                IconButton(
+                ChatoneIconButton(
                     onClick = { panelManager.closePanel(panel.panelId) },
                     modifier = Modifier.size(20.dp)
                 ) {

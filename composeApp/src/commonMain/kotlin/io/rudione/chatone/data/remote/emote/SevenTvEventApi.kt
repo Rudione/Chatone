@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-
 class SevenTvEventApi(
     private val httpClient: HttpClient,
     private val scope: CoroutineScope
@@ -39,7 +38,6 @@ class SevenTvEventApi(
     private var receiveJob: Job? = null
     private val subscribedSets = mutableSetOf<String>()
     private val subscribedTwitchChannels = mutableSetOf<String>()
-
 
     private val _emoteSetUpdates = MutableSharedFlow<EmoteSetUpdateEvent>(
         extraBufferCapacity = 256,
@@ -207,7 +205,6 @@ class SevenTvEventApi(
         val emoteSetId = data.condition["object_id"] ?: body.id
         val actorName = body.actor?.displayName ?: body.actor?.username ?: "Unknown"
 
-
         body.pushed.forEach { pushed ->
             val emote = pushed.value ?: return@forEach
             scope.launch {
@@ -222,7 +219,6 @@ class SevenTvEventApi(
             }
         }
 
-
         body.pulled.forEach { pulled ->
             val emote = pulled.old_value ?: return@forEach
             scope.launch {
@@ -236,7 +232,6 @@ class SevenTvEventApi(
                 )
             }
         }
-
 
         body.updated.forEach { updated ->
             val oldEmote = updated.old_value

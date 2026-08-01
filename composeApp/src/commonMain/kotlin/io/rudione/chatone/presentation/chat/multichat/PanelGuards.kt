@@ -2,7 +2,6 @@ package io.rudione.chatone.presentation.chat.multichat
 
 import io.rudione.chatone.domain.model.ChatPanel
 
-
 object PanelGuards {
     fun canOpen(panelManager: ChatPanelManager, channelLogin: String): Boolean {
         if (channelLogin.isBlank()) return false

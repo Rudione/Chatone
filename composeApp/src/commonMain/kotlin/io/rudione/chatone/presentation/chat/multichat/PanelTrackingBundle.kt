@@ -6,7 +6,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.rudione.chatone.presentation.chat.ChatViewModel
 import org.koin.compose.koinInject
 
-
 @Composable
 fun rememberPanelTrackingBundle(
     panelManager: ChatPanelManager,

@@ -30,6 +30,7 @@ import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 internal fun SystemMsgItem(message: DisplayMessage.SystemMsg) {
@@ -51,7 +52,6 @@ internal fun SystemMsgItem(message: DisplayMessage.SystemMsg) {
         )
     }
 }
-
 
 @Composable
 internal fun UserNoticeMsgItem(message: DisplayMessage.UserNoticeMsg) {
@@ -94,7 +94,6 @@ internal fun announceAccentColor(name: String?, fallback: Color): Color = when (
     else -> fallback
 }
 
-
 @Composable
 internal fun ModerationMsgItem(
     message: DisplayMessage.ModerationMsg,
@@ -117,7 +116,7 @@ internal fun ModerationMsgItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (showUnbanButton) {
-            IconButton(
+            ChatoneIconButton(
                 onClick = { onUnbanByLogin!!(message.targetUser!!) },
                 modifier = Modifier.size(20.dp)
             ) {
@@ -183,7 +182,6 @@ internal fun ModerationMsgItem(
         }
     }
 }
-
 
 @Composable
 internal fun AutoModMsgItem(
@@ -378,17 +376,13 @@ internal fun AutoModMsgItem(
                     }
                 }
                 Spacer(Modifier.height(5.dp))
-                val automodBg = MaterialTheme.colorScheme.background
                 val nameColor = message.color?.let { hex ->
                     try {
                         val v = hex.removePrefix("#").toLong(16)
-                        adjustReadableColor(
-                            Color(
-                                red = ((v shr 16) and 0xFF) / 255f,
-                                green = ((v shr 8) and 0xFF) / 255f,
-                                blue = (v and 0xFF) / 255f
-                            ),
-                            automodBg
+                        Color(
+                            red = ((v shr 16) and 0xFF) / 255f,
+                            green = ((v shr 8) and 0xFF) / 255f,
+                            blue = (v and 0xFF) / 255f
                         )
                     } catch (_: Exception) {
                         null

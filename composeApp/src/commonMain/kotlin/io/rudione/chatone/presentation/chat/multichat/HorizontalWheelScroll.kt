@@ -10,7 +10,6 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.launch
 
-
 @Composable
 fun horizontalMouseWheelScrollModifier(scrollState: ScrollState): Modifier {
     val scope = rememberCoroutineScope()

@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.TwitchAccount
-
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 
 @Composable
 fun AccountQuickPicker(
@@ -61,7 +61,7 @@ fun AccountQuickPicker(
         )
     }
 
-    DropdownMenu(
+    ChatoneDropdownMenu(
         expanded = expanded,
         onDismissRequest = { expanded = false }
     ) {

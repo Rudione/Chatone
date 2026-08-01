@@ -20,7 +20,8 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.ChatPanel
 import io.rudione.chatone.presentation.chat.multichat.ChatPanelManager
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 
 @Composable
 fun ChatPanelMoreButton(
@@ -41,7 +42,7 @@ fun ChatPanelMoreButton(
             .distinct()
     }
 
-    IconButton(
+    ChatoneIconButton(
         onClick = { if (canOpen && candidates.isNotEmpty()) expanded = true },
         enabled = canOpen && candidates.isNotEmpty(),
         modifier = modifier.size(28.dp)
@@ -55,7 +56,7 @@ fun ChatPanelMoreButton(
         )
     }
 
-    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+    ChatoneDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
         if (candidates.isEmpty()) {
             DropdownMenuItem(
                 text = { Text(strings.multiChatNoChannelsToAdd) },

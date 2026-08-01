@@ -15,7 +15,6 @@ class BadgeRepository(
         private const val TAG = "BadgeRepository"
     }
 
-
     private val globalBadges = mutableMapOf<String, Map<String, String>>()
     private val channelBadges = mutableMapOf<String, Map<String, Map<String, String>>>()
 
@@ -28,7 +27,7 @@ class BadgeRepository(
         val result = apiClient.getGlobalBadges(accessToken)
         if (result is Result.Success) {
             result.data.data.forEach { badgeSet ->
-               
+
                 globalBadges[badgeSet.setId.lowercase()] = badgeSet.versions.associate {
                     it.id.lowercase() to it.imageUrl2x
                 }
@@ -42,7 +41,7 @@ class BadgeRepository(
         if (result is Result.Success) {
             val badgeMap = mutableMapOf<String, Map<String, String>>()
             result.data.data.forEach { badgeSet ->
-               
+
                 badgeMap[badgeSet.setId.lowercase()] = badgeSet.versions.associate {
                     it.id.lowercase() to it.imageUrl2x
                 }
@@ -99,7 +98,6 @@ class BadgeRepository(
         }
     }
 
-   
     private fun buildTooltip(badgeId: String, version: String, months: Int?): String {
         return when (badgeId.lowercase()) {
             "subscriber" -> if (months != null) "Subscriber for $months months" else "Subscriber"
@@ -116,7 +114,6 @@ class BadgeRepository(
         }
     }
 
-   
     private fun getDefaultBadgeIcon(badgeId: String): String? {
         return when (badgeId.lowercase()) {
             "broadcaster" -> "https://static-cdn.jtvnw.net/badges/v1/5527c58c-fb7d-422d-b71b-f309dcb85cc1/3"

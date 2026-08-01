@@ -15,7 +15,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-
 fun Color.adjustBrightness(b: Float): Color {
     if (b == 0f) return this
     val f = 1f + b
@@ -41,7 +40,6 @@ fun Color.adjustSaturation(s: Float): Color {
 fun Color.adjustContrast(c: Float): Color {
     if (c == 1f) return this
 
-
     val contrastFactor = (c - 1f) * 255f
     val f = (259f * (contrastFactor + 255f)) / (255f * (259f - contrastFactor))
     return Color(
@@ -53,7 +51,6 @@ fun Color.adjustContrast(c: Float): Color {
 }
 
 fun Color.luminance() = 0.299f * red + 0.587f * green + 0.114f * blue
-
 
 fun Modifier.applyChatBlurOverlay(
     type: BlurType,
@@ -151,7 +148,6 @@ fun Modifier.applyChatBlurOverlay(
     }
 }
 
-
 @Composable
 fun ChatBackgroundLayer(
     wallpaper: WallpaperState,
@@ -178,7 +174,6 @@ fun ChatBackgroundLayer(
     }
 }
 
-
 fun chatPaneBackgroundColor(wallpaper: WallpaperState, default: Color): Color {
     val cfg = wallpaper.chatColorConfig
 
@@ -199,7 +194,6 @@ fun chatPaneBackgroundColor(wallpaper: WallpaperState, default: Color): Color {
         .adjustContrast(cfg.contrast)
         .copy(alpha = cfg.backgroundAlpha)
 }
-
 
 fun sidebarBackgroundColor(wallpaper: WallpaperState, default: Color): Color {
     val cfg = wallpaper.panelColorConfig
@@ -249,7 +243,6 @@ fun bottomBarBackgroundColor(wallpaper: WallpaperState, default: Color): Color {
         .copy(alpha = cfg.bottomBarAlpha)
 }
 
-
 fun Modifier.panelBlur(radius: Float): Modifier =
     if (radius > 0f) this.blur(radius.dp) else this
 
@@ -262,7 +255,6 @@ fun glassAlphasFromIntensity(intensity: Float): GlassAlphas {
         low = (i * 0.78f).coerceIn(0.05f, 1f)
     )
 }
-
 
 @Composable
 fun WallpaperGlowEdge(

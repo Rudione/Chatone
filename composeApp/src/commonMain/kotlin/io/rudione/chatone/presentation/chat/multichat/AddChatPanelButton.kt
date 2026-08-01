@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.ChatPanel
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 
 @Composable
 fun AddChatPanelButton(
@@ -52,7 +54,7 @@ fun AddChatPanelButton(
     }
 
     Box(modifier = modifier) {
-        IconButton(
+        ChatoneIconButton(
             onClick = { if (canOpen) expanded = true },
             enabled = canOpen,
             modifier = Modifier.size(iconSize + 14.dp)
@@ -65,7 +67,7 @@ fun AddChatPanelButton(
             )
         }
 
-        DropdownMenu(
+        ChatoneDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             modifier = Modifier

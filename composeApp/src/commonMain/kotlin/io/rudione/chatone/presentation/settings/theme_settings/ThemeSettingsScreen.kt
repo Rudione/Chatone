@@ -43,14 +43,15 @@ import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.palette_fill_16
 import io.rudione.chatone.domain.model.ChatoneColorTokens
 import io.rudione.chatone.presentation.components.ChatoneSwitch
+import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.settings.components.ColorTokensEditor
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.*
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import org.jetbrains.compose.resources.painterResource
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,9 +131,9 @@ fun ThemeSettingsScreen(
                     onReset = { customThemeManager.resetToDefault(); selectedTheme = null; onThemeApplied() },
                     onDeleteTheme = { themeId ->
                         customThemeManager.deleteTheme(themeId)
-                       
+
                         settingsViewModel.sendEvent(SettingsEvent.OnDeleteCustomTheme(themeId))
-                        settingsViewModel.sendEvent(SettingsEvent.OnAccentColorChanged(0))
+                        settingsViewModel.sendEvent(SettingsEvent.OnAccentColorChanged(DEFAULT_ACCENT_INDEX))
                     },
                     onCreateClick = { showCreate = true },
                     settingsState = settingsState, initialSeedColor = initialSeedColor
@@ -175,7 +176,6 @@ fun ThemeSettingsScreen(
         )
     }
 }
-
 
 @Composable
 private fun ThemesTab(
@@ -223,7 +223,6 @@ private fun ThemesTab(
     }
 }
 
-
 @Composable
 private fun BackgroundTab(
     wallpaper: WallpaperState,
@@ -266,7 +265,6 @@ private fun BackgroundTab(
     }
 }
 
-
 @Composable
 private fun PanelsTab(
     panelConfig: PanelColorConfig,
@@ -281,7 +279,6 @@ private fun PanelsTab(
             InfoBanner("Panel blur blurs the wallpaper behind each panel independently. Glass intensity controls LiquidGlass transparency.")
         }
 
-       
         item {
             AnimatedVisibility(hasCustomValues) {
                 Row(
@@ -380,7 +377,6 @@ private fun PanelsTab(
     }
 }
 
-
 @Composable
 private fun ChatColorTab(
     wallpaper: WallpaperState,
@@ -401,7 +397,6 @@ private fun ChatColorTab(
             }
         }
 
-       
         if (wallpaperActive) {
             item {
                 Surface(
@@ -458,7 +453,7 @@ private fun ChatColorTab(
 
         item {
             SectionCard("Fine-tuning", icon = Icons.Outlined.Tune) {
-               
+
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(s.themeAdjustments, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (cfg != ChatColorConfig()) {
@@ -483,7 +478,6 @@ private fun ChatColorTab(
     }
 }
 
-
 @Composable
 private fun PanelSection(
     title: String, subtitle: String,
@@ -502,7 +496,7 @@ private fun PanelSection(
 
     SectionCard(title, subtitle, icon) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-           
+
             if (isCustomised) {
                 TextButton(
                     onClick = onResetSection,
@@ -555,7 +549,6 @@ private fun PanelSection(
         }
     }
 }
-
 
 @Composable
 private fun ChatSimulationPreview(wallpaper: WallpaperState) {
@@ -635,8 +628,6 @@ private fun ChatSimulationPreview(wallpaper: WallpaperState) {
     }
 }
 
-
-
 @Composable
 private fun GlobalTab(
     displayConfig: WallpaperDisplayConfig,
@@ -649,7 +640,7 @@ private fun GlobalTab(
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
         item {
-           
+
             AnimatedVisibility(isNonDefault) {
                 FilledTonalButton(
                     onClick = onResetAll,
@@ -752,7 +743,6 @@ private fun GlobalTab(
     }
 }
 
-
 @Composable
 private fun BlurTypeSelector(selected: BlurType, onSelect: (BlurType) -> Unit) {
     val items = listOf(
@@ -785,7 +775,6 @@ private fun BlurTypeSelector(selected: BlurType, onSelect: (BlurType) -> Unit) {
         }
     }
 }
-
 
 @Composable
 private fun AutoGeneratorPanel(
@@ -838,7 +827,6 @@ private fun AutoGeneratorPanel(
     if (showPicker) ColorPickerDialog(seedColor, { onSeedChanged(it); showPicker = false }, { showPicker = false })
 }
 
-
 @Composable
 private fun ThemeCard(theme: CustomThemeConfig, isSelected: Boolean, onSelect: (CustomThemeConfig) -> Unit, onDelete: (CustomThemeConfig) -> Unit = {}) {
     val s = remember(theme) { ColorSchemeGenerator.generateFromSeed(theme.seedColor, theme.isDark, theme.contrastLevel) }
@@ -861,14 +849,13 @@ private fun ThemeCard(theme: CustomThemeConfig, isSelected: Boolean, onSelect: (
                     Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(4.dp).size(16.dp))
                 }
                 Spacer(Modifier.width(4.dp))
-                IconButton(onClick = { onDelete(theme) }, modifier = Modifier.size(28.dp)) {
+                ChatoneIconButton(onClick = { onDelete(theme) }, modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error.copy(0.7f), modifier = Modifier.size(16.dp))
                 }
             }
         }
     }
 }
-
 
 @Composable
 private fun CreateThemeDialog(onDismiss: () -> Unit, onCreate: (String, Color, Boolean) -> Unit) {
@@ -880,7 +867,13 @@ private fun CreateThemeDialog(onDismiss: () -> Unit, onCreate: (String, Color, B
     AlertDialog(onDismissRequest = onDismiss, title = { Text(s.themeNewTheme, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text(s.themeName) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                ChatoneTextField(
+                    name,
+                    { name = it },
+                    label = s.themeName,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(seed).border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp)).clickable { showPicker = true })
                     Column { Text(s.themeSeed, style = MaterialTheme.typography.labelSmall); Text("#${seed.toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase()}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium) }
@@ -903,7 +896,13 @@ private fun EditThemeDialog(theme: CustomThemeConfig, onDismiss: () -> Unit, onS
     AlertDialog(onDismissRequest = onDismiss, title = { Text(s.themeEditTheme, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text(s.themeName) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                ChatoneTextField(
+                    name,
+                    { name = it },
+                    label = s.themeName,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Text(s.themeOverrideColors, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 LazyColumn(Modifier.heightIn(max = 220.dp)) {
                     items(ColorSchemeGenerator.getAvailableRoles()) { role ->
@@ -913,7 +912,7 @@ private fun EditThemeDialog(theme: CustomThemeConfig, onDismiss: () -> Unit, onS
                             var showP by remember { mutableStateOf(false) }
                             Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(cur).border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp)).clickable { showP = true })
                             if (showP) ColorPickerDialog(cur, { overrides[role] = it.toArgb(); showP = false }, { showP = false })
-                            AnimatedVisibility(overrides.containsKey(role)) { IconButton(onClick = { overrides.remove(role) }, Modifier.size(24.dp)) { Icon(Icons.Filled.Close, null, Modifier.size(14.dp)) } }
+                            AnimatedVisibility(overrides.containsKey(role)) { ChatoneIconButton(onClick = { overrides.remove(role) }, Modifier.size(24.dp)) { Icon(Icons.Filled.Close, null, Modifier.size(14.dp)) } }
                         }
                     }
                 }
@@ -937,10 +936,20 @@ private fun ColorPickerDialog(initial: Color, onSelected: (Color) -> Unit, onDis
                 Box(Modifier.fillMaxWidth().height(68.dp).clip(RoundedCornerShape(14.dp)).background(color).border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(14.dp)), Alignment.Center) {
                     Text("#$hex", style = MaterialTheme.typography.titleMedium, color = if (color.luminance() > 0.5f) Color.Black else Color.White, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 }
-                OutlinedTextField(hex, { raw -> val c = raw.trimStart('#').uppercase().filter { it.isLetterOrDigit() }.take(6); hex = c; if (c.length == 6) try { color = Color(("FF$c").toLong(16).toInt()) } catch (_: Exception) {} },
-                    label = { Text(s.themeHex) }, prefix = { Text("#") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { fm.clearFocus() }),
-                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace))
+                ChatoneTextField(
+                    value = hex,
+                    onValueChange = { raw ->
+                        val c = raw.trimStart('#').uppercase().filter { it.isLetterOrDigit() }.take(6)
+                        hex = c
+                        if (c.length == 6) try { color = Color(("FF$c").toLong(16).toInt()) } catch (_: Exception) {}
+                    },
+                    label = s.themeHex,
+                    placeholder = "7C4DFF",
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { fm.clearFocus() })
+                )
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf(Color(0xFF7C4DFF), Color(0xFF00BFA5), Color(0xFFFF6E6E), Color(0xFF4FC3F7), Color(0xFF81C784), Color(0xFFF48FB1), Color(0xFFFFD54F), Color(0xFF9FA8DA), Color(0xFF0A0A0F), Color(0xFFFFFFFF))) { p ->
                         Box(Modifier.size(36.dp).clip(CircleShape).background(p).border(if (color==p) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, CircleShape).clickable { color=p; hex=p.toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase() })
@@ -957,23 +966,35 @@ private fun ColorPickerDialog(initial: Color, onSelected: (Color) -> Unit, onDis
     )
 }
 
-
 @Composable
 private fun HexColorInput(argb: Int?, onColorPicked: (Int) -> Unit) {
     val s = LocalStrings.current
     var hex by remember(argb) { mutableStateOf(argb?.let { Color(it).toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase() } ?: "") }
     val fm = LocalFocusManager.current
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)).background(
-            if (hex.length == 6) try { Color(("FF$hex").toLong(16).toInt()) } catch (_: Exception) { Color.Gray.copy(0.3f) } else Color.Gray.copy(0.3f)
-        ).border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp)))
-        OutlinedTextField(hex, { raw -> val c = raw.trimStart('#').uppercase().filter { it.isLetterOrDigit() }.take(6); hex = c; if (c.length == 6) try { onColorPicked(Color(("FF$c").toLong(16).toInt()).toArgb()) } catch (_: Exception) {} },
-            label = { Text(s.themeHexColor) }, prefix = { Text("#") }, placeholder = { Text("7C4DFF") }, singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { fm.clearFocus() }),
-            modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
-            textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-            trailingIcon = if (hex.length == 6) {{ Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }} else null)
-    }
+    val swatch = if (hex.length == 6) try { Color(("FF$hex").toLong(16).toInt()) } catch (_: Exception) { Color.Gray.copy(0.3f) } else Color.Gray.copy(0.3f)
+    ChatoneTextField(
+        value = hex,
+        onValueChange = { raw ->
+            val c = raw.trimStart('#').uppercase().filter { it.isLetterOrDigit() }.take(6)
+            hex = c
+            if (c.length == 6) try { onColorPicked(Color(("FF$c").toLong(16).toInt()).toArgb()) } catch (_: Exception) {}
+        },
+        label = s.themeHexColor,
+        placeholder = "7C4DFF",
+        modifier = Modifier.fillMaxWidth(),
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { fm.clearFocus() }),
+        leading = {
+            Box(
+                Modifier.size(22.dp).clip(RoundedCornerShape(7.dp)).background(swatch)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(0.5f), RoundedCornerShape(7.dp))
+            )
+        },
+        trailing = if (hex.length == 6) {{
+            Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+        }} else null
+    )
 }
 
 @Composable
@@ -991,7 +1012,6 @@ private fun ChatColorPresets(onPick: (Int) -> Unit) {
         }
     }
 }
-
 
 @Composable
 private fun SectionCard(title: String, subtitle: String? = null, icon: androidx.compose.ui.graphics.vector.ImageVector, content: @Composable ColumnScope.() -> Unit) {
@@ -1127,7 +1147,6 @@ private fun M3SegBtn(options: List<String>, selected: Int, onSelected: (Int) -> 
         }
     }
 }
-
 
 private fun Color.luminance() = 0.299f*red + 0.587f*green + 0.114f*blue
 

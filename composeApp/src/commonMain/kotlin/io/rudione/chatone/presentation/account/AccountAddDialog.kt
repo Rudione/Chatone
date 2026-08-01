@@ -17,7 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 @Composable
 fun AccountAddDialog(
@@ -38,10 +38,10 @@ fun AccountAddDialog(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
+                ChatoneTextField(
                     value = token,
                     onValueChange = { token = it.trim() },
-                    label = { Text(io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.oauthTokenLabel) },
+                    label = io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.oauthTokenLabel,
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )

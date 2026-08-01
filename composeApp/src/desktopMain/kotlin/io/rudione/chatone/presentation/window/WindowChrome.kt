@@ -22,7 +22,7 @@ import chatone.composeapp.generated.resources.icon
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.WindowsTitleBar
+import io.rudione.chatone.util.system.WindowsTitleBar
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -34,6 +34,16 @@ internal val isWindowsOs: Boolean = osName.contains("win")
 internal val useCustomTitleBar: Boolean = !isMacOs
 
 internal val NATIVE_WINDOW_BG = java.awt.Color(0x0A, 0x0A, 0x0F)
+
+val MIN_WINDOW_WIDTH: Dp = 200.dp
+val MIN_WINDOW_HEIGHT: Dp = 400.dp
+
+val MIN_TOOL_WINDOW_WIDTH: Dp = 400.dp
+val MIN_TOOL_WINDOW_HEIGHT: Dp = 400.dp
+
+internal fun java.awt.Window.applyMinimumSize(width: Dp = MIN_WINDOW_WIDTH, height: Dp = MIN_WINDOW_HEIGHT) {
+    minimumSize = java.awt.Dimension(width.value.toInt(), height.value.toInt())
+}
 
 internal val DARK_CAPTION_COLOR = Color(0x0D, 0x0F, 0x1A)
 internal val LIGHT_CAPTION_COLOR = Color(0xF0, 0xF0, 0xF5)
@@ -99,6 +109,8 @@ fun ChatoneDetachedWindow(
     title: String,
     defaultWidth: Dp,
     defaultHeight: Dp,
+    minWidth: Dp = MIN_WINDOW_WIDTH,
+    minHeight: Dp = MIN_WINDOW_HEIGHT,
     alwaysOnTop: Boolean = false,
     resizable: Boolean = true,
     onCloseRequest: () -> Unit,
@@ -118,8 +130,8 @@ fun ChatoneDetachedWindow(
     val savedMaximized = remember { settings.getBoolean(keyMax, false) }
 
     val windowState = rememberWindowState(
-        width = savedW.dp,
-        height = savedH.dp,
+        width = savedW.dp.coerceAtLeast(minWidth),
+        height = savedH.dp.coerceAtLeast(minHeight),
         position = if (savedX != null && savedY != null)
             WindowPosition(savedX.dp, savedY.dp)
         else
@@ -169,6 +181,7 @@ fun ChatoneDetachedWindow(
             fun applyChrome() {
                 window.background = NATIVE_WINDOW_BG
                 window.contentPane.background = NATIVE_WINDOW_BG
+                window.applyMinimumSize(minWidth, minHeight)
                 if (isWindowsOs && useCustomTitleBar) {
                     WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
                 }

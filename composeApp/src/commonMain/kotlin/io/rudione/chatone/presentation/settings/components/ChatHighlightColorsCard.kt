@@ -30,6 +30,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.ChatRuleType
 import io.rudione.chatone.domain.model.ChatoneColorTokens
+import io.rudione.chatone.presentation.components.ChatoneFieldLabel
+import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 private class ColorEntry(
@@ -81,14 +83,14 @@ fun ColorTokensEditor(
         pickerHex = entry.get(tokens).toHex()
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ColorGroup(s.colorsGroupHighlights, highlights, tokens, ::openPicker) {
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        ColorGroup(s.colorsGroupHighlights, s.colorsGroupHighlightsHint, highlights, tokens, ::openPicker) {
             onChange(highlights.fold(tokens) { acc, e -> e.set(acc, e.get(ChatoneColorTokens())) })
         }
-        ColorGroup(s.colorsGroupModeration, moderation, tokens, ::openPicker) {
+        ColorGroup(s.colorsGroupModeration, s.colorsGroupModerationHint, moderation, tokens, ::openPicker) {
             onChange(moderation.fold(tokens) { acc, e -> e.set(acc, e.get(ChatoneColorTokens())) })
         }
-        ColorGroup(s.colorsGroupAutomod, automod, tokens, ::openPicker) {
+        ColorGroup(s.colorsGroupAutomod, s.colorsGroupAutomodHint, automod, tokens, ::openPicker) {
             onChange(automod.fold(tokens) { acc, e -> e.set(acc, e.get(ChatoneColorTokens())) })
         }
     }
@@ -111,6 +113,7 @@ fun ColorTokensEditor(
 @Composable
 private fun ColorGroup(
     title: String,
+    hint: String,
     entries: List<ColorEntry>,
     tokens: ChatoneColorTokens,
     onPick: (ColorEntry) -> Unit,
@@ -118,14 +121,12 @@ private fun ColorGroup(
 ) {
     val s = LocalStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                title,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f)
-            )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f)) {
+                ChatoneFieldLabel(text = title, color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.height(2.dp))
+                ChatoneFieldLabel(text = hint, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             TextButton(onClick = onResetGroup, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
                 Text(s.colorsResetGroup, style = MaterialTheme.typography.labelSmall)
             }
@@ -186,11 +187,11 @@ private fun ColorPickerDialog(
                     Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(8.dp)).background(preview)
                         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                 )
-                OutlinedTextField(
+                ChatoneTextField(
                     value = hex,
                     onValueChange = { v -> if (v.length <= 8) onHexChange(v.filter { it.isLetterOrDigit() }.uppercase()) },
-                    label = { Text("AARRGGBB") },
-                    singleLine = true,
+                    label = "AARRGGBB",
+                    placeholder = "FF7C4DFF",
                     modifier = Modifier.fillMaxWidth()
                 )
                 val palette = listOf(

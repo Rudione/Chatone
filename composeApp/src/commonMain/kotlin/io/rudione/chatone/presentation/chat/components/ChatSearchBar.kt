@@ -28,6 +28,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 fun ChatSearchBar(
@@ -69,7 +70,7 @@ fun ChatSearchBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-           
+
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -110,7 +111,6 @@ fun ChatSearchBar(
                 }
             )
 
-           
             if (query.isNotEmpty()) {
                 Text(
                     text = if (matchCount == 0) "No results" else "${currentMatchIndex + 1} / $matchCount",
@@ -123,11 +123,10 @@ fun ChatSearchBar(
                 )
             }
 
-           
             val btnColors = IconButtonDefaults.iconButtonColors(
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            IconButton(
+            ChatoneIconButton(
                 onClick = onPrevious,
                 enabled = matchCount > 0,
                 modifier = Modifier.size(28.dp),
@@ -139,7 +138,7 @@ fun ChatSearchBar(
                     modifier = Modifier.size(18.dp)
                 )
             }
-            IconButton(
+            ChatoneIconButton(
                 onClick = onNext,
                 enabled = matchCount > 0,
                 modifier = Modifier.size(28.dp),
@@ -152,8 +151,7 @@ fun ChatSearchBar(
                 )
             }
 
-           
-            IconButton(
+            ChatoneIconButton(
                 onClick = onClose,
                 modifier = Modifier.size(28.dp),
                 colors = btnColors

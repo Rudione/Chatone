@@ -11,12 +11,11 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-
 class PersonalSetExtractor(private val httpClient: HttpClient) {
     companion object {
         private const val TAG = "PersonalSetExtractor"
 
-        private const val FLAG_PERSONAL = 1 shl 0
+        private const val FLAG_PERSONAL = 1 shl 2
     }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }

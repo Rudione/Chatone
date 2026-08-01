@@ -8,9 +8,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 
-
 val LocalSharedBackgroundActive = staticCompositionLocalOf { false }
-
 
 @Composable
 fun SharedChatBackgroundProvider(

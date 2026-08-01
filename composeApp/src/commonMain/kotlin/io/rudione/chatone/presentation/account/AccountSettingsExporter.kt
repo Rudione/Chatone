@@ -1,12 +1,10 @@
 package io.rudione.chatone.presentation.account
 
-import io.rudione.chatone.util.SettingsImportExport
-
+import io.rudione.chatone.util.settings.SettingsImportExport
 
 class AccountSettingsExporter(
     private val accountManager: AccountManager
 ) {
-
 
     fun captureCurrentToAccount(
         userId: String,
@@ -18,13 +16,11 @@ class AccountSettingsExporter(
         return true
     }
 
-
     fun load(userId: String): String? {
         if (userId.isBlank()) return null
         if (!accountManager.isOverrideEnabled(userId)) return null
         return accountManager.getSettingsOverrideJson(userId)
     }
-
 
     fun reset(userId: String) {
         accountManager.saveSettingsOverrideJson(userId, null)

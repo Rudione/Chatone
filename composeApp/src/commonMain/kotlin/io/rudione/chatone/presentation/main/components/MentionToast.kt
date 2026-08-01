@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 fun MentionToast(
@@ -41,8 +42,6 @@ fun MentionToast(
         onDismiss()
     }
 
-    // Deliberately opaque and independent of the user's sidebar glass-intensity setting:
-    // a translucent toast floating over busy chat text was unreadable at low intensities.
     LiquidGlassSurface(
         modifier = modifier
             .widthIn(max = 420.dp)
@@ -82,7 +81,7 @@ fun MentionToast(
                 )
             }
 
-            IconButton(
+            ChatoneIconButton(
                 onClick = onDismiss,
                 modifier = Modifier.size(24.dp)
             ) {

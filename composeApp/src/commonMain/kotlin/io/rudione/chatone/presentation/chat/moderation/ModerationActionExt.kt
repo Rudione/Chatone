@@ -3,7 +3,6 @@ package io.rudione.chatone.presentation.chat.moderation
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.IrcEvent
 
-
 fun IrcEvent.ModeratorAction.toDisplayActionFallback(): DisplayMessage.ModerationMsg.ModerationAction {
     return when (action) {
         IrcEvent.ModeratorAction.ACTION_BAN -> DisplayMessage.ModerationMsg.ModerationAction.BAN
@@ -19,7 +18,6 @@ fun IrcEvent.ModeratorAction.toDisplayActionFallback(): DisplayMessage.Moderatio
         else -> DisplayMessage.ModerationMsg.ModerationAction.UNBAN
     }
 }
-
 
 fun IrcEvent.ModeratorAction.isVisibleNotice(): Boolean {
     return action !in setOf(

@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -62,13 +63,15 @@ import io.rudione.chatone.util.Result
 import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.presentation.components.ExpressiveCheckbox
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.util.MessageToken
+import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneTextField
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -96,6 +99,7 @@ fun UserProfilePopup(
     onUnblock: () -> Unit = {},
     onTimeout: (Int) -> Unit = {},
     onBan: () -> Unit = {},
+    onBanWithReason: (String) -> Unit = { onBan() },
     onUnban: () -> Unit = {},
     onMod: () -> Unit = {},
     onUnmod: () -> Unit = {},
@@ -109,10 +113,43 @@ fun UserProfilePopup(
 ) {
     val noteRepository: UserNoteRepository = koinInject()
     val twitchApiClient: TwitchApiClient = koinInject()
+    val twitchGqlClient: io.rudione.chatone.data.remote.TwitchGqlClient = koinInject()
+    val chatRepository: io.rudione.chatone.data.repository.ChatRepository = koinInject()
+    val moderationHistoryRepository: io.rudione.chatone.data.repository.ModerationHistoryRepository = koinInject()
     var noteText by remember { mutableStateOf("") }
     var isNoteLoaded by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
+
+    var moderationHistory by remember(userId) { mutableStateOf<List<io.rudione.chatone.data.repository.ModerationHistoryEntry>>(emptyList()) }
+
+    var localHistory by remember(userId) { mutableStateOf<List<io.rudione.chatone.domain.model.ChatMessage>>(emptyList()) }
+
+    var historyMessages by remember(userId) { mutableStateOf<List<io.rudione.chatone.data.remote.GqlUsercardMessage>>(emptyList()) }
+    var historyCursor by remember(userId) { mutableStateOf<String?>(null) }
+    var hasMoreHistory by remember(userId) { mutableStateOf(false) }
+    var isHistoryLoading by remember(userId) { mutableStateOf(false) }
+    var historyLoadFailed by remember(userId) { mutableStateOf(false) }
+    val historyScope = rememberCoroutineScope()
+    val loadHistory: () -> Unit = {
+        if (!isHistoryLoading && accessToken.isNotEmpty() && channelId.isNotEmpty() && userId.isNotEmpty()) {
+            isHistoryLoading = true
+            historyLoadFailed = false
+            historyScope.launch {
+                val page = twitchGqlClient.getUsercardMessagesBySender(
+                    channelId, userId, historyCursor, accessToken
+                )
+                if (page != null) {
+                    historyMessages = historyMessages + page.messages
+                    historyCursor = page.nextCursor
+                    hasMoreHistory = page.hasNextPage
+                } else {
+                    historyLoadFailed = true
+                }
+                isHistoryLoading = false
+            }
+        }
+    }
 
     var fetchedAvatarUrl by remember(userId) { mutableStateOf(profileImageUrl) }
     var fetchedCreatedAt by remember(userId) { mutableStateOf(createdAt) }
@@ -121,6 +158,8 @@ fun UserProfilePopup(
     val ivrApiClient: io.rudione.chatone.data.remote.IvrApiClient = koinInject()
 
     var selectedTab by remember { mutableIntStateOf(0) }
+    var banReasonPrompt by remember { mutableStateOf(false) }
+    var banReasonText by remember { mutableStateOf("") }
 
     val userMessages = remember(channelMessages, userId) {
         channelMessages
@@ -136,6 +175,15 @@ fun UserProfilePopup(
         subAge = null
         if (username.isNotEmpty() && channelLogin.isNotEmpty()) {
             launch { subAge = ivrApiClient.getSubAge(username, channelLogin) }
+        }
+
+        if (channelId.isNotEmpty() && userId.isNotEmpty()) {
+            launch {
+                val sessionIds = userMessages.map { it.id }.toSet()
+                localHistory = chatRepository.getLocalHistoryForUser(channelId, userId)
+                    .filterNot { it.id in sessionIds }
+            }
+            moderationHistory = moderationHistoryRepository.getHistoryForUser(channelId, userId)
         }
 
         val existing = noteRepository.getNote(userId)
@@ -195,7 +243,11 @@ fun UserProfilePopup(
                     if (event.type != KeyEventType.KeyDown || !event.isAltPressed) return@onPreviewKeyEvent false
                     if (!showModActions || isBroadcaster) return@onPreviewKeyEvent false
                     when (event.key) {
-                        Key.B -> { onBan(); onDismiss(); true }
+                        Key.B -> {
+                            if (event.isShiftPressed) { banReasonPrompt = true }
+                            else { onBan(); onDismiss() }
+                            true
+                        }
                         Key.U -> { onUnban(); onDismiss(); true }
                         Key.W -> { onWhisper(); onDismiss(); true }
                         Key.K -> { if (isBlocked) onUnblock() else onBlock(); onDismiss(); true }
@@ -230,7 +282,9 @@ fun UserProfilePopup(
                 CompactProfileTabs(
                     selectedTab = selectedTab,
                     onSelect = { selectedTab = it },
-                    messagesCount = userMessages.size
+                    messagesCount = userMessages.size,
+                    showHistoryTab = showModActions,
+                    historyCount = moderationHistory.size
                 )
 
                 when (selectedTab) {
@@ -271,729 +325,53 @@ fun UserProfilePopup(
                     1 -> MessagesTab(
                         messages = userMessages,
                         displayName = displayName,
-                        userColor = color
+                        userColor = color,
+                        history = historyMessages,
+                        isHistoryLoading = isHistoryLoading,
+                        hasMoreHistory = hasMoreHistory,
+                        historyLoadFailed = historyLoadFailed,
+                        onLoadHistory = loadHistory,
+                        localHistory = localHistory
                     )
+
+                    2 -> ModerationHistoryTab(entries = moderationHistory)
                 }
             }
         }
     }
-}
 
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun UsercardTab(
-    userId: String,
-    fetchedCreatedAt: String,
-    followedAt: String?,
-    subAge: io.rudione.chatone.data.remote.SubAgeInfo? = null,
-    noteText: String,
-    isNoteLoaded: Boolean,
-    noteRepository: UserNoteRepository,
-    clipboardManager: androidx.compose.ui.platform.ClipboardManager,
-    showModActions: Boolean,
-    isBroadcaster: Boolean,
-    isModerator: Boolean,
-    isVip: Boolean,
-    isSubscriber: Boolean,
-    currentUserIsBroadcaster: Boolean,
-    isBlocked: Boolean = false,
-    onBlock: () -> Unit = {},
-    onUnblock: () -> Unit = {},
-    onNoteChange: (String) -> Unit,
-    onShowDeleteConfirmation: () -> Unit,
-    onWhisper: () -> Unit,
-    onTimeout: (Int) -> Unit,
-    onBan: () -> Unit,
-    onUnban: () -> Unit,
-    onMod: () -> Unit,
-    onUnmod: () -> Unit,
-    onVip: () -> Unit,
-    onUnvip: () -> Unit,
-    onDismiss: () -> Unit,
-    channelLogin: String = "",
-    username: String = "",
-    mentionMuteRepository: io.rudione.chatone.data.repository.MentionMuteRepository? = null
-) {
-    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-        if (fetchedCreatedAt.isNotEmpty()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Outlined.DateRange, null, modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    LocalStrings.current.profileJoined.replace("{0}", fetchedCreatedAt), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        followedAt?.let { date ->
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Filled.Favorite, null, modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    LocalStrings.current.profileFollowingSince.replace("{0}", date), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        subAge?.let { sa ->
-            val subLine = when {
-                sa.hidden -> LocalStrings.current.profileSubAgeHidden
-                sa.cumulativeMonths > 0 -> buildString {
-                    append(
-                        LocalStrings.current.profileSubAgeMonths
-                            .replace("{0}", sa.cumulativeMonths.toString())
-                    )
-                    sa.tier?.let { append(" · Tier $it") }
-                    if (sa.streakMonths > 1) {
-                        append(" · ")
-                        append(
-                            LocalStrings.current.profileSubAgeStreak
-                                .replace("{0}", sa.streakMonths.toString())
-                        )
-                    }
-                }
-                else -> null
-            }
-            if (subLine != null) {
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.Star, null, modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
-                    )
-                    Spacer(Modifier.width(4.dp))
+    if (banReasonPrompt) {
+        AlertDialog(
+            onDismissRequest = { banReasonPrompt = false },
+            title = { Text("${LocalStrings.current.profileBan}: $displayName") },
+            text = {
+                Column {
                     Text(
-                        subLine, style = MaterialTheme.typography.bodySmall,
+                        LocalStrings.current.chatBanReasonHint,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-            }
-        }
-
-        if (isNoteLoaded) {
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(Modifier.height(6.dp))
-
-            val nicknameRepository: io.rudione.chatone.data.repository.NicknameRepository =
-                org.koin.compose.koinInject()
-            var nicknameText by remember(userId) {
-                mutableStateOf(nicknameRepository.getNickname(userId) ?: "")
-            }
-            // Note and local nickname share one compact field, switched by the chip row —
-            // two stacked 56dp OutlinedTextFields made the card twice as tall as needed.
-            var localTab by remember { mutableStateOf(0) }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                @Composable
-                fun chip(index: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, filled: Boolean) {
-                    val selected = localTab == index
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                else Color.Transparent
-                            )
-                            .border(
-                                1.dp,
-                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                RoundedCornerShape(8.dp)
-                            )
-                            .clickable { localTab = index }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            icon, null,
-                            modifier = Modifier.size(12.dp),
-                            tint = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (filled) {
-                            Box(
-                                Modifier.size(5.dp).clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary)
-                            )
-                        }
-                    }
-                }
-                chip(0, Icons.Outlined.Edit, LocalStrings.current.profileNote, noteText.isNotEmpty())
-                chip(1, Icons.Outlined.Person, LocalStrings.current.profileNickname, nicknameText.isNotEmpty())
-                Spacer(Modifier.weight(1f))
-                if (localTab == 0 && noteText.isNotEmpty()) {
-                    IconButton(
-                        onClick = { clipboardManager.setText(AnnotatedString(noteText)) },
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Email, null,
-                            modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    IconButton(onClick = onShowDeleteConfirmation, modifier = Modifier.size(22.dp)) {
-                        Icon(
-                            Icons.Outlined.Delete, null,
-                            modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-                if (localTab == 1 && nicknameText.isNotEmpty()) {
-                    IconButton(
-                        onClick = {
-                            nicknameRepository.deleteNickname(userId)
-                            nicknameText = ""
-                        },
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Delete, null,
-                            modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(5.dp))
-            if (localTab == 0) {
-                CompactModField(
-                    value = noteText,
-                    onValueChange = { newText ->
-                        onNoteChange(newText)
-                        if (newText.isNotBlank()) noteRepository.saveNote(userId, newText)
-                        else if (newText.isEmpty()) noteRepository.deleteNote(userId)
-                    },
-                    placeholder = LocalStrings.current.profileNotePlaceholder,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                CompactModField(
-                    value = nicknameText,
-                    onValueChange = { newText ->
-                        nicknameText = newText
-                        if (newText.isNotBlank()) nicknameRepository.saveNickname(userId, newText)
-                        else nicknameRepository.deleteNickname(userId)
-                    },
-                    placeholder = LocalStrings.current.profileNicknamePlaceholder,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        if (mentionMuteRepository != null && username.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(Modifier.height(6.dp))
-
-            var isMutedGlobally by remember(username) {
-                mutableStateOf(mentionMuteRepository.isUserMuted(username))
-            }
-            var isMutedInChannel by remember(username, channelLogin) {
-                mutableStateOf(
-                    if (channelLogin.isNotEmpty()) mentionMuteRepository.isUserMutedInChannel(username, channelLogin)
-                    else false
-                )
-            }
-
-            val s = LocalStrings.current
-
-            @Composable
-            fun muteChip(label: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(7.dp))
-                        .background(
-                            if (checked) MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-                            else Color.Transparent
-                        )
-                        .border(
-                            1.dp,
-                            if (checked) MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
-                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                            RoundedCornerShape(7.dp)
-                        )
-                        .clickable { onToggle(!checked) }
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
-                ) {
-                    Icon(
-                        if (checked) Icons.Outlined.NotificationsOff else Icons.Outlined.Notifications,
-                        null,
-                        modifier = Modifier.size(11.dp),
-                        tint = if (checked) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (checked) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    Spacer(Modifier.height(8.dp))
+                    ChatoneTextField(
+                        value = banReasonText,
+                        onValueChange = { banReasonText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = LocalStrings.current.chatBanReasonPlaceholder,
+                        singleLine = false
                     )
                 }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onBanWithReason(banReasonText.trim())
+                    banReasonPrompt = false
+                    onDismiss()
+                }) { Text(LocalStrings.current.profileBan) }
+            },
+            dismissButton = {
+                TextButton(onClick = { banReasonPrompt = false }) { Text(LocalStrings.current.cancel) }
             }
-
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                muteChip(s.profileMuteChipGlobal, isMutedGlobally) { checked ->
-                    isMutedGlobally = checked
-                    if (checked) mentionMuteRepository.muteUser(username)
-                    else mentionMuteRepository.unmuteUser(username)
-                }
-                if (channelLogin.isNotEmpty()) {
-                    muteChip(s.profileMuteChipChannel, isMutedInChannel) { checked ->
-                        isMutedInChannel = checked
-                        if (checked) mentionMuteRepository.muteUserInChannel(username, channelLogin)
-                        else mentionMuteRepository.unmuteUserInChannel(username, channelLogin)
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(6.dp))
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-        Spacer(Modifier.height(5.dp))
-
-        if (showModActions && !isBroadcaster) {
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                listOf(
-                    1 to "1s",
-                    30 to "30s",
-                    60 to "1m",
-                    300 to "5m",
-                    600 to "10m",
-                    3600 to "1h",
-                    21600 to "6h",
-                    86400 to "1d",
-                    604800 to "7d",
-                    1209600 to "14d"
-                ).forEach { (sec, label) ->
-                    TimeoutChip(label, sec, onTimeout, onDismiss)
-                }
-            }
-            Spacer(Modifier.height(5.dp))
-        }
-
-        var showBlockConfirm by remember { mutableStateOf(false) }
-        if (showBlockConfirm) {
-            val confirmTitle = if (isBlocked)
-                LocalStrings.current.profileUnblockConfirmTitle
-            else
-                LocalStrings.current.profileBlockConfirmTitle
-            AlertDialog(
-                onDismissRequest = { showBlockConfirm = false },
-                title = { Text(confirmTitle, style = MaterialTheme.typography.titleSmall) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        if (isBlocked) onUnblock() else onBlock()
-                        showBlockConfirm = false
-                        onDismiss()
-                    }, colors = ButtonDefaults.textButtonColors(
-                        contentColor = if (isBlocked) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.error
-                    )) {
-                        Text(if (isBlocked) LocalStrings.current.unblockUser else LocalStrings.current.blockUser)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showBlockConfirm = false }) {
-                        Text(LocalStrings.current.cancel)
-                    }
-                }
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            ModIconChip(
-                icon = Icons.Outlined.MailOutline,
-                tint = MaterialTheme.colorScheme.primary,
-                contentDescription = LocalStrings.current.profileSendWhisper,
-                onClick = { onWhisper(); onDismiss() }
-            )
-            if (!isBroadcaster) {
-                ModIconChip(
-                    icon = if (isBlocked) Icons.Outlined.LockOpen else Icons.Outlined.Block,
-                    tint = if (isBlocked) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.error,
-                    contentDescription = if (isBlocked) LocalStrings.current.profileUnblock
-                    else LocalStrings.current.profileBlock,
-                    onClick = { showBlockConfirm = true }
-                )
-            }
-            if (showModActions && !isBroadcaster) {
-                ModIconChip(
-                    icon = Icons.Filled.Close,
-                    tint = ChatoneTheme.extraColors.modBan,
-                    contentDescription = LocalStrings.current.profileBan,
-                    onClick = { onBan(); onDismiss() }
-                )
-                ModIconChip(
-                    icon = Icons.Outlined.CheckCircle,
-                    tint = ChatoneTheme.extraColors.modUnban,
-                    contentDescription = LocalStrings.current.profileUnban,
-                    onClick = { onUnban(); onDismiss() }
-                )
-                if (currentUserIsBroadcaster) {
-                    ModIconChip(
-                        icon = if (isModerator) Icons.Filled.Shield else Icons.Outlined.Shield,
-                        tint = ChatoneTheme.extraColors.connected,
-                        contentDescription = if (isModerator) "Unmod" else "Mod",
-                        onClick = { if (isModerator) onUnmod() else onMod(); onDismiss() }
-                    )
-                    ModIconChip(
-                        icon = if (isVip) Icons.Filled.WorkspacePremium else Icons.Outlined.WorkspacePremium,
-                        tint = Color(0xFFE005B9),
-                        contentDescription = if (isVip) "Un-VIP" else "VIP",
-                        onClick = { if (isVip) onUnvip() else onVip(); onDismiss() }
-                    )
-                }
-            }
-        }
-    }
-}
-
-
-@Composable
-internal fun MessagesTab(
-    messages: List<DisplayMessage.PrivMsg>,
-    displayName: String,
-    userColor: String?
-) {
-    val listState = rememberLazyListState()
-    val nameColor = parseHexColor(userColor) ?: MaterialTheme.colorScheme.primary
-    if (messages.isEmpty()) {
-        Box(
-            modifier = Modifier.fillMaxWidth().height(200.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.MailOutline, null, modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                )
-                Text(
-                    LocalStrings.current.profileNoMessagesInSession, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            }
-        }
-    } else {
-        LaunchedEffect(messages.size) {
-            if (messages.isNotEmpty()) listState.scrollToItem(messages.lastIndex)
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 360.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(messages, key = { it.id }) { msg ->
-                MessageHistoryItem(
-                    message = msg,
-                    nameColor = nameColor
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun MessageHistoryItem(message: DisplayMessage.PrivMsg, nameColor: Color) {
-    val timeText = remember(message.timestamp) { formatMessageTime(message.timestamp) }
-    val rawText = remember(message.tokens) {
-        message.tokens.joinToString("") { token ->
-            when (token) {
-                is MessageToken.Text -> token.text
-                is MessageToken.TwitchEmoteToken -> token.name
-                is MessageToken.ThirdPartyEmoteToken -> token.emote.code
-                is MessageToken.Link -> token.displayText
-                is MessageToken.Mention -> token.username
-            }
-        }
-    }
-    val bodyColor = if (message.isDeleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
-    else if (message.isAction) nameColor else MaterialTheme.colorScheme.onSurface
-    val deletedLabel = LocalStrings.current.profileMessageDeleted
-    val line = buildAnnotatedString {
-        withStyle(SpanStyle(color = nameColor, fontWeight = FontWeight.SemiBold)) {
-            append(message.displayName)
-        }
-        withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))) {
-            append(": ")
-        }
-        withStyle(
-            SpanStyle(
-                color = bodyColor,
-                textDecoration = if (message.isDeleted) TextDecoration.LineThrough else null
-            )
-        ) {
-            append(rawText.ifEmpty { if (message.isDeleted) deletedLabel else "" })
-        }
-    }
-    var showCopyMenu by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
-    Box {
-        Row(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
-                .background(
-                    if (message.isDeleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
-                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f)
-                )
-                .pointerInput(message.id) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Press &&
-                                event.buttons.isSecondaryPressed
-                            ) {
-                                showCopyMenu = true
-                            }
-                        }
-                    }
-                }
-                .padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.Top
-        ) {
-            Text(
-                timeText, style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.padding(top = 1.dp, end = 6.dp)
-            )
-            Text(line, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-        }
-        DropdownMenu(expanded = showCopyMenu, onDismissRequest = { showCopyMenu = false }) {
-            DropdownMenuItem(
-                text = { Text(LocalStrings.current.chatCopyMessage, style = MaterialTheme.typography.bodySmall) },
-                onClick = {
-                    showCopyMenu = false
-                    clipboard.setText(AnnotatedString(rawText))
-                }
-            )
-            DropdownMenuItem(
-                text = { Text(LocalStrings.current.chatCopyUsername, style = MaterialTheme.typography.bodySmall) },
-                onClick = {
-                    showCopyMenu = false
-                    clipboard.setText(AnnotatedString(message.displayName))
-                }
-            )
-        }
-    }
-}
-
-internal fun formatMessageTime(timestamp: Long): String {
-    val instant = Instant.fromEpochMilliseconds(timestamp)
-    val dt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-    return "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
-}
-
-
-@Composable
-internal fun CompactProfileTabs(
-    selectedTab: Int,
-    onSelect: (Int) -> Unit,
-    messagesCount: Int = 0
-) {
-    val s = LocalStrings.current
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            @Composable
-            fun tab(index: Int, label: String, badge: Int = 0) {
-                val selected = selectedTab == index
-                val labelColor by animateColorAsState(
-                    if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-                val indicatorWidth by animateDpAsState(if (selected) 16.dp else 0.dp)
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                        .clickable { onSelect(index) }
-                        .padding(horizontal = 10.dp)
-                        .padding(top = 5.dp, bottom = 2.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                            color = labelColor
-                        )
-                        if (badge > 0) {
-                            Text(
-                                "$badge",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = if (selected) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (selected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
-                                    )
-                                    .padding(horizontal = 4.dp)
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(3.dp))
-                    Box(
-                        Modifier
-                            .width(indicatorWidth)
-                            .height(2.dp)
-                            .clip(RoundedCornerShape(1.dp))
-                            .background(MaterialTheme.colorScheme.primary)
-                    )
-                }
-            }
-            tab(0, s.profileTabUsercard)
-            tab(1, s.profileTabMessages, messagesCount)
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-    }
-}
-
-@Composable
-internal fun RoleBadge(label: String, color: Color) {
-    Surface(color = color.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
-    }
-}
-
-@Composable
-internal fun TimeoutChip(
-    label: String,
-    seconds: Int,
-    onTimeout: (Int) -> Unit,
-    onDismiss: () -> Unit
-) {
-    // Custom clickable Box instead of Surface(onClick): Surface enforces a 48dp
-    // minimum touch target, which blew the chips apart with invisible gaps.
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(ChatoneTheme.extraColors.modTimeout.copy(alpha = 0.14f))
-            .clickable { onTimeout(seconds); onDismiss() }
-            .padding(horizontal = 6.dp, vertical = 3.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            label, style = MaterialTheme.typography.labelSmall,
-            color = ChatoneTheme.extraColors.modTimeout, fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-internal fun MiniActionButton(
-    label: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(8.dp),
-        color = color.copy(alpha = 0.14f),
-        contentColor = color,
-        modifier = modifier
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            if (icon != null) {
-                Icon(icon, null, modifier = Modifier.size(14.dp), tint = color)
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-internal fun ModIconChip(
-    icon: ImageVector,
-    tint: Color,
-    contentDescription: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .size(26.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(tint.copy(alpha = 0.14f))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(15.dp), tint = tint)
-    }
-}
-
-internal fun parseHexColor(hexColor: String?): Color? {
-    if (hexColor == null || !hexColor.startsWith("#")) return null
-    return try {
-        val colorInt = hexColor.substring(1).toLong(16)
-        Color(
-            red = ((colorInt shr 16) and 0xFF) / 255f,
-            green = ((colorInt shr 8) and 0xFF) / 255f,
-            blue = (colorInt and 0xFF) / 255f
-        )
-    } catch (e: Exception) {
-        null
     }
 }
 
@@ -1021,15 +399,46 @@ fun UserProfileContent(
 ) {
     val noteRepository: UserNoteRepository = koinInject()
     val twitchApiClient: TwitchApiClient = koinInject()
+    val twitchGqlClient: io.rudione.chatone.data.remote.TwitchGqlClient = koinInject()
+    val chatRepository: io.rudione.chatone.data.repository.ChatRepository = koinInject()
+    val moderationHistoryRepository: io.rudione.chatone.data.repository.ModerationHistoryRepository = koinInject()
     var noteText by remember { mutableStateOf("") }
     var isNoteLoaded by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
+    var localHistory by remember(msg.userId) { mutableStateOf<List<io.rudione.chatone.domain.model.ChatMessage>>(emptyList()) }
+    var moderationHistory by remember(msg.userId) { mutableStateOf<List<io.rudione.chatone.data.repository.ModerationHistoryEntry>>(emptyList()) }
 
     var fetchedAvatarUrl by remember(msg.userId) { mutableStateOf("") }
     var fetchedCreatedAt by remember(msg.userId) { mutableStateOf("") }
     var followedAt by remember(msg.userId) { mutableStateOf<String?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
+
+    var historyMessages by remember(msg.userId) { mutableStateOf<List<io.rudione.chatone.data.remote.GqlUsercardMessage>>(emptyList()) }
+    var historyCursor by remember(msg.userId) { mutableStateOf<String?>(null) }
+    var hasMoreHistory by remember(msg.userId) { mutableStateOf(false) }
+    var isHistoryLoading by remember(msg.userId) { mutableStateOf(false) }
+    var historyLoadFailed by remember(msg.userId) { mutableStateOf(false) }
+    val historyScope = rememberCoroutineScope()
+    val loadHistory: () -> Unit = {
+        if (!isHistoryLoading && accessToken.isNotEmpty() && channelId.isNotEmpty()) {
+            isHistoryLoading = true
+            historyLoadFailed = false
+            historyScope.launch {
+                val page = twitchGqlClient.getUsercardMessagesBySender(
+                    channelId, msg.userId, historyCursor, accessToken
+                )
+                if (page != null) {
+                    historyMessages = historyMessages + page.messages
+                    historyCursor = page.nextCursor
+                    hasMoreHistory = page.hasNextPage
+                } else {
+                    historyLoadFailed = true
+                }
+                isHistoryLoading = false
+            }
+        }
+    }
 
     val userMessages = remember(channelMessages, msg.userId) {
         channelMessages.filterIsInstance<DisplayMessage.PrivMsg>()
@@ -1037,6 +446,15 @@ fun UserProfileContent(
     }
 
     LaunchedEffect(msg.userId) {
+        if (channelId.isNotEmpty()) {
+            launch {
+                val sessionIds = userMessages.map { it.id }.toSet()
+                localHistory = chatRepository.getLocalHistoryForUser(channelId, msg.userId)
+                    .filterNot { it.id in sessionIds }
+            }
+            moderationHistory = moderationHistoryRepository.getHistoryForUser(channelId, msg.userId)
+        }
+
         val existing = noteRepository.getNote(msg.userId)
         noteText = existing ?: ""
         isNoteLoaded = true
@@ -1102,7 +520,9 @@ fun UserProfileContent(
         CompactProfileTabs(
             selectedTab = selectedTab,
             onSelect = { selectedTab = it },
-            messagesCount = userMessages.size
+            messagesCount = userMessages.size,
+            showHistoryTab = showModActions,
+            historyCount = moderationHistory.size
         )
         when (selectedTab) {
             0 -> UsercardTab(
@@ -1139,8 +559,17 @@ fun UserProfileContent(
             1 -> MessagesTab(
                 messages = userMessages,
                 displayName = msg.displayName,
-                userColor = msg.color
+                userColor = msg.color,
+                history = historyMessages,
+                isHistoryLoading = isHistoryLoading,
+                hasMoreHistory = hasMoreHistory,
+                historyLoadFailed = historyLoadFailed,
+                onLoadHistory = loadHistory,
+                historyAtTop = false,
+                localHistory = localHistory
             )
+
+            2 -> ModerationHistoryTab(entries = moderationHistory)
         }
     }
 }
@@ -1202,7 +631,7 @@ fun UserProfileHeader(
                         color = nameColor, fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.width(4.dp))
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = {
                             clipboardManager.setText(AnnotatedString(username))
                             showCopied = true
@@ -1222,7 +651,7 @@ fun UserProfileHeader(
                                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                         )
                     }
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = {
                             val twitchUrl = "https://www.twitch.tv/${username.lowercase()}"
                             uriHandler.openUri(twitchUrl)
@@ -1245,7 +674,7 @@ fun UserProfileHeader(
                 }
             }
             if (onDetach != null) {
-                IconButton(onClick = onDetach, modifier = Modifier.size(28.dp)) {
+                ChatoneIconButton(onClick = onDetach, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Outlined.OpenInNew, null, modifier = Modifier.size(15.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1254,7 +683,7 @@ fun UserProfileHeader(
             }
             if (onDismiss != null) {
                 if (showIconDetached) {
-                    IconButton(
+                    ChatoneIconButton(
                         onClick = onDismiss,
                         modifier = Modifier.size(28.dp),
                     ) {

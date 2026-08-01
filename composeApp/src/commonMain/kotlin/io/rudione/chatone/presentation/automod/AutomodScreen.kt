@@ -3,6 +3,7 @@ package io.rudione.chatone.presentation.automod
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,6 +37,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,15 +47,25 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import io.rudione.chatone.data.repository.AutomodRepository
 import io.rudione.chatone.domain.model.*
+import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.components.ExpressiveCheckChip
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.util.AutomodImportExport
-import kotlinx.datetime.Clock
+import io.rudione.chatone.util.automod.AutomodImportExport
+import kotlin.time.Clock
 import org.koin.compose.koinInject
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 
 enum class AutomodFilter { ALL, GLOBAL, LOCAL }
 private enum class AutomodTab { WORDS, CHAT_RULES }
+
+private val WIDE_LAYOUT_MIN_WIDTH = 640.dp
+private val LEFT_PANE_MIN_WIDTH = 260.dp
+private val LEFT_PANE_DEFAULT_WIDTH = 340.dp
+private val DETAIL_PANE_MIN_WIDTH = 320.dp
+private val PANE_GUTTER = 10.dp
+private val PANE_CORNER = 18.dp
 
 private enum class TimeUnit(val label: String, val toSeconds: Long) {
     SECONDS("s", 1L),
@@ -86,105 +99,133 @@ fun AutomodScreen(
     val wordRules by repository.rules.collectAsState()
     val chatRules by repository.chatRules.collectAsState()
 
-    ChatoneTheme {
-        BoxWithConstraints(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            val wide = maxWidth >= 640.dp
-            var wordSelectedId by remember { mutableStateOf<String?>(null) }
-            var chatSelectedId by remember { mutableStateOf<String?>(null) }
+    BoxWithConstraints(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        val wide = maxWidth >= WIDE_LAYOUT_MIN_WIDTH
+        var wordSelectedId by remember { mutableStateOf<String?>(null) }
+        var chatSelectedId by remember { mutableStateOf<String?>(null) }
 
-            LaunchedEffect(wordRules) { if (wordSelectedId == null) wordSelectedId = wordRules.firstOrNull()?.id }
-            LaunchedEffect(chatRules) { if (chatSelectedId == null) chatSelectedId = chatRules.firstOrNull()?.id }
+        val density = LocalDensity.current
+        val availableWidth = maxWidth - PANE_GUTTER * 2 - DividerHitWidth
+        val maxLeftPaneWidth = (availableWidth - DETAIL_PANE_MIN_WIDTH).coerceAtLeast(LEFT_PANE_MIN_WIDTH)
+        var leftPaneWidth by remember { mutableStateOf(LEFT_PANE_DEFAULT_WIDTH) }
+        LaunchedEffect(maxLeftPaneWidth) {
+            leftPaneWidth = leftPaneWidth.coerceIn(LEFT_PANE_MIN_WIDTH, maxLeftPaneWidth)
+        }
+        val clampedLeftPaneWidth = leftPaneWidth.coerceIn(LEFT_PANE_MIN_WIDTH, maxLeftPaneWidth)
 
-            val selectedWord = wordRules.firstOrNull { it.id == wordSelectedId }
-            val selectedChat = chatRules.firstOrNull { it.id == chatSelectedId }
+        LaunchedEffect(wordRules) { if (wordSelectedId == null) wordSelectedId = wordRules.firstOrNull()?.id }
+        LaunchedEffect(chatRules) { if (chatSelectedId == null) chatSelectedId = chatRules.firstOrNull()?.id }
 
-            if (wide) {
-                Row(Modifier.fillMaxSize()) {
-                    Surface(
-                        modifier = Modifier.weight(0.40f).fillMaxHeight(),
-                        color = ChatoneTheme.extraColors.sidebarSurface,
-                        tonalElevation = 0.dp
-                    ) {
-                        Column(Modifier.fillMaxSize()) {
-                            LeftHeader(
-                                title = LocalStrings.current.automodLocalTitle,
-                                subtitle = currentChannelLogin?.let { "#$it" },
-                                activeTab = activeTab,
-                                onTabChange = { activeTab = it },
-                                onClose = onClose,
-                                showImportExport = true,
-                                wordRules = wordRules,
-                                chatRules = chatRules,
-                                onImport = onImport,
-                                onExportJson = { onExport("automod-rules.json", AutomodImportExport.toJson(wordRules, chatRules)) },
-                                onExportXlsx = { onExport("automod-rules.xlsx", AutomodImportExport.toXlsx(wordRules, chatRules)) },
-                                onExportCsv = { onExport("automod-rules.csv", AutomodImportExport.toCsv(wordRules, chatRules)) },
-                                onInstallDefaults = {
-                                    AutomodImportExport.defaultWordStarterPack().forEach { repository.upsert(it) }
-                                    AutomodImportExport.defaultChatStarterPack().forEach { repository.upsertChatRule(it) }
-                                }
-                            )
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            when (activeTab) {
-                                AutomodTab.WORDS -> WordListPane(wordRules, repository, currentChannelLogin, wide = true,
-                                    selectedId = wordSelectedId, onSelectId = { wordSelectedId = it })
-                                AutomodTab.CHAT_RULES -> ChatRuleListPane(chatRules, repository, currentChannelLogin, wide = true,
-                                    selectedId = chatSelectedId, onSelectId = { chatSelectedId = it })
+        val selectedWord = wordRules.firstOrNull { it.id == wordSelectedId }
+        val selectedChat = chatRules.firstOrNull { it.id == chatSelectedId }
+
+        if (wide) {
+            Row(Modifier.fillMaxSize().padding(PANE_GUTTER)) {
+                Surface(
+                    modifier = Modifier.width(clampedLeftPaneWidth).fillMaxHeight(),
+                    shape = RoundedCornerShape(PANE_CORNER),
+                    color = ChatoneTheme.extraColors.sidebarSurface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
+                ) {
+                    Column(Modifier.fillMaxSize()) {
+                        LeftHeader(
+                            title = LocalStrings.current.automodLocalTitle,
+                            subtitle = currentChannelLogin?.let { "#$it" },
+                            activeTab = activeTab,
+                            onTabChange = { activeTab = it },
+                            onClose = onClose,
+                            showImportExport = true,
+                            wordRules = wordRules,
+                            chatRules = chatRules,
+                            onImport = onImport,
+                            onExportJson = { onExport("automod-rules.json", AutomodImportExport.toJson(wordRules, chatRules)) },
+                            onExportXlsx = { onExport("automod-rules.xlsx", AutomodImportExport.toXlsx(wordRules, chatRules)) },
+                            onExportCsv = { onExport("automod-rules.csv", AutomodImportExport.toCsv(wordRules, chatRules)) },
+                            onInstallDefaults = {
+                                AutomodImportExport.defaultWordStarterPack().forEach { repository.upsert(it) }
+                                AutomodImportExport.defaultChatStarterPack().forEach { repository.upsertChatRule(it) }
                             }
-                        }
-                    }
-                    Box(Modifier.width(1.dp).fillMaxHeight().background(ChatoneTheme.extraColors.cardBorder))
-                    Surface(
-                        modifier = Modifier.weight(0.60f).fillMaxHeight(),
-                        color = MaterialTheme.colorScheme.surface
-                    ) {
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         when (activeTab) {
-                            AutomodTab.WORDS -> WordDetailContent(
-                                rule = selectedWord,
-                                currentChannelLogin = currentChannelLogin,
-                                onBack = null,
-                                onChange = { repository.upsert(it) },
-                                onDelete = { repository.delete(it.id); wordSelectedId = null }
-                            )
-                            AutomodTab.CHAT_RULES -> ChatRuleDetailContent(
-                                rule = selectedChat,
-                                currentChannelLogin = currentChannelLogin,
-                                onBack = null,
-                                onChange = { repository.upsertChatRule(it) },
-                                onDelete = { repository.deleteChatRule(it.id); chatSelectedId = null }
-                            )
+                            AutomodTab.WORDS -> WordListPane(wordRules, repository, currentChannelLogin, wide = true,
+                                selectedId = wordSelectedId, onSelectId = { wordSelectedId = it })
+                            AutomodTab.CHAT_RULES -> ChatRuleListPane(chatRules, repository, currentChannelLogin, wide = true,
+                                selectedId = chatSelectedId, onSelectId = { chatSelectedId = it })
                         }
                     }
                 }
-            } else {
-                Column(Modifier.fillMaxSize()) {
-                    LeftHeader(
-                        title = LocalStrings.current.automodLocalTitle,
-                        subtitle = currentChannelLogin?.let { "#$it" },
-                        activeTab = activeTab, onTabChange = { activeTab = it }, onClose = onClose,
-                        showImportExport = true, wordRules = wordRules, chatRules = chatRules,
-                        onImport = onImport,
-                        onExportJson = { onExport("automod-rules.json", AutomodImportExport.toJson(wordRules, chatRules)) },
-                        onExportXlsx = { onExport("automod-rules.xlsx", AutomodImportExport.toXlsx(wordRules, chatRules)) },
-                        onExportCsv = { onExport("automod-rules.csv", AutomodImportExport.toCsv(wordRules, chatRules)) },
-                        onInstallDefaults = {
-                            AutomodImportExport.defaultWordStarterPack().forEach { repository.upsert(it) }
-                            AutomodImportExport.defaultChatStarterPack().forEach { repository.upsertChatRule(it) }
-                        }
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                AutomodPaneDivider(
+                    onDelta = { deltaPx ->
+                        val deltaDp = with(density) { deltaPx.toDp() }
+                        leftPaneWidth = (leftPaneWidth + deltaDp)
+                            .coerceIn(LEFT_PANE_MIN_WIDTH, maxLeftPaneWidth)
+                    }
+                )
+                Surface(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    shape = RoundedCornerShape(PANE_CORNER),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
+                ) {
                     when (activeTab) {
-                        AutomodTab.WORDS -> WordListPane(wordRules, repository, currentChannelLogin, wide = false,
-                            selectedId = wordSelectedId, onSelectId = { wordSelectedId = it })
-                        AutomodTab.CHAT_RULES -> ChatRuleListPane(chatRules, repository, currentChannelLogin, wide = false,
-                            selectedId = chatSelectedId, onSelectId = { chatSelectedId = it })
+                        AutomodTab.WORDS -> WordDetailContent(
+                            rule = selectedWord,
+                            currentChannelLogin = currentChannelLogin,
+                            onBack = null,
+                            onChange = { repository.upsert(it) },
+                            onDelete = { repository.delete(it.id); wordSelectedId = null }
+                        )
+                        AutomodTab.CHAT_RULES -> ChatRuleDetailContent(
+                            rule = selectedChat,
+                            currentChannelLogin = currentChannelLogin,
+                            onBack = null,
+                            onChange = { repository.upsertChatRule(it) },
+                            onDelete = { repository.deleteChatRule(it.id); chatSelectedId = null }
+                        )
                     }
                 }
+            }
+        } else {
+            Surface(
+                modifier = Modifier.fillMaxSize().padding(PANE_GUTTER),
+                shape = RoundedCornerShape(PANE_CORNER),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
+            ) {
+            Column(Modifier.fillMaxSize()) {
+                LeftHeader(
+                    title = LocalStrings.current.automodLocalTitle,
+                    subtitle = currentChannelLogin?.let { "#$it" },
+                    activeTab = activeTab, onTabChange = { activeTab = it }, onClose = onClose,
+                    showImportExport = true, wordRules = wordRules, chatRules = chatRules,
+                    onImport = onImport,
+                    onExportJson = { onExport("automod-rules.json", AutomodImportExport.toJson(wordRules, chatRules)) },
+                    onExportXlsx = { onExport("automod-rules.xlsx", AutomodImportExport.toXlsx(wordRules, chatRules)) },
+                    onExportCsv = { onExport("automod-rules.csv", AutomodImportExport.toCsv(wordRules, chatRules)) },
+                    onInstallDefaults = {
+                        AutomodImportExport.defaultWordStarterPack().forEach { repository.upsert(it) }
+                        AutomodImportExport.defaultChatStarterPack().forEach { repository.upsertChatRule(it) }
+                    }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                when (activeTab) {
+                    AutomodTab.WORDS -> WordListPane(wordRules, repository, currentChannelLogin, wide = false,
+                        selectedId = wordSelectedId, onSelectId = { wordSelectedId = it })
+                    AutomodTab.CHAT_RULES -> ChatRuleListPane(chatRules, repository, currentChannelLogin, wide = false,
+                        selectedId = chatSelectedId, onSelectId = { chatSelectedId = it })
+                }
+            }
             }
         }
     }
 }
-
 
 @Composable
 private fun LeftHeader(
@@ -223,11 +264,11 @@ private fun LeftHeader(
             }
             if (showImportExport) {
                 Box {
-                    IconButton(onClick = { menuOpen = true }) {
+                    ChatoneIconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Outlined.Download, contentDescription = "Options",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    DropdownMenu(menuOpen, { menuOpen = false }) {
+                    ChatoneDropdownMenu(menuOpen, { menuOpen = false }) {
                         DropdownMenuItem({ Text(s.automodImport) }, { menuOpen = false; onImport() })
                         DropdownMenuItem({ Text(s.automodExportJson) }, { menuOpen = false; onExportJson() })
                         DropdownMenuItem({ Text(s.automodExportXlsx) }, { menuOpen = false; onExportXlsx() })
@@ -237,74 +278,23 @@ private fun LeftHeader(
                     }
                 }
             }
-            IconButton(onClick = onClose) {
+            ChatoneIconButton(onClick = onClose) {
                 Icon(Icons.Filled.Close, contentDescription = "Close",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-            Md3Tab(
-                label = s.automodTabWords,
-                count = wordRules.size,
-                selected = activeTab == AutomodTab.WORDS,
-                onClick = { onTabChange(AutomodTab.WORDS) },
-                modifier = Modifier.weight(1f)
-            )
-            Md3Tab(
-                label = s.automodTabChatRules,
-                count = chatRules.size,
-                selected = activeTab == AutomodTab.CHAT_RULES,
-                onClick = { onTabChange(AutomodTab.CHAT_RULES) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun Md3Tab(label: String, count: Int, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val color by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        tween(200)
-    )
-    Column(
-        modifier = modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick
-        ).padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(label, style = MaterialTheme.typography.labelLarge, color = color,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-            if (count > 0) {
-                Surface(
-                    shape = CircleShape,
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surfaceContainerHighest,
-                    tonalElevation = 0.dp
-                ) {
-                    Text(
-                        count.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        val indicatorWidth by animateFloatAsState(if (selected) 0.5f else 0f, tween(220))
-        Box(
-            Modifier.height(2.dp)
-                .fillMaxWidth(indicatorWidth)
-                .clip(RoundedCornerShape(2.dp))
-                .background(MaterialTheme.colorScheme.primary)
+        AutomodTabRow(
+            tabs = listOf(
+                Triple(AutomodTab.WORDS, s.automodTabWords, wordRules.size),
+                Triple(AutomodTab.CHAT_RULES, s.automodTabChatRules, chatRules.size)
+            ),
+            selected = activeTab,
+            onSelect = onTabChange,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)
         )
     }
 }
+
 
 @Composable
 private fun WordListPane(
@@ -352,24 +342,30 @@ private fun WordListPane(
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterChip(selected = filter == AutomodFilter.ALL, onClick = { filter = AutomodFilter.ALL },
-                label = { Text(s.automodFilterAll) })
-            FilterChip(selected = filter == AutomodFilter.GLOBAL, onClick = { filter = AutomodFilter.GLOBAL },
-                label = { Text(s.automodFilterGlobal) })
-            FilterChip(selected = filter == AutomodFilter.LOCAL, onClick = { filter = AutomodFilter.LOCAL },
-                label = { Text(s.automodFilterLocal) })
-            Spacer(Modifier.weight(1f))
-            FilledIconButton(onClick = {
-                val fresh = AutomodRule(id = AutomodImportExport.newId(),
-                    scope = if (filter == AutomodFilter.LOCAL) AutomodScope.LOCAL else AutomodScope.GLOBAL,
-                    channelLogin = if (filter == AutomodFilter.LOCAL) currentChannelLogin?.lowercase() else null,
-                    pattern = "", action = AutomodAction.DELETE, enabled = true)
-                repository.upsert(fresh)
-                onSelectId(fresh.id)
-            }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Add, "Add", modifier = Modifier.size(18.dp))
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
+                AutomodSegmented(
+                    options = listOf(
+                        AutomodFilter.ALL to s.automodFilterAll,
+                        AutomodFilter.GLOBAL to s.automodFilterGlobal,
+                        AutomodFilter.LOCAL to s.automodFilterLocal
+                    ),
+                    selected = filter,
+                    onSelect = { filter = it }
+                )
             }
+            AutomodActionButton(
+                icon = Icons.Filled.Add,
+                contentDescription = "Add",
+                onClick = {
+                    val fresh = AutomodRule(id = AutomodImportExport.newId(),
+                        scope = if (filter == AutomodFilter.LOCAL) AutomodScope.LOCAL else AutomodScope.GLOBAL,
+                        channelLogin = if (filter == AutomodFilter.LOCAL) currentChannelLogin?.lowercase() else null,
+                        pattern = "", action = AutomodAction.DELETE, enabled = true)
+                    repository.upsert(fresh)
+                    onSelectId(fresh.id)
+                }
+            )
         }
         Md3SearchBar(query, { query = it }, s.automodSearchPlaceholder)
         Spacer(Modifier.height(4.dp))
@@ -451,27 +447,33 @@ private fun ChatRuleListPane(
 
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterChip(selected = filter == AutomodFilter.ALL, onClick = { filter = AutomodFilter.ALL },
-                label = { Text(s.automodFilterAll) })
-            FilterChip(selected = filter == AutomodFilter.GLOBAL, onClick = { filter = AutomodFilter.GLOBAL },
-                label = { Text(s.automodFilterGlobal) })
-            FilterChip(selected = filter == AutomodFilter.LOCAL, onClick = { filter = AutomodFilter.LOCAL },
-                label = { Text(s.automodFilterLocal) })
-            Spacer(Modifier.weight(1f))
-            FilledIconButton(onClick = {
-                val fresh = ChatRule(
-                    id = AutomodImportExport.newId(),
-                    type = ChatRuleType.SPAM_RATE,
-                    scope = if (filter == AutomodFilter.LOCAL) AutomodScope.LOCAL else AutomodScope.GLOBAL,
-                    channelLogin = if (filter == AutomodFilter.LOCAL) currentChannelLogin?.lowercase() else null,
-                    createdAt = Clock.System.now().toEpochMilliseconds()
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
+                AutomodSegmented(
+                    options = listOf(
+                        AutomodFilter.ALL to s.automodFilterAll,
+                        AutomodFilter.GLOBAL to s.automodFilterGlobal,
+                        AutomodFilter.LOCAL to s.automodFilterLocal
+                    ),
+                    selected = filter,
+                    onSelect = { filter = it }
                 )
-                repository.upsertChatRule(fresh)
-                onSelectId(fresh.id)
-            }, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Filled.Add, "Add", modifier = Modifier.size(18.dp))
             }
+            AutomodActionButton(
+                icon = Icons.Filled.Add,
+                contentDescription = "Add",
+                onClick = {
+                    val fresh = ChatRule(
+                        id = AutomodImportExport.newId(),
+                        type = ChatRuleType.SPAM_RATE,
+                        scope = if (filter == AutomodFilter.LOCAL) AutomodScope.LOCAL else AutomodScope.GLOBAL,
+                        channelLogin = if (filter == AutomodFilter.LOCAL) currentChannelLogin?.lowercase() else null,
+                        createdAt = Clock.System.now().toEpochMilliseconds()
+                    )
+                    repository.upsertChatRule(fresh)
+                    onSelectId(fresh.id)
+                }
+            )
         }
         Md3SearchBar(query, { query = it }, s.automodSearchPlaceholder)
         if (knownChannels.isNotEmpty()) {
@@ -598,10 +600,17 @@ private fun WordDetailContent(
 
         DetailSection(s.automodSectionMatching) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Md3Toggle(s.automodCaseSensitive, s.automodCaseSensitiveDesc, rule.caseSensitive, Modifier.weight(1f)) { onChange(rule.copy(caseSensitive = it)) }
-                Md3Toggle(s.automodWholeWordOnly, s.automodWholeWordDesc, rule.wholeWord, Modifier.weight(1f)) { onChange(rule.copy(wholeWord = it)) }
+                Md3Toggle(s.automodCaseSensitive, s.automodCaseSensitiveDesc, rule.caseSensitive, Modifier.weight(1f),
+                    guide = s.automodCaseSensitiveGuide) { onChange(rule.copy(caseSensitive = it)) }
+                Md3Toggle(s.automodWholeWordOnly, s.automodWholeWordDesc, rule.wholeWord, Modifier.weight(1f),
+                    guide = s.automodWholeWordGuide) { onChange(rule.copy(wholeWord = it)) }
             }
-            Md3Toggle(s.automodRegularExpression, s.automodRegexDesc, rule.isRegex) { onChange(rule.copy(isRegex = it)) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Md3Toggle(s.automodRegularExpression, s.automodRegexDesc, rule.isRegex, Modifier.weight(1f),
+                    guide = s.automodRegexGuide) { onChange(rule.copy(isRegex = it)) }
+                Md3Toggle(s.automodIgnoreLinks, s.automodIgnoreLinksDesc, rule.ignoreLinks, Modifier.weight(1f),
+                    guide = s.automodIgnoreLinksGuide) { onChange(rule.copy(ignoreLinks = it)) }
+            }
         }
 
         DetailSection(s.automodSectionAction) {
@@ -662,7 +671,6 @@ private fun WordDetailContent(
         }
     }
 }
-
 
 @Composable
 private fun ChatRuleRow(rule: ChatRule, selected: Boolean, onClick: () -> Unit, onToggle: () -> Unit) {
@@ -807,7 +815,7 @@ private fun ChatRuleDetailContent(
                             var clipChansText by remember(rule.id) {
                                 mutableStateOf(rule.linksClipsAllowedChannels.joinToString("\n"))
                             }
-                            OutlinedTextField(
+                            ChatoneTextField(
                                 value = clipChansText,
                                 onValueChange = { v ->
                                     clipChansText = v
@@ -816,12 +824,13 @@ private fun ChatRuleDetailContent(
                                         .filter { it.isNotBlank() }
                                     onChange(rule.copy(linksClipsAllowedChannels = chans))
                                 },
-                                label = { Text(s.chatRuleLinksClipsAllowedChannels) },
-                                supportingText = { Text(s.chatRuleLinksClipsAllowedChannelsDesc) },
+                                label = s.chatRuleLinksClipsAllowedChannels,
+                                hint = s.chatRuleLinksClipsAllowedChannelsDesc,
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 2,
                                 maxLines = 6,
-                                textStyle = MaterialTheme.typography.bodySmall
+                                textStyle = MaterialTheme.typography.bodySmall,
+                                singleLine = false
                             )
                         }
                     }
@@ -831,19 +840,20 @@ private fun ChatRuleDetailContent(
                     var sitesText by remember(rule.id) {
                         mutableStateOf(rule.linksAllowedSites.joinToString("\n"))
                     }
-                    OutlinedTextField(
+                    ChatoneTextField(
                         value = sitesText,
                         onValueChange = { v ->
                             sitesText = v
                             val sites = v.lines().map { it.trim().lowercase() }.filter { it.isNotBlank() }
                             onChange(rule.copy(linksAllowedSites = sites))
                         },
-                        label = { Text(s.chatRuleLinksAllowedSites) },
-                        supportingText = { Text(s.chatRuleLinksAllowedSitesDesc) },
+                        label = s.chatRuleLinksAllowedSites,
+                        hint = s.chatRuleLinksAllowedSitesDesc,
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                         maxLines = 6,
-                        textStyle = MaterialTheme.typography.bodySmall
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        singleLine = false
                     )
                 }
                 ChatRuleType.EMOTE_SPAM -> Md3NumberField(s.chatRuleEmotesMax, rule.emoteMaxCount.toLong(), s.chatRuleEmotesMaxDesc) {
@@ -862,15 +872,16 @@ private fun ChatRuleDetailContent(
                 ChatRuleType.STREAM_OFFLINE,
                 ChatRuleType.FIRST_MESSAGE_GREETING,
                 ChatRuleType.RAID_WELCOME -> {
-                    OutlinedTextField(
+                    ChatoneTextField(
                         value = rule.eventMessage,
                         onValueChange = { onChange(rule.copy(eventMessage = it)) },
-                        label = { Text(s.chatRuleEventMessage) },
-                        supportingText = { Text(s.chatRuleEventMessageDesc) },
+                        label = s.chatRuleEventMessage,
+                        hint = s.chatRuleEventMessageDesc,
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2,
                         maxLines = 4,
-                        textStyle = MaterialTheme.typography.bodySmall
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        singleLine = false
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Md3NumberField(s.chatRuleEventRepeat, rule.eventRepeat.toLong(), s.chatRuleEventRepeatDesc, Modifier.weight(1f)) {
@@ -1022,7 +1033,7 @@ private fun Md3SearchBar(query: String, onQuery: (String) -> Unit, placeholder: 
                 modifier = Modifier.fillMaxWidth())
         }
         if (query.isNotEmpty()) {
-            IconButton(onClick = { onQuery("") }, modifier = Modifier.size(20.dp)) {
+            ChatoneIconButton(onClick = { onQuery("") }, modifier = Modifier.size(20.dp)) {
                 Icon(Icons.Filled.Close, null, modifier = Modifier.size(14.dp))
             }
         }
@@ -1031,16 +1042,14 @@ private fun Md3SearchBar(query: String, onQuery: (String) -> Unit, placeholder: 
 
 @Composable
 private fun Md3TextField(label: String, value: String, placeholder: String, multiline: Boolean = false, onChange: (String) -> Unit) {
-    OutlinedTextField(
+    ChatoneTextField(
         value = value,
         onValueChange = onChange,
-        label = { Text(label) },
-        placeholder = { Text(placeholder, style = MaterialTheme.typography.bodySmall) },
+        label = label,
+        placeholder = placeholder,
         modifier = Modifier.fillMaxWidth(),
         singleLine = !multiline,
-        maxLines = if (multiline) 4 else 1,
-        textStyle = MaterialTheme.typography.bodyMedium,
-        shape = MaterialTheme.shapes.small
+        textStyle = MaterialTheme.typography.bodyMedium
     )
 }
 
@@ -1048,19 +1057,18 @@ private fun Md3TextField(label: String, value: String, placeholder: String, mult
 private fun Md3NumberField(label: String, value: Long, helper: String? = null, modifier: Modifier = Modifier, onChange: (Long) -> Unit) {
     var text by remember(value) { mutableStateOf(value.toString()) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        OutlinedTextField(
+        ChatoneTextField(
             value = text,
             onValueChange = { t ->
                 val f = t.filter { it.isDigit() }
                 text = f
                 f.toLongOrNull()?.let { onChange(it) }
             },
-            label = { Text(label) },
+            label = label,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            textStyle = MaterialTheme.typography.bodyMedium,
-            shape = MaterialTheme.shapes.small
+            textStyle = MaterialTheme.typography.bodyMedium
         )
         if (!helper.isNullOrBlank()) {
             Text(helper, style = MaterialTheme.typography.bodySmall,
@@ -1077,19 +1085,18 @@ private fun TimeInputField(label: String, totalSeconds: Int, onChange: (Int) -> 
     var unitMenuOpen by remember { mutableStateOf(false) }
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-        OutlinedTextField(
+        ChatoneTextField(
             value = displayValue,
             onValueChange = { t ->
                 val f = t.filter { it.isDigit() }
                 displayValue = f
                 f.toIntOrNull()?.let { v -> onChange((v * unit.toSeconds).toInt().coerceAtLeast(1)) }
             },
-            label = { Text(label) },
+            label = label,
             modifier = Modifier.weight(1f),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            textStyle = MaterialTheme.typography.bodyMedium,
-            shape = MaterialTheme.shapes.small
+            textStyle = MaterialTheme.typography.bodyMedium
         )
         Box {
             OutlinedButton(
@@ -1097,7 +1104,7 @@ private fun TimeInputField(label: String, totalSeconds: Int, onChange: (Int) -> 
                 modifier = Modifier.padding(top = 8.dp),
                 shape = MaterialTheme.shapes.small
             ) { Text(unit.label, style = MaterialTheme.typography.labelLarge) }
-            DropdownMenu(unitMenuOpen, { unitMenuOpen = false }) {
+            ChatoneDropdownMenu(unitMenuOpen, { unitMenuOpen = false }) {
                 TimeUnit.entries.forEach { u ->
                     DropdownMenuItem(
                         text = { Text(u.label) },
@@ -1130,10 +1137,35 @@ private fun ExemptionChips(
 }
 
 @Composable
-private fun Md3Toggle(label: String, desc: String?, value: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+private fun Md3Toggle(
+    label: String,
+    desc: String?,
+    value: Boolean,
+    modifier: Modifier = Modifier,
+    guide: String? = null,
+    onChange: (Boolean) -> Unit
+) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                if (!guide.isNullOrBlank()) {
+                    io.rudione.chatone.presentation.chat.components.LiquidGlassRichTooltipBox(
+                        tooltipContent = {
+                            Column(Modifier.widthIn(max = 220.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(label, style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text(guide, style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Outlined.Info, contentDescription = label,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp))
+                    }
+                }
+            }
             if (!desc.isNullOrBlank())
                 Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -1184,7 +1216,7 @@ private fun AlternatesEditor(alternates: List<String>, onChange: (List<String>) 
                 verticalAlignment = Alignment.CenterVertically) {
                 Text(alt, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                IconButton({ onChange(alternates.toMutableList().also { it.removeAt(idx) }) },
+                ChatoneIconButton({ onChange(alternates.toMutableList().also { it.removeAt(idx) }) },
                     modifier = Modifier.size(28.dp)) {
                     Icon(Icons.Outlined.Delete, "Remove", tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(14.dp))
@@ -1192,13 +1224,13 @@ private fun AlternatesEditor(alternates: List<String>, onChange: (List<String>) 
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = draft, onValueChange = { draft = it },
-                placeholder = { Text(io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.automodAddVariant) },
+            ChatoneTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                placeholder = io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.automodAddVariant,
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall,
-                shape = MaterialTheme.shapes.extraSmall
+                textStyle = MaterialTheme.typography.bodySmall
             )
             FilledTonalButton(onClick = {
                 val v = draft.trim()

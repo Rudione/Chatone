@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
-
 @Composable
 fun PanelDropOverlay(
     isActive: Boolean,
@@ -48,7 +47,6 @@ fun PanelDropOverlay(
         )
     }
 }
-
 
 class DragDropState {
     var isDragOver by mutableStateOf(false)

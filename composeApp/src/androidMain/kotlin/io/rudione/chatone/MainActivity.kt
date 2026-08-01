@@ -7,7 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
-import io.rudione.chatone.auth.AuthTokenBridge
+import io.rudione.chatone.data.auth.AuthTokenBridge
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -15,7 +15,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-       
         lifecycleScope.launch {
             AuthTokenBridge.tokenFlow.collect { token ->
                 if (token.startsWith("__open_url__:")) {
@@ -30,7 +29,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-       
         handleOAuthCallback(intent)
 
         setContent {
@@ -45,11 +43,11 @@ class MainActivity : ComponentActivity() {
 
     private fun handleOAuthCallback(intent: Intent) {
         val uri = intent.data ?: return
-        val fragment = uri.fragment ?: return
-        val params = fragment.split("&").associate {
-            val (key, value) = it.split("=", limit = 2)
-            key to value
-        }
+        val fragment = uri.fragment?.takeIf { it.isNotBlank() } ?: uri.query ?: return
+        val params = fragment.split("&").mapNotNull { part ->
+            val idx = part.indexOf('=')
+            if (idx <= 0) null else part.substring(0, idx) to part.substring(idx + 1)
+        }.toMap()
         val accessToken = params["access_token"] ?: return
         OAuthTokenHolder.onTokenReceived(accessToken)
     }

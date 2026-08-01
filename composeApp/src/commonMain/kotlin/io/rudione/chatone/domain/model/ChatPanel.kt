@@ -1,6 +1,6 @@
 package io.rudione.chatone.domain.model
 
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
 data class ChatPanel(
     val panelId: String,

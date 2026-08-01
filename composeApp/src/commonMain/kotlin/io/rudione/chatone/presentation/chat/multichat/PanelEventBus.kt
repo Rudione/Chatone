@@ -5,7 +5,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
-
 class PanelEventBus {
     sealed class Event {
         data class FocusPanel(val panelId: String) : Event()

@@ -3,7 +3,6 @@ package io.rudione.chatone.presentation.account
 import io.rudione.chatone.domain.model.AccountProxyConfig
 import io.rudione.chatone.domain.model.TwitchAccount
 
-
 data class AccountUiState(
     val accounts: List<TwitchAccount> = emptyList(),
     val activeUserId: String = "",

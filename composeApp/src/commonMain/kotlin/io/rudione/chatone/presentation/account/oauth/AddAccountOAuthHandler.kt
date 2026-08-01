@@ -1,14 +1,13 @@
 package io.rudione.chatone.presentation.account.oauth
 
-import io.rudione.chatone.auth.PlatformAuthHandler
+import io.rudione.chatone.data.auth.PlatformAuthHandler
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.presentation.account.AccountManager
-import io.rudione.chatone.util.AppConfig
+import io.rudione.chatone.util.settings.AppConfig
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-
 
 class AddAccountOAuthHandler(
     private val platformAuth: PlatformAuthHandler,
@@ -27,9 +26,9 @@ class AddAccountOAuthHandler(
     fun buildAuthUrl(): String {
         val clientId = platformAuth.getClientId()
         val redirectUri = platformAuth.getRedirectUri()
-        return AppConfig.getAuthUrl(clientId, redirectUri)
+        val state = platformAuth.newAuthSession()
+        return AppConfig.getAuthUrl(clientId, redirectUri, state)
     }
-
 
     fun launchBrowserAuth(onResult: (State) -> Unit) {
         val url = buildAuthUrl()

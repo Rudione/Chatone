@@ -6,12 +6,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
-
 class AccountFlowGlue(
     private val authRepository: AuthRepository,
     private val accountManager: AccountManager
 ) {
-
 
     suspend fun activeAccountFlow(): Flow<TwitchAccount?> {
         return authRepository.getAccounts().map { accounts ->
@@ -20,7 +18,6 @@ class AccountFlowGlue(
                 ?: accounts.firstOrNull()
         }.distinctUntilChanged()
     }
-
 
     suspend fun otherAccountsFlow(): Flow<List<TwitchAccount>> {
         return authRepository.getAccounts().map { accounts ->

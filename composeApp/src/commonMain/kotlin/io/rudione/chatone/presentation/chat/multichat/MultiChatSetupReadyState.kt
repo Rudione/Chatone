@@ -5,7 +5,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import io.rudione.chatone.presentation.account.AccountManager
 
-
 @Composable
 fun rememberMultiChatReadyState(
     accountManager: AccountManager,

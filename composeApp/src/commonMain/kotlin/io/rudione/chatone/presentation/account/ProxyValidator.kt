@@ -2,7 +2,6 @@ package io.rudione.chatone.presentation.account
 
 import io.rudione.chatone.domain.model.AccountProxyConfig
 
-
 object ProxyValidator {
     private val IPV4 = Regex("^(\\d{1,3}\\.){3}\\d{1,3}$")
     private val HOSTNAME = Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$")

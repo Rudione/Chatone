@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
-
 @Composable
 fun PanelChannelBadge(
     channelLogin: String,

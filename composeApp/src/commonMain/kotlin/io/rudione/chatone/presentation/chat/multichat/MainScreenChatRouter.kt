@@ -28,7 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 fun MainScreenChatRouter(
@@ -39,7 +39,6 @@ fun MainScreenChatRouter(
 ) {
     val panelManager: ChatPanelManager = koinInject()
     val panels by panelManager.panels.collectAsState()
-
 
     val extraPanels = panels.filter {
         !it.channelLogin.equals(activeChannel, ignoreCase = true)
@@ -75,7 +74,6 @@ fun MainScreenChatRouter(
                     singleChatRenderer(activeChannel, false)
                 }
             }
-
 
             extraPanels.forEach { panel ->
                 Column(
@@ -123,7 +121,7 @@ private fun MiniPanelHeader(
             modifier = Modifier.weight(1f)
         )
         if (onClose != null) {
-            IconButton(
+            ChatoneIconButton(
                 onClick = onClose,
                 modifier = Modifier.size(if (compact) 16.dp else 20.dp)
             ) {

@@ -10,7 +10,6 @@ import io.rudione.chatone.presentation.account.AccountMigration
 import io.rudione.chatone.presentation.account.AccountStateRefresher
 import org.koin.compose.koinInject
 
-
 @Composable
 fun MultiChatRootSetup(
     onActiveAccountChanged: (userId: String) -> Unit = {}

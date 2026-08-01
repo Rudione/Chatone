@@ -8,7 +8,7 @@ import io.rudione.chatone.util.Result
 import io.rudione.chatone.util.map
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -43,7 +43,6 @@ class AuthRepositoryImpl(
 
             val validateData = validateResult.data
             val expiresAt = Clock.System.now().toEpochMilliseconds() + (validateData.expiresIn * 1000L)
-
 
             val userResult = apiClient.getUsers(accessToken = accessToken)
             if (userResult !is Result.Success || userResult.data.data.isEmpty()) {

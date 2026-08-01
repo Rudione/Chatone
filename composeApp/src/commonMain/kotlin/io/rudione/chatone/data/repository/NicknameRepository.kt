@@ -3,13 +3,8 @@ package io.rudione.chatone.data.repository
 import io.rudione.chatone.data.local.ChatoneDatabase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 
-/**
- * Local (never sent to Twitch) per-user display-name overrides, like moltorino's Nicknames.
- * Keeps an in-memory snapshot so chat rendering can resolve names without touching the DB
- * on every message.
- */
 class NicknameRepository(private val database: ChatoneDatabase) {
 
     private val _nicknames = MutableStateFlow<Map<String, String>>(emptyMap())

@@ -8,7 +8,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.settings.SettingsState
 
-
 @Stable
 data class MessageRenderParams(
     val timestampFormat: SettingsState.TimestampFormat,
@@ -25,7 +24,6 @@ data class MessageRenderParams(
     val showDefaultBanButton: Boolean,
     val highlightRules: List<HighlightRule>
 )
-
 
 @Composable
 fun rememberMessageRenderParams(settings: SettingsState): MessageRenderParams {

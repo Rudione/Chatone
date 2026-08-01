@@ -9,7 +9,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.TextUnit
 import io.rudione.chatone.domain.model.PanelLayoutMode
 
-
 @Stable
 data class PanelLayoutMetrics(
     val isCompact: Boolean,

@@ -1,8 +1,7 @@
 package io.rudione.chatone.presentation.account
 
 import io.rudione.chatone.domain.model.TwitchAccount
-import kotlinx.datetime.Clock
-
+import kotlin.time.Clock
 
 object AccountTokenExpiryGuard {
 

@@ -23,16 +23,16 @@ import io.rudione.chatone.data.remote.RecentMessagesClient
 import io.rudione.chatone.data.repository.MentionRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.AppRestarter
+import io.rudione.chatone.util.system.AppRestarter
+import io.rudione.chatone.util.automod.RegexCache
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-
 
 data class ChannelFolder(
     val id: String,
@@ -60,6 +60,7 @@ data class MainState(
     val pendingScrollMessageId: String? = null,
     val mentionsChannelActive: Boolean = false,
     val openChannels: List<ChannelTab> = emptyList(),
+    val monitorTabs: List<String> = emptyList(),
     val sidebarExpanded: Boolean = false,
     val sidebarCollapsed: Boolean = false,
     val isAddChannelDialogVisible: Boolean = false,
@@ -88,7 +89,6 @@ data class MainState(
     val needsReauth: Boolean = false
 ) : UiState
 
-
 sealed class MainEvent : UiEvent {
     object ToggleSidebar : MainEvent()
     object CloseSidebar : MainEvent()
@@ -98,6 +98,8 @@ sealed class MainEvent : UiEvent {
     object ClearPendingScrollMessage : MainEvent()
     object SelectMentionsChannel : MainEvent()
     object CloseMentionsChannel : MainEvent()
+    data class OpenMonitorTab(val login: String) : MainEvent()
+    data class CloseMonitorTab(val login: String) : MainEvent()
     data class CloseChannel(val login: String) : MainEvent()
     data class ReorderChannels(val fromIndex: Int, val toIndex: Int) : MainEvent()
     data class DropChannelOnFolder(val channelLogin: String, val folderId: String) : MainEvent()
@@ -134,7 +136,6 @@ sealed class MainEvent : UiEvent {
     data class ResetMentionCount(val channelLogin: String) : MainEvent()
     object NavigateToAuth : MainEvent()
 
-
     object ToggleWhisperPanel : MainEvent()
     object HideWhisperPanel : MainEvent()
     data class OpenWhisperWith(
@@ -164,7 +165,6 @@ sealed class MainEvent : UiEvent {
     object MarkAllMentionsRead : MainEvent()
     data class AddMentionEntry(val entry: MentionEntry) : MainEvent()
 
-
     object ShowChattersPanel : MainEvent()
     object HideChattersPanel : MainEvent()
     data class SetActiveChatChannelId(val channelId: String) : MainEvent()
@@ -176,7 +176,6 @@ sealed class MainEvent : UiEvent {
     data class UnmuteMentionsUserInChannel(val userLogin: String, val channelLogin: String) : MainEvent()
 }
 
-
 sealed class MainEffect : UIEffect {
     object NavigateToAuth : MainEffect()
     data class ShowError(val message: String) : MainEffect()
@@ -187,7 +186,6 @@ sealed class MainEffect : UIEffect {
         val text: String
     ) : MainEffect()
 }
-
 
 class MainViewModel(
     private val getAccountsUseCase: GetAccountsUseCase,
@@ -260,6 +258,22 @@ class MainViewModel(
             }
             MainEvent.CloseMentionsChannel -> update { it.copy(mentionsChannelActive = false) }
             MainEvent.ClearPendingScrollMessage -> update { it.copy(pendingScrollMessageId = null) }
+            is MainEvent.OpenMonitorTab -> update {
+                it.copy(
+                    monitorTabs = (it.monitorTabs + event.login).distinct(),
+                    activeChannelLogin = event.login,
+                    mentionsChannelActive = false,
+                    showMentionsFeed = false,
+                    sidebarExpanded = false
+                )
+            }
+            is MainEvent.CloseMonitorTab -> update {
+                val remaining = it.monitorTabs - event.login
+                val nextActive = if (it.activeChannelLogin == event.login)
+                    (remaining.firstOrNull() ?: it.openChannels.firstOrNull()?.login)
+                else it.activeChannelLogin
+                it.copy(monitorTabs = remaining, activeChannelLogin = nextActive)
+            }
             is MainEvent.CloseChannel -> closeChannel(event.login)
             is MainEvent.AddChannel -> addChannel(
                 event.login,
@@ -363,19 +377,16 @@ class MainViewModel(
             MainEvent.ShowSettings -> update { it.copy(showSettings = true) }
             MainEvent.HideSettings -> update { it.copy(showSettings = false) }
 
-
             is MainEvent.IncrementMentionCount -> {
                 incrementMentionCount(event.channelLogin)
 
                 update { it.copy(unreadMentionsCount = it.unreadMentionsCount + 1) }
             }
 
-
             is MainEvent.ResetMentionCount -> resetMentionCount(event.channelLogin)
             MainEvent.NavigateToAuth -> {
                 AppRestarter.restart(delayMs = 300L)
             }
-
 
             MainEvent.ToggleWhisperPanel -> update {
                 it.copy(
@@ -386,14 +397,12 @@ class MainViewModel(
 
             MainEvent.HideWhisperPanel -> update { it.copy(showWhisperPanel = false) }
 
-
             is MainEvent.OpenWhisperWith -> {
 
                 if (event.userId.isEmpty()) {
                     update { it.copy(activeWhisperUserId = null, showWhisperPanel = false) }
                     return
                 }
-
 
                 update { state ->
                     val existing = state.whisperConversations.find { it.userId == event.userId }
@@ -422,7 +431,6 @@ class MainViewModel(
                 }
             }
 
-
             is MainEvent.SendWhisper -> sendWhisperMessage(
                 event.toUserId,
                 event.toUsername,
@@ -438,7 +446,6 @@ class MainViewModel(
             )
 
             is MainEvent.MarkWhisperRead -> markWhisperRead(event.userId)
-
 
             MainEvent.ToggleMentionsFeed -> update {
                 it.copy(
@@ -525,7 +532,6 @@ class MainViewModel(
             }
         }
     }
-
 
     private fun observeWhispers() {
         viewModelScope.launch {
@@ -668,7 +674,6 @@ class MainViewModel(
         }
     }
 
-
     private fun loadAccounts() {
         viewModelScope.launch {
             getAccountsUseCase().collectLatest { accounts ->
@@ -713,16 +718,12 @@ class MainViewModel(
         }
     }
 
-    /** Stored tokens keep the scopes they were issued with — after Chatone adds new scopes
-     * (polls, predictions, emotes, channel points…) an OLD token silently 401s on those
-     * endpoints. Detect the drift live and tell the user to re-login instead of letting
-     * features fail mysteriously. */
     private suspend fun checkTokenScopes(account: TwitchAccount) {
         try {
             val r = apiClient.validateToken(account.accessToken)
             if (r !is io.rudione.chatone.util.Result.Success) return
             val granted = r.data.scopes.toSet()
-            val missing = io.rudione.chatone.util.AppConfig.REQUIRED_SCOPES.filter { it !in granted }
+            val missing = io.rudione.chatone.util.settings.AppConfig.REQUIRED_SCOPES.filter { it !in granted }
             if (missing.isNotEmpty()) {
                 Napier.w("Token missing ${missing.size} scopes: $missing", tag = TAG)
                 val fingerprint = missing.sorted().joinToString(",")
@@ -757,6 +758,18 @@ class MainViewModel(
     }
 
     private fun selectChannel(login: String, scrollToMessageId: String? = null) {
+        if (login.startsWith("/")) {
+            update {
+                it.copy(
+                    monitorTabs = (it.monitorTabs + login).distinct(),
+                    activeChannelLogin = login,
+                    mentionsChannelActive = false,
+                    showMentionsFeed = false,
+                    sidebarExpanded = false
+                )
+            }
+            return
+        }
         val normalized = login.lowercase().removePrefix("#")
         val existing = state.value.openChannels.find { it.login == normalized }
         if (existing == null) {
@@ -1101,8 +1114,6 @@ class MainViewModel(
                 }
                 fetchAndUpdateProfileImages()
 
-
-
                 delay(1500)
                 scanAllChannelsForMentions(channelLogins)
             }
@@ -1162,15 +1173,14 @@ class MainViewModel(
     private var lastLiveLogins: Set<String>? = null
 
     private fun updateLiveStatus(liveLogins: Set<String>) {
-        // Offline→online transition → OS notification, but only for channels the user
-        // explicitly opted into (default off for everyone). First poll only seeds the set.
+
         val previous = lastLiveLogins
         lastLiveLogins = liveLogins
         if (previous != null) {
             val notifySet = state.value.liveNotifyChannels
             (liveLogins - previous).forEach { login ->
                 if (login in notifySet) {
-                    io.rudione.chatone.util.showSystemNotification(
+                    io.rudione.chatone.util.system.notifySystem(
                         uiStrings().liveNotifyTitle,
                         uiStrings().liveNotifyBody.replace("{0}", login)
                     )
@@ -1231,7 +1241,6 @@ class MainViewModel(
         }
     }
 
-
     private fun formatWhisperTime(timestamp: Long): String {
         val instant = Instant.fromEpochMilliseconds(timestamp)
         val dt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
@@ -1291,6 +1300,9 @@ class MainViewModel(
                 if (!matched) return@collect
 
                 val channelLogin = message.channelName.lowercase()
+                val activeChannel = state.value.activeChannelLogin?.lowercase()
+                val isActiveChannel = channelLogin == activeChannel
+
                 val entry = MentionEntry(
                     messageId = message.id,
                     channelLogin = channelLogin,
@@ -1299,9 +1311,8 @@ class MainViewModel(
                     fromColor = message.color,
                     text = message.message,
                     timestamp = message.timestamp,
-                    isRead = false
+                    isRead = isActiveChannel
                 )
-
 
                 if (state.value.mentions.any { it.messageId == entry.messageId }) return@collect
 
@@ -1310,13 +1321,10 @@ class MainViewModel(
                     channelLogin = entry.channelLogin
                 )
 
-                val activeChannel = state.value.activeChannelLogin?.lowercase()
-                val isActiveChannel = channelLogin == activeChannel
-
                 update { st ->
                     st.copy(
                         mentions = (listOf(entry) + st.mentions).take(200),
-                        unreadMentionsCount = if (isMuted) st.unreadMentionsCount else st.unreadMentionsCount + 1,
+                        unreadMentionsCount = if (isMuted || isActiveChannel) st.unreadMentionsCount else st.unreadMentionsCount + 1,
 
                         openChannels = if (isActiveChannel) st.openChannels else st.openChannels.map {
                             if (it.login == channelLogin) it.copy(unreadCount = it.unreadCount + 1) else it
@@ -1332,9 +1340,7 @@ class MainViewModel(
                     )
                 }
 
-
                 viewModelScope.launch { mentionRepository.saveMention(entry) }
-
 
                 if (!isMuted) {
                     sendEffect(
@@ -1362,7 +1368,9 @@ class MainViewModel(
 
             viewModelScope.launch {
                 try {
-                    val messages = recentMessagesClient.getRecentMessages(normalized, limit = 100) ?: return@launch
+                    val result = recentMessagesClient.getRecentMessages(normalized, limit = 100)
+                    val messages = (result as? io.rudione.chatone.data.remote.RecentMessagesResult.Success)
+                        ?.messages ?: return@launch
                     messages.forEach { msg ->
                         if (msg.userId == userId) return@forEach
 
@@ -1426,24 +1434,14 @@ class MainViewModel(
             }
             if (pattern.isEmpty()) continue
             val matches = if (rule.isRegex) {
-                try {
-                    val opts =
-                        if (rule.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
-                    Regex(pattern, opts).containsMatchIn(text)
-                } catch (_: Exception) {
-                    false
-                }
+                RegexCache.regex(pattern, ignoreCase = !rule.caseSensitive)
+                    ?.containsMatchIn(text) ?: false
             } else if (rule.matchSubstring) {
                 text.contains(pattern, ignoreCase = !rule.caseSensitive)
             } else {
-                val opts =
-                    if (rule.caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
-                try {
-                    Regex("(?<![\\p{L}\\p{N}_])${Regex.escape(pattern)}(?![\\p{L}\\p{N}_])", opts)
-                        .containsMatchIn(text)
-                } catch (_: Exception) {
-                    text.equals(pattern, ignoreCase = !rule.caseSensitive)
-                }
+                RegexCache.wholeWord(pattern, ignoreCase = !rule.caseSensitive)
+                    ?.containsMatchIn(text)
+                    ?: text.equals(pattern, ignoreCase = !rule.caseSensitive)
             }
             if (matches) return true
         }

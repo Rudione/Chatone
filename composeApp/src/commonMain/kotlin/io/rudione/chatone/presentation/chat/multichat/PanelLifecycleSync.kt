@@ -7,7 +7,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-
 class PanelLifecycleSync(
     private val ircClient: TwitchIrcClient,
     private val scope: CoroutineScope

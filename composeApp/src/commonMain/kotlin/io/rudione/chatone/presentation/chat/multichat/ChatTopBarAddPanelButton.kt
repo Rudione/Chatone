@@ -25,7 +25,8 @@ import io.rudione.chatone.presentation.main.MainViewModel
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 
 @Composable
 fun ChatTopBarAddPanelButton(
@@ -49,7 +50,7 @@ fun ChatTopBarAddPanelButton(
 
     val canOpen = panels.size < ChatPanel.MAX_PANELS && candidates.isNotEmpty()
 
-    IconButton(
+    ChatoneIconButton(
         onClick = { if (canOpen) expanded = true },
         enabled = canOpen,
         modifier = modifier.size(36.dp)
@@ -63,7 +64,7 @@ fun ChatTopBarAddPanelButton(
         )
     }
 
-    DropdownMenu(
+    ChatoneDropdownMenu(
         expanded = expanded,
         onDismissRequest = { expanded = false },
         modifier = Modifier.clip(RoundedCornerShape(12.dp))
