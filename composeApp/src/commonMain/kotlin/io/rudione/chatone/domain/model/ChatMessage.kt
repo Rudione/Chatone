@@ -30,6 +30,7 @@ data class ChatMessage(
     val replyParentUserLogin: String? = null,
     val replyParentDisplayName: String? = null,
     val replyParentMsgBody: String? = null,
+    val bits: Int = 0,
 )
 
 @Serializable

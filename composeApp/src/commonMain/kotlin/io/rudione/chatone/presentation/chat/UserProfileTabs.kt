@@ -658,6 +658,7 @@ internal fun MessageHistoryItem(message: DisplayMessage.PrivMsg, nameColor: Colo
                 is MessageToken.ThirdPartyEmoteToken -> token.emote.code
                 is MessageToken.Link -> token.displayText
                 is MessageToken.Mention -> token.username
+                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
             }
         }
     }
@@ -1000,6 +1001,12 @@ private fun ModerationHistoryRow(entry: io.rudione.chatone.data.repository.Moder
                 Icons.Outlined.Timer, ChatoneTheme.extraColors.modTimeout,
                 s.format(s.profileHistoryTimeoutEntry, io.rudione.chatone.domain.model.ModActionButton.formatDuration(entry.durationSeconds ?: 0))
             )
+        io.rudione.chatone.data.repository.ModerationHistoryRepository.ACTION_UNBAN ->
+            Triple(Icons.Outlined.LockOpen, MaterialTheme.colorScheme.primary, s.profileHistoryUnbanEntry)
+        io.rudione.chatone.data.repository.ModerationHistoryRepository.ACTION_UNTIMEOUT ->
+            Triple(Icons.Outlined.TimerOff, MaterialTheme.colorScheme.primary, s.profileHistoryUntimeoutEntry)
+        io.rudione.chatone.data.repository.ModerationHistoryRepository.ACTION_DELETE ->
+            Triple(Icons.Outlined.Delete, ChatoneTheme.extraColors.modDelete, s.profileHistoryDeleteEntry)
         else ->
             Triple(Icons.Outlined.WarningAmber, MaterialTheme.colorScheme.tertiary, s.profileHistoryWarnEntry)
     }

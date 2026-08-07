@@ -132,7 +132,12 @@ internal fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsVie
     item {
         val s = LocalStrings.current
         SettingsGroup(s.settingsChatControls) {
-            HotkeyRow(s.settingsPauseAutoScroll, s.settingsPauseAutoScrollDesc, state.pauseHotkey) {
+            HotkeyRow(
+                s.settingsPauseAutoScroll,
+                s.settingsPauseAutoScrollDesc,
+                state.pauseHotkey,
+                allowMouseButtons = true
+            ) {
                 vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
             }
             DropdownRow(
@@ -190,7 +195,12 @@ internal fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
     val s = LocalStrings.current
     HotkeyCombinationsGroup(state, vm)
     SettingsGroup(s.settingsChatControls) {
-        HotkeyRow(s.settingsPauseAutoScroll, s.settingsPauseAutoScrollDesc, state.pauseHotkey) {
+        HotkeyRow(
+                s.settingsPauseAutoScroll,
+                s.settingsPauseAutoScrollDesc,
+                state.pauseHotkey,
+                allowMouseButtons = true
+            ) {
             vm.sendEvent(SettingsEvent.OnPauseHotkeyChanged(it))
         }
         DropdownRow(

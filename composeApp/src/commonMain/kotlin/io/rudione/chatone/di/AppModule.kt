@@ -198,7 +198,8 @@ val repositoryModule = module {
     single {
         io.rudione.chatone.data.repository.ModerationHistoryRepository(
             database = get(),
-            scope = get(IoScopeQualifier)
+            scope = get(IoScopeQualifier),
+            gqlClient = get()
         )
     }
 

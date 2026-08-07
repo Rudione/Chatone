@@ -220,7 +220,7 @@ import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.SlashCommand
-import io.rudione.chatone.util.link.openUrl
+import io.rudione.chatone.util.link.openChatUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
@@ -477,6 +477,7 @@ internal fun CompactMessageContentWithIndent(
                 is MessageToken.ThirdPartyEmoteToken -> token.emote.code
                 is MessageToken.Link -> token.displayText
                 is MessageToken.Mention -> token.username
+                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
             }
         }
     }
@@ -486,7 +487,7 @@ internal fun CompactMessageContentWithIndent(
     val emoteKeyMap = mutableMapOf<String, GenericEmote>()
     var emoteCounter = 0
     if (!message.isDeleted) {
-        message.sevenTvPaint?.takeIf { it.hasRenderableGradient() }?.let { paint ->
+        resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }?.let { paint ->
             registerPaintedNick(
                 inlineContent = inlineContent,
                 key = "nick_paint",
@@ -494,6 +495,7 @@ internal fun CompactMessageContentWithIndent(
                 paint = paint,
                 fontSizeSp = chatFontSizeSp.coerceIn(11f, 16f) + 1f,
                 isAction = message.isAction,
+                userColor = userColor,
                 onClick = onUsernameClick,
                 onRightClick = { onRightClickUsername(message.displayName) }
             )
@@ -554,6 +556,7 @@ internal fun CompactMessageContentWithIndent(
                     is MessageToken.ThirdPartyEmoteToken -> it.emote.code
                     is MessageToken.Link -> it.displayText
                     is MessageToken.Mention -> it.username
+                    is MessageToken.Cheer -> "${it.prefix}${it.amount}"
                 }
             }
             withStyle(
@@ -566,7 +569,7 @@ internal fun CompactMessageContentWithIndent(
             }
         } else {
             pushStringAnnotation("username", message.userId)
-            val nickPaint = message.sevenTvPaint?.takeIf { it.hasRenderableGradient() }
+            val nickPaint = resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
             if (nickPaint != null) {
                 appendInlineContent("nick_paint", shownName)
                 if (message.isAction) append(" ") else append(": ")
@@ -661,6 +664,20 @@ internal fun CompactMessageContentWithIndent(
                         pop()
                     }
 
+                    is MessageToken.Cheer -> {
+                        val key = "cheer_${emoteCounter++}"
+                        appendInlineContent(key, "${token.prefix}${token.amount}")
+                        inlineContent[key] = InlineTextContent(
+                            Placeholder(
+                                (chatFontSizeSp * (1.6f + 0.62f * token.amount.toString().length)).sp,
+                                (chatFontSizeSp * 1.45f).sp,
+                                PlaceholderVerticalAlign.TextCenter
+                            )
+                        ) {
+                            CheerToken(amount = token.amount, fontSizeSp = chatFontSizeSp)
+                        }
+                    }
+
                     is MessageToken.Mention -> {
                         pushStringAnnotation("mention", token.username)
                         val mentionedLogin = token.username.removePrefix("@").lowercase()
@@ -720,7 +737,7 @@ internal fun CompactMessageContentWithIndent(
                                         charOffset
                                     ).firstOrNull()?.let {
                                         try {
-                                            openUrl(it.item, inlineSettings.linkOpenMode)
+                                            openChatUrl(it.item, inlineSettings.linkOpenMode)
                                         } catch (_: Exception) {
                                         }; return@detectTapGestures
                                     }
@@ -767,7 +784,9 @@ internal fun CompactMessageContentWithIndent(
                                     PointerEventType.Exit -> hoveredUrl = null
                                     else -> {}
                                 }
-                                if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
+                                if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed &&
+                                    event.changes.none { it.isConsumed }
+                                ) {
                                     textLayoutResult?.let { layout ->
                                         val charOffset = layout.getOffsetForPosition(pos)
                                         val onUsername = annotatedString.getStringAnnotations(
@@ -868,7 +887,7 @@ internal fun CompactMessageContentWithIndent(
                                 showContextMenu = false;
                                 val rawText = message.tokens.joinToString("") {
                                     when (it) {
-                                        is MessageToken.Text -> it.text; is MessageToken.TwitchEmoteToken -> it.name; is MessageToken.ThirdPartyEmoteToken -> it.emote.code; is MessageToken.Link -> it.displayText; is MessageToken.Mention -> it.username
+                                        is MessageToken.Text -> it.text; is MessageToken.TwitchEmoteToken -> it.name; is MessageToken.ThirdPartyEmoteToken -> it.emote.code; is MessageToken.Link -> it.displayText; is MessageToken.Mention -> it.username; is MessageToken.Cheer -> "${it.prefix}${it.amount}"
                                     }
                                 }; clipboardManager.setText(AnnotatedString(rawText))
                             })

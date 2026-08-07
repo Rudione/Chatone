@@ -223,7 +223,7 @@ import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.SlashCommand
-import io.rudione.chatone.util.link.openUrl
+import io.rudione.chatone.util.link.openChatUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
@@ -293,6 +293,7 @@ fun PrivMsgItem(
                 is MessageToken.ThirdPartyEmoteToken -> token.emote.code
                 is MessageToken.Link -> token.displayText
                 is MessageToken.Mention -> token.username
+                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
             }
         }
     }
@@ -300,8 +301,8 @@ fun PrivMsgItem(
     val highlightedMessageColor = ruleColor("channel_points", 0xFF9146FF)
     val fmColor = ruleColor("first_message", HighlightRule.FIRST_MESSAGE_RULE.color)
     val searchBgColor = ruleColor("search_match", 0xFF4FC3F7).copy(alpha = 0.18f)
-    val mentionBgColor = ruleColor("username", 0xFFFF6B6B).copy(alpha = 0.12f)
-    val mentionAccentColor = ruleColor("username", 0xFFFF6B6B)
+    val mentionBgColor = Color(ChatoneTheme.colorTokens.mentionBg)
+    val mentionAccentColor = ruleColor("username", ChatoneTheme.colorTokens.mentionAccent)
     val isOwnMessage = currentUserId.isNotEmpty() && message.userId == currentUserId
     val isSearchMatch = searchHighlightQuery.isNotBlank() && run {
         val msgText = message.rawMessage?.message ?: message.tokens.joinToString("") {
@@ -311,6 +312,7 @@ fun PrivMsgItem(
                 is MessageToken.ThirdPartyEmoteToken -> it.emote.code
                 is MessageToken.Link -> it.displayText
                 is MessageToken.Mention -> it.username
+                is MessageToken.Cheer -> "${it.prefix}${it.amount}"
             }
         }
         msgText.contains(searchHighlightQuery, ignoreCase = true)
@@ -328,28 +330,22 @@ fun PrivMsgItem(
         else -> Color.Transparent
     }
 
+    fun Modifier.eventMarker(color: Color): Modifier = drawWithContent {
+        drawContent()
+        val inset = 2.dp.toPx()
+        val width = 3.dp.toPx()
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(1.dp.toPx(), inset),
+            size = Size(width, (size.height - inset * 2).coerceAtLeast(0f)),
+            cornerRadius = CornerRadius(width / 2f, width / 2f)
+        )
+    }
+
     val accentBarModifier = when {
-        message.isMention -> Modifier.drawWithContent {
-            drawContent(); drawRect(
-            color = mentionAccentColor.copy(alpha = 0.85f),
-            size = Size(4.dp.toPx(), size.height)
-        )
-        }
-
-        message.isHighlighted -> Modifier.drawWithContent {
-            drawContent(); drawRect(
-            color = highlightedMessageColor.copy(alpha = 0.9f),
-            size = Size(4.dp.toPx(), size.height)
-        )
-        }
-
-        message.isFirstMessage -> Modifier.drawWithContent {
-            drawContent(); drawRect(
-            color = fmColor.copy(alpha = 0.75f),
-            size = Size(4.dp.toPx(), size.height)
-        )
-        }
-
+        message.isMention -> Modifier.eventMarker(mentionAccentColor)
+        message.isHighlighted -> Modifier.eventMarker(highlightedMessageColor.copy(alpha = 0.9f))
+        message.isFirstMessage -> Modifier.eventMarker(fmColor.copy(alpha = 0.8f))
         else -> Modifier
     }
     val hasAccentBar = message.isMention || message.isFirstMessage || message.isHighlighted
@@ -712,6 +708,7 @@ fun PrivMsgItem(
                                 is MessageToken.Text -> token.text; is MessageToken.TwitchEmoteToken -> token.name
                                 is MessageToken.ThirdPartyEmoteToken -> token.emote.code; is MessageToken.Link -> token.displayText
                                 is MessageToken.Mention -> token.username
+                                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
                             }
                         }
                         withStyle(
@@ -724,7 +721,7 @@ fun PrivMsgItem(
                         }
                     } else {
                         pushStringAnnotation("username", message.userId)
-                        val nickPaint = message.sevenTvPaint?.takeIf { it.hasRenderableGradient() }
+                        val nickPaint = resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
                         if (nickPaint != null) {
                             appendInlineContent("nick_paint", shownName)
                             if (message.isAction) append(" ") else append(": ")
@@ -836,6 +833,25 @@ fun PrivMsgItem(
                                     }
                                 }
 
+                                is MessageToken.Cheer -> {
+                                    val key = "cheer_${emoteCounter++}"
+                                    appendInlineContent(key, "${token.prefix}${token.amount}")
+                                    val cheerWidth =
+                                        (resolvedChatFontSize * (1.6f + 0.62f * token.amount.toString().length)).sp
+                                    inlineContent[key] = InlineTextContent(
+                                        Placeholder(
+                                            cheerWidth,
+                                            (resolvedChatFontSize * 1.45f).sp,
+                                            PlaceholderVerticalAlign.TextCenter
+                                        )
+                                    ) {
+                                        CheerToken(
+                                            amount = token.amount,
+                                            fontSizeSp = resolvedChatFontSize
+                                        )
+                                    }
+                                }
+
                                 is MessageToken.Mention -> {
 
                                     pushStringAnnotation("mention", token.username)
@@ -871,7 +887,7 @@ fun PrivMsgItem(
                 var hoverOffset by remember { mutableStateOf(IntOffset.Zero) }
 
                 if (!message.isDeleted) {
-                    message.sevenTvPaint?.takeIf { it.hasRenderableGradient() }?.let { paint ->
+                    resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }?.let { paint ->
                         registerPaintedNick(
                             inlineContent = inlineContent,
                             key = "nick_paint",
@@ -879,6 +895,7 @@ fun PrivMsgItem(
                             paint = paint,
                             fontSizeSp = resolvedChatFontSize + 1f,
                             isAction = message.isAction,
+                            userColor = userColor,
                             onClick = onUsernameClick,
                             onRightClick = { onRightClickUsername(message.displayName) }
                         )
@@ -926,6 +943,7 @@ fun PrivMsgItem(
                                                 is MessageToken.ThirdPartyEmoteToken -> token.emote.code
                                                 is MessageToken.Link -> token.displayText
                                                 is MessageToken.Mention -> token.username
+                                                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
                                             }
                                         }
                                         clipboardManager.setText(AnnotatedString(rawText))
@@ -945,7 +963,7 @@ fun PrivMsgItem(
                                                 )
                                                     .firstOrNull()?.let { annotation ->
                                                         try {
-                                                            openUrl(
+                                                            openChatUrl(
                                                                 annotation.item,
                                                                 inlineSettings.linkOpenMode
                                                             )
@@ -1038,7 +1056,7 @@ fun PrivMsgItem(
                                                 }
 
                                                 PointerEventType.Press -> {
-                                                    if (event.buttons.isSecondaryPressed) {
+                                                    if (event.buttons.isSecondaryPressed && event.changes.none { it.isConsumed }) {
                                                         textLayoutResult?.let { layout ->
                                                             val charOffset =
                                                                 layout.getOffsetForPosition(pos)
@@ -1201,6 +1219,7 @@ fun PrivMsgItem(
                                                 is MessageToken.ThirdPartyEmoteToken -> token.emote.code
                                                 is MessageToken.Link -> token.displayText
                                                 is MessageToken.Mention -> token.username
+                                                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
                                             }
                                         }
                                         clipboardManager.setText(AnnotatedString(rawText))
@@ -1231,40 +1250,67 @@ fun PrivMsgItem(
 
         if (imageLinks.isNotEmpty() && inlineSettings.showInlineImages != InlineImageMode.OFF && !message.isDeleted) {
             imageLinks.forEach { link ->
-                var isRevealed by remember { mutableStateOf(inlineSettings.showInlineImages == InlineImageMode.ON) }
-                Box(
-                    modifier = Modifier
-                        .padding(start = 4.dp, top = 4.dp)
-                        .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            if (!isRevealed) isRevealed = true
-                            else try {
-                                openUrl(link.url, inlineSettings.linkOpenMode)
-                            } catch (_: Exception) {
-                            }
-                        }
-                ) {
-                    AsyncImage(
-                        model = link.url,
-                        contentDescription = "Image preview",
+                val isAutoLoadHost = remember(link.url) {
+                    io.rudione.chatone.util.media.LinkImageResolver.isAutoLoadHost(link.url)
+                }
+                var isLoadAllowed by remember(link.url) { mutableStateOf(isAutoLoadHost) }
+                var isRevealed by remember(link.url) {
+                    mutableStateOf(isAutoLoadHost && inlineSettings.showInlineImages == InlineImageMode.ON)
+                }
+                val resolvedImageUrl = if (isLoadAllowed) rememberResolvedImageUrl(link.url) else null
+                if (!isLoadAllowed) {
+                    Box(
                         modifier = Modifier
+                            .padding(start = 4.dp, top = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .clickable {
+                                isLoadAllowed = true
+                                isRevealed = true
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            LocalStrings.current.chatClickToReveal,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (resolvedImageUrl != null) {
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 4.dp, top = 4.dp)
                             .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
-                            .widthIn(max = 400.dp)
-                            .then(if (!isRevealed) Modifier.blur(20.dp) else Modifier),
-                        contentScale = ContentScale.Fit
-                    )
-                    if (!isRevealed) {
-                        Box(
-                            modifier = Modifier.matchParentSize()
-                                .background(Color.Black.copy(alpha = 0.3f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                LocalStrings.current.chatClickToReveal,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White
-                            )
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                if (!isRevealed) isRevealed = true
+                                else try {
+                                    openChatUrl(link.url, inlineSettings.linkOpenMode)
+                                } catch (_: Exception) {
+                                }
+                            }
+                    ) {
+                        AsyncImage(
+                            model = resolvedImageUrl,
+                            contentDescription = "Image preview",
+                            modifier = Modifier
+                                .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
+                                .widthIn(max = 400.dp)
+                                .then(if (!isRevealed) Modifier.blur(20.dp) else Modifier),
+                            contentScale = ContentScale.Fit
+                        )
+                        if (!isRevealed) {
+                            Box(
+                                modifier = Modifier.matchParentSize()
+                                    .background(Color.Black.copy(alpha = 0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    LocalStrings.current.chatClickToReveal,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
                 }
@@ -1279,7 +1325,7 @@ fun PrivMsgItem(
                         clip = clipInfo,
                         onClick = {
                             try {
-                                openUrl(link.url, inlineSettings.linkOpenMode)
+                                openChatUrl(link.url, inlineSettings.linkOpenMode)
                             } catch (_: Exception) {
                             }
                         },
@@ -1341,4 +1387,27 @@ internal fun ModActionIconBtn(
             )
         }
     }
+}
+
+@Composable
+internal fun rememberResolvedImageUrl(pageUrl: String): String? {
+    val immediate = remember(pageUrl) {
+        io.rudione.chatone.util.media.LinkImageResolver.resolveImmediate(pageUrl)
+    }
+    if (immediate != null) return immediate
+
+    val httpClient: io.ktor.client.HttpClient = koinInject()
+    var resolved by remember(pageUrl) {
+        mutableStateOf(
+            (io.rudione.chatone.util.media.LinkImageResolver.cached(pageUrl)
+                    as? io.rudione.chatone.util.media.ImageSource.Direct)?.imageUrl
+        )
+    }
+    LaunchedEffect(pageUrl) {
+        if (resolved == null) {
+            val source = io.rudione.chatone.util.media.LinkImageResolver.resolve(httpClient, pageUrl)
+            resolved = (source as? io.rudione.chatone.util.media.ImageSource.Direct)?.imageUrl
+        }
+    }
+    return resolved
 }

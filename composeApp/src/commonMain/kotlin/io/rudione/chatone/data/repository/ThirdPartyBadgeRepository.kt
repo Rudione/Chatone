@@ -4,6 +4,8 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
@@ -31,7 +33,7 @@ class ThirdPartyBadgeRepository(private val httpClient: HttpClient) {
     private val _chatoneByUserId = MutableStateFlow<Map<String, List<ThirdPartyBadge>>>(emptyMap())
     val chatoneByUserId: StateFlow<Map<String, List<ThirdPartyBadge>>> = _chatoneByUserId
 
-    suspend fun loadAll() {
+    suspend fun loadAll() = withContext(Dispatchers.Default) {
         loadFfz()
         loadBttv()
         loadChatone()

@@ -114,7 +114,9 @@ data class ChatoneExtraColors(
 
     val shadowColor: Color,
     val cardBorder: Color,
-    val elevatedShadow: Color
+    val elevatedShadow: Color,
+
+    val accentGradient: List<Color> = ChatoneBrandGradient
 )
 
 val LocalChatoneColors = staticCompositionLocalOf {
@@ -228,7 +230,13 @@ fun ChatoneTheme(
         sidebarSurface = colorScheme.surfaceContainerLow,
         sidebarSelected = colorScheme.primary.copy(alpha = 0.20f).compositeOver(colorScheme.surfaceContainerLow),
         chatInputSurface = colorScheme.surfaceContainer,
-        mentionHighlight = colorScheme.primary.copy(alpha = 0.14f)
+        mentionHighlight = colorScheme.primary.copy(alpha = 0.14f),
+        accentGradient = if (customTheme != null) {
+            listOf(colorScheme.primary, colorScheme.tertiary, colorScheme.secondary)
+        } else {
+            accentPaletteAt(accentColorIndex).gradient
+                ?: listOf(colorScheme.primary, colorScheme.tertiary, colorScheme.secondary)
+        }
     )
 
     CompositionLocalProvider(

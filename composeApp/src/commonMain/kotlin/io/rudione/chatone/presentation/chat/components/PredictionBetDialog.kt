@@ -1,13 +1,8 @@
 package io.rudione.chatone.presentation.chat.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,13 +28,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -49,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.rudione.chatone.presentation.components.ChatoneSlider
+import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.icons.TwitchPointsIcon
@@ -200,10 +192,13 @@ internal fun PredictionBetDialog(
                 )
             }
 
-            BankSlider(
-                fraction = fraction,
-                accent = outcomeColor,
-                onFractionChange = { f -> amount = (maxBet * f).toLong().coerceIn(0L, maxBet) }
+            ChatoneSlider(
+                value = fraction.coerceIn(0f, 1f),
+                onValueChange = { f -> amount = (maxBet * f).toLong().coerceIn(0L, maxBet) },
+                valueRange = 0f..1f,
+                trackHeight = 5.dp,
+                knobSize = 15.dp,
+                modifier = Modifier.fillMaxWidth()
             )
 
             Row(
@@ -281,89 +276,6 @@ internal fun PredictionBetDialog(
 
 private val PredictionPayoutGreen = Color(0xFF3FB950)
 
-@Composable
-private fun BankSlider(
-    fraction: Float,
-    accent: Color,
-    onFractionChange: (Float) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val animated by animateFloatAsState(
-        fraction.coerceIn(0f, 1f),
-        animationSpec = tween(120),
-        label = "bankSlider"
-    )
-    val trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f)
-    val tickColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-    val thumbCore = MaterialTheme.colorScheme.surfaceContainerHighest
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(28.dp)
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val inset = 10.dp.toPx()
-                    val span = (size.width - inset * 2).coerceAtLeast(1f)
-                    onFractionChange(((offset.x - inset) / span).coerceIn(0f, 1f))
-                }
-            }
-            .pointerInput(Unit) {
-                detectHorizontalDragGestures { change, _ ->
-                    change.consume()
-                    val inset = 10.dp.toPx()
-                    val span = (size.width - inset * 2).coerceAtLeast(1f)
-                    onFractionChange(((change.position.x - inset) / span).coerceIn(0f, 1f))
-                }
-            }
-    ) {
-        Canvas(modifier = Modifier.fillMaxWidth().height(28.dp)) {
-            val inset = 10.dp.toPx()
-            val span = (size.width - inset * 2).coerceAtLeast(1f)
-            val cy = size.height / 2f
-            val trackHeight = 6.dp.toPx()
-
-            drawLine(
-                color = trackColor,
-                start = Offset(inset, cy),
-                end = Offset(inset + span, cy),
-                strokeWidth = trackHeight,
-                cap = StrokeCap.Round
-            )
-
-            listOf(0.25f, 0.5f, 0.75f).forEach { t ->
-                drawCircle(
-                    color = tickColor,
-                    radius = 1.5.dp.toPx(),
-                    center = Offset(inset + span * t, cy)
-                )
-            }
-
-            val thumbX = inset + span * animated
-            if (animated > 0f) {
-                drawLine(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(accent.copy(alpha = 0.55f), accent),
-                        startX = inset,
-                        endX = thumbX.coerceAtLeast(inset + 1f)
-                    ),
-                    start = Offset(inset, cy),
-                    end = Offset(thumbX, cy),
-                    strokeWidth = trackHeight,
-                    cap = StrokeCap.Round
-                )
-            }
-
-            drawCircle(
-                color = accent.copy(alpha = 0.22f),
-                radius = 13.dp.toPx(),
-                center = Offset(thumbX, cy)
-            )
-            drawCircle(color = accent, radius = 9.dp.toPx(), center = Offset(thumbX, cy))
-            drawCircle(color = thumbCore, radius = 4.dp.toPx(), center = Offset(thumbX, cy))
-        }
-    }
-}
 
 @Composable
 private fun BankChip(
@@ -373,17 +285,19 @@ private fun BankChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(shape)
             .background(
-                if (selected) accent.copy(alpha = 0.28f)
-                else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
             )
             .border(
                 1.dp,
-                if (selected) accent.copy(alpha = 0.75f) else Color.Transparent,
-                RoundedCornerShape(8.dp)
+                if (selected) Color.Transparent
+                else ChatoneTheme.extraColors.cardBorder.copy(alpha = 0.55f),
+                shape
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -397,7 +311,7 @@ private fun BankChip(
             label,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) MaterialTheme.colorScheme.onSurface
+            color = if (selected) MaterialTheme.colorScheme.onPrimary
             else MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             maxLines = 1

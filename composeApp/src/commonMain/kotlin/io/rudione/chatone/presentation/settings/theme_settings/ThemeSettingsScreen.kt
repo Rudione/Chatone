@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.palette_fill_16
 import io.rudione.chatone.domain.model.ChatoneColorTokens
+import io.rudione.chatone.presentation.components.ChatoneSlider
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.settings.components.ColorTokensEditor
@@ -1054,51 +1055,11 @@ fun ThinSlider(
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     modifier: Modifier = Modifier
 ) {
-    Slider(
+    ChatoneSlider(
         value = value,
         onValueChange = onValueChange,
         valueRange = valueRange,
-        modifier = modifier,
-        colors = SliderDefaults.colors(
-            thumbColor = MaterialTheme.colorScheme.primary,
-            activeTrackColor = MaterialTheme.colorScheme.primary,
-            inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-        ),
-        thumb = {
-            Box(
-                modifier = Modifier
-                    .size(14.dp)
-                    .shadow(3.dp, CircleShape)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape)
-                    .border(2.dp, MaterialTheme.colorScheme.surface, CircleShape)
-            )
-        },
-        track = { sliderState ->
-            val fraction = (sliderState.value - sliderState.valueRange.start) /
-                    (sliderState.valueRange.endInclusive - sliderState.valueRange.start)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                        .fillMaxHeight()
-                        .clip(CircleShape)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                    MaterialTheme.colorScheme.primary
-                                )
-                            )
-                        )
-                )
-            }
-        }
+        modifier = modifier
     )
 }
 

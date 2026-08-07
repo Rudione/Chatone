@@ -929,7 +929,8 @@ fun EmotePickerSheet(
     onEmoteSelected: (GenericEmote) -> Unit,
     onEmojiSelected: (String) -> Unit = {},
     onDismiss: () -> Unit,
-    closeOnMouseLeave: Boolean = false
+    closeOnMouseLeave: Boolean = false,
+    docked: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
     var dismissJob by remember { mutableStateOf<Job?>(null) }
@@ -976,24 +977,32 @@ fun EmotePickerSheet(
     val backdropSource = remember { MutableInteractionSource() }
     var searchQuery by remember { mutableStateOf("") }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.35f))
-            .clickable(indication = null, interactionSource = backdropSource) { onDismiss() }
-    )
+    val sheetShape =
+        if (docked) RoundedCornerShape(0.dp)
+        else RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+
+    if (!docked) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.35f))
+                .clickable(indication = null, interactionSource = backdropSource) { onDismiss() }
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .wrapContentHeight()
-                .shadow(
-                    24.dp, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.3f),
-                    spotColor = Color.Black.copy(alpha = 0.4f)
+                .then(if (docked) Modifier.fillMaxHeight() else Modifier.wrapContentHeight())
+                .then(
+                    if (docked) Modifier else Modifier.shadow(
+                        24.dp, sheetShape,
+                        ambientColor = Color.Black.copy(alpha = 0.3f),
+                        spotColor = Color.Black.copy(alpha = 0.4f)
+                    )
                 )
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .clip(sheetShape)
                 .background(
                     Brush.verticalGradient(
                         listOf(
@@ -1002,15 +1011,17 @@ fun EmotePickerSheet(
                         )
                     )
                 )
-                .border(
-                    1.dp,
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.18f),
-                            Color.White.copy(alpha = 0.04f)
-                        )
-                    ),
-                    RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                .then(
+                    if (docked) Modifier else Modifier.border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.18f),
+                                Color.White.copy(alpha = 0.04f)
+                            )
+                        ),
+                        sheetShape
+                    )
                 )
                 .then(
                     if (closeOnMouseLeave) Modifier.pointerInput(Unit) {
@@ -1031,19 +1042,23 @@ fun EmotePickerSheet(
                         }
                     } else Modifier
                 )
-                .heightIn(max = 520.dp)
+                .then(if (docked) Modifier else Modifier.heightIn(max = 520.dp))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }) {}
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 10.dp, bottom = 6.dp)
-                    .width(36.dp).height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                    .align(Alignment.CenterHorizontally)
-            )
+            if (!docked) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 10.dp, bottom = 6.dp)
+                        .width(36.dp).height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        .align(Alignment.CenterHorizontally)
+                )
+            } else {
+                Spacer(Modifier.height(8.dp))
+            }
 
             EmoteTab(
                 channelEmotes = channelEmotes,

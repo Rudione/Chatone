@@ -19,6 +19,7 @@ sealed class MessageToken {
     ) : MessageToken()
     data class Link(val url: String, val displayText: String) : MessageToken()
     data class Mention(val username: String) : MessageToken()
+    data class Cheer(val prefix: String, val amount: Int) : MessageToken()
 }
 
 object MessageTokenizer {
@@ -31,6 +32,8 @@ object MessageTokenizer {
         """(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+(?:me|gg|tv|com|org|net|io|co|ru|de|fr|uk|us|info|dev|app|xyz|pro|live|stream|chat|link|ly|be)/[^\s<>"{}|\\^`\[\]]+""",
         RegexOption.IGNORE_CASE
     )
+
+    private val CHEER_REGEX = Regex("""^([A-Za-z]+)([1-9]\d{0,6})$""")
 
     private val OVERLAY_EMOTES = setOf(
         "SoSnowy", "IceCold", "SantaHat", "TopHat",
@@ -58,6 +61,7 @@ object MessageTokenizer {
             }
         }
 
+        val hasBits = message.bits > 0
         val tokens = mutableListOf<MessageToken>()
         var i = 0
 
@@ -75,7 +79,9 @@ object MessageTokenizer {
                 .minByOrNull { it.first }?.first ?: text.length
 
             val segment = text.substring(i, nextTwitchStart)
-            tokens.addAll(tokenizeSegment(segment, channelEmotes, currentUsername, personalEmotes))
+            tokens.addAll(
+                tokenizeSegment(segment, channelEmotes, currentUsername, personalEmotes, hasBits)
+            )
             i = nextTwitchStart
         }
 
@@ -86,7 +92,8 @@ object MessageTokenizer {
         segment: String,
         channelEmotes: ChannelEmotes,
         currentUsername: String?,
-        personalEmotes: List<GenericEmote>
+        personalEmotes: List<GenericEmote>,
+        hasBits: Boolean
     ): List<MessageToken> {
         if (segment.isEmpty()) return emptyList()
 
@@ -105,8 +112,20 @@ object MessageTokenizer {
                 continue
             }
 
+            val cheer = if (hasBits && emoteMap[word] == null) {
+                CHEER_REGEX.matchEntire(word)
+            } else null
+
             val emote = emoteMap[word]
             when {
+                cheer != null -> {
+                    tokens.add(
+                        MessageToken.Cheer(
+                            prefix = cheer.groupValues[1],
+                            amount = cheer.groupValues[2].toIntOrNull() ?: 0
+                        )
+                    )
+                }
                 emote != null -> {
                     tokens.add(MessageToken.ThirdPartyEmoteToken(emote))
                 }

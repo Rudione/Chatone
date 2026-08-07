@@ -562,6 +562,17 @@ interface AppStrings {
     val mainJoin: String
     val mainAddChannelTitle: String
     val mainCreateFolderTitle: String
+    val mainEditFolderTitle: String
+    val mainEditFolder: String
+    val mainFolderColorLabel: String
+    val mainSave: String
+    val folderColorPurple: String
+    val folderColorRed: String
+    val folderColorOrange: String
+    val folderColorYellow: String
+    val folderColorGreen: String
+    val folderColorBlue: String
+    val folderColorGray: String
 
     val openChannelTitle: String
     val openChannelChannelLabel: String
@@ -708,6 +719,9 @@ interface AppStrings {
     val profileHistoryTimeoutEntry: String
     val profileHistoryWarnEntry: String
     val profileHistoryReason: String
+    val profileHistoryUnbanEntry: String
+    val profileHistoryUntimeoutEntry: String
+    val profileHistoryDeleteEntry: String
     val profileHistoryByModerator: String
     val profileJoined: String
     val profileFollowingSince: String
@@ -726,6 +740,32 @@ interface AppStrings {
     val profileLoadMoreHistory: String
     val profileHistoryLoadFailed: String
     val profileLocalHistory: String
+    val profilePinCard: String
+    val profileDetachCard: String
+    val profileTimeoutsLabel: String
+    val profileTabDossier: String
+    val profileDossierUnavailable: String
+    val profileDossierAccountAge: String
+    val profileDossierFollowers: String
+    val profileDossierWithUs: String
+    val profileDossierNotFollowing: String
+    val profileDossierPartner: String
+    val profileDossierAffiliate: String
+    val profileDossierSubTier: String
+    val profileDossierStreamerSection: String
+    val profileDossierLastStream: String
+    val profileDossierFollowerLine: String
+    val profileDossierOpenChannel: String
+    val profileDossierBio: String
+    val profileDossierCreatedOn: String
+    val profileDossierLiveNow: String
+    val updateAvailableTitle: String
+    val updateNow: String
+    val updateLater: String
+    val updateSkipVersion: String
+    val updateVerifying: String
+    val updateInstalling: String
+    val updateFailed: String
 
     val panelViewers: String
     val panelViewersInChat: String
@@ -1041,6 +1081,23 @@ interface AppStrings {
     val modVippedBy: String
     val modUnvippedBy: String
     val modActionUnknown: String
+
+    val aiRoleYou: String
+
+    val modRowBanned: String
+    val modRowTimedOut: String
+    val modRowUnbanned: String
+    val modRowUntimedout: String
+    val modRowModded: String
+    val modRowUnmodded: String
+    val modRowVipped: String
+    val modRowUnvipped: String
+    val modRowDeleted: String
+    val modRowCleared: String
+    val modRowBy: String
+    val modRowSeconds: String
+    val modRowMinutes: String
+    val modRowHours: String
 
     val settingsSearchPlaceholder: String
     val settingsSearchNoResults: String

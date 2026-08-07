@@ -68,7 +68,7 @@ sealed class DisplayMessage {
         val moderatorLogin: String? = null
     ) : DisplayMessage() {
         enum class ModerationAction {
-            BAN, TIMEOUT, DELETE, CLEAR, UNBAN
+            BAN, TIMEOUT, DELETE, CLEAR, UNBAN, UNTIMEOUT, MOD, UNMOD, VIP, UNVIP
         }
     }
 
@@ -84,7 +84,8 @@ sealed class DisplayMessage {
         val color: String? = null,
         val status: AutoModStatus = AutoModStatus.PENDING,
         val reasonCategory: String? = null,
-        val reasonLevel: Int? = null
+        val reasonLevel: Int? = null,
+        val flaggedFragments: List<String> = emptyList()
     ) : DisplayMessage() {
         enum class AutoModStatus { PENDING, ALLOWED, DENIED }
     }

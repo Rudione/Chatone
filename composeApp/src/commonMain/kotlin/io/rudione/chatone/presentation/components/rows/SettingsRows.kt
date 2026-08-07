@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.components.rows
 
+import io.rudione.chatone.presentation.components.ChatoneSlider
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,6 +14,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isBackPressed
+import androidx.compose.ui.input.pointer.isForwardPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -234,14 +243,14 @@ fun SliderRow(
             )
         }
         if (isFloat && onFloatChange != null) {
-            Slider(
+            ChatoneSlider(
                 value = value / 100f,
                 onValueChange = onFloatChange,
                 valueRange = valueRange,
                 steps = steps
             )
         } else if (onValueChange != null) {
-            Slider(
+            ChatoneSlider(
                 value = value.toFloat(),
                 onValueChange = onValueChange,
                 valueRange = valueRange,
@@ -256,6 +265,7 @@ fun HotkeyRow(
     title: String,
     subtitle: String,
     currentHotkey: String,
+    allowMouseButtons: Boolean = false,
     onHotkeyChanged: (String) -> Unit
 ) {
     var isRecording by remember { mutableStateOf(false) }
@@ -284,6 +294,27 @@ fun HotkeyRow(
                     if (isRecording) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                 ),
                 modifier = Modifier.widthIn(min = 110.dp)
+                    .then(
+                        if (allowMouseButtons) Modifier.pointerInput(isRecording) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    if (!isRecording) continue
+                                    if (event.type != PointerEventType.Press) continue
+                                    val name = when {
+                                        event.buttons.isSecondaryPressed -> "mouse2"
+                                        event.buttons.isTertiaryPressed -> "mouse3"
+                                        event.buttons.isBackPressed -> "mouse4"
+                                        event.buttons.isForwardPressed -> "mouse5"
+                                        else -> null
+                                    } ?: continue
+                                    event.changes.forEach { it.consume() }
+                                    onHotkeyChanged(name)
+                                    isRecording = false
+                                }
+                            }
+                        } else Modifier
+                    )
                     .onKeyEvent { event ->
                         if (!isRecording) return@onKeyEvent false
                         if (event.type != KeyEventType.KeyDown) return@onKeyEvent true

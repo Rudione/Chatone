@@ -78,7 +78,8 @@ sealed class IrcEvent {
         val message: String,
         val color: String? = null,
         val reasonCategory: String? = null,
-        val reasonLevel: Int? = null
+        val reasonLevel: Int? = null,
+        val flaggedFragments: List<String> = emptyList()
     ) : IrcEvent()
 
     data class AutoModResolved(

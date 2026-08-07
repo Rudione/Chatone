@@ -3,6 +3,7 @@ package io.rudione.chatone.util.emote
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import io.rudione.chatone.util.link.isSafeHttpUrl
+import io.rudione.chatone.util.media.scaledTo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -49,34 +50,39 @@ object AnimatedEmoteLoader {
 
     private val loaderScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    fun isKnownStatic(url: String): Boolean = url in staticUrls
+    fun isKnownStatic(url: String, maxDimension: Int = 0): Boolean = cacheKey(url, maxDimension) in staticUrls
 
-    fun peek(url: String): AnimatedFrames? = lock.withLock {
-        cache[url]?.also { it.lastAccess = System.currentTimeMillis() }
+    fun peek(url: String, maxDimension: Int = 0): AnimatedFrames? = lock.withLock {
+        cache[cacheKey(url, maxDimension)]?.also { it.lastAccess = System.currentTimeMillis() }
     }
 
-    suspend fun load(url: String): AnimatedFrames? {
-        peek(url)?.let { return it }
-        if (url in staticUrls) return null
+    suspend fun load(url: String, maxDimension: Int = 0): AnimatedFrames? {
+        val key = cacheKey(url, maxDimension)
+        peek(url, maxDimension)?.let { return it }
+        if (key in staticUrls) return null
 
         val candidate = loaderScope.async(start = CoroutineStart.LAZY) {
             decodeGate.withPermit {
-                peek(url) ?: if (url in staticUrls) null else fetchAndDecode(url)
+                peek(url, maxDimension) ?: if (key in staticUrls) null else fetchAndDecode(url, maxDimension)
             }
         }
-        val existing = inflight.putIfAbsent(url, candidate)
+        val existing = inflight.putIfAbsent(key, candidate)
         if (existing != null) {
             candidate.cancel()
             return existing.await()
         }
-        candidate.invokeOnCompletion { inflight.remove(url, candidate) }
+        candidate.invokeOnCompletion { inflight.remove(key, candidate) }
         candidate.start()
         return candidate.await()
     }
 
-    private fun fetchAndDecode(url: String): AnimatedFrames? {
+    private fun cacheKey(url: String, maxDimension: Int): String =
+        if (maxDimension > 0) "$url#$maxDimension" else url
+
+    private fun fetchAndDecode(url: String, maxDimension: Int): AnimatedFrames? {
+        val key = cacheKey(url, maxDimension)
         if (!isSafeHttpUrl(url)) {
-            markStatic(url)
+            markStatic(key)
             return null
         }
 
@@ -86,7 +92,7 @@ object AnimatedEmoteLoader {
             conn.readTimeout = 15_000
             conn.getInputStream().use { it.readNBytes(MAX_DOWNLOAD_BYTES) }
         } catch (_: Exception) {
-            markStatic(url)
+            markStatic(key)
             return null
         }
 
@@ -95,7 +101,7 @@ object AnimatedEmoteLoader {
             Codec.makeFromData(data)
         } catch (_: Exception) {
             data.close()
-            markStatic(url)
+            markStatic(key)
             return null
         }
 
@@ -104,15 +110,20 @@ object AnimatedEmoteLoader {
             val frameCount = codec.frameCount
             val pixels = imageInfo.width.toLong() * imageInfo.height.toLong()
             if (frameCount <= 1 || pixels <= 0 || pixels > MAX_PIXELS) {
-                markStatic(url)
+                markStatic(key)
                 return null
             }
 
-            val bytesPerFrame = pixels * 4L
+            val longestSide = maxOf(imageInfo.width, imageInfo.height)
+            val scale = if (maxDimension in 1 until longestSide) maxDimension.toFloat() / longestSide else 1f
+            val targetWidth = (imageInfo.width * scale).toInt().coerceAtLeast(1)
+            val targetHeight = (imageInfo.height * scale).toInt().coerceAtLeast(1)
+
+            val bytesPerFrame = targetWidth.toLong() * targetHeight.toLong() * 4L
             val affordableFrames = (PER_EMOTE_BYTE_CAP / bytesPerFrame).toInt().coerceAtLeast(1)
             val usableFrames = minOf(frameCount, MAX_FRAMES, affordableFrames)
             if (usableFrames < 2) {
-                markStatic(url)
+                markStatic(key)
                 return null
             }
             val infos = codec.framesInfo
@@ -122,7 +133,7 @@ object AnimatedEmoteLoader {
                 try {
                     bmp.allocPixels(imageInfo)
                     codec.readPixels(bmp, i)
-                    bmp.toComposeSnapshot()
+                    bmp.toComposeSnapshot().scaledTo(targetWidth, targetHeight)
                 } finally {
                     bmp.close()
                 }
@@ -130,10 +141,10 @@ object AnimatedEmoteLoader {
 
             val byteSize = usableFrames.toLong() * bytesPerFrame
             val result = AnimatedFrames(frames, durations, byteSize)
-            store(url, result)
+            store(key, result)
             result
         } catch (_: Exception) {
-            markStatic(url)
+            markStatic(key)
             null
         } finally {
             codec.close()
@@ -141,13 +152,13 @@ object AnimatedEmoteLoader {
         }
     }
 
-    private fun markStatic(url: String) {
+    private fun markStatic(key: String) {
         if (staticUrls.size > MAX_STATIC_URLS) staticUrls.clear()
-        staticUrls.add(url)
+        staticUrls.add(key)
     }
 
-    private fun store(url: String, frames: AnimatedFrames) = lock.withLock {
-        cache.put(url, frames)?.let { cachedBytes -= it.byteSize }
+    private fun store(key: String, frames: AnimatedFrames) = lock.withLock {
+        cache.put(key, frames)?.let { cachedBytes -= it.byteSize }
         cachedBytes += frames.byteSize
         evictLocked()
     }

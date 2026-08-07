@@ -1,5 +1,6 @@
 package io.rudione.chatone
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
@@ -18,10 +19,13 @@ import chatone.composeapp.generated.resources.icon
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.window.ChatoneTitleBar
+import io.rudione.chatone.presentation.window.UpdateAvailableOverlay
 import io.rudione.chatone.presentation.window.NATIVE_WINDOW_BG
 import io.rudione.chatone.presentation.window.applyMinimumSize
 import io.rudione.chatone.presentation.window.isWindowsOs
+import io.rudione.chatone.presentation.window.TitleBarState
 import io.rudione.chatone.presentation.window.resolveTitleBar
 import io.rudione.chatone.presentation.window.useCustomTitleBar
 import io.rudione.chatone.util.system.AutoUpdater
@@ -58,7 +62,7 @@ fun main() {
 
     CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
         delay(3000)
-        runCatching { AutoUpdater.checkForUpdates(showDialog = true) }
+        runCatching { AutoUpdater.checkForUpdates() }
     }
 
     application {
@@ -109,7 +113,7 @@ fun main() {
         val initialSettings = remember { SettingsViewModel.loadInitialState() }
         var alwaysOnTop by remember { mutableStateOf(initialSettings.alwaysOnTop) }
         var isDarkTheme by remember { mutableStateOf(initialSettings.darkTheme) }
-        var dominantColor by remember { mutableStateOf<Color?>(null) }
+        var themeTopBarColor by remember { mutableStateOf<Color?>(null) }
         var titleBarMode by remember { mutableStateOf(initialSettings.titleBarMode) }
 
         val appIcon = painterResource(Res.drawable.icon)
@@ -144,6 +148,7 @@ fun main() {
                         window.background = NATIVE_WINDOW_BG
                         window.contentPane.background = NATIVE_WINDOW_BG
                         window.applyMinimumSize()
+                        loadAppIconImage()?.let { WindowsTitleBar.applyHighQualityIcons(window, it) }
                         if (isWindowsOs && useCustomTitleBar) {
                             WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
                         }
@@ -165,45 +170,49 @@ fun main() {
                 onDispose { window.removeWindowListener(listener) }
             }
 
-            LaunchedEffect(isDarkTheme, dominantColor, titleBarMode) {
-                if (!useCustomTitleBar) {
-                    val (captionColor, useDark) = resolveTitleBar(titleBarMode, isDarkTheme, dominantColor)
-                    WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
-                }
+            LaunchedEffect(isDarkTheme, themeTopBarColor, titleBarMode) {
+                TitleBarState.mode = titleBarMode
+                TitleBarState.isDarkTheme = isDarkTheme
+                TitleBarState.themeTopBarColor = themeTopBarColor
+                val (captionColor, useDark) = resolveTitleBar(titleBarMode, isDarkTheme, themeTopBarColor)
+                WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
             }
 
-            if (useCustomTitleBar) {
-                val (captionColor, _) = resolveTitleBar(titleBarMode, isDarkTheme, dominantColor)
-                Column(modifier = Modifier.fillMaxSize()) {
-                    ChatoneTitleBar(
-                        title = "Chatone",
-                        icon = appIcon,
-                        background = captionColor,
-                        windowState = windowState,
-                        onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
-                        onToggleMaximize = {
-                            windowState.placement =
-                                if (windowState.placement == WindowPlacement.Maximized)
-                                    WindowPlacement.Floating
-                                else
-                                    WindowPlacement.Maximized
-                        },
-                        onClose = { exitApplication() }
-                    )
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (useCustomTitleBar) {
+                    val captionColor = TitleBarState.captionColor
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ChatoneTitleBar(
+                            title = "Chatone",
+                            icon = appIcon,
+                            background = captionColor,
+                            windowState = windowState,
+                            onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
+                            onToggleMaximize = {
+                                windowState.placement =
+                                    if (windowState.placement == WindowPlacement.Maximized)
+                                        WindowPlacement.Floating
+                                    else
+                                        WindowPlacement.Maximized
+                            },
+                            onClose = { exitApplication() }
+                        )
+                        App(
+                            onAlwaysOnTopChanged = { alwaysOnTop = it },
+                            onThemeChanged = { isDarkTheme = it },
+                            onThemeTopBarColorChanged = { themeTopBarColor = it },
+                            onTitleBarModeChanged = { titleBarMode = it }
+                        )
+                    }
+                } else {
                     App(
                         onAlwaysOnTopChanged = { alwaysOnTop = it },
                         onThemeChanged = { isDarkTheme = it },
-                        onDominantColorChanged = { dominantColor = it },
+                        onThemeTopBarColorChanged = { themeTopBarColor = it },
                         onTitleBarModeChanged = { titleBarMode = it }
                     )
                 }
-            } else {
-                App(
-                    onAlwaysOnTopChanged = { alwaysOnTop = it },
-                    onThemeChanged = { isDarkTheme = it },
-                    onDominantColorChanged = { dominantColor = it },
-                    onTitleBarModeChanged = { titleBarMode = it }
-                )
+                ChatoneTheme(darkTheme = isDarkTheme) { UpdateAvailableOverlay() }
             }
         }
     }
@@ -215,3 +224,17 @@ private data class WindowSnapshot(
     val position: WindowPosition,
     val placement: WindowPlacement
 )
+
+private val appIconImage: java.awt.image.BufferedImage? by lazy {
+    runCatching {
+        val loader = Thread.currentThread().contextClassLoader
+            ?: WindowSnapshot::class.java.classLoader
+        val stream = loader.getResourceAsStream("icon.png")
+            ?: loader.getResourceAsStream(
+                "composeResources/chatone.composeapp.generated.resources/drawable/icon.png"
+            )
+        stream?.use { javax.imageio.ImageIO.read(it) }
+    }.getOrNull()
+}
+
+internal fun loadAppIconImage(): java.awt.image.BufferedImage? = appIconImage

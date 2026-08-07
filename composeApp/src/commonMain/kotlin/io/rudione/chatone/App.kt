@@ -85,7 +85,7 @@ fun App(
     darkTheme: Boolean = true,
     onAlwaysOnTopChanged: (Boolean) -> Unit = {},
     onThemeChanged: ((Boolean) -> Unit)? = null,
-    onDominantColorChanged: ((Color?) -> Unit)? = null,
+    onThemeTopBarColorChanged: ((Color?) -> Unit)? = null,
     onTitleBarModeChanged: ((TitleBarMode) -> Unit)? = null
 ) {
     val customThemeManager: CustomThemeManager = koinInject()
@@ -128,6 +128,11 @@ fun App(
             io.rudione.chatone.presentation.chat.ThirdPartyBadgeMaps(ffzBadges, bttvBadges, chatoneBadges)
         }
 
+        val sevenTvCosmeticsClient: io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient =
+            koinInject()
+        val sevenTvCosmetics by sevenTvCosmeticsClient.cosmetics.collectAsState()
+        val sevenTvPaints by sevenTvCosmeticsClient.paints.collectAsState()
+
         LaunchedEffect(settingsState.alwaysOnTop) {
             onAlwaysOnTopChanged(settingsState.alwaysOnTop)
         }
@@ -149,7 +154,6 @@ fun App(
                         displayConfig = wallpaperController.state.displayConfig
                     )
                 )
-                onDominantColorChanged?.invoke(null)
             } else {
                 val loaded = wallpaperLoader.load(
                     path = settingsState.wallpaperPath,
@@ -160,27 +164,19 @@ fun App(
                     wallpaperController.update(
                         loaded.copy(displayConfig = wallpaperController.state.displayConfig)
                     )
-                    onDominantColorChanged?.invoke(loaded.dominantColor)
+    
                 } else {
                     wallpaperController.update(
                         io.rudione.chatone.presentation.theme.WallpaperState(
                             displayConfig = wallpaperController.state.displayConfig
                         )
                     )
-                    onDominantColorChanged?.invoke(null)
                     settingsViewModel.sendEvent(SettingsEvent.OnWallpaperPathChanged(""))
                 }
             }
         }
 
         val wallpaper by remember { derivedStateOf { wallpaperController.state } }
-        LaunchedEffect(wallpaper.dominantColor, wallpaper.isActive) {
-            if (wallpaper.isActive) {
-                onDominantColorChanged?.invoke(wallpaper.dominantColor)
-            } else {
-                onDominantColorChanged?.invoke(null)
-            }
-        }
 
         LaunchedEffect(customThemeManager.savedThemes.value, activeCustomTheme) {
             settingsViewModel.sendEvent(
@@ -249,6 +245,8 @@ fun App(
             LocalCustomThemeManager provides customThemeManager,
             io.rudione.chatone.presentation.chat.LocalNicknames provides nicknames,
             io.rudione.chatone.presentation.chat.LocalThirdPartyBadges provides thirdPartyBadgeMaps,
+            io.rudione.chatone.presentation.chat.LocalSevenTvCosmetics provides sevenTvCosmetics,
+            io.rudione.chatone.presentation.chat.LocalSevenTvPaints provides sevenTvPaints,
             LocalDensity provides Density(
                 LocalDensity.current.density * uiScale,
                 LocalDensity.current.fontScale
@@ -261,6 +259,13 @@ fun App(
                 fontSettings = chatFontSettings,
                 colorTokens = settingsState.colorTokens
             ) {
+                val resolvedTopBarColor = io.rudione.chatone.presentation.theme.topBarBackgroundColor(
+                    wallpaper,
+                    androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer
+                )
+                LaunchedEffect(resolvedTopBarColor) {
+                    onThemeTopBarColorChanged?.invoke(resolvedTopBarColor)
+                }
                 Box(
                     modifier = androidx.compose.ui.Modifier
                         .pointerInput(Unit) {

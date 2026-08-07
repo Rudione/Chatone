@@ -17,11 +17,28 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 
 class SevenTvCosmeticsClient(
     private val httpClient: HttpClient,
     private val scope: CoroutineScope
 ) {
+    private val v4Client = SevenTvV4Client(httpClient)
+
+    private val _cosmetics =
+        kotlinx.coroutines.flow.MutableStateFlow<Map<String, SevenTvUserCosmetic>>(emptyMap())
+    val cosmetics: kotlinx.coroutines.flow.StateFlow<Map<String, SevenTvUserCosmetic>> = _cosmetics
+
+    private val _paints =
+        kotlinx.coroutines.flow.MutableStateFlow<Map<String, SevenTvCosmetics.Paint>>(emptyMap())
+    val paints: kotlinx.coroutines.flow.StateFlow<Map<String, SevenTvCosmetics.Paint>> = _paints
+
+    fun requestCosmetics(twitchUserId: String) {
+        if (twitchUserId.isBlank()) return
+        if (readCached(twitchUserId) != null) return
+        scope.launch { runCatching { getUserCosmetics(twitchUserId) } }
+    }
+
     companion object {
         private const val TAG = "7TV-Cosmetics"
         private const val BASE_URL = "https://7tv.io/v3"
@@ -68,6 +85,14 @@ class SevenTvCosmeticsClient(
     @OptIn(InternalCoroutinesApi::class)
     private fun writeCached(twitchUserId: String, value: SevenTvUserCosmetic) {
         synchronized(cacheLock) { userCosmeticsCache[twitchUserId] = value }
+        if (value.sevenTvId.isNotEmpty()) {
+            _cosmetics.value = _cosmetics.value + (twitchUserId to value)
+            value.paint?.let { paint ->
+                if (_paints.value[twitchUserId] != paint) {
+                    _paints.value = _paints.value + (twitchUserId to paint)
+                }
+            }
+        }
     }
 
     @OptIn(InternalCoroutinesApi::class)
@@ -89,6 +114,18 @@ class SevenTvCosmeticsClient(
     }
 
     private suspend fun fetchUserCosmetics(twitchUserId: String): SevenTvUserCosmetic? {
+        v4Client.fetchUser(twitchUserId)?.let { v4 ->
+            writeCached(twitchUserId, v4)
+            Napier.d(
+                "7TV v4 cosmetics for $twitchUserId: badge=${v4.badge?.name} paint=${v4.paint?.name}",
+                tag = TAG
+            )
+            return v4.takeIf { it.badge != null || it.paint != null || it.profile != null }
+        }
+        return fetchUserCosmeticsV3(twitchUserId)
+    }
+
+    private suspend fun fetchUserCosmeticsV3(twitchUserId: String): SevenTvUserCosmetic? {
         return try {
 
             val response = httpClient.get("$BASE_URL/users/twitch/$twitchUserId")
@@ -194,6 +231,8 @@ class SevenTvCosmeticsClient(
     @OptIn(InternalCoroutinesApi::class)
     fun clearCache() {
         synchronized(cacheLock) { userCosmeticsCache.clear() }
+        _cosmetics.value = emptyMap()
+        _paints.value = emptyMap()
     }
 
     private fun SevenTvPaint.toCosmetic() = SevenTvCosmetics.Paint(

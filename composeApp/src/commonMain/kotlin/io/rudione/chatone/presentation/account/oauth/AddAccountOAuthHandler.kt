@@ -49,6 +49,8 @@ class AddAccountOAuthHandler(
                 completeWithToken(token, onResult)
             } catch (e: Exception) {
                 onResult(State.Failure(e.message ?: "Browser auth failed"))
+            } finally {
+                runCatching { platformAuth.cleanup() }
             }
         }
     }

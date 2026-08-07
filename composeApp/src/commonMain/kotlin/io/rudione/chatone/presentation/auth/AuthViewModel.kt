@@ -16,6 +16,7 @@ import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import io.rudione.chatone.util.settings.AppConfig
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -57,20 +58,18 @@ class AuthViewModel(
         checkExistingToken()
     }
 
-    private var authInProgress = false
+    private var authJob: Job? = null
     private var pendingAccount: TwitchAccount? = null
     private var firstPartyWatchJob: Job? = null
 
     override suspend fun onEvent(event: AuthEvent) {
         when (event) {
             is AuthEvent.OnTokenReceived -> handleToken(event.token)
-            AuthEvent.OnLoginClicked -> {
-                if (!authInProgress) startOAuth()
-            }
+            AuthEvent.OnLoginClicked -> startOAuth()
             AuthEvent.OnGuestClicked -> handleGuestLogin()
             AuthEvent.OnRetry -> {
                 update { it.copy(error = null) }
-                if (!authInProgress) startOAuth()
+                startOAuth()
             }
             AuthEvent.OnSkipFirstParty -> finishFirstPartyStep()
         }
@@ -96,8 +95,9 @@ class AuthViewModel(
     }
 
     private fun startOAuth() {
-        viewModelScope.launch {
-            authInProgress = true
+        val previous = authJob
+        authJob = viewModelScope.launch {
+            previous?.cancelAndJoin()
             update { it.copy(isLoading = true, error = null) }
 
             val redirectUri = platformAuthHandler.getRedirectUri()
@@ -133,7 +133,6 @@ class AuthViewModel(
                 update { it.copy(isLoading = false, error = "OAuth error: ${e.message}") }
             } finally {
                 platformAuthHandler.cleanup()
-                authInProgress = false
             }
         }
     }

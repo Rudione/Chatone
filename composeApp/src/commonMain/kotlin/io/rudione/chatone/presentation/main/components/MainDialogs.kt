@@ -115,6 +115,9 @@ import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.main.ChannelFolder
 import io.rudione.chatone.presentation.main.ChannelTab
 import io.rudione.chatone.presentation.components.ChatoneTextField
+import io.rudione.chatone.presentation.main.components.sidebar.FolderColors
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 internal fun EmptyState(
@@ -183,32 +186,148 @@ internal fun EmptyState(
 @Composable
 internal fun CreateFolderDialog(
     name: String,
+    colorHex: String,
     onNameChange: (String) -> Unit,
+    onColorChange: (String) -> Unit,
     onCreate: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(s.mainCreateFolderTitle) },
-        text = {
-            ChatoneTextField(
-                value = name,
-                onValueChange = onNameChange,
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = s.mainFolderNamePlaceholder,
-                leading = { Icon(Icons.AutoMirrored.Outlined.List, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onCreate() })
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = onCreate,
-                enabled = name.isNotBlank()
-            ) { Text(s.mainCreate) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(s.cancel) } }
+    FolderEditorDialog(
+        title = LocalStrings.current.mainCreateFolderTitle,
+        confirmLabel = LocalStrings.current.mainCreate,
+        name = name,
+        colorHex = colorHex,
+        onNameChange = onNameChange,
+        onColorChange = onColorChange,
+        onConfirm = onCreate,
+        onDismiss = onDismiss
     )
+}
+
+@Composable
+internal fun EditFolderDialog(
+    name: String,
+    colorHex: String,
+    onNameChange: (String) -> Unit,
+    onColorChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    FolderEditorDialog(
+        title = LocalStrings.current.mainEditFolderTitle,
+        confirmLabel = LocalStrings.current.mainSave,
+        name = name,
+        colorHex = colorHex,
+        onNameChange = onNameChange,
+        onColorChange = onColorChange,
+        onConfirm = onSave,
+        onDismiss = onDismiss
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FolderEditorDialog(
+    title: String,
+    confirmLabel: String,
+    name: String,
+    colorHex: String,
+    onNameChange: (String) -> Unit,
+    onColorChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val s = LocalStrings.current
+    val selected = FolderColors.options.firstOrNull { it.hex.equals(colorHex, ignoreCase = true) }
+        ?: FolderColors.options.first()
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            shadowElevation = 14.dp,
+            modifier = Modifier.width(340.dp)
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
+
+                ChatoneTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = s.mainFolderNamePlaceholder,
+                    leading = {
+                        Icon(
+                            painterResource(Res.drawable.folder_outline),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = selected.color
+                        )
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { if (name.isNotBlank()) onConfirm() })
+                )
+
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    s.mainFolderColorLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    FolderColors.options.forEach { option ->
+                        val isActive = option.hex.equals(colorHex, ignoreCase = true)
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(option.color.copy(alpha = if (isActive) 1f else 0.75f))
+                                .then(
+                                    if (isActive) Modifier.border(
+                                        2.dp,
+                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                                        CircleShape
+                                    ) else Modifier
+                                )
+                                .clickable { onColorChange(option.hex) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isActive) {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = option.label(s),
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End)
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                    ) { Text(s.cancel) }
+                    Button(
+                        onClick = onConfirm,
+                        enabled = name.isNotBlank(),
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)
+                    ) { Text(confirmLabel) }
+                }
+            }
+        }
+    }
 }

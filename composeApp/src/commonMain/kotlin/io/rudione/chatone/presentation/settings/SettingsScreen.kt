@@ -70,6 +70,7 @@ import chatone.composeapp.generated.resources.wallpaper_filled
 import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
+import io.rudione.chatone.presentation.components.ChatoneSlider
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
 import io.rudione.chatone.presentation.components.rows.LocalSettingsSearch
@@ -173,6 +174,7 @@ fun SettingsScreen(
     onThemeChanged: (Boolean) -> Unit,
     isWideScreen: Boolean = false,
     isDetached: Boolean = false,
+    embedded: Boolean = false,
     modifier: Modifier = Modifier,
     wallpaperLoader: WallpaperLoader = koinInject(),
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {},
@@ -191,7 +193,23 @@ fun SettingsScreen(
         }
     }
 
-    if (isWideScreen) {
+    if (isWideScreen && embedded) {
+        SettingsDialogContent(
+            state = state,
+            onNavigateBack = {
+                onNavigateBack()
+                if (state.showThemeCreator) {
+                    viewModel.sendEvent(SettingsEvent.OnCloseThemeCreator)
+                }
+            },
+            onThemeChanged = onThemeChanged,
+            viewModel = viewModel,
+            isDetached = true,
+            onOpenThemeCreator = { seedColor ->
+                viewModel.sendEvent(SettingsEvent.OnOpenThemeCreator(seedColor))
+            }
+        )
+    } else if (isWideScreen) {
         Dialog(
             onDismissRequest = {
                 onNavigateBack()
@@ -1177,7 +1195,7 @@ internal fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
             )
         }
         Spacer(Modifier.width(12.dp))
-        Slider(
+        ChatoneSlider(
             value = currentScale,
             onValueChange = onScaleChanged,
             valueRange = 0.7f..2.0f,

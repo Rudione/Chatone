@@ -57,6 +57,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.Macro
+import io.rudione.chatone.presentation.components.ChatoneWindowSize
+import io.rudione.chatone.presentation.components.LocalWindowSize
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
@@ -105,10 +107,12 @@ fun ModerationPanel(
     var shoutoutTarget by remember { mutableStateOf("") }
     var showChannelPoints by remember { mutableStateOf(false) }
 
+    val wrapChips = LocalWindowSize.current == ChatoneWindowSize.Large
+
     LiquidGlassSurface(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = 460.dp)
+            .then(if (wrapChips) Modifier.fillMaxHeight() else Modifier.heightIn(max = 460.dp))
             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         contentPadding = PaddingValues(0.dp),
@@ -149,13 +153,7 @@ fun ModerationPanel(
 
             if (pinnedMacros.isNotEmpty()) {
                 PanelSectionLabel("Macros")
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
+                ModPanelChipRow(wrap = wrapChips) {
                     pinnedMacros.forEach { macro ->
                         ModPanelButton(
                             label = macro.name,
@@ -169,13 +167,7 @@ fun ModerationPanel(
             }
 
             PanelSectionLabel("Chat Modes")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            ModPanelChipRow(wrap = wrapChips) {
                 ModPanelButton(
                     label = "Emote",
                     icon = Icons.Outlined.Face,
@@ -213,14 +205,7 @@ fun ModerationPanel(
 
             PanelDivider()
             PanelSectionLabel("Slow Mode")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            ModPanelChipRow(wrap = wrapChips) {
                 listOf(0 to "Off", 3 to "3s", 5 to "5s", 10 to "10s", 30 to "30s", 60 to "1m", 120 to "2m")
                     .forEach { (secs, label) ->
                         val isActive = if (secs == 0) roomState.slowMode == 0 else roomState.slowMode == secs
@@ -246,14 +231,7 @@ fun ModerationPanel(
                 Column {
                     PanelDivider()
                     PanelSectionLabel("Min. Follow Time")
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    ModPanelChipRow(wrap = wrapChips) {
                         listOf(0 to "Any", 10 to "10m", 30 to "30m", 60 to "1h", 1440 to "1d", 10080 to "1w")
                             .forEach { (min, label) ->
                                 ModPanelButton(
@@ -270,13 +248,7 @@ fun ModerationPanel(
 
             PanelDivider()
             PanelSectionLabel("Quick Actions")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            ModPanelChipRow(wrap = wrapChips) {
                 ModPanelButton(
                     label = "Automod",
                     icon = Icons.Outlined.Build,
@@ -1068,6 +1040,29 @@ private fun ModPanelInputRow(
                 tint = if (value.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
             )
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ModPanelChipRow(wrap: Boolean, content: @Composable () -> Unit) {
+    if (wrap) {
+        FlowRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) { content() }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) { content() }
     }
 }
 

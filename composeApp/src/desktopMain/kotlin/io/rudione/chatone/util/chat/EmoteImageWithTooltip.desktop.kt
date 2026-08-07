@@ -2,6 +2,7 @@ package io.rudione.chatone.util.chat
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.TooltipArea
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -35,7 +36,7 @@ actual fun EmoteImageWithTooltip(
     }
 
     TooltipArea(
-        tooltip = { EmoteTooltip(emote = emote) },
+        tooltip = { DisableSelection { EmoteTooltip(emote = emote) } },
         delayMillis = syncedDelay
     ) {
         AnimatedEmoteImageCore(

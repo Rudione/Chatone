@@ -115,6 +115,7 @@ import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.main.ChannelFolder
 import io.rudione.chatone.presentation.main.ChannelTab
 import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneCountBadge
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -253,9 +254,7 @@ internal fun MiniRail(
                     if (node is ChannelFolder) {
                         val folder = node
                         val isCollapsed = folder.id in miniRailCollapsedFolders
-                        val parsedColor = runCatching {
-                            Color(folder.color.removePrefix("#").toLong(16) or 0xFF000000L)
-                        }.getOrDefault(Color(0xFF9146FF))
+                        val parsedColor = parseFolderColor(folder.color)
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center,
@@ -462,21 +461,12 @@ internal fun MiniRail(
                                     .zIndex(2f)
                             )
                         }
-                        if (channel.unreadCount > 0) {
-                            Box(
-                                modifier = Modifier.align(Alignment.BottomEnd)
-                                    .offset(x = 1.dp, y = 1.dp).size(11.dp).clip(CircleShape)
-                                    .background(Color.Red)
-                                    .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                                    .zIndex(2f), contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (channel.unreadCount > 9) "9+" else "${channel.unreadCount}",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
-                                    color = Color.White
-                                )
-                            }
-                        }
+                        ChatoneCountBadge(
+                            count = channel.unreadCount,
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                                .offset(x = 1.dp, y = 1.dp)
+                                .zIndex(2f)
+                        )
                         if (showTooltip) {
                             Popup(
                                 alignment = Alignment.TopStart,
@@ -532,22 +522,12 @@ internal fun MiniRail(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                if (state.unreadMentionsCount > 0) {
-                    Box(
-                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
-                            .size(14.dp).clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.error)
-                            .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                            .zIndex(2f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
-                            color = Color.White
-                        )
-                    }
-                }
+                ChatoneCountBadge(
+                    count = state.unreadMentionsCount,
+                    modifier = Modifier.align(Alignment.TopEnd)
+                        .offset(x = 1.dp, y = (-1).dp)
+                        .zIndex(2f)
+                )
             }
 
             Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
@@ -562,22 +542,12 @@ internal fun MiniRail(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                if (state.totalUnreadWhispers > 0) {
-                    Box(
-                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
-                            .size(14.dp).clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.error)
-                            .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
-                            .zIndex(2f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp),
-                            color = Color.White
-                        )
-                    }
-                }
+                ChatoneCountBadge(
+                    count = state.totalUnreadWhispers,
+                    modifier = Modifier.align(Alignment.TopEnd)
+                        .offset(x = 1.dp, y = (-1).dp)
+                        .zIndex(2f)
+                )
             }
             ChatoneIconButton(
                 onClick = { onEvent(MainEvent.ShowAddChannelDialog) },

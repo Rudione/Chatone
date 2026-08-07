@@ -70,6 +70,7 @@ import chatone.composeapp.generated.resources.wallpaper_filled
 import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
+import io.rudione.chatone.presentation.components.ChatoneSlider
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
 import io.rudione.chatone.presentation.components.rows.LocalSettingsSearch
@@ -306,12 +307,16 @@ internal fun HightlightRuleCard(
                     }
 
                     Text(sd.settingsHue, style = MaterialTheme.typography.labelSmall)
-                    Slider(
+                    ChatoneSlider(
                         value = hue,
                         onValueChange = { h ->
                             pickedColor = Color.hsl(h, 0.85f, 0.55f)
                         },
-                        valueRange = 0f..360f
+                        valueRange = 0f..360f,
+                        trackHeight = 8.dp,
+                        fullTrackBrush = Brush.horizontalGradient(
+                            (0..12).map { Color.hsl(it * 30f % 360f, 0.85f, 0.55f) }
+                        )
                     )
                 }
             },

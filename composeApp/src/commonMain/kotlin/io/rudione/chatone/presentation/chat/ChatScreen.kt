@@ -2,24 +2,15 @@ package io.rudione.chatone.presentation.chat
 
 import io.github.aakira.napier.Napier
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,63 +21,31 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.InlineTextContent
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.Build
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Clear
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.MailOutline
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconToggleButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -103,121 +62,71 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
-import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.text.selection.DisableSelection
-import androidx.compose.material.icons.outlined.CopyAll
-import androidx.compose.material.icons.outlined.Translate
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextIndent
-import androidx.compose.ui.text.style.LineHeightStyle
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
-import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.emoji_icon
-import chatone.composeapp.generated.resources.ic_sword
-import coil3.compose.AsyncImage
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.domain.model.DisplayMessage
-import io.rudione.chatone.domain.model.EmoteProvider
-import io.rudione.chatone.domain.model.GenericEmote
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.MentionEntry
-import io.rudione.chatone.domain.model.ModActionButton
-import io.rudione.chatone.presentation.chat.components.ChannelHeaderBlock
 import io.rudione.chatone.presentation.chat.components.ChatTopBar
-import io.rudione.chatone.presentation.chat.components.ThirdPartyBadgeIcons
 import io.rudione.chatone.presentation.chat.components.roomModeLabels
-import io.rudione.chatone.presentation.chat.rendering.MessageTranslationLine
-import io.rudione.chatone.presentation.chat.rendering.rawTokenText
-import io.rudione.chatone.presentation.chat.components.LinkHoverPopup
 import io.rudione.chatone.presentation.chat.components.ModActionConfirmDialog
 import io.rudione.chatone.presentation.chat.components.PendingModAction
 import io.rudione.chatone.presentation.chat.components.ChatSearchBar
-import io.rudione.chatone.presentation.chat.components.LiquidGlassRichTooltipBox
-import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
+import io.rudione.chatone.presentation.chat.components.EmoteAutocompleteRow
+import io.rudione.chatone.presentation.chat.components.HiddenEventsRestoreButton
+import io.rudione.chatone.presentation.chat.components.InputCompletionCallbacks
+import io.rudione.chatone.presentation.chat.components.InputCompletionState
+import io.rudione.chatone.presentation.chat.components.MentionAutocompleteRow
 import io.rudione.chatone.presentation.chat.components.MessageInput
+import io.rudione.chatone.presentation.chat.components.MessageInputActions
+import io.rudione.chatone.presentation.chat.components.MessageInputChrome
+import io.rudione.chatone.presentation.chat.components.MessageInputTranslation
+import io.rudione.chatone.presentation.chat.components.MessageInputUploadState
+import io.rudione.chatone.presentation.chat.components.PinnedMessageBar
+import io.rudione.chatone.presentation.chat.components.RaidBanner
+import io.rudione.chatone.presentation.chat.components.ReplyBar
 import io.rudione.chatone.presentation.chat.components.SlashCommandSuggestionsRow
+import io.rudione.chatone.presentation.chat.components.rememberStaggeredMessages
+import io.rudione.chatone.presentation.components.DockPanel
+import io.rudione.chatone.presentation.components.evictedFrom
 import io.rudione.chatone.presentation.components.GlowSurface
-import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
-import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.settings.InlineImageMode
 import io.rudione.chatone.presentation.settings.PauseHotkeyMode
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
-import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.FirstMessageColor
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.presentation.theme.chatPaneBackgroundColor
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.luminance
-import io.rudione.chatone.presentation.theme.panelBlur
-import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.util.EmoteAnimationCache
-import io.rudione.chatone.util.chat.EmoteImageWithTooltip
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
 import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.util.media.NotificationSoundPlayer
@@ -225,17 +134,12 @@ import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.SlashCommand
-import io.rudione.chatone.util.link.openUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.math.roundToInt
 
 private const val REPEAT_SIMILARITY_THRESHOLD = 0.85f
 private const val REPEAT_SCAN_LIMIT = 300
@@ -311,7 +215,7 @@ fun ChatScreen(
     }
     val s = LocalStrings.current
     val clipboardManager = LocalClipboardManager.current
-    val listState = rememberLazyListState()
+    val listState = remember(channelLogin) { LazyListState() }
     val chatScrollActivity =
         io.rudione.chatone.presentation.chat.rendering.rememberScrollActivity(listState)
 
@@ -331,6 +235,52 @@ fun ChatScreen(
     var showModPanel by remember { mutableStateOf(false) }
     var isFileDragOver by remember { mutableStateOf(false) }
     var showAutomodWindow by remember { mutableStateOf(false) }
+    val dockHost = io.rudione.chatone.presentation.components.LocalDockHost.current
+    LaunchedEffect(showAutomodWindow, dockHost, channelLogin) {
+        if (dockHost != null && showAutomodWindow) dockHost.open(
+            io.rudione.chatone.presentation.components.DockPanel.Automod,
+            channelLogin
+        )
+        if (dockHost != null && !showAutomodWindow) dockHost.closeIf(
+            io.rudione.chatone.presentation.components.DockPanel.Automod
+        )
+    }
+    var modPanelWasDocked by remember { mutableStateOf(false) }
+    LaunchedEffect(dockHost?.panel) {
+        if (dockHost.evictedFrom(DockPanel.Moderation, modPanelWasDocked)) {
+            modPanelWasDocked = false
+            showModPanel = false
+        } else if (dockHost?.panel == DockPanel.Moderation) {
+            modPanelWasDocked = true
+        }
+    }
+    var automodWasDocked by remember { mutableStateOf(false) }
+    LaunchedEffect(dockHost?.panel) {
+        if (dockHost.evictedFrom(DockPanel.Automod, automodWasDocked)) {
+            automodWasDocked = false
+            showAutomodWindow = false
+        } else if (dockHost?.panel == DockPanel.Automod) {
+            automodWasDocked = true
+        }
+    }
+    var emotesWereDocked by remember { mutableStateOf(false) }
+    LaunchedEffect(dockHost?.panel) {
+        if (dockHost.evictedFrom(DockPanel.Emotes, emotesWereDocked)) {
+            emotesWereDocked = false
+            if (state.isEmotePickerVisible) viewModel.sendEvent(ChatEvent.OnToggleEmotePicker)
+        } else if (dockHost?.panel == DockPanel.Emotes) {
+            emotesWereDocked = true
+        }
+    }
+    var pointsWereDocked by remember { mutableStateOf(false) }
+    LaunchedEffect(dockHost?.panel) {
+        if (dockHost.evictedFrom(DockPanel.Points, pointsWereDocked)) {
+            pointsWereDocked = false
+            if (state.showPointsBitsPanel) viewModel.sendEvent(ChatEvent.OnClosePointsBitsPanel)
+        } else if (dockHost?.panel == DockPanel.Points) {
+            pointsWereDocked = true
+        }
+    }
     var messageInputFocused by remember { mutableStateOf(false) }
     var profilePopupUserId by remember { mutableStateOf<String?>(null) }
     var profilePopupMessage by remember { mutableStateOf<DisplayMessage.PrivMsg?>(null) }
@@ -339,6 +289,7 @@ fun ChatScreen(
     var pendingModAction by remember { mutableStateOf<PendingModAction?>(null) }
     var isPausedByHotkey by remember { mutableStateOf(false) }
     var isHoveredOverChat by remember { mutableStateOf(false) }
+    var chatErrorBanner by remember { mutableStateOf<String?>(null) }
     val inputFocusRequester = remember { FocusRequester() }
     var emoteTabIndex by remember { mutableStateOf(-1) }
     var mentionTabIndex by remember { mutableStateOf(-1) }
@@ -354,7 +305,7 @@ fun ChatScreen(
     val emoteRepository: EmoteRepository = koinInject()
     val coroutineScope = rememberCoroutineScope()
 
-    val isAtBottom = remember {
+    val isAtBottom = remember(listState) {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
             val totalItems = layoutInfo.totalItemsCount
@@ -364,7 +315,7 @@ fun ChatScreen(
         }
     }
 
-    val isScrolledAway = remember {
+    val isScrolledAway = remember(listState) {
         derivedStateOf {
             val layoutInfo = listState.layoutInfo
             val totalItems = layoutInfo.totalItemsCount
@@ -418,6 +369,13 @@ fun ChatScreen(
             }
     }
 
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
+        stickToBottom()
+        unreadCount = 0
+        hasNewMessagesWhilePaused = false
+    }
+
     val newestRenderedId = dedupedMessages.lastOrNull()?.id
     LaunchedEffect(newestRenderedId, effectivelyPaused) {
         if (newestRenderedId == null) return@LaunchedEffect
@@ -457,7 +415,9 @@ fun ChatScreen(
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
-                is ChatEffect.ShowError -> {}
+                is ChatEffect.ShowError -> {
+                    chatErrorBanner = effect.message
+                }
                 ChatEffect.ScrollToBottom -> {
                     if (!effectivelyPaused && renderedCount > 0) {
                         stickToBottom()
@@ -475,12 +435,9 @@ fun ChatScreen(
                     val mentionChannel = effect.channelLogin
                     val currentChannel = viewModel.state.value.channelLogin
                     val isActiveChannel = mentionChannel.equals(currentChannel, ignoreCase = true)
-                    val senderLogin = effect.message?.username ?: ""
-                    val isMuted =
-                        mentionMuteRepository?.isMuted(senderLogin, mentionChannel) == true
 
-                    if (!isActiveChannel && !isMuted) {
-                        if (settingsState.mentionSoundEnabled) {
+                    if (!isActiveChannel) {
+                        if (effect.playSound && settingsState.mentionSoundEnabled) {
                             NotificationSoundPlayer.playMentionSound(
                                 volume = settingsState.mentionSoundVolume,
                                 customSoundPath = settingsState.customMentionSoundPath
@@ -504,6 +461,7 @@ fun ChatScreen(
                                     is MessageToken.ThirdPartyEmoteToken -> token.emote.code
                                     is MessageToken.Link -> token.displayText
                                     is MessageToken.Mention -> token.username
+                                    is MessageToken.Cheer -> "${token.prefix}${token.amount}"
                                 }
                             },
                             timestamp = mentionMsg.timestamp
@@ -546,6 +504,20 @@ fun ChatScreen(
     val currentRenderedCount by rememberUpdatedState(renderedCount)
     val stickToBottomLatest by rememberUpdatedState(stickToBottom)
 
+    val pauseMouseButton = remember(settingsState.pauseHotkey) {
+        hotkeyMouseButton(settingsState.pauseHotkey)
+    }
+    val resumeFromPause: () -> Unit = {
+        coroutineScope.launch {
+            if (currentRenderedCount > 0) {
+                stickToBottomLatest()
+                hasNewMessagesWhilePaused = false
+                unreadCount = 0
+            }
+        }
+        Unit
+    }
+
     val chatSearchMatches: List<Int> = remember(chatSearchQuery, dedupedMessages) {
         if (chatSearchQuery.isBlank()) emptyList()
         else {
@@ -560,6 +532,7 @@ fun ChatScreen(
                                 is MessageToken.ThirdPartyEmoteToken -> it.emote.code
                                 is MessageToken.Link -> it.displayText
                                 is MessageToken.Mention -> it.username
+                                is MessageToken.Cheer -> "${it.prefix}${it.amount}"
                             }
                         }).lowercase()
 
@@ -574,14 +547,14 @@ fun ChatScreen(
     val chatSearchCurrentIndex = if (chatSearchMatchCount == 0) 0
     else chatSearchMatchIndex.coerceIn(0, chatSearchMatchCount - 1)
 
-    LaunchedEffect(chatSearchCurrentIndex, chatSearchMatches) {
+    LaunchedEffect(chatSearchCurrentIndex, chatSearchMatches, listState) {
         if (chatSearchMatches.isNotEmpty()) {
             val targetIdx = chatSearchMatches[chatSearchCurrentIndex]
             listState.animateScrollToItem(targetIdx)
         }
     }
 
-    LaunchedEffect(pendingScrollMessageId) {
+    LaunchedEffect(pendingScrollMessageId, listState) {
         val targetId = pendingScrollMessageId ?: return@LaunchedEffect
         if (!channelLogin.equals(state.channelLogin, ignoreCase = true)) return@LaunchedEffect
         repeat(20) {
@@ -885,6 +858,7 @@ fun ChatScreen(
                                                 is MessageToken.ThirdPartyEmoteToken -> tok.emote.code
                                                 is MessageToken.Link -> tok.displayText
                                                 is MessageToken.Mention -> "@${tok.username}"
+                                                is MessageToken.Cheer -> "${tok.prefix}${tok.amount}"
                                             }
                                         }.trim().lowercase()
                                         if (norm.isEmpty()) continue
@@ -915,6 +889,34 @@ fun ChatScreen(
                                         },
                                         onExit = { isHoveredOverChat = false }
                                     )
+                                        .then(
+                                            if (pauseMouseButton != null) {
+                                                Modifier.pointerInput(
+                                                    pauseMouseButton,
+                                                    settingsState.pauseHotkeyMode
+                                                ) {
+                                                    awaitPointerEventScope {
+                                                        var buttonHeld = false
+                                                        while (true) {
+                                                            val event =
+                                                                awaitPointerEvent(PointerEventPass.Initial)
+                                                            val pressed = event.buttons
+                                                                .isPauseButtonPressed(pauseMouseButton)
+                                                            if (pressed == buttonHeld) continue
+                                                            buttonHeld = pressed
+                                                            if (settingsState.pauseHotkeyMode == PauseHotkeyMode.HOLD) {
+                                                                isPausedByHotkey = pressed
+                                                                if (!pressed) resumeFromPause()
+                                                            } else if (pressed) {
+                                                                val wasPaused = isPausedByHotkey
+                                                                isPausedByHotkey = !wasPaused
+                                                                if (wasPaused) resumeFromPause()
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } else Modifier
+                                        )
                                         .then(
                                             if (settingsState.disableScrollOnAlt && isPausedByHotkey) {
                                                 Modifier.pointerInput(isPausedByHotkey) {
@@ -1544,7 +1546,7 @@ fun ChatScreen(
                         }
                     }
 
-                    if (state.showPointsBitsPanel) {
+                    if (state.showPointsBitsPanel && dockHost == null) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -1567,8 +1569,9 @@ fun ChatScreen(
                 }
             }
 
+            val modPanelDocked = dockHost != null && showModPanel && state.canModerate
             AnimatedVisibility(
-                visible = showModPanel && state.canModerate,
+                visible = showModPanel && state.canModerate && !modPanelDocked,
                 enter = expandVertically(tween(250)) + fadeIn(tween(200)),
                 exit = shrinkVertically(tween(250)) + fadeOut(tween(200))
             ) {
@@ -1613,11 +1616,98 @@ fun ChatScreen(
                 )
             }
 
-            if (showAutomodWindow) {
+            if (modPanelDocked) {
+                val panelBody = rememberUpdatedState<@Composable () -> Unit> {
+        ModerationPanel(
+                            roomState = state.roomState,
+                            channelLogin = channelLogin,
+                            isMod = state.canModerate,
+                            pinnedMacros = effectivePinnedMacros,
+                            onUpdateChatSettings = { settings ->
+                                viewModel.sendEvent(
+                                    ChatEvent.OnUpdateChatSettings(
+                                        settings
+                                    )
+                                )
+                            },
+                            onClearChat = { viewModel.sendEvent(ChatEvent.OnClearChat) },
+                            onSendAnnouncement = { message, color ->
+                                viewModel.sendEvent(
+                                    ChatEvent.OnSendAnnouncement(
+                                        message,
+                                        color
+                                    )
+                                )
+                            },
+                            onStartRaid = { targetLogin ->
+                                viewModel.sendEvent(
+                                    ChatEvent.OnStartRaid(
+                                        targetLogin
+                                    )
+                                )
+                            },
+                            onCancelRaid = { viewModel.sendEvent(ChatEvent.OnCancelRaid) },
+                            onExecuteMacro = { macro -> viewModel.sendEvent(ChatEvent.OnExecuteMacro(macro)) },
+                            onSendPinMessage = { msg -> viewModel.sendEvent(ChatEvent.OnSendMessageText("/pin $msg")) },
+                            onShoutout = { target -> viewModel.sendEvent(ChatEvent.OnSendMessageText("/shoutout $target")) },
+                            onSendRawCommand = { cmd -> viewModel.sendEvent(ChatEvent.OnSendMessageText(cmd)) },
+                            onOpenLocalAutomod = { showAutomodWindow = true },
+                            onClose = { showModPanel = false },
+                            accessToken = state.currentAccessToken,
+                            channelId = state.channelId,
+                            isBroadcaster = state.isBroadcaster
+                        )
+                }
+                LaunchedEffect(modPanelDocked) {
+                    dockHost?.openWith(
+                        io.rudione.chatone.presentation.components.DockPanel.Moderation
+                    ) { panelBody.value() }
+                }
+                DisposableEffect(Unit) {
+                    onDispose {
+                        dockHost?.closeIf(
+                            io.rudione.chatone.presentation.components.DockPanel.Moderation
+                        )
+                    }
+                }
+            }
+
+            if (showAutomodWindow && dockHost == null) {
                 io.rudione.chatone.presentation.automod.DetachedAutomodWindow(
                     currentChannelLogin = channelLogin,
                     onClose = { showAutomodWindow = false }
                 )
+            }
+
+            val pointsDocked = dockHost != null && state.showPointsBitsPanel
+            if (pointsDocked) {
+                val pointsBody = rememberUpdatedState<@Composable () -> Unit> {
+                    ChannelPointsBitsSheet(
+                        balance = state.pointsBalance,
+                        pointsIconUrl = state.pointsIconUrl,
+                        bitsCount = 0L,
+                        rewards = state.channelRewards,
+                        isLoading = state.pointsBitsLoading,
+                        error = state.pointsBitsError,
+                        onRedeem = { reward, text ->
+                            viewModel.sendEvent(ChatEvent.OnRedeemReward(reward, text))
+                        },
+                        onClose = { viewModel.sendEvent(ChatEvent.OnClosePointsBitsPanel) },
+                        docked = true
+                    )
+                }
+                LaunchedEffect(pointsDocked) {
+                    dockHost?.openWith(
+                        io.rudione.chatone.presentation.components.DockPanel.Points
+                    ) { pointsBody.value() }
+                }
+                DisposableEffect(Unit) {
+                    onDispose {
+                        dockHost?.closeIf(
+                            io.rudione.chatone.presentation.components.DockPanel.Points
+                        )
+                    }
+                }
             }
 
             state.replyingTo?.let { replyMsg ->
@@ -1630,6 +1720,7 @@ fun ChatScreen(
                             is MessageToken.ThirdPartyEmoteToken -> token.emote.code
                             is MessageToken.Link -> token.displayText
                             is MessageToken.Mention -> token.username
+                            is MessageToken.Cheer -> "${token.prefix}${token.amount}"
                         }
                     },
                     onCancel = { viewModel.sendEvent(ChatEvent.OnCancelReply) }
@@ -1682,6 +1773,10 @@ fun ChatScreen(
                     }
                 )
             }
+            ChatErrorBanner(
+                message = chatErrorBanner,
+                onDismiss = { chatErrorBanner = null }
+            )
             MessageInput(
                 value = state.messageInput,
                 onValueChange = {
@@ -1689,83 +1784,92 @@ fun ChatScreen(
                     mentionTabIndex = -1
                     viewModel.sendEvent(ChatEvent.OnMessageInputChanged(it))
                 },
-                onSend = { viewModel.sendEvent(ChatEvent.OnSendMessage) },
-                onSendKeepText = { viewModel.sendEvent(ChatEvent.OnSendMessageKeepText) },
-                onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },
-                onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },
-                onEmotePickerClick = {
-                    viewModel.sendEvent(ChatEvent.OnToggleEmotePicker)
-                },
                 enabled = state.isConnected && !state.isBanned,
-                isBanned = state.isBanned,
-                banReason = state.banReason,
-                pauseHotkey = "",
-                onTogglePause = { },
                 focusRequester = inputFocusRequester,
-                onFocusChanged = { messageInputFocused = it },
-                showEmoteCompletions = state.showEmoteCompletions && state.emoteCompletions.isNotEmpty(),
-                showMentionCompletions = state.showMentionCompletions && state.mentionCompletions.isNotEmpty(),
-                emoteCount = state.emoteCompletions.size,
-                mentionCount = state.mentionCompletions.size,
-                emoteTabIndex = emoteTabIndex,
-                mentionTabIndex = mentionTabIndex,
-                onTabEmote = { idx -> emoteTabIndex = idx },
-                onTabMention = { idx -> mentionTabIndex = idx },
-                onConfirmEmoteTab = {
-                    val idx = emoteTabIndex.coerceIn(0, state.emoteCompletions.lastIndex)
-                    viewModel.sendEvent(ChatEvent.OnSelectEmoteCompletion(state.emoteCompletions[idx]))
-                    emoteTabIndex = -1
-                    inputFocusRequester.requestFocus()
-                },
-                onConfirmMentionTab = {
-                    val idx = mentionTabIndex.coerceIn(0, state.mentionCompletions.lastIndex)
-                    viewModel.sendEvent(ChatEvent.OnSelectMentionCompletion(state.mentionCompletions[idx]))
-                    mentionTabIndex = -1
-                    inputFocusRequester.requestFocus()
-                },
-                hidePlaceholder = settingsState.hideChatInputPlaceholder,
-                hideEmojiButton = settingsState.hideEmojiButton,
-                placeholderText = when {
-                    state.isBanned -> "You are banned" + (state.banReason?.let { " — $it" }
-                        ?: "") + " in #${state.channelLogin}"
+                actions = MessageInputActions(
+                    onSend = { viewModel.sendEvent(ChatEvent.OnSendMessage) },
+                    onSendKeepText = { viewModel.sendEvent(ChatEvent.OnSendMessageKeepText) },
+                    onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },
+                    onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },
+                    onEmotePickerClick = {
+                        viewModel.sendEvent(ChatEvent.OnToggleEmotePicker)
+                    },
+                    onTogglePause = { },
+                    onFocusChanged = { messageInputFocused = it }
+                ),
+                chrome = MessageInputChrome(
+                    isBanned = state.isBanned,
+                    banReason = state.banReason,
+                    hidePlaceholder = settingsState.hideChatInputPlaceholder,
+                    hideEmojiButton = settingsState.hideEmojiButton,
+                    placeholderText = when {
+                        state.isBanned -> "You are banned" + (state.banReason?.let { " — $it" }
+                            ?: "") + " in #${state.channelLogin}"
 
-                    state.channelLogin.isNotEmpty() -> {
-                        val strings = LocalStrings.current
-                        val name = state.channelDisplayName.ifBlank { state.channelLogin }
-                        val modes = roomModeLabels(state.roomState, strings)
-                        strings.chatSendMessageIn.replace("{0}", name) +
-                            if (modes.isNotEmpty()) "  ·  ${modes.joinToString(" · ")}" else ""
+                        state.channelLogin.isNotEmpty() -> {
+                            val strings = LocalStrings.current
+                            val name = state.channelDisplayName.ifBlank { state.channelLogin }
+                            val modes = roomModeLabels(state.roomState, strings)
+                            strings.chatSendMessageIn.replace("{0}", name) +
+                                if (modes.isNotEmpty()) "  ·  ${modes.joinToString(" · ")}" else ""
+                        }
+                        else -> null
+                    },
+                    pauseHotkey = "",
+                    glowIntensity = if (settingsState.chatInputEventGlow) state.inputGlowIntensity else 0f,
+                    glowTriggerTs = state.inputGlowTriggerTs,
+                    slowModeSeconds = if (!state.isMod && !state.isBroadcaster && !state.isGrandMod) state.roomState.slowMode else 0,
+                    lastMessageSentAtMs = state.lastMessageSentAtMs
+                ),
+                completions = InputCompletionState(
+                    showEmote = state.showEmoteCompletions && state.emoteCompletions.isNotEmpty(),
+                    emoteCount = state.emoteCompletions.size,
+                    emoteTabIndex = emoteTabIndex,
+                    showMention = state.showMentionCompletions && state.mentionCompletions.isNotEmpty(),
+                    mentionCount = state.mentionCompletions.size,
+                    mentionTabIndex = mentionTabIndex,
+                    showSlash = slashSuggestions.isNotEmpty(),
+                    slashCount = slashSuggestions.size,
+                    slashTabIndex = slashTabIndex
+                ),
+                completionCallbacks = InputCompletionCallbacks(
+                    onTabEmote = { idx -> emoteTabIndex = idx },
+                    onConfirmEmote = {
+                        val idx = emoteTabIndex.coerceIn(0, state.emoteCompletions.lastIndex)
+                        viewModel.sendEvent(ChatEvent.OnSelectEmoteCompletion(state.emoteCompletions[idx]))
+                        emoteTabIndex = -1
+                        inputFocusRequester.requestFocus()
+                    },
+                    onTabMention = { idx -> mentionTabIndex = idx },
+                    onConfirmMention = {
+                        val idx = mentionTabIndex.coerceIn(0, state.mentionCompletions.lastIndex)
+                        viewModel.sendEvent(ChatEvent.OnSelectMentionCompletion(state.mentionCompletions[idx]))
+                        mentionTabIndex = -1
+                        inputFocusRequester.requestFocus()
+                    },
+                    onTabSlash = { slashTabIndex = it },
+                    onConfirmSlash = {
+                        val idx = slashTabIndex.coerceIn(0, slashSuggestions.lastIndex)
+                        val name = slashSuggestions[idx].name
+                        viewModel.sendEvent(ChatEvent.OnMessageInputChanged("/$name "))
+                        slashTabIndex = -1
+                        inputFocusRequester.requestFocus()
                     }
-                    else -> null
-                },
-                showSlashCompletions = slashSuggestions.isNotEmpty(),
-                slashCount = slashSuggestions.size,
-                slashTabIndex = slashTabIndex,
-                onTabSlash = { slashTabIndex = it },
-                onConfirmSlashTab = {
-                    val idx = slashTabIndex.coerceIn(0, slashSuggestions.lastIndex)
-                    val name = slashSuggestions[idx].name
-                    viewModel.sendEvent(ChatEvent.OnMessageInputChanged("/$name "))
-                    slashTabIndex = -1
-                    inputFocusRequester.requestFocus()
-                },
-                glowIntensity = if (settingsState.chatInputEventGlow) state.inputGlowIntensity else 0f,
-                glowTriggerTs = state.inputGlowTriggerTs,
-                uploadProgress = state.uploadProgress,
-                uploadedLink = state.uploadedLink,
-                onCopyUploadedLink = {
-                    state.uploadedLink?.let { link ->
-                        clipboardManager.setText(AnnotatedString(link))
+                ),
+                upload = MessageInputUploadState(
+                    progress = state.uploadProgress,
+                    link = state.uploadedLink,
+                    onCopyLink = {
+                        state.uploadedLink?.let { link ->
+                            clipboardManager.setText(AnnotatedString(link))
+                        }
                     }
-                },
-                translationTargetLang = settingsState.translationTargetLang,
-                autoTranslateEnabled = settingsState.autoTranslateInput,
-                onToggleAutoTranslate = { settingsViewModel.sendEvent(SettingsEvent.OnAutoTranslateInputChanged(it)) },
-                onDismissUploadedLink = {
-                    viewModel.sendEvent(ChatEvent.OnClearUploadedLink)
-                },
-                slowModeSeconds = if (!state.isMod && !state.isBroadcaster && !state.isGrandMod) state.roomState.slowMode else 0,
-                lastMessageSentAtMs = state.lastMessageSentAtMs
+                ),
+                translation = MessageInputTranslation(
+                    targetLang = settingsState.translationTargetLang,
+                    autoEnabled = settingsState.autoTranslateInput,
+                    onToggleAuto = { settingsViewModel.sendEvent(SettingsEvent.OnAutoTranslateInputChanged(it)) }
+                )
             )
         }
 
@@ -1850,31 +1954,58 @@ fun ChatScreen(
             (sevenTv + state.twitchSubscriberEmotes).distinctBy { "${it.provider.name}_${it.id}" }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 42.dp)
-        ) {
-            EmotePickerSheet(
-                channelEmotes = resolvedEmotes,
-                personalEmotes = pickerPersonalEmotes,
-                closeOnMouseLeave = settingsState.closeEmotePickerOnMouseLeave,
-                onEmoteSelected = { emote ->
-                    val current = state.messageInput
-                    val newInput =
-                        if (current.isEmpty() || current.endsWith(" ")) "$current${emote.code} " else "$current ${emote.code} "
-                    viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
-                },
-                onEmojiSelected = { emoji ->
-                    val current = state.messageInput
-                    val newInput =
-                        if (current.isEmpty() || current.endsWith(" ")) "$current$emoji" else "$current $emoji"
-                    viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
-                },
-                onDismiss = {
-                    viewModel.sendEvent(ChatEvent.OnToggleEmotePicker)
+        val onEmotePicked: (io.rudione.chatone.domain.model.GenericEmote) -> Unit = { emote ->
+            val current = state.messageInput
+            val newInput =
+                if (current.isEmpty() || current.endsWith(" ")) "$current${emote.code} " else "$current ${emote.code} "
+            viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
+        }
+        val onEmojiPicked: (String) -> Unit = { emoji ->
+            val current = state.messageInput
+            val newInput =
+                if (current.isEmpty() || current.endsWith(" ")) "$current$emoji" else "$current $emoji"
+            viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
+        }
+
+        if (dockHost == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = 42.dp)
+            ) {
+                EmotePickerSheet(
+                    channelEmotes = resolvedEmotes,
+                    personalEmotes = pickerPersonalEmotes,
+                    closeOnMouseLeave = settingsState.closeEmotePickerOnMouseLeave,
+                    onEmoteSelected = onEmotePicked,
+                    onEmojiSelected = onEmojiPicked,
+                    onDismiss = { viewModel.sendEvent(ChatEvent.OnToggleEmotePicker) }
+                )
+            }
+        } else {
+            val emoteBody = rememberUpdatedState<@Composable () -> Unit> {
+                EmotePickerSheet(
+                    channelEmotes = resolvedEmotes,
+                    personalEmotes = pickerPersonalEmotes,
+                    closeOnMouseLeave = false,
+                    onEmoteSelected = onEmotePicked,
+                    onEmojiSelected = onEmojiPicked,
+                    onDismiss = { viewModel.sendEvent(ChatEvent.OnToggleEmotePicker) },
+                    docked = true
+                )
+            }
+            LaunchedEffect(Unit) {
+                dockHost.openWith(
+                    io.rudione.chatone.presentation.components.DockPanel.Emotes
+                ) { emoteBody.value() }
+            }
+            DisposableEffect(Unit) {
+                onDispose {
+                    dockHost.closeIf(
+                        io.rudione.chatone.presentation.components.DockPanel.Emotes
+                    )
                 }
-            )
+            }
         }
     }
 
@@ -2008,3 +2139,56 @@ expect fun DetachedProfileWindow(
     onWhisper: () -> Unit,
     onClose: () -> Unit
 )
+
+@Composable
+private fun ChatErrorBanner(message: String?, onDismiss: () -> Unit) {
+    LaunchedEffect(message) {
+        if (message != null) {
+            delay(6000)
+            onDismiss()
+        }
+    }
+    AnimatedVisibility(
+        visible = message != null,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically()
+    ) {
+        val text = remember(message) { message.orEmpty() }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 3.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f))
+                .border(
+                    1.dp,
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
+                    RoundedCornerShape(10.dp)
+                )
+                .padding(start = 10.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Outlined.Info,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.error
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f)
+            )
+            io.rudione.chatone.presentation.components.ChatoneIconButton(onClick = onDismiss, modifier = Modifier.size(22.dp)) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}

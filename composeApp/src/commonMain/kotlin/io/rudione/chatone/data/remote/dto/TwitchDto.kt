@@ -160,7 +160,7 @@ data class BadgeVersionDto(
 
 @Serializable
 data class FollowersResponse(
-    val data: List<FollowerData>,
+    val data: List<FollowerData> = emptyList(),
     val total: Int = 0
 )
 

@@ -68,6 +68,9 @@ import chatone.composeapp.generated.resources.folder_outline
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.Channel
 import io.rudione.chatone.presentation.chat.ChatScreen
+import io.rudione.chatone.presentation.components.CountChipTone
+import io.rudione.chatone.presentation.components.ChatoneCountChip
+import io.rudione.chatone.presentation.components.ChatoneCountBadge
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.GradientButton
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
@@ -185,22 +188,11 @@ internal fun CompactChannelAvatar(
                         .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape)
                 )
             }
-            if (channel.unreadCount > 0) {
-                Box(
-                    modifier = Modifier.align(Alignment.BottomEnd)
-                        .offset(x = 1.5.dp, y = 1.5.dp)
-                        .size(10.dp).clip(CircleShape)
-                        .background(Color.Red)
-                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (channel.unreadCount > 9) "9+" else "${channel.unreadCount}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
-                        color = Color.White
-                    )
-                }
-            }
+            ChatoneCountBadge(
+                count = channel.unreadCount,
+                modifier = Modifier.align(Alignment.BottomEnd)
+                    .offset(x = 1.5.dp, y = 1.5.dp)
+            )
         }
         if (showTooltip) {
             Popup(
@@ -333,20 +325,11 @@ internal fun ChannelItemWithDrag(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            if (channel.unreadCount > 0) {
-                Surface(
-                    color = ChatoneTheme.extraColors.live,
-                    shape = CircleShape,
-                    modifier = Modifier.padding(start = 4.dp)
-                ) {
-                    Text(
-                        text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
+            ChatoneCountChip(
+                count = channel.unreadCount,
+                tone = if (channel.notificationsMuted) CountChipTone.Silent else CountChipTone.Mention,
+                modifier = Modifier.padding(start = 4.dp)
+            )
             if (folders.isNotEmpty()) {
                 Box {
                     ChatoneIconButton(

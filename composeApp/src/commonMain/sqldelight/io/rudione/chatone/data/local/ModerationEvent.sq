@@ -13,7 +13,7 @@ CREATE TABLE ModerationEventEntity (
 CREATE INDEX idx_moderation_event_target ON ModerationEventEntity(channelId, targetUserId);
 
 insertEvent:
-INSERT INTO ModerationEventEntity (id, channelId, targetUserId, targetLogin, action, durationSeconds, reason, moderatorLogin, timestamp)
+INSERT OR IGNORE INTO ModerationEventEntity (id, channelId, targetUserId, targetLogin, action, durationSeconds, reason, moderatorLogin, timestamp)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 getEventsForUser:

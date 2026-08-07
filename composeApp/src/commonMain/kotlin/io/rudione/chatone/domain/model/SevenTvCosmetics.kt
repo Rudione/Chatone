@@ -40,5 +40,27 @@ data class SevenTvUserCosmetic(
     val sevenTvId: String,
     val paint: SevenTvCosmetics.Paint? = null,
     val badge: SevenTvCosmetics.Badge? = null,
-    val nameColor: Int? = null
+    val nameColor: Int? = null,
+    val profile: SevenTvProfile? = null
 )
+
+data class SevenTvConnection(
+    val platform: String,
+    val username: String,
+    val displayName: String
+)
+
+data class SevenTvProfile(
+    val sevenTvId: String,
+    val username: String,
+    val displayName: String,
+    val roles: List<String> = emptyList(),
+    val connections: List<SevenTvConnection> = emptyList(),
+    val emoteSetId: String? = null
+) {
+    val isSubscriber: Boolean
+        get() = roles.any { it.equals("Subscriber", ignoreCase = true) }
+
+    val profileUrl: String
+        get() = "https://7tv.app/users/$sevenTvId"
+}

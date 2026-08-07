@@ -12,7 +12,8 @@ data class AiChatLine(
     val channel: String,
     val author: String,
     val text: String,
-    val timestamp: Long
+    val timestamp: Long,
+    val authorLogin: String = ""
 )
 
 data class AiChatSnapshot(

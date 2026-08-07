@@ -521,6 +521,18 @@ class TwitchPubSubClient(
                     ?: data["reason_code"]?.jsonPrimitive?.content
             }
 
+            val flaggedFragments = buildList {
+                try {
+                    contentObj?.get("fragments")?.jsonArray?.forEach { frag ->
+                        val fragObj = frag.jsonObject
+                        val fragText = fragObj["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                        val topics = fragObj["automod"]?.jsonObject?.get("topics")?.jsonObject
+                        if (fragText.isNotBlank() && !topics.isNullOrEmpty()) add(fragText)
+                    }
+                } catch (_: Exception) {
+                }
+            }
+
             val channel = currentChannelId
 
             Napier.d(
@@ -539,7 +551,8 @@ class TwitchPubSubClient(
                         message = text,
                         color = color,
                         reasonCategory = reasonCategory,
-                        reasonLevel = reasonLevel
+                        reasonLevel = reasonLevel,
+                        flaggedFragments = flaggedFragments
                     )
                 )
             }

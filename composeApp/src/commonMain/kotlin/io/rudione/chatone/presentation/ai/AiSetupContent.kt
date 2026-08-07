@@ -71,6 +71,7 @@ import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.link.openUrl
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import io.rudione.chatone.presentation.components.ChatoneSlider
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneTextField
 
@@ -291,7 +292,7 @@ fun AiSetupContent(
                 fontWeight = FontWeight.Bold
             )
         }
-        Slider(
+        ChatoneSlider(
             value = config.temperature.toFloat().coerceIn(0f, 1.5f),
             onValueChange = { v -> controller.updateConfig { it.copy(temperature = v.toDouble()) } },
             valueRange = 0f..1.5f

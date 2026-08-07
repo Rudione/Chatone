@@ -10,7 +10,9 @@ import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -107,7 +109,7 @@ class EmoteRepository(
         if (globalLoaded) return
         globalLoaded = true
 
-        coroutineScope {
+        withContext(Dispatchers.Default) {
             val sevenTv = async { sevenTvApi.getGlobalEmotes() }
             val bttv = async { bttvApi.getGlobalEmotes() }
             val ffz = async { ffzApi.getGlobalEmotes() }

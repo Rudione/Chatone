@@ -1,5 +1,6 @@
 package io.rudione.chatone.util.system
 
+import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.util.BuildConfig
 import io.ktor.client.*
@@ -10,28 +11,27 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.utils.io.jvm.javaio.toInputStream
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileOutputStream
-import java.nio.ByteBuffer
-import java.nio.channels.Channels
-import java.nio.channels.FileChannel
-import javax.swing.JOptionPane
-import javax.swing.SwingUtilities
+import java.security.MessageDigest
 
 object AutoUpdater {
 
     private const val GITHUB_API = "https://api.github.com"
     private const val REPO = "Rudione/Chatone"
+    private const val KEY_SKIPPED_VERSION = "updater_skipped_version"
 
     private val CURRENT_VERSION: String = BuildConfig.VERSION
+
+    private val settings by lazy { Settings() }
 
     private val httpClient = HttpClient(OkHttp) {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -41,85 +41,120 @@ object AutoUpdater {
     @Serializable
     data class GitHubRelease(
         @SerialName("tag_name") val tagName: String,
-        @SerialName("name") val name: String,
-        @SerialName("body") val body: String,
-        @SerialName("assets") val assets: List<Asset>
+        @SerialName("name") val name: String = "",
+        @SerialName("body") val body: String = "",
+        @SerialName("assets") val assets: List<Asset> = emptyList()
     ) {
         @Serializable
         data class Asset(
             @SerialName("name") val name: String,
             @SerialName("browser_download_url") val downloadUrl: String,
-            @SerialName("size") val size: Long
+            @SerialName("size") val size: Long = 0,
+            @SerialName("digest") val digest: String? = null
         )
     }
 
-    suspend fun checkForUpdates(showDialog: Boolean = true): UpdateResult {
-        return withContext(Dispatchers.IO) {
-            try {
-                Napier.d("Checking for updates... current: $CURRENT_VERSION")
+    sealed interface Stage {
+        data object Idle : Stage
+        data class Downloading(val percent: Int, val downloadedBytes: Long, val totalBytes: Long) : Stage
+        data object Verifying : Stage
+        data object Installing : Stage
+        data class Failed(val reason: String) : Stage
+    }
 
-                val response = httpClient.get("$GITHUB_API/repos/$REPO/releases/latest")
-                val release: GitHubRelease = response.body()
+    private val _stage = MutableStateFlow<Stage>(Stage.Idle)
+    val stage: StateFlow<Stage> = _stage.asStateFlow()
+
+    private val _available = MutableStateFlow<Available?>(null)
+    val available: StateFlow<Available?> = _available.asStateFlow()
+
+    data class Available(val release: GitHubRelease, val version: String, val notes: String)
+
+    fun currentVersion(): String = CURRENT_VERSION
+
+    fun dismiss() {
+        _available.value = null
+        _stage.value = Stage.Idle
+    }
+
+    fun skipVersion(version: String) {
+        settings.putString(KEY_SKIPPED_VERSION, version)
+        dismiss()
+    }
+
+    suspend fun checkForUpdates(respectSkipped: Boolean = true): UpdateResult =
+        withContext(Dispatchers.IO) {
+            try {
+                Napier.d("Checking for updates... current: $CURRENT_VERSION", tag = "AutoUpdater")
+
+                val release: GitHubRelease =
+                    httpClient.get("$GITHUB_API/repos/$REPO/releases/latest").body()
                 val latestVersion = release.tagName.removePrefix("v")
 
-                Napier.d("Latest version: $latestVersion")
-
-                if (isVersionNewer(latestVersion, CURRENT_VERSION)) {
-                    Napier.i("Update available: $CURRENT_VERSION → $latestVersion")
-
-                    if (showDialog) {
-                        withContext(Dispatchers.Main) {
-                            showUpdateDialog(release, latestVersion)
-                        }
-                    }
-
-                    return@withContext UpdateResult.Available(release, latestVersion)
+                if (!isVersionNewer(latestVersion, CURRENT_VERSION)) {
+                    return@withContext UpdateResult.UpToDate
+                }
+                if (respectSkipped &&
+                    settings.getStringOrNull(KEY_SKIPPED_VERSION) == latestVersion
+                ) {
+                    Napier.d("Update $latestVersion was skipped by the user", tag = "AutoUpdater")
+                    return@withContext UpdateResult.UpToDate
                 }
 
-                Napier.d("No updates available")
-                UpdateResult.UpToDate
-
+                Napier.i("Update available: $CURRENT_VERSION -> $latestVersion", tag = "AutoUpdater")
+                val entry = Available(release, latestVersion, release.body.trim())
+                _available.value = entry
+                UpdateResult.Available(release, latestVersion)
             } catch (e: Exception) {
-                Napier.e("Failed to check for updates: ${e.message}", e)
+                Napier.e("Failed to check for updates: ${e.message}", e, tag = "AutoUpdater")
                 UpdateResult.Error(e)
             }
         }
-    }
 
-    suspend fun downloadAndUpdate(release: GitHubRelease, latestVersion: String): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                val asset = selectAssetForCurrentOs(release.assets)
-                    ?: throw IllegalStateException("No suitable asset found for ${System.getProperty("os.name")}")
+    suspend fun downloadAndUpdate(release: GitHubRelease): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val asset = selectAssetForCurrentOs(release.assets)
+                ?: throw IllegalStateException("No installer for ${System.getProperty("os.name")}")
 
-                val safeName = sanitizeAssetName(asset.name)
-                    ?: throw IllegalStateException("Rejected update asset name: ${asset.name}")
-                require(isTrustedDownloadUrl(asset.downloadUrl)) {
-                    "Rejected update download host: ${asset.downloadUrl}"
-                }
-
-                Napier.i("Downloading update: $safeName (${formatSize(asset.size)})")
-
-                val downloadsDir = File(System.getProperty("user.home"), "Downloads").apply { mkdirs() }
-                val updateFile = File(downloadsDir, safeName)
-
-                downloadFile(asset.downloadUrl, updateFile) { progress ->
-                    Napier.d("Download progress: $progress%")
-                }
-
-                Napier.i("Downloaded to: ${updateFile.absolutePath}")
-
-                launchInstallerAndExit(updateFile)
-                true
-
-            } catch (e: Exception) {
-                Napier.e("Failed to download/update: ${e.message}", e)
-                false
+            val safeName = sanitizeAssetName(asset.name)
+                ?: throw IllegalStateException("Rejected update asset name: ${asset.name}")
+            require(isTrustedDownloadUrl(asset.downloadUrl)) {
+                "Rejected update download host"
             }
+
+            val stagingDir = File(System.getProperty("java.io.tmpdir"), "chatone-update").apply {
+                mkdirs()
+            }
+            val updateFile = File(stagingDir, safeName)
+
+            _stage.value = Stage.Downloading(0, 0, asset.size)
+            downloadFile(asset.downloadUrl, updateFile) { downloaded, total ->
+                val percent = if (total > 0) ((downloaded * 100) / total).toInt() else 0
+                _stage.value = Stage.Downloading(percent.coerceIn(0, 100), downloaded, total)
+            }
+
+            _stage.value = Stage.Verifying
+            val expected = asset.digest?.substringAfter("sha256:", "")?.takeIf { it.isNotBlank() }
+            if (expected == null || !sha256(updateFile).equals(expected, ignoreCase = true)) {
+                runCatching { updateFile.delete() }
+                throw IllegalStateException(
+                    if (expected == null) "Update asset $safeName has no sha256 digest"
+                    else "Checksum mismatch for $safeName"
+                )
+            }
+            Napier.i("Update checksum verified", tag = "AutoUpdater")
+
+            _stage.value = Stage.Installing
+            launchInstallerAndExit(updateFile)
+            true
+        } catch (e: Exception) {
+            Napier.e("Failed to download/update: ${e.message}", e, tag = "AutoUpdater")
+            _stage.value = Stage.Failed(e.message ?: "unknown error")
+            false
         }
     }
 
-    private val ALLOWED_EXTENSIONS = setOf("msi", "zip", "dmg", "deb")
+    private val ALLOWED_EXTENSIONS = setOf("msi", "zip", "dmg", "deb", "exe")
 
     private val TRUSTED_DOWNLOAD_HOSTS = setOf(
         "github.com", "api.github.com", "objects.githubusercontent.com",
@@ -144,148 +179,103 @@ object AutoUpdater {
         return host in TRUSTED_DOWNLOAD_HOSTS
     }
 
-    private fun isVersionNewer(latest: String, current: String): Boolean {
-        return latest.split(".").map { it.toIntOrNull() ?: 0 }
-            .zip(current.split(".").map { it.toIntOrNull() ?: 0 })
-            .run {
-                for ((l, c) in this) {
-                    if (l > c) return true
-                    if (l < c) return false
-                }
-                false
-            }
+    internal fun isVersionNewer(latest: String, current: String): Boolean {
+        val l = latest.split(".").map { it.toIntOrNull() ?: 0 }
+        val c = current.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(l.size, c.size)) {
+            val a = l.getOrElse(i) { 0 }
+            val b = c.getOrElse(i) { 0 }
+            if (a > b) return true
+            if (a < b) return false
+        }
+        return false
     }
 
     private fun selectAssetForCurrentOs(assets: List<GitHubRelease.Asset>): GitHubRelease.Asset? {
         val os = System.getProperty("os.name").lowercase()
+        fun endingWith(vararg suffixes: String) = suffixes.firstNotNullOfOrNull { suffix ->
+            assets.firstOrNull { it.name.lowercase().endsWith(suffix) }
+        }
         return when {
-            os.contains("win") ->
-                assets.find { it.name.lowercase().endsWith(".msi") }
-                    ?: assets.find { it.name.lowercase().endsWith(".zip") }
-            os.contains("mac") ->
-                assets.find { it.name.lowercase().endsWith(".dmg") }
-                    ?: assets.find { it.name.lowercase().endsWith(".zip") }
-            else ->
-                assets.find { it.name.lowercase().endsWith(".deb") }
+            os.contains("win") -> endingWith(".exe", ".msi", ".zip")
+            os.contains("mac") -> endingWith(".dmg", ".zip")
+            else -> endingWith(".deb")
         }
     }
 
-    private suspend fun downloadFile(url: String, destination: File, onProgress: (Int) -> Unit = {}) {
+    private suspend fun downloadFile(
+        url: String,
+        destination: File,
+        onProgress: (downloaded: Long, total: Long) -> Unit
+    ) {
         withContext(Dispatchers.IO) {
             httpClient.prepareGet(url).execute { response ->
-                val totalBytes = response.headers["Content-Length"]?.toLong() ?: 0
+                val totalBytes = response.headers["Content-Length"]?.toLongOrNull() ?: 0L
                 var downloadedBytes = 0L
+                val buffer = ByteArray(64 * 1024)
 
                 FileOutputStream(destination).use { output ->
-                    val fileChannel: FileChannel = output.channel
-                    val byteBuffer = ByteBuffer.allocate(8192)
-
                     response.bodyAsChannel().toInputStream().use { input ->
-                        val readableChannel = Channels.newChannel(input)
-                        var bytesRead: Int
-                        while (readableChannel.read(byteBuffer).also { bytesRead = it } != -1) {
-                            byteBuffer.flip()
-                            fileChannel.write(byteBuffer)
-                            byteBuffer.clear()
-
-                            downloadedBytes += bytesRead
-                            if (totalBytes > 0) {
-                                val progress = ((downloadedBytes * 100) / totalBytes).toInt()
-                                onProgress(progress.coerceIn(0, 100))
-                            }
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read <= 0) break
+                            output.write(buffer, 0, read)
+                            downloadedBytes += read
+                            onProgress(downloadedBytes, totalBytes)
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun launchInstallerAndExit(file: File) {
         val os = System.getProperty("os.name").lowercase()
-        try {
-            val command = when {
-                os.contains("win") -> if (file.extension.equals("msi", ignoreCase = true)) {
-                    listOf("msiexec", "/i", file.absolutePath)
-                } else {
-                    listOf("rundll32", "url.dll,FileProtocolHandler", file.absolutePath)
-                }
-                os.contains("mac") -> listOf("open", file.absolutePath)
-                else -> listOf("xdg-open", file.absolutePath)
-            }
-            Napier.i("Launching installer: ${command.joinToString(" ")}")
-            ProcessBuilder(command).start()
-        } catch (e: Exception) {
-            Napier.e("Failed to launch installer, falling back to Desktop.open: ${e.message}", e)
-            try { java.awt.Desktop.getDesktop().open(file) } catch (_: Exception) {}
-        }
+        val extension = file.extension.lowercase()
 
-        SwingUtilities.invokeLater {
-            JOptionPane.showMessageDialog(
-                null,
-                "Installer was opened.\nPlease close Chatone and complete the installation.\n\nFile: ${file.absolutePath}",
-                "Update Ready",
-                JOptionPane.INFORMATION_MESSAGE
-            )
-            System.exit(0)
-        }
-    }
-
-    private val updaterScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
-    private fun showUpdateDialog(release: GitHubRelease, latestVersion: String) {
-        SwingUtilities.invokeLater {
-            val message = """
-                <html>
-                <b>New version available!</b><br><br>
-                Current: $CURRENT_VERSION<br>
-                Latest: $latestVersion<br><br>
-                <b>What's new:</b><br>
-                ${release.body.take(300).replace("\n", "<br>")}...
-                </html>
-            """.trimIndent()
-
-            val options = arrayOf("Update Now", "Remind Me Later", "Skip This Version")
-            val choice = JOptionPane.showOptionDialog(
-                null,
-                message,
-                "Update Available",
-                JOptionPane.YES_NO_CANCEL_OPTION,
-                JOptionPane.INFORMATION_MESSAGE,
-                null,
-                options,
-                options[0]
+        val command = when {
+            os.contains("win") && extension == "exe" -> listOf(
+                file.absolutePath,
+                "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS",
+                "/RESTARTAPPLICATIONS"
             )
 
-            when (choice) {
-                0 -> {
-                    updaterScope.launch {
-                        val success = downloadAndUpdate(release, latestVersion)
-                        if (!success) {
-                            withContext(Dispatchers.Main) {
-                                JOptionPane.showMessageDialog(
-                                    null,
-                                    "Failed to download update. Please try again later.",
-                                    "Update Error",
-                                    JOptionPane.ERROR_MESSAGE
-                                )
-                            }
-                        }
-                    }
-                }
-                1 -> Napier.d("User chose to remind later")
-                2 -> Napier.d("User skipped version $latestVersion")
-            }
-        }
-    }
+            os.contains("win") && extension == "msi" -> listOf(
+                windowsSystem32Path("msiexec.exe"), "/i", file.absolutePath, "/qn", "/norestart"
+            )
 
-    private fun formatSize(bytes: Long): String {
-        val kb = 1024
-        val mb = kb * 1024
-        return when {
-            bytes < kb -> "$bytes B"
-            bytes < mb -> "%.1f KB".format(bytes / kb.toDouble())
-            else -> "%.1f MB".format(bytes / mb.toDouble())
+            os.contains("win") -> listOf(
+                windowsSystem32Path("rundll32.exe"),
+                "url.dll,FileProtocolHandler",
+                file.absolutePath
+            )
+
+            os.contains("mac") -> listOf("open", file.absolutePath)
+            else -> listOf("xdg-open", file.absolutePath)
         }
+
+        Napier.i("Launching installer: ${command.first()}", tag = "AutoUpdater")
+        runCatching { ProcessBuilder(command).start() }
+            .onFailure { e ->
+                Napier.e("Installer launch failed: ${e.message}", e, tag = "AutoUpdater")
+                runCatching { java.awt.Desktop.getDesktop().open(file) }
+            }
+
+        Runtime.getRuntime().addShutdownHook(Thread { runCatching { file.parentFile?.deleteOnExit() } })
+        kotlin.system.exitProcess(0)
     }
 }
 

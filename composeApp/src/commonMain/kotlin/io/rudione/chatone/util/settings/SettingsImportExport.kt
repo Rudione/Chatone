@@ -77,6 +77,29 @@ object SettingsImportExport {
         "image_uploader_config"
     )
 
+    private const val KEY_IMAGE_UPLOADER = "image_uploader_config"
+
+    private val SECRET_FIELDS = setOf("extraHeaders")
+
+    private fun redactForExport(key: String, element: JsonElement): JsonElement {
+        if (key != KEY_IMAGE_UPLOADER) return element
+        val text = (element as? JsonPrimitive)?.contentOrNull ?: return element
+        if (SECRET_FIELDS.none { text.contains("\"$it\"") }) return element
+        return try {
+            val obj = json.parseToJsonElement(text).jsonObject
+            val cleaned = buildMap {
+                putAll(obj)
+                SECRET_FIELDS.forEach { field ->
+                    if (field in obj) put(field, JsonPrimitive(""))
+                }
+            }
+            JsonPrimitive(JsonObject(cleaned).toString())
+        } catch (e: Exception) {
+            Napier.w("Settings export: failed to redact $key: ${e.message}", tag = "SettingsIO")
+            JsonPrimitive("")
+        }
+    }
+
     fun snapshot(settings: Settings): SettingsBackup {
         val map = mutableMapOf<String, JsonElement>()
         for (key in PORTABLE_KEYS) {
@@ -95,7 +118,7 @@ object SettingsImportExport {
                     if (asBool != null) return@run JsonPrimitive(asBool)
                     JsonPrimitive("")
                 }
-                map[key] = raw
+                map[key] = redactForExport(key, raw)
             } catch (e: Exception) {
                 Napier.w("Settings export: failed to read key=$key: ${e.message}", tag = "SettingsIO")
             }

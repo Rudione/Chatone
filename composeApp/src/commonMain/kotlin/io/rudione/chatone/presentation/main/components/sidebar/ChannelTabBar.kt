@@ -68,6 +68,7 @@ import chatone.composeapp.generated.resources.folder_outline
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.Channel
 import io.rudione.chatone.presentation.chat.ChatScreen
+import io.rudione.chatone.presentation.components.ChatoneCountChip
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.GradientButton
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
@@ -130,10 +131,7 @@ internal fun ChannelTabBar(
     val folderByLogin: Map<String, FolderRef> = remember(folders) {
         buildMap {
             folders.forEach { f ->
-                val parsed = runCatching {
-                    Color(f.color.removePrefix("#").toLong(16) or 0xFF000000L)
-                }.getOrDefault(Color(0xFF9146FF))
-                val ref = FolderRef(f.id, f.name, parsed)
+                val ref = FolderRef(f.id, f.name, parseFolderColor(f.color))
                 f.channels.forEach { ch ->
                     put(ch.login.lowercase().removePrefix("#"), ref)
                 }
@@ -389,17 +387,11 @@ internal fun ChannelTabBar(
                             )
                             if (channel.unreadCount > 0) {
                                 Spacer(Modifier.width(3.dp))
-                                Surface(color = Color.Red, shape = CircleShape) {
-                                    Text(
-                                        text = if (channel.unreadCount > 99) "99+" else "${channel.unreadCount}",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                        color = Color.White,
-                                        modifier = Modifier.padding(
-                                            horizontal = 4.dp,
-                                            vertical = 1.dp
-                                        )
-                                    )
-                                }
+                                ChatoneCountChip(
+                                    count = channel.unreadCount,
+                                    max = 99,
+                                    dense = true
+                                )
                             }
                             Spacer(Modifier.width(2.dp))
                             Box(

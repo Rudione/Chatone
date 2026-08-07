@@ -17,6 +17,7 @@ import io.rudione.chatone.domain.model.WhisperMessage
 import io.rudione.chatone.domain.usecase.*
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.ChannelFolderRepository
+import io.rudione.chatone.presentation.main.components.sidebar.FolderColors
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.data.remote.RecentMessagesClient
@@ -37,7 +38,7 @@ import kotlinx.datetime.toLocalDateTime
 data class ChannelFolder(
     val id: String,
     val name: String,
-    val color: String = "#9146FF",
+    val color: String = FolderColors.DEFAULT_HEX,
     val isExpanded: Boolean = true,
     val channels: List<ChannelTab> = emptyList()
 )
@@ -47,7 +48,8 @@ data class ChannelTab(
     val displayName: String,
     val profileImageUrl: String = "",
     val isLive: Boolean = false,
-    val unreadCount: Int = 0
+    val unreadCount: Int = 0,
+    val notificationsMuted: Boolean = false
 )
 
 data class MainState(
@@ -71,6 +73,10 @@ data class MainState(
     val showSettings: Boolean = false,
     val isCreateFolderDialogVisible: Boolean = false,
     val newFolderName: String = "",
+    val newFolderColor: String = FolderColors.DEFAULT_HEX,
+    val editingFolderId: String? = null,
+    val editFolderName: String = "",
+    val editFolderColor: String = FolderColors.DEFAULT_HEX,
 
     val whisperConversations: List<WhisperConversation> = emptyList(),
     val activeWhisperUserId: String? = null,
@@ -123,7 +129,13 @@ sealed class MainEvent : UiEvent {
     object ShowCreateFolderDialog : MainEvent()
     object HideCreateFolderDialog : MainEvent()
     data class UpdateNewFolderName(val name: String) : MainEvent()
+    data class UpdateNewFolderColor(val colorHex: String) : MainEvent()
     object CreateFolder : MainEvent()
+    data class ShowEditFolderDialog(val folderId: String) : MainEvent()
+    object HideEditFolderDialog : MainEvent()
+    data class UpdateEditFolderName(val name: String) : MainEvent()
+    data class UpdateEditFolderColor(val colorHex: String) : MainEvent()
+    object SaveFolderEdit : MainEvent()
     data class ToggleFolder(val folderId: String) : MainEvent()
     data class DeleteFolder(val folderId: String) : MainEvent()
     data class MoveChannelToFolder(val channelLogin: String, val folderId: String?) : MainEvent()
@@ -311,13 +323,28 @@ class MainViewModel(
             MainEvent.ShowCreateFolderDialog -> update {
                 it.copy(
                     isCreateFolderDialogVisible = true,
-                    newFolderName = ""
+                    newFolderName = "",
+                    newFolderColor = FolderColors.DEFAULT_HEX
                 )
             }
 
             MainEvent.HideCreateFolderDialog -> update { it.copy(isCreateFolderDialogVisible = false) }
             is MainEvent.UpdateNewFolderName -> update { it.copy(newFolderName = event.name) }
+            is MainEvent.UpdateNewFolderColor -> update { it.copy(newFolderColor = event.colorHex) }
             MainEvent.CreateFolder -> createFolder()
+            is MainEvent.ShowEditFolderDialog -> update { state ->
+                val folder = state.folders.find { it.id == event.folderId }
+                if (folder == null) state else state.copy(
+                    editingFolderId = folder.id,
+                    editFolderName = folder.name,
+                    editFolderColor = FolderColors.normalize(folder.color)
+                )
+            }
+
+            MainEvent.HideEditFolderDialog -> update { it.copy(editingFolderId = null) }
+            is MainEvent.UpdateEditFolderName -> update { it.copy(editFolderName = event.name) }
+            is MainEvent.UpdateEditFolderColor -> update { it.copy(editFolderColor = event.colorHex) }
+            MainEvent.SaveFolderEdit -> saveFolderEdit()
             is MainEvent.ReorderChannels -> {
                 update { state ->
                     val channels = state.openChannels.toMutableList()
@@ -455,25 +482,7 @@ class MainViewModel(
             }
 
             MainEvent.HideMentionsFeed -> update { it.copy(showMentionsFeed = false) }
-            is MainEvent.MarkChannelMentionsRead -> {
-                val login = event.channelLogin.lowercase()
-                val toMark = state.value.mentions.filter {
-                    !it.isRead && it.channelLogin.equals(login, ignoreCase = true)
-                }
-                if (toMark.isNotEmpty()) {
-                    update { state ->
-                        state.copy(
-                            mentions = state.mentions.map { m ->
-                                if (!m.isRead && m.channelLogin.equals(login, ignoreCase = true)) m.copy(isRead = true) else m
-                            },
-                            unreadMentionsCount = (state.unreadMentionsCount - toMark.size).coerceAtLeast(0)
-                        )
-                    }
-                    viewModelScope.launch {
-                        toMark.forEach { mentionRepository.markAsRead(it.messageId) }
-                    }
-                }
-            }
+            is MainEvent.MarkChannelMentionsRead -> markChannelMentionsRead(event.channelLogin)
             MainEvent.MarkAllMentionsRead -> {
                 update {
                     it.copy(
@@ -510,9 +519,11 @@ class MainViewModel(
             }
             is MainEvent.MuteMentionsChannel -> {
                 mentionMuteRepository.muteChannel(event.channelLogin)
+                refreshChannelMuteFlags()
             }
             is MainEvent.UnmuteMentionsChannel -> {
                 mentionMuteRepository.unmuteChannel(event.channelLogin)
+                refreshChannelMuteFlags()
             }
             is MainEvent.MuteMentionsUserInChannel -> {
                 mentionMuteRepository.muteUserInChannel(event.userLogin, event.channelLogin)
@@ -757,6 +768,25 @@ class MainViewModel(
         }
     }
 
+    private fun markChannelMentionsRead(channelLogin: String) {
+        val login = channelLogin.lowercase()
+        val toMark = state.value.mentions.filter {
+            !it.isRead && it.channelLogin.equals(login, ignoreCase = true)
+        }
+        if (toMark.isEmpty()) return
+        update { state ->
+            state.copy(
+                mentions = state.mentions.map { m ->
+                    if (!m.isRead && m.channelLogin.equals(login, ignoreCase = true)) m.copy(isRead = true) else m
+                },
+                unreadMentionsCount = (state.unreadMentionsCount - toMark.size).coerceAtLeast(0)
+            )
+        }
+        viewModelScope.launch {
+            toMark.forEach { mentionRepository.markAsRead(it.messageId) }
+        }
+    }
+
     private fun selectChannel(login: String, scrollToMessageId: String? = null) {
         if (login.startsWith("/")) {
             update {
@@ -797,6 +827,7 @@ class MainViewModel(
                 }
             )
         }
+        markChannelMentionsRead(normalized)
         saveChannelState()
     }
 
@@ -817,7 +848,8 @@ class MainViewModel(
         val tab = ChannelTab(
             login = normalized,
             displayName = displayName.ifEmpty { normalized },
-            profileImageUrl = profileImageUrl
+            profileImageUrl = profileImageUrl,
+            notificationsMuted = mentionMuteRepository.isChannelMuted(normalized)
         )
         update { state ->
             state.copy(
@@ -897,7 +929,8 @@ class MainViewModel(
                     val channelTabs = channelLogins.map { login ->
                         ChannelTab(
                             login = login,
-                            displayName = login
+                            displayName = login,
+                            notificationsMuted = mentionMuteRepository.isChannelMuted(login)
                         )
                     }
                     folder.copy(channels = channelTabs)
@@ -922,19 +955,42 @@ class MainViewModel(
         val folder = ChannelFolder(
             id = "folder_${Clock.System.now().toEpochMilliseconds()}",
             name = name,
+            color = state.value.newFolderColor,
             isExpanded = true
         )
         update { state ->
             state.copy(
                 folders = state.folders + folder,
                 isCreateFolderDialogVisible = false,
-                newFolderName = ""
+                newFolderName = "",
+                newFolderColor = FolderColors.DEFAULT_HEX
             )
         }
         try {
             channelFolderRepository.insertFolder(folder, sortOrder = state.value.folders.size)
         } catch (e: Exception) {
             Napier.w("Failed to persist folder: ${e.message}", tag = TAG)
+        }
+    }
+
+    private fun saveFolderEdit() {
+        val folderId = state.value.editingFolderId ?: return
+        val name = state.value.editFolderName.trim()
+        if (name.isEmpty()) return
+        val color = state.value.editFolderColor
+        update { state ->
+            state.copy(
+                folders = state.folders.map {
+                    if (it.id == folderId) it.copy(name = name, color = color) else it
+                },
+                editingFolderId = null
+            )
+        }
+        try {
+            channelFolderRepository.updateFolderName(folderId, name)
+            channelFolderRepository.updateFolderColor(folderId, color)
+        } catch (e: Exception) {
+            Napier.w("Failed to persist folder edit: ${e.message}", tag = TAG)
         }
     }
 
@@ -1076,7 +1132,13 @@ class MainViewModel(
         val activeChannel = settings.getStringOrNull(KEY_ACTIVE_CHANNEL)
         val channelLogins = saved.split(",").filter { it.isNotBlank() }
         if (channelLogins.isEmpty()) return
-        val openTabs = channelLogins.map { login -> ChannelTab(login = login, displayName = login) }
+        val openTabs = channelLogins.map { login ->
+            ChannelTab(
+                login = login,
+                displayName = login,
+                notificationsMuted = mentionMuteRepository.isChannelMuted(login)
+            )
+        }
         val openSet = channelLogins.toSet()
 
         val savedUnfoldered = settings.getStringOrNull(KEY_UNFOLDERED_ORDER)
@@ -1452,4 +1514,24 @@ class MainViewModel(
         viewModelScope.launch { sevenTvEventApi.disconnect() }
         super.onCleared()
     }
+    private fun refreshChannelMuteFlags() {
+        update { state ->
+            state.copy(
+                openChannels = state.openChannels.map {
+                    it.copy(notificationsMuted = mentionMuteRepository.isChannelMuted(it.login))
+                },
+                unfolderedChannels = state.unfolderedChannels.map {
+                    it.copy(notificationsMuted = mentionMuteRepository.isChannelMuted(it.login))
+                },
+                folders = state.folders.map { folder ->
+                    folder.copy(
+                        channels = folder.channels.map {
+                            it.copy(notificationsMuted = mentionMuteRepository.isChannelMuted(it.login))
+                        }
+                    )
+                }
+            )
+        }
+    }
+
 }

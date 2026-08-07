@@ -17,3 +17,13 @@ data class ThirdPartyBadgeMaps(
 }
 
 val LocalThirdPartyBadges = compositionLocalOf { ThirdPartyBadgeMaps() }
+
+val LocalSevenTvCosmetics =
+    compositionLocalOf<Map<String, io.rudione.chatone.domain.model.SevenTvUserCosmetic>> {
+        emptyMap()
+    }
+
+val LocalSevenTvPaints =
+    compositionLocalOf<Map<String, io.rudione.chatone.domain.model.SevenTvCosmetics.Paint>> {
+        emptyMap()
+    }

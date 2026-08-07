@@ -34,9 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -115,6 +113,8 @@ import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.main.ChannelFolder
 import io.rudione.chatone.presentation.main.ChannelTab
 import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneTileDefaults
+import io.rudione.chatone.presentation.components.ChatoneCountBadge
 
 @Composable
 internal fun MonitorTabSidebarItem(
@@ -174,10 +174,7 @@ internal fun CompactSidebar(
     val extra = ChatoneTheme.extraColors
     val expandedFolders = remember { mutableStateListOf<String>() }
     val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
-    val compactShape =
-        if (glowEnabled) RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
-        else RoundedCornerShape(0.dp)
-    val compactDivider = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    val compactShape = RoundedCornerShape(ChatoneTileDefaults.radius)
 
     Column(
         modifier = Modifier
@@ -198,13 +195,7 @@ internal fun CompactSidebar(
             )
             .then(
                 if (glowEnabled) Modifier.border(1.dp, extra.glassBorder, compactShape)
-                else Modifier.drawBehind {
-                    drawRect(
-                        color = compactDivider,
-                        topLeft = Offset(size.width - 1.dp.toPx(), 0f),
-                        size = androidx.compose.ui.geometry.Size(1.dp.toPx(), size.height)
-                    )
-                }
+                else Modifier
             ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -237,16 +228,7 @@ internal fun CompactSidebar(
         ) {
             itemsIndexed(state.folders, key = { _, f -> "cf_${f.id}" }) { _, folder ->
                 val isExpanded = folder.id in expandedFolders
-                val folderColor = try {
-                    val c = folder.color.removePrefix("#").toLong(16)
-                    Color(
-                        red = ((c shr 16) and 0xFF) / 255f,
-                        green = ((c shr 8) and 0xFF) / 255f,
-                        blue = (c and 0xFF) / 255f
-                    )
-                } catch (_: Exception) {
-                    ChatoneColors.Violet400
-                }
+                val folderColor = parseFolderColor(folder.color)
 
                 val hasFolderActive = folder.channels.any { it.login == state.activeChannelLogin }
 
@@ -399,21 +381,10 @@ internal fun CompactSidebar(
                     modifier = Modifier.size(14.dp)
                 )
             }
-            if (state.unreadMentionsCount > 0) {
-                Box(
-                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
-                        .size(10.dp).clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
-                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (state.unreadMentionsCount > 9) "9+" else "${state.unreadMentionsCount}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
-                        color = Color.White
-                    )
-                }
-            }
+            ChatoneCountBadge(
+                count = state.unreadMentionsCount,
+                modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
+            )
         }
         Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
             ChatoneIconButton(
@@ -428,21 +399,10 @@ internal fun CompactSidebar(
                     modifier = Modifier.size(14.dp)
                 )
             }
-            if (state.totalUnreadWhispers > 0) {
-                Box(
-                    modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
-                        .size(10.dp).clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.error)
-                        .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        if (state.totalUnreadWhispers > 9) "9+" else "${state.totalUnreadWhispers}",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 6.sp),
-                        color = Color.White
-                    )
-                }
-            }
+            ChatoneCountBadge(
+                count = state.totalUnreadWhispers,
+                modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
+            )
         }
         ChatoneIconButton(
             onClick = { onEvent(MainEvent.ShowSettings) },

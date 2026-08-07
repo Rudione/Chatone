@@ -135,6 +135,7 @@ object IrcMessageParser {
         val isFirstMessage = tags["first-msg"] == "1"
         val msgIdTag = tags["msg-id"]
         val customRewardId = tags["custom-reward-id"]?.takeIf { it.isNotBlank() }
+        val bits = tags["bits"]?.toIntOrNull() ?: 0
         val isHighlighted = msgIdTag == "highlighted-message" || customRewardId != null
         val rewardName = when {
             msgIdTag == "highlighted-message" -> "Highlight My Message"
@@ -176,6 +177,7 @@ object IrcMessageParser {
 
         return ChatMessage(
             id = messageId,
+            bits = bits,
             channelId = tags["room-id"] ?: "",
             channelName = channelName,
             userId = userId,

@@ -10,12 +10,25 @@ import kotlin.math.min
 data class AccentPalette(
     val name: String,
     val accent: Color,
-    val base: Color
+    val base: Color,
+    val gradient: List<Color>? = null
 ) {
     val previewColor: Color get() = accent
 }
 
+val ChatoneBrandGradient = listOf(
+    Color(0xFFC77DFF),
+    Color(0xFF7C3AED),
+    Color(0xFF2B7FFF)
+)
+
 val ExpressivePalettes = listOf(
+    AccentPalette(
+        "Chatone",
+        accent = Color(0xFF8B8DE4),
+        base = Color(0xFF16131E),
+        gradient = ChatoneBrandGradient
+    ),
     AccentPalette("Cosmic", accent = Color(0xFFB3AECB), base = Color(0xFF23212C)),
     AccentPalette("Lavender", accent = Color(0xFFD2C3F6), base = Color(0xFF191424)),
     AccentPalette("Violet", accent = ChatoneColors.Violet500, base = Color(0xFF1C132F)),
@@ -30,7 +43,7 @@ val ExpressivePalettes = listOf(
 
 const val DEFAULT_ACCENT_INDEX = 0
 
-const val ACCENT_PALETTE_SCHEMA_VERSION = 3
+const val ACCENT_PALETTE_SCHEMA_VERSION = 4
 
 fun accentPaletteAt(index: Int): AccentPalette =
     ExpressivePalettes.getOrElse(index) { ExpressivePalettes[DEFAULT_ACCENT_INDEX] }

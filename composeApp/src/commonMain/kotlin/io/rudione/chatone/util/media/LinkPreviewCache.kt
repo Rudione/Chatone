@@ -123,6 +123,19 @@ object LinkPreviewCache {
                 return preview
             }
 
+            if (LinkImageResolver.hasResolver(url)) {
+                val source = LinkImageResolver.resolve(httpClient, url)
+                if (source is ImageSource.Direct) {
+                    val preview = LinkPreview(
+                        imageUrl = source.imageUrl,
+                        isImage = true,
+                        mediaType = LinkPreview.MediaType.IMAGE
+                    )
+                    withContext(NonCancellable) { put(url, preview) }
+                    return preview
+                }
+            }
+
             if (isDirectAudioUrl(url)) {
                 val ext = url.substringAfterLast(".").substringBefore("?").lowercase()
                 val preview = LinkPreview(
@@ -147,7 +160,7 @@ object LinkPreviewCache {
 
             val preview = try {
                 val text = httpClient.get(url) {
-                    header(HttpHeaders.UserAgent, "ChatoneLinkPreview/1.0")
+                    header(HttpHeaders.UserAgent, LinkImageResolver.BROWSER_USER_AGENT)
                     header(HttpHeaders.Accept, "text/html,*/*;q=0.8")
                 }.let { resp ->
                     if (!resp.status.isSuccess()) return@let ""

@@ -1,22 +1,9 @@
 package io.rudione.chatone.presentation.chat
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.ic_lock
-import chatone.composeapp.generated.resources.ic_unlock
+import androidx.compose.runtime.Composable
+import io.rudione.chatone.data.repository.UserNoteRepository
 import io.rudione.chatone.domain.model.DisplayMessage
-import io.rudione.chatone.presentation.window.ChatoneDetachedWindow
-import org.jetbrains.compose.resources.painterResource
-import io.rudione.chatone.presentation.components.ChatoneIconButton
+import org.koin.compose.koinInject
 
 @Composable
 actual fun DetachedProfileWindow(
@@ -39,95 +26,46 @@ actual fun DetachedProfileWindow(
     onWhisper: () -> Unit,
     onClose: () -> Unit
 ) {
-    var isPinned by remember { mutableStateOf(false) }
+    val noteRepository: UserNoteRepository = koinInject()
+    val sessionMessages = channelMessages
+        .filterIsInstance<DisplayMessage.PrivMsg>()
+        .filter { it.userId == msg.userId }
+        .takeLast(1000)
 
-    ChatoneDetachedWindow(
-        windowId = "profile",
-        title = "${msg.displayName} — Profile",
-        defaultWidth = 340.dp,
-        defaultHeight = 600.dp,
-        alwaysOnTop = isPinned,
-        onCloseRequest = onClose
-    ) {
-        val pinTint by animateColorAsState(
-            targetValue = if (isPinned) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant,
-            animationSpec = tween(200)
-        )
-
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.surface
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = msg.displayName,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        ChatoneIconButton(
-                            onClick = { isPinned = !isPinned },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                painter = if (isPinned) painterResource(Res.drawable.ic_lock) else painterResource(
-                                    Res.drawable.ic_unlock
-                                ),
-                                contentDescription = if (isPinned) "Unpin (always on top)" else "Pin (always on top)",
-                                modifier = Modifier.size(16.dp),
-                                tint = pinTint
-                            )
-                        }
-
-                        ChatoneIconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                Icons.Filled.Close,
-                                contentDescription = "Close",
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-                )
-
-                UserProfileContent(
-                    msg = msg,
-                    channelMessages = channelMessages,
-                    accessToken = accessToken,
-                    channelId = channelId,
-                    showModActions = showModActions,
-                    currentUserIsBroadcaster = currentUserIsBroadcaster,
-                    isBlocked = isBlocked,
-                    onBlock = onBlock,
-                    onUnblock = onUnblock,
-                    onTimeout = onTimeout,
-                    onBan = onBan,
-                    onUnban = onUnban,
-                    onMod = onMod,
-                    onUnmod = onUnmod,
-                    onVip = onVip,
-                    onUnvip = onUnvip,
-                    onWhisper = onWhisper,
-                    onDismiss = onClose
-                )
-            }
-        }
-    }
+    DesktopUserProfilePopup(
+        userId = msg.userId,
+        username = msg.username,
+        displayName = msg.displayName,
+        color = msg.color,
+        initialAvatarUrl = "",
+        initialCreatedAt = "",
+        badges = msg.badges,
+        sevenTvBadge = msg.sevenTvBadge,
+        isBroadcaster = msg.isBroadcaster,
+        isModerator = msg.isModerator,
+        isVip = msg.isVip,
+        isSubscriber = msg.isSubscriber,
+        sessionMessages = sessionMessages,
+        canModerate = showModActions,
+        currentUserIsBroadcaster = currentUserIsBroadcaster,
+        isBlocked = isBlocked,
+        channelId = channelId,
+        channelLogin = msg.channel,
+        accessToken = accessToken,
+        startPinned = true,
+        mentionMuteRepository = null,
+        noteRepository = noteRepository,
+        onBlock = onBlock,
+        onUnblock = onUnblock,
+        onTimeout = onTimeout,
+        onBan = onBan,
+        onUnban = onUnban,
+        onMod = onMod,
+        onUnmod = onUnmod,
+        onVip = onVip,
+        onUnvip = onUnvip,
+        onWhisper = onWhisper,
+        onBanWithReason = { onBan() },
+        onDismiss = onClose
+    )
 }

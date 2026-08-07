@@ -7,12 +7,12 @@ fun IrcEvent.ModeratorAction.toDisplayActionFallback(): DisplayMessage.Moderatio
     return when (action) {
         IrcEvent.ModeratorAction.ACTION_BAN -> DisplayMessage.ModerationMsg.ModerationAction.BAN
         IrcEvent.ModeratorAction.ACTION_TIMEOUT -> DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT
-        IrcEvent.ModeratorAction.ACTION_UNBAN,
-        IrcEvent.ModeratorAction.ACTION_UNTIMEOUT,
-        IrcEvent.ModeratorAction.ACTION_MOD,
-        IrcEvent.ModeratorAction.ACTION_UNMOD,
-        IrcEvent.ModeratorAction.ACTION_VIP,
-        IrcEvent.ModeratorAction.ACTION_UNVIP -> DisplayMessage.ModerationMsg.ModerationAction.UNBAN
+        IrcEvent.ModeratorAction.ACTION_UNBAN -> DisplayMessage.ModerationMsg.ModerationAction.UNBAN
+        IrcEvent.ModeratorAction.ACTION_UNTIMEOUT -> DisplayMessage.ModerationMsg.ModerationAction.UNTIMEOUT
+        IrcEvent.ModeratorAction.ACTION_MOD -> DisplayMessage.ModerationMsg.ModerationAction.MOD
+        IrcEvent.ModeratorAction.ACTION_UNMOD -> DisplayMessage.ModerationMsg.ModerationAction.UNMOD
+        IrcEvent.ModeratorAction.ACTION_VIP -> DisplayMessage.ModerationMsg.ModerationAction.VIP
+        IrcEvent.ModeratorAction.ACTION_UNVIP -> DisplayMessage.ModerationMsg.ModerationAction.UNVIP
         IrcEvent.ModeratorAction.ACTION_DELETE -> DisplayMessage.ModerationMsg.ModerationAction.DELETE
         IrcEvent.ModeratorAction.ACTION_CLEAR -> DisplayMessage.ModerationMsg.ModerationAction.CLEAR
         else -> DisplayMessage.ModerationMsg.ModerationAction.UNBAN

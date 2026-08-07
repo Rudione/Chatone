@@ -8,6 +8,8 @@ object AppConfig {
     const val REDIRECT_URI_DESKTOP = "http://localhost:3829/auth/callback"
     const val REDIRECT_URI_MOBILE = "chatone://auth/callback"
 
+    const val ANDROID_USE_LOOPBACK_REDIRECT = true
+
     const val OAUTH_CALLBACK_PORT = 3829
 
     val REQUIRED_SCOPES = listOf(

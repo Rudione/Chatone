@@ -47,6 +47,41 @@ data class PinnedChatInfo(
 
 data class ModLogMessage(val id: String, val text: String, val sentAtEpochMs: Long?)
 
+data class GqlUserDossier(
+    val userId: String,
+    val login: String,
+    val displayName: String,
+    val createdAtEpochMs: Long?,
+    val bio: String?,
+    val language: String?,
+    val teamName: String?,
+    val followerCount: Int?,
+    val isPartner: Boolean,
+    val isAffiliate: Boolean,
+    val isStaff: Boolean,
+    val hasVideos: Boolean,
+    val liveViewers: Int?,
+    val liveGame: String?,
+    val liveSinceEpochMs: Long?,
+    val lastBroadcastEpochMs: Long?,
+    val lastBroadcastGame: String?,
+    val followedChannelAtEpochMs: Long?,
+    val subscriptionTier: String?
+) {
+    val isStreamer: Boolean
+        get() = isPartner || isAffiliate || lastBroadcastEpochMs != null || hasVideos
+
+    val isLive: Boolean get() = liveViewers != null
+}
+
+data class GqlDisplayBadge(
+    val setId: String,
+    val version: String,
+    val title: String,
+    val description: String?,
+    val imageUrl: String
+)
+
 data class GqlUsercardMessage(
     val id: String,
     val text: String,
@@ -61,6 +96,209 @@ data class GqlUsercardMessagePage(
     val nextCursor: String?,
     val hasNextPage: Boolean
 )
+
+data class GqlModerationAction(
+    val id: String,
+    val kind: String,
+    val text: String,
+    val targetUserId: String,
+    val targetLogin: String,
+    val moderatorLogin: String?,
+    val durationSeconds: Int?,
+    val createdAtEpochMs: Long?,
+    val cursor: String
+) {
+    companion object {
+        const val KIND_BAN = "ban"
+        const val KIND_UNBAN = "unban"
+        const val KIND_TIMEOUT = "timeout"
+        const val KIND_UNTIMEOUT = "untimeout"
+        const val KIND_WARN = "warn"
+        const val KIND_DELETE = "delete"
+        const val KIND_OTHER = "other"
+    }
+}
+
+data class GqlModerationActionPage(
+    val actions: List<GqlModerationAction>,
+    val nextCursor: String?,
+    val hasNextPage: Boolean
+)
+
+private data class GqlFragmentUser(
+    val id: String,
+    val login: String,
+    val displayName: String,
+    val fragmentIndex: Int
+)
+
+private fun fragmentTokenText(token: JsonObject): String {
+    val keys = listOf("text", "localizedText", "displayName", "login")
+    for (key in keys) {
+        val value = token[key]?.jsonPrimitive?.contentOrNull
+        if (!value.isNullOrEmpty()) return value
+    }
+    return ""
+}
+
+private fun localizedFragments(obj: JsonObject?): JsonArray {
+    if (obj == null) return JsonArray(emptyList())
+    val localized = obj["localizedStringFragments"]?.jsonArray
+    if (localized != null && localized.isNotEmpty()) return localized
+    return obj["fragments"]?.jsonArray ?: JsonArray(emptyList())
+}
+
+private fun actionFragments(node: JsonObject, fieldName: String): JsonArray =
+    localizedFragments(node[fieldName] as? JsonObject)
+
+private fun usersFromFragments(fragments: JsonArray): List<GqlFragmentUser> {
+    val users = mutableListOf<GqlFragmentUser>()
+    fragments.forEachIndexed { index, element ->
+        val token = (element as? JsonObject)?.get("token") as? JsonObject ?: return@forEachIndexed
+        val login = token["login"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val id = token["id"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val typeName = token["__typename"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        var displayName = token["displayName"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        if (displayName.isEmpty() && typeName == "User") displayName = fragmentTokenText(token)
+        if (displayName.isEmpty() && login.isEmpty() && id.isEmpty()) return@forEachIndexed
+        users.add(
+            GqlFragmentUser(
+                id = id,
+                login = login,
+                displayName = displayName.ifEmpty { login },
+                fragmentIndex = index
+            )
+        )
+    }
+    return users
+}
+
+private fun textFromFragments(fragments: JsonArray): String {
+    val builder = StringBuilder()
+    fragments.forEach { element ->
+        val fragment = element as? JsonObject ?: return@forEach
+        var part = fragmentTokenText(fragment["token"] as? JsonObject ?: JsonObject(emptyMap()))
+        if (part.isEmpty()) part = fragment["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        builder.append(part)
+    }
+    return builder.toString().trim().replace(Regex("\\s+"), " ")
+}
+
+private fun textBeforeFragment(fragments: JsonArray, index: Int, lookBehind: Int = 2): String {
+    val builder = StringBuilder()
+    for (i in maxOf(0, index - lookBehind) until index) {
+        val fragment = fragments.getOrNull(i) as? JsonObject ?: continue
+        var part = fragmentTokenText(fragment["token"] as? JsonObject ?: JsonObject(emptyMap()))
+        if (part.isEmpty()) part = fragment["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        builder.append(part)
+    }
+    return builder.toString()
+}
+
+private fun userAfterByText(fragments: JsonArray): GqlFragmentUser? {
+    return usersFromFragments(fragments).firstOrNull { user ->
+        val before = textBeforeFragment(fragments, user.fragmentIndex).lowercase()
+        before.contains(" by ") || before.endsWith("by ") || before.contains("automated by ")
+    }
+}
+
+private fun moderationActionKind(category: String, icon: String, text: String): String {
+    val cat = category.uppercase()
+    val ico = icon.uppercase()
+    val lower = text.lowercase()
+    if (ico == "BAN") return GqlModerationAction.KIND_BAN
+    if (ico == "UNBAN") return GqlModerationAction.KIND_UNBAN
+    if (ico == "TIMEOUT") return GqlModerationAction.KIND_TIMEOUT
+    if (ico == "UNTIMEOUT") return GqlModerationAction.KIND_UNTIMEOUT
+    if (cat.contains("WARN") || ico.contains("WARN") || lower.contains("warned")) {
+        return GqlModerationAction.KIND_WARN
+    }
+    if (cat.contains("BANS_AND_UNBANS")) {
+        return if (lower.contains("unban")) GqlModerationAction.KIND_UNBAN
+        else GqlModerationAction.KIND_BAN
+    }
+    if (cat.contains("TIMEOUTS_AND_UNTIMEOUTS")) {
+        return if (lower.contains("untimeout") || lower.contains("timeout removed"))
+            GqlModerationAction.KIND_UNTIMEOUT
+        else GqlModerationAction.KIND_TIMEOUT
+    }
+    if (cat.contains("DELETE") || ico.contains("DELETE") ||
+        lower.contains("message deleted") || lower.contains("deleted message") ||
+        lower.contains("was deleted")
+    ) {
+        return GqlModerationAction.KIND_DELETE
+    }
+    return GqlModerationAction.KIND_OTHER
+}
+
+private val durationPattern =
+    Regex("(\\d+)\\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d)\\b", RegexOption.IGNORE_CASE)
+
+private fun parseDurationSeconds(text: String): Int? {
+    val match = durationPattern.find(text) ?: return null
+    val amount = match.groupValues[1].toIntOrNull() ?: return null
+    val unit = match.groupValues[2].lowercase()
+    val multiplier = when {
+        unit.startsWith("d") -> 86_400
+        unit.startsWith("h") -> 3_600
+        unit.startsWith("m") && !unit.startsWith("ms") -> 60
+        else -> 1
+    }
+    return amount * multiplier
+}
+
+private fun moderationActionFromEdge(edge: JsonObject): GqlModerationAction? {
+    val node = edge["node"] as? JsonObject ?: return null
+    val id = node["id"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    if (id.isBlank()) return null
+
+    val category = node["filterCategoryID"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    val icon = node["icon"]?.jsonPrimitive?.contentOrNull.orEmpty()
+
+    val contentFragments = actionFragments(node, "content")
+    val bodyFragments = actionFragments(node, "contentBody")
+    val titleFragments = actionFragments(node, "title")
+
+    var text = textFromFragments(contentFragments)
+    if (text.isEmpty()) text = textFromFragments(bodyFragments)
+    if (text.isEmpty()) text = textFromFragments(titleFragments)
+
+    val kind = moderationActionKind(category, icon, text)
+
+    val titleUsers = usersFromFragments(titleFragments)
+    val target = titleUsers.firstOrNull()
+    var moderator = userAfterByText(contentFragments) ?: userAfterByText(bodyFragments)
+
+    if (moderator == null) {
+        moderator = usersFromFragments(contentFragments).firstOrNull { candidate ->
+            val sameAsTarget = (candidate.id.isNotEmpty() && candidate.id == target?.id) ||
+                    (candidate.login.isNotEmpty() && candidate.login.equals(target?.login, true))
+            !sameAsTarget
+        }
+    }
+    if (moderator == null) {
+        val user = node["user"] as? JsonObject
+        val userId = user?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty()
+        val userLogin = user?.get("login")?.jsonPrimitive?.contentOrNull.orEmpty()
+        val sameAsTarget = (userId.isNotEmpty() && userId == target?.id) ||
+                (userLogin.isNotEmpty() && userLogin.equals(target?.login, true))
+        if (!sameAsTarget && (userId.isNotEmpty() || userLogin.isNotEmpty())) {
+            moderator = GqlFragmentUser(userId, userLogin, userLogin, -1)
+        }
+    }
+
+    return GqlModerationAction(
+        id = id,
+        kind = kind,
+        text = text,
+        targetUserId = target?.id.orEmpty(),
+        targetLogin = target?.login.orEmpty(),
+        moderatorLogin = moderator?.login?.ifBlank { null },
+        durationSeconds = if (kind == GqlModerationAction.KIND_TIMEOUT) parseDurationSeconds(text) else null,
+        createdAtEpochMs = parseIsoInstantOrNull(node["createdAt"]?.jsonPrimitive?.contentOrNull),
+        cursor = edge["cursor"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    )
+}
 
 data class GqlTokenIdentity(val userId: String, val login: String, val displayName: String)
 
@@ -471,6 +709,33 @@ class TwitchGqlClient(
         )
     }
 
+    suspend fun getModerationActionLogs(
+        channelId: String,
+        cursor: String?,
+        token: String
+    ): GqlModerationActionPage? {
+        val variables = buildJsonObject {
+            put("channelID", channelId)
+            if (!cursor.isNullOrBlank()) put("after", cursor)
+        }
+        val r = persistedTvBatch(
+            listOf(Triple("ModActionsList", MOD_ACTIONS_LIST_HASH, variables)),
+            token
+        )
+        if (r !is Result.Success) return null
+        val logs = r.data.dataNodeForOperation("ModActionsList")
+            ?.get("data")?.jsonObject
+            ?.get("channel")?.jsonObject
+            ?.get("moderationActionLogs")?.jsonObject ?: return null
+        val edges = logs["edges"]?.jsonArray ?: return null
+        val actions = edges.mapNotNull { moderationActionFromEdge(it.jsonObject) }
+        val nextCursor = actions.lastOrNull()?.cursor?.ifBlank { null }
+        val hasNextPage = logs["pageInfo"]?.jsonObject
+            ?.get("hasNextPage")?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
+            ?: (nextCursor != null)
+        return GqlModerationActionPage(actions, nextCursor, hasNextPage)
+    }
+
     suspend fun getChannelPointRewardsGql(
         channelLogin: String,
         token: String
@@ -628,6 +893,131 @@ class TwitchGqlClient(
             displayName = user["displayName"]?.jsonPrimitive?.contentOrNull.orEmpty()
         )
     }
+
+    suspend fun getUserDossier(
+        login: String,
+        channelId: String,
+        token: String
+    ): GqlUserDossier? {
+        if (login.isBlank()) return null
+        val relationship = if (channelId.isNotBlank()) {
+            "relationship(targetUserID: \$channelID) { followedAt subscriptionBenefit { tier } }"
+        } else ""
+
+        val query = """
+            query ChatoneUserDossier(${'$'}login: String!${if (relationship.isNotEmpty()) ", \$channelID: ID!" else ""}) {
+              user(login: ${'$'}login) {
+                id login displayName createdAt description language
+                primaryTeam { name }
+                roles { isPartner isAffiliate isStaff }
+                followers { totalCount }
+                videos(first: 1) { edges { node { id } } }
+                stream { viewersCount createdAt game { name } }
+                lastBroadcast { startedAt game { name } }
+                $relationship
+              }
+            }
+        """.trimIndent()
+
+        val variables = buildJsonObject {
+            put("login", login.lowercase())
+            if (relationship.isNotEmpty()) put("channelID", channelId)
+        }
+
+        val r = inlineQuery(query, token, variables)
+        if (r !is Result.Success) return null
+        val user = r.data.firstDataNode()
+            ?.get("data")?.asObjectOrNull()
+            ?.get("user")?.asObjectOrNull() ?: return null
+
+        val id = user["id"]?.jsonPrimitive?.contentOrNull ?: return null
+        val roles = user["roles"]?.asObjectOrNull()
+        val stream = user["stream"]?.asObjectOrNull()
+        val lastBroadcast = user["lastBroadcast"]?.asObjectOrNull()
+        val rel = user["relationship"]?.asObjectOrNull()
+
+        return GqlUserDossier(
+            userId = id,
+            login = user["login"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            displayName = user["displayName"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            createdAtEpochMs = parseIsoInstantOrNull(user["createdAt"]?.jsonPrimitive?.contentOrNull),
+            bio = user["description"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() },
+            language = user["language"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() },
+            teamName = user["primaryTeam"]?.asObjectOrNull()
+                ?.get("name")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() },
+            followerCount = user["followers"]?.asObjectOrNull()
+                ?.get("totalCount")?.jsonPrimitive?.intOrNull,
+            isPartner = roles?.get("isPartner")?.jsonPrimitive?.booleanOrNull == true,
+            isAffiliate = roles?.get("isAffiliate")?.jsonPrimitive?.booleanOrNull == true,
+            isStaff = roles?.get("isStaff")?.jsonPrimitive?.booleanOrNull == true,
+            hasVideos = user["videos"]?.asObjectOrNull()
+                ?.get("edges")?.asArrayOrNull()?.isNotEmpty() == true,
+            liveViewers = stream?.get("viewersCount")?.jsonPrimitive?.intOrNull,
+            liveGame = stream?.get("game")?.asObjectOrNull()
+                ?.get("name")?.jsonPrimitive?.contentOrNull,
+            liveSinceEpochMs = parseIsoInstantOrNull(stream?.get("createdAt")?.jsonPrimitive?.contentOrNull),
+            lastBroadcastEpochMs = parseIsoInstantOrNull(
+                lastBroadcast?.get("startedAt")?.jsonPrimitive?.contentOrNull
+            ),
+            lastBroadcastGame = lastBroadcast?.get("game")?.asObjectOrNull()
+                ?.get("name")?.jsonPrimitive?.contentOrNull,
+            followedChannelAtEpochMs = parseIsoInstantOrNull(
+                rel?.get("followedAt")?.jsonPrimitive?.contentOrNull
+            ),
+            subscriptionTier = rel?.get("subscriptionBenefit")?.asObjectOrNull()
+                ?.get("tier")?.jsonPrimitive?.contentOrNull
+        )
+    }
+
+    suspend fun getUserDisplayBadges(
+        login: String,
+        channelLogin: String,
+        token: String
+    ): List<GqlDisplayBadge> {
+        if (login.isBlank()) return emptyList()
+        val scoped = channelLogin.isNotBlank()
+        val badgesField =
+            if (scoped) "displayBadges(channelLogin: \$channelLogin)" else "displayBadges"
+
+        val query = """
+            query ChatoneUserBadges(${'$'}login: String!${if (scoped) ", \$channelLogin: String!" else ""}) {
+              user(login: ${'$'}login) {
+                id
+                $badgesField { setID version title description imageURL }
+              }
+            }
+        """.trimIndent()
+
+        val variables = buildJsonObject {
+            put("login", login.lowercase())
+            if (scoped) put("channelLogin", channelLogin.lowercase())
+        }
+
+        val r = inlineQuery(query, token, variables)
+        if (r !is Result.Success) return emptyList()
+        val badges = r.data.firstDataNode()
+            ?.get("data")?.asObjectOrNull()
+            ?.get("user")?.asObjectOrNull()
+            ?.get("displayBadges")?.asArrayOrNull() ?: return emptyList()
+
+        return badges.mapNotNull { element ->
+            val node = element.asObjectOrNull() ?: return@mapNotNull null
+            val imageUrl = node["imageURL"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val setId = node["setID"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            GqlDisplayBadge(
+                setId = setId,
+                version = node["version"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                title = node["title"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                    ?: setId,
+                description = node["description"]?.jsonPrimitive?.contentOrNull
+                    ?.takeIf { it.isNotBlank() },
+                imageUrl = upscaleBadgeUrl(imageUrl)
+            )
+        }
+    }
+
+    private fun upscaleBadgeUrl(url: String): String =
+        if (url.endsWith("/1")) url.dropLast(1) + "2" else url
 
     suspend fun createPollGql(
         channelId: String,
@@ -963,6 +1353,8 @@ class TwitchGqlClient(
             "2d099d4c9b6af80a07d8440140c4f3dbb04d516b35c401aab7ce8f60765308d5"
         private const val MODLOG_HASH =
             "eb4e9869e1bb0b3ed553e1ed657fa09f8553781093569c3a5813ad09ee9c0776"
+        private const val MOD_ACTIONS_LIST_HASH =
+            "f09041ba19fdd3d0ceb6e9b9163d5d903eddd625e1b156e8af6deb207ed3e77e"
         private const val CLAIM_POINTS_HASH =
             "46aaeebe02c99afdf4fc97c7c0cba964124bf6b0af229395f1f6d1feed05b3d0"
         private const val CREATE_RAID_HASH =

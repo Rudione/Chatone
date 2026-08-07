@@ -12,14 +12,14 @@ actual fun openUrl(url: String, mode: SettingsState.LinkOpenMode) {
         val os = System.getProperty("os.name", "").lowercase()
         val launched = when {
             os.contains("win") -> windowsIncognitoCandidates(url).any { tryLaunch(*it) }
-            os.contains("mac") -> tryLaunch("open", "-a", "Google Chrome", "--args", "--incognito", url)
+            os.contains("mac") -> tryLaunch("open", "-a", "Google Chrome", "--args", "--incognito", "--", url)
                     || tryLaunch("open", "-a", "Firefox", "--args", "--private-window", url)
-                    || tryLaunch("open", "-a", "Microsoft Edge", "--args", "--inprivate", url)
-            else -> tryLaunch("google-chrome", "--incognito", url)
-                    || tryLaunch("google-chrome-stable", "--incognito", url)
-                    || tryLaunch("chromium-browser", "--incognito", url)
+                    || tryLaunch("open", "-a", "Microsoft Edge", "--args", "--inprivate", "--", url)
+            else -> tryLaunch("google-chrome", "--incognito", "--", url)
+                    || tryLaunch("google-chrome-stable", "--incognito", "--", url)
+                    || tryLaunch("chromium-browser", "--incognito", "--", url)
                     || tryLaunch("firefox", "--private-window", url)
-                    || tryLaunch("microsoft-edge", "--inprivate", url)
+                    || tryLaunch("microsoft-edge", "--inprivate", "--", url)
         }
         if (!launched) {
             openDefault(url)
@@ -49,9 +49,9 @@ private fun windowsIncognitoCandidates(url: String): List<Array<String>> {
         "$programFilesX86\\Microsoft\\Edge\\Application\\msedge.exe"
     )
     return buildList {
-        chrome.forEach { add(arrayOf(it, "--incognito", url)) }
+        chrome.forEach { add(arrayOf(it, "--incognito", "--", url)) }
         firefox.forEach { add(arrayOf(it, "--private-window", url)) }
-        edge.forEach { add(arrayOf(it, "--inprivate", url)) }
+        edge.forEach { add(arrayOf(it, "--inprivate", "--", url)) }
     }
 }
 
@@ -62,7 +62,7 @@ private fun openDefault(url: String) {
         } else {
             val os = System.getProperty("os.name", "").lowercase()
             when {
-                os.contains("win") -> Runtime.getRuntime().exec(arrayOf("rundll32", "url.dll,FileProtocolHandler", url))
+                os.contains("win") -> Unit
                 os.contains("mac") -> Runtime.getRuntime().exec(arrayOf("open", url))
                 else -> Runtime.getRuntime().exec(arrayOf("xdg-open", url))
             }

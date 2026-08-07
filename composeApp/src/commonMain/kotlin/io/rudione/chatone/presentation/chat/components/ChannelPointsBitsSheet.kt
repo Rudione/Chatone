@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -158,28 +159,36 @@ internal fun ChannelPointsBitsSheet(
     isLoading: Boolean,
     error: String?,
     onRedeem: (GqlChannelPointReward, String) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    docked: Boolean = false
 ) {
     val s = LocalStrings.current
     val backdropSource = remember { MutableInteractionSource() }
+    val sheetShape =
+        if (docked) RoundedCornerShape(0.dp)
+        else RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
     Box(modifier = Modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.35f))
-                .clickable(indication = null, interactionSource = backdropSource) { onClose() }
-        )
+        if (!docked) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .clickable(indication = null, interactionSource = backdropSource) { onClose() }
+            )
+        }
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .heightIn(max = 460.dp)
-                .shadow(
-                    24.dp, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.3f),
-                    spotColor = Color.Black.copy(alpha = 0.4f)
+                .then(if (docked) Modifier.fillMaxHeight() else Modifier.heightIn(max = 460.dp))
+                .then(
+                    if (docked) Modifier else Modifier.shadow(
+                        24.dp, sheetShape,
+                        ambientColor = Color.Black.copy(alpha = 0.3f),
+                        spotColor = Color.Black.copy(alpha = 0.4f)
+                    )
                 )
-                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                .clip(sheetShape)
                 .background(
                     Brush.verticalGradient(
                         listOf(
@@ -188,12 +197,14 @@ internal fun ChannelPointsBitsSheet(
                         )
                     )
                 )
-                .border(
-                    1.dp,
-                    Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.04f))
-                    ),
-                    RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+                .then(
+                    if (docked) Modifier else Modifier.border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.04f))
+                        ),
+                        sheetShape
+                    )
                 )
                 .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { }
         ) {

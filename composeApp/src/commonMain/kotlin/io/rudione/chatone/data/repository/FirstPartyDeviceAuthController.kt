@@ -28,6 +28,16 @@ class FirstPartyDeviceAuthController(
 
     private var pollJob: Job? = null
 
+    private fun notifyAuthorized() {
+        if (io.rudione.chatone.util.system.isAppInForeground()) return
+        runCatching {
+            io.rudione.chatone.util.system.notifySystem(
+                "Chatone",
+                "Twitch authorization confirmed — tap to return"
+            )
+        }
+    }
+
     fun start() {
         pollJob?.cancel()
         pollJob = scope.launch {
@@ -49,6 +59,7 @@ class FirstPartyDeviceAuthController(
                         val identity = moderationAuthStore.setAndValidate(result.token)
                         _state.value = if (identity != null) {
                             DeviceAuthState.Success(identity.displayName.ifBlank { identity.login })
+                                .also { notifyAuthorized() }
                         } else {
                             DeviceAuthState.Error("Twitch rejected the token")
                         }

@@ -1,7 +1,9 @@
 package io.rudione.chatone.presentation.main
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -68,8 +70,22 @@ import chatone.composeapp.generated.resources.folder_outline
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.Channel
 import io.rudione.chatone.presentation.chat.ChatScreen
+import io.rudione.chatone.presentation.components.DockHost
+import io.rudione.chatone.presentation.components.DockPanel
+import io.rudione.chatone.presentation.components.LocalDockHost
+import io.rudione.chatone.presentation.components.LocalWindowSize
+import io.rudione.chatone.presentation.ai.AiAssistantPanel
+import io.rudione.chatone.presentation.automod.AutomodScreen
+import io.rudione.chatone.presentation.components.ChatoneSplitHandle
+import io.rudione.chatone.presentation.window.DetachedDockWindow
+import io.rudione.chatone.util.system.isDesktopPlatform
+import io.rudione.chatone.presentation.components.ChatoneBreakpoints
+import io.rudione.chatone.presentation.components.ChatoneWindowSize
+import io.rudione.chatone.presentation.components.ChatoneTileDefaults
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.GradientButton
+import io.rudione.chatone.presentation.components.TileTone
+import io.rudione.chatone.presentation.components.chatoneTile
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
@@ -101,6 +117,7 @@ import io.rudione.chatone.presentation.main.components.MentionTabsBar
 import io.rudione.chatone.presentation.main.components.MentionToast
 import io.rudione.chatone.presentation.main.components.EmptyState
 import io.rudione.chatone.presentation.main.components.CreateFolderDialog
+import io.rudione.chatone.presentation.main.components.EditFolderDialog
 import io.rudione.chatone.presentation.main.components.sidebar.MiniRail
 import io.rudione.chatone.presentation.main.components.sidebar.CompactSidebar
 import io.rudione.chatone.presentation.main.components.sidebar.ChannelSidebar
@@ -245,7 +262,9 @@ fun MainScreen(
     }
 
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { scaffoldPadding ->
-        if (state.showSettings && isWideScreenForSettings) {
+        if (state.showSettings && isWideScreenForSettings &&
+            !io.rudione.chatone.presentation.components.DockState.large
+        ) {
             SettingsScreen(
                 onNavigateBack = { viewModel.sendEvent(MainEvent.HideSettings) },
                 onThemeChanged = onThemeChanged,
@@ -260,10 +279,67 @@ fun MainScreen(
                 .padding(scaffoldPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            val isWideScreen = maxWidth >= 725.dp
-            LaunchedEffect(isWideScreen) { isWideScreenForSettings = isWideScreen }
+            val availableWidth = maxWidth
+            val dockHost = remember { DockHost() }
+            var sidebarWidth by remember { mutableStateOf(252.dp) }
+            var dockWidth by remember { mutableStateOf(ChatoneBreakpoints.dockWidth) }
+            var tornSettings by remember { mutableStateOf(false) }
+            val aiController: io.rudione.chatone.data.repository.AiAssistantController = koinInject()
+
+            if (tornSettings) {
+                DetachedSettingsWindow(
+                    onClose = { tornSettings = false },
+                    onThemeChanged = onThemeChanged
+                )
+            }
+            if (dockHost.torn != DockPanel.None) {
+                DetachedDockWindow(
+                    windowId = "dock_${dockHost.torn.name.lowercase()}",
+                    title = "Chatone — ${dockHost.torn.name}",
+                    onClose = { dockHost.closeTorn() }
+                ) {
+                    when (dockHost.torn) {
+                        DockPanel.Automod -> AutomodScreen(
+                            currentChannelLogin = dockHost.channelLogin ?: state.activeChannelLogin,
+                            onClose = { dockHost.closeTorn() },
+                            onExport = { _, _ -> },
+                            onImport = {},
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        DockPanel.Assistant -> AiAssistantPanel(
+                            controller = aiController,
+                            client = koinInject()
+                        )
+
+                        else -> dockHost.tornContent?.invoke()
+                    }
+                }
+            }
+            val windowSize = ChatoneBreakpoints.of(availableWidth)
+            val isLarge = windowSize == ChatoneWindowSize.Large
+            val isWideScreen = windowSize != ChatoneWindowSize.Compact
+            LaunchedEffect(isWideScreen, isLarge) {
+                isWideScreenForSettings = isWideScreen
+            }
+            SideEffect { io.rudione.chatone.presentation.components.DockState.large = isLarge }
 
             var miniRailCollapsed by remember { mutableStateOf(false) }
+            var sidebarDragging by remember { mutableStateOf(false) }
+
+            val sidebarRailMode = state.sidebarCollapsed
+            val paneChrome = ChatoneTileDefaults.outerPadding * 2 + ChatoneTileDefaults.gap
+            val maxSidebarWidth = (
+                availableWidth - paneChrome - if (isLarge) ChatoneBreakpoints.minPane * 2
+                else ChatoneBreakpoints.minChatPane
+            ).coerceAtLeast(ChatoneBreakpoints.minPane)
+            val clampedSidebarWidth =
+                sidebarWidth.coerceIn(ChatoneBreakpoints.minPane, maxSidebarWidth)
+            val effectiveSidebarWidth by animateDpAsState(
+                targetValue = if (sidebarRailMode) ChatoneBreakpoints.railWidth else clampedSidebarWidth,
+                animationSpec = if (sidebarDragging) snap() else tween(220),
+                label = "sidebar_width"
+            )
 
             val chatContent = remember {
                 movableContentOf<String, Boolean> { activeChannel, wide ->
@@ -342,9 +418,24 @@ fun MainScreen(
             val mentionsPanelShowing = !settingsState.navigationHidden && settingsState.mentionTabsEnabled &&
                 state.mentions.any { !it.isRead }
 
+            CompositionLocalProvider(
+                LocalWindowSize provides windowSize,
+                LocalDockHost provides if (isLarge) dockHost else null
+            ) {
             if (isWideScreen) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Box {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(ChatoneTileDefaults.outerPadding)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(effectiveSidebarWidth)
+                            .then(
+                                if (sidebarRailMode) Modifier
+                                else Modifier.chatoneTile(TileTone.Base)
+                            )
+                    ) {
                         GlowSurface(
                             dominantColor = wallpaper.dominantColor,
                             intensity = 0.9f,
@@ -426,7 +517,23 @@ fun MainScreen(
                             )
                         }
                     }
-                    Column(modifier = Modifier.weight(1f)) {
+                    if (sidebarRailMode) {
+                        Spacer(Modifier.width(ChatoneTileDefaults.gap))
+                    } else {
+                        ChatoneSplitHandle(
+                            onDelta = { d ->
+                                sidebarDragging = true
+                                sidebarWidth = (clampedSidebarWidth + d)
+                                    .coerceIn(ChatoneBreakpoints.minPane, maxSidebarWidth)
+                            },
+                            onDragEnd = { sidebarDragging = false }
+                        )
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .chatoneTile(TileTone.Sunken)
+                    ) {
                         if (mentionsPanelShowing) {
                             MentionTabsBar(
                                 mentions = state.mentions,
@@ -515,6 +622,94 @@ fun MainScreen(
                                     onAddChannel = { viewModel.sendEvent(MainEvent.ShowAddChannelDialog) },
                                     onLogin = { viewModel.sendEvent(MainEvent.NavigateToAuth) }
                                 )
+                            }
+                        }
+                    }
+                    val assistantOpen by aiController.isOpen.collectAsState()
+                    val dockActive = when {
+                        dockHost.panel != DockPanel.None -> dockHost.panel
+                        state.showSettings -> DockPanel.Settings
+                        assistantOpen -> DockPanel.Assistant
+                        else -> DockPanel.None
+                    }
+                    LaunchedEffect(dockHost.panel) {
+                        if (dockHost.panel != DockPanel.None) {
+                            if (state.showSettings) viewModel.sendEvent(MainEvent.HideSettings)
+                            if (aiController.isOpen.value) aiController.close()
+                        }
+                    }
+                    LaunchedEffect(state.showSettings) {
+                        if (state.showSettings) {
+                            if (dockHost.panel != DockPanel.None) dockHost.close()
+                            if (aiController.isOpen.value) aiController.close()
+                        }
+                    }
+                    LaunchedEffect(assistantOpen) {
+                        if (assistantOpen) {
+                            if (dockHost.panel != DockPanel.None) dockHost.close()
+                            if (state.showSettings) viewModel.sendEvent(MainEvent.HideSettings)
+                        }
+                    }
+                    if (isLarge && dockActive != DockPanel.None) {
+                        ChatoneSplitHandle(
+                            onDelta = { d ->
+                                val maxDock = availableWidth - effectiveSidebarWidth - ChatoneBreakpoints.minPane
+                                dockWidth = (dockWidth - d)
+                                    .coerceIn(ChatoneBreakpoints.minPane, maxDock.coerceAtLeast(ChatoneBreakpoints.minPane))
+                            },
+                            onTearOut = if (isDesktopPlatform) {
+                                {
+                                    if (dockActive == DockPanel.Settings) {
+                                        viewModel.sendEvent(MainEvent.HideSettings)
+                                        tornSettings = true
+                                    } else {
+                                        dockHost.tearOut()
+                                    }
+                                    dockWidth = ChatoneBreakpoints.dockWidth
+                                }
+                            } else null
+                        )
+                        Column(
+                            modifier = Modifier
+                                .width(dockWidth)
+                                .fillMaxHeight()
+                                .chatoneTile(TileTone.Base)
+                        ) {
+                            val dockWindowSize =
+                                if (dockActive == DockPanel.Moderation) windowSize
+                                else ChatoneBreakpoints.of(dockWidth)
+                            CompositionLocalProvider(
+                                LocalWindowSize provides dockWindowSize
+                            ) {
+                            when (dockActive) {
+                                DockPanel.Settings -> SettingsScreen(
+                                    onNavigateBack = { viewModel.sendEvent(MainEvent.HideSettings) },
+                                    onThemeChanged = onThemeChanged,
+                                    isWideScreen = dockWindowSize != ChatoneWindowSize.Compact,
+                                    embedded = true,
+                                    wallpaperLoader = wallpaperLoader
+                                )
+
+                                DockPanel.Assistant -> AiAssistantPanel(
+                                    controller = aiController,
+                                    client = koinInject()
+                                )
+
+                                DockPanel.Automod -> AutomodScreen(
+                                    currentChannelLogin = dockHost.channelLogin
+                                        ?: state.activeChannelLogin,
+                                    onClose = { dockHost.close() },
+                                    onExport = { _, _ -> },
+                                    onImport = {},
+                                    modifier = Modifier.fillMaxSize()
+                                )
+
+                                DockPanel.Moderation,
+                                DockPanel.Emotes,
+                                DockPanel.Points -> dockHost.content?.invoke()
+
+                                else -> Unit
+                            }
                             }
                         }
                     }
@@ -718,6 +913,7 @@ fun MainScreen(
                     }
                 }
             }
+            }
         }
     }
 
@@ -846,9 +1042,22 @@ fun MainScreen(
     if (state.isCreateFolderDialogVisible) {
         CreateFolderDialog(
             name = state.newFolderName,
+            colorHex = state.newFolderColor,
             onNameChange = { name: String -> viewModel.sendEvent(MainEvent.UpdateNewFolderName(name)) },
+            onColorChange = { hex: String -> viewModel.sendEvent(MainEvent.UpdateNewFolderColor(hex)) },
             onCreate = { viewModel.sendEvent(MainEvent.CreateFolder) },
             onDismiss = { viewModel.sendEvent(MainEvent.HideCreateFolderDialog) }
+        )
+    }
+
+    if (state.editingFolderId != null) {
+        EditFolderDialog(
+            name = state.editFolderName,
+            colorHex = state.editFolderColor,
+            onNameChange = { name: String -> viewModel.sendEvent(MainEvent.UpdateEditFolderName(name)) },
+            onColorChange = { hex: String -> viewModel.sendEvent(MainEvent.UpdateEditFolderColor(hex)) },
+            onSave = { viewModel.sendEvent(MainEvent.SaveFolderEdit) },
+            onDismiss = { viewModel.sendEvent(MainEvent.HideEditFolderDialog) }
         )
     }
 }

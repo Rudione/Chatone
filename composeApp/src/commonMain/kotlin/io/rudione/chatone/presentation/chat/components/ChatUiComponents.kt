@@ -1,18 +1,11 @@
-package io.rudione.chatone.presentation.chat
+package io.rudione.chatone.presentation.chat.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -28,17 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -46,15 +36,20 @@ import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.GenericEmote
 import coil3.compose.AsyncImage
-import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
+import io.rudione.chatone.data.remote.TwitchApiClient
+import io.rudione.chatone.presentation.chat.AnimatedEmoteImage
+import io.rudione.chatone.presentation.chat.parseColor
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.MessageToken
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneWindowSize
+import io.rudione.chatone.presentation.components.LocalWindowSize
+import io.rudione.chatone.util.media.ChannelAvatarCache
+import org.koin.compose.koinInject
 
 private fun formatRemaining(totalSeconds: Long): String {
     val m = totalSeconds / 60
@@ -73,10 +68,18 @@ internal fun PinnedMessageBar(
     onHide: () -> Unit = {}
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
+    val compact = LocalWindowSize.current == ChatoneWindowSize.Compact
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+    val sidePadding = if (compact) null else pinSidePadding(maxWidth)
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 4.dp)
+            .padding(
+                start = sidePadding ?: 8.dp,
+                end = sidePadding ?: 18.dp,
+                top = 4.dp,
+                bottom = 4.dp
+            )
             .chatoneGlassPanel(RoundedCornerShape(12.dp))
     ) {
         Column(
@@ -160,6 +163,7 @@ internal fun PinnedMessageBar(
                                 is MessageToken.Text -> token.text; is MessageToken.TwitchEmoteToken -> token.name
                                 is MessageToken.ThirdPartyEmoteToken -> token.emote.code; is MessageToken.Link -> token.displayText
                                 is MessageToken.Mention -> token.username
+                                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
                             }
                         },
                         style = MaterialTheme.typography.bodySmall,
@@ -196,6 +200,16 @@ internal fun PinnedMessageBar(
             }
         }
     }
+    }
+}
+
+private fun pinSidePadding(width: Dp): Dp = when {
+    width >= 1800.dp -> 148.dp
+    width >= 1550.dp -> 128.dp
+    width >= 1300.dp -> 92.dp
+    width >= 1050.dp -> 72.dp
+    width >= 850.dp -> 24.dp
+    else -> 16.dp
 }
 
 @Composable
@@ -310,12 +324,12 @@ internal fun RaidBanner(
     val accent = MaterialTheme.colorScheme.tertiary
 
     var avatarUrl by remember(targetLogin) {
-        mutableStateOf(io.rudione.chatone.util.media.ChannelAvatarCache.cached(targetLogin))
+        mutableStateOf(ChannelAvatarCache.cached(targetLogin))
     }
     if (avatarUrl == null && accessToken.isNotBlank()) {
-        val apiClient: io.rudione.chatone.data.remote.TwitchApiClient = org.koin.compose.koinInject()
+        val apiClient: TwitchApiClient = koinInject()
         LaunchedEffect(targetLogin, accessToken) {
-            avatarUrl = io.rudione.chatone.util.media.ChannelAvatarCache.fetch(apiClient, accessToken, targetLogin)
+            avatarUrl = ChannelAvatarCache.fetch(apiClient, accessToken, targetLogin)
         }
     }
 

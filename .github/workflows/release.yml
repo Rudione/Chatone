@@ -10,6 +10,10 @@ on:
         description: 'Release tag (e.g. v1.0.8)'
         required: true
 
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -22,16 +26,10 @@ jobs:
         include:
           - os: windows-latest
             short: windows
-            installer-glob: composeApp/build/compose/binaries/main-release/msi/*.msi
-            installer-ext: msi
           - os: macos-latest
             short: macos
-            installer-glob: composeApp/build/compose/binaries/main-release/dmg/*.dmg
-            installer-ext: dmg
           - os: ubuntu-latest
             short: linux
-            installer-glob: composeApp/build/compose/binaries/main-release/deb/*.deb
-            installer-ext: deb
 
     runs-on: ${{ matrix.os }}
 
@@ -47,6 +45,8 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Grant execute permission for gradlew
         if: runner.os != 'Windows'
@@ -59,40 +59,40 @@ jobs:
           TAG="${GITHUB_REF##*/}"
           TAG_VERSION="${TAG#v}"
           PKG_VERSION=$(grep -E 'app\.version\s*=' gradle.properties | head -1 | sed -E 's/.*=\s*//')
-          [ -z "$PKG_VERSION" ] && PKG_VERSION=$(grep -E 'packageVersion\s*=\s*"' composeApp/build.gradle.kts | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
           echo "Tag version: $TAG_VERSION"
           echo "packageVersion: $PKG_VERSION"
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "::error::Tag $TAG does not match packageVersion $PKG_VERSION"
+            echo "::error::Tag $TAG does not match app.version $PKG_VERSION"
             exit 1
           fi
 
-      - name: Build installer + portable ZIP
+      - name: Build native installer + portable ZIP
         shell: bash
-        run: ./gradlew :composeApp:packageReleaseDistributionForCurrentOS :composeApp:createPortableZip --no-daemon --stacktrace
+        run: ./gradlew :composeApp:packageReleaseDistributionForCurrentOS :composeApp:createPortableZip --stacktrace
 
-      - name: List build outputs
+      - name: Build branded Windows setup (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: ./gradlew :composeApp:packageWindowsSetup --stacktrace
+
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: ./gradlew :composeApp:generateReleaseChecksums
+
+      - name: Collect artifacts
         shell: bash
         run: |
-          echo "--- main-release ---"
-          find composeApp/build/compose/binaries/main-release -maxdepth 3 -type f 2>/dev/null || true
-          echo "--- distributions ---"
-          find composeApp/build/distributions -maxdepth 2 -type f 2>/dev/null || true
+          mkdir -p staged
+          find composeApp/build/compose/binaries/main-release composeApp/build/installer composeApp/build/distributions \
+            -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' -o -name 'SHA256SUMS.txt' \) \
+            -exec cp -v {} staged/ \; 2>/dev/null || true
+          ls -la staged
 
-      - name: Upload installer (${{ matrix.installer-ext }})
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Chatone-${{ matrix.short }}-installer
-          path: ${{ matrix.installer-glob }}
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 7
-
-      - name: Upload portable ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: Chatone-${{ matrix.short }}-portable
-          path: composeApp/build/distributions/*-portable.zip
+          name: Chatone-${{ matrix.short }}
+          path: staged/*
           if-no-files-found: error
           compression-level: 0
           retention-days: 7
@@ -110,7 +110,10 @@ jobs:
       - name: Flatten artifact tree
         run: |
           mkdir -p release-assets
-          find artifacts -type f \( -name '*.msi' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' \) -exec cp -v {} release-assets/ \;
+          find artifacts -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' \) \
+            -exec cp -v {} release-assets/ \;
+          find artifacts -type f -name 'SHA256SUMS.txt' -print0 |
+            xargs -0 cat > release-assets/SHA256SUMS.txt || true
           ls -la release-assets
 
       - name: Resolve tag name
@@ -122,11 +125,33 @@ jobs:
             echo "name=${GITHUB_REF##*/}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build release notes
+        id: notes
+        run: |
+          {
+            echo 'body<<CHATONE_EOF'
+            echo '## Installation'
+            echo ''
+            echo '| Platform | File |'
+            echo '|---|---|'
+            echo '| Windows (recommended) | `Chatone-*-setup.exe` |'
+            echo '| Windows (MSI) | `Chatone-*.msi` |'
+            echo '| macOS | `Chatone-*.dmg` |'
+            echo '| Linux | `chatone_*.deb` |'
+            echo '| Портативная версия | `Chatone-*-portable.zip` |'
+            echo ''
+            echo 'Контрольные суммы — в `SHA256SUMS.txt`. Приложение обновляется само и проверяет их при загрузке.'
+            echo ''
+            echo '> Архивы `Source code (zip/tar.gz)` ниже добавляются GitHub автоматически и не являются установщиками.'
+            echo 'CHATONE_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           name: Chatone ${{ steps.tag.outputs.name }}
+          body: ${{ steps.notes.outputs.body }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: release-assets/*

@@ -1,3 +1,4 @@
+import java.security.MessageDigest
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -285,12 +286,105 @@ compose.resources {
     generateResClass = auto
 }
 
+tasks.register("packageWindowsSetup") {
+    group = "distribution"
+    description = "Builds a branded Inno Setup installer from the release app image"
+    dependsOn(":composeApp:createReleaseDistributable")
+
+    val appImageDir = layout.buildDirectory.dir("compose/binaries/main-release/app/Chatone")
+    val outputDir = layout.buildDirectory.dir("installer")
+    val script = layout.projectDirectory.file("installer/chatone.iss")
+    val version = appVersion
+
+    onlyIf { org.gradle.internal.os.OperatingSystem.current().isWindows }
+
+    doLast {
+        val source = appImageDir.get().asFile
+        if (!source.exists()) {
+            throw GradleException("App image not found: $source")
+        }
+        val output = outputDir.get().asFile.apply { mkdirs() }
+
+        val compiler = sequenceOf(
+            System.getenv("INNO_SETUP_ISCC"),
+            "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe",
+            "C:\\Program Files\\Inno Setup 6\\ISCC.exe",
+            "iscc"
+        ).filterNotNull().firstOrNull { candidate ->
+            candidate == "iscc" || File(candidate).exists()
+        } ?: throw GradleException("Inno Setup (ISCC.exe) not found. Set INNO_SETUP_ISCC.")
+
+        providers.exec {
+            commandLine(
+                compiler,
+                "/DAppVersion=$version",
+                "/DSourceDir=${source.absolutePath}",
+                "/DOutputDir=${output.absolutePath}",
+                script.asFile.absolutePath
+            )
+        }.standardOutput.asText.get().let(::println)
+
+        println("Installer ready: ${output.resolve("Chatone-$version-setup.exe")}")
+    }
+}
+
+tasks.register("generateReleaseChecksums") {
+    group = "distribution"
+    description = "Writes SHA-256 checksums for every produced release artifact"
+
+    val binariesDir = layout.buildDirectory.dir("compose/binaries/main-release")
+    val distributionsDir = layout.buildDirectory.dir("distributions")
+    val installerDir = layout.buildDirectory.dir("installer")
+    val outputFile = layout.buildDirectory.file("distributions/SHA256SUMS.txt")
+
+    doLast {
+        val extensions = setOf("msi", "exe", "dmg", "deb", "zip")
+        val artifacts = listOf(binariesDir, distributionsDir, installerDir)
+            .mapNotNull { it.orNull?.asFile }
+            .filter { it.exists() }
+            .flatMap { dir -> dir.walkTopDown().filter { it.isFile }.toList() }
+            .filter { it.extension.lowercase() in extensions }
+            .distinctBy { it.name }
+            .sortedBy { it.name }
+
+        if (artifacts.isEmpty()) {
+            println("No release artifacts found; skipping checksums")
+            return@doLast
+        }
+
+        val digest = MessageDigest.getInstance("SHA-256")
+        val lines = artifacts.map { file ->
+            digest.reset()
+            file.inputStream().use { input ->
+                val buffer = ByteArray(1 shl 16)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    digest.update(buffer, 0, read)
+                }
+            }
+            val hex = digest.digest().joinToString("") { byte -> "%02x".format(byte) }
+            "$hex  ${file.name}"
+        }
+
+        val target = outputFile.get().asFile
+        target.parentFile.mkdirs()
+        target.writeText(lines.joinToString("\n") + "\n")
+        println("Checksums written to ${target.absolutePath}")
+        lines.forEach(::println)
+    }
+}
+
 tasks.register("publishRelease") {
+    group = "distribution"
     dependsOn("packageReleaseDistributionForCurrentOS", "createPortableZip")
+    if (org.gradle.internal.os.OperatingSystem.current().isWindows) {
+        dependsOn("packageWindowsSetup")
+    }
+    finalizedBy("generateReleaseChecksums")
     doLast {
         println("Release packages ready in build/compose/binaries/")
         println("Portable ZIP ready in build/distributions/")
-        println("Upload to GitHub:")
-        println("gh release upload v${compose.desktop.application.nativeDistributions.packageVersion} build/compose/binaries/main-release/** build/distributions/*.zip")
+        println("Windows setup (if built) in build/installer/")
     }
 }

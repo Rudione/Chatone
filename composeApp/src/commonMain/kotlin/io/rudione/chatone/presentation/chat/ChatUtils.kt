@@ -10,6 +10,11 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerButtons
+import androidx.compose.ui.input.pointer.isBackPressed
+import androidx.compose.ui.input.pointer.isForwardPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.presentation.settings.SettingsState
@@ -71,15 +76,9 @@ internal fun computeEmoteDisplaySize(
 }
 
 internal fun isImageUrl(url: String): Boolean {
+    if (io.rudione.chatone.util.media.LinkImageResolver.hasResolver(url)) return true
     val lower = url.lowercase()
-    if (lower.matches(Regex(""".*\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$"""))) return true
-    return lower.contains("i.imgur.com/") ||
-            (lower.contains("imgur.com/") && !lower.contains("/a/") && !lower.contains("/gallery/")) ||
-            lower.contains("kappa.lol/") || lower.contains("kappalol.com/") ||
-            lower.contains("cdn.7tv.app/") || lower.contains("cdn.betterttv.net/") ||
-            lower.contains("cdn.frankerfacez.com/") || lower.contains("pbs.twimg.com/") ||
-            lower.contains("media.discordapp.net/") || lower.contains("cdn.discordapp.com/attachments/") ||
-            lower.contains("i.redd.it/") || lower.contains("preview.redd.it/")
+    return lower.contains("imgur.com/") && !lower.contains("/a/") && !lower.contains("/gallery/")
 }
 
 internal fun userRoleRank(
@@ -114,8 +113,29 @@ internal fun isShiftKey(key: Key): Boolean = key == Key.ShiftLeft || key == Key.
 @Suppress("UNUSED")
 internal fun isModifierKey(key: Key): Boolean = isCtrlKey(key) || isAltKey(key) || isShiftKey(key)
 
+internal const val MOUSE_HOTKEY_PREFIX = "mouse"
+internal const val MOUSE_RIGHT = "mouse2"
+internal const val MOUSE_MIDDLE = "mouse3"
+internal const val MOUSE_BACK = "mouse4"
+internal const val MOUSE_FORWARD = "mouse5"
+
+internal fun hotkeyMouseButton(hotkey: String): String? {
+    if (hotkey.isBlank()) return null
+    val main = hotkey.lowercase().split("+").map { it.trim() }.last()
+    return if (main.startsWith(MOUSE_HOTKEY_PREFIX)) main else null
+}
+
+internal fun PointerButtons.isPauseButtonPressed(button: String?): Boolean = when (button) {
+    MOUSE_RIGHT -> isSecondaryPressed
+    MOUSE_MIDDLE -> isTertiaryPressed
+    MOUSE_BACK -> isBackPressed
+    MOUSE_FORWARD -> isForwardPressed
+    else -> false
+}
+
 internal fun pauseHotkeyMatches(event: KeyEvent, hotkey: String): Boolean {
     if (hotkey.isBlank()) return false
+    if (hotkeyMouseButton(hotkey) != null) return false
     val parts = hotkey.lowercase().split("+").map { it.trim() }
     val mainKey = parts.last()
     val needsCtrl = parts.contains("ctrl")
@@ -137,6 +157,7 @@ internal fun pauseHotkeyMatches(event: KeyEvent, hotkey: String): Boolean {
 
 internal fun pauseHotkeyMatchesRelease(event: KeyEvent, hotkey: String): Boolean {
     if (hotkey.isBlank()) return false
+    if (hotkeyMouseButton(hotkey) != null) return false
     val mainKey = hotkey.lowercase().split("+").map { it.trim() }.last()
     return when (mainKey) {
         "alt" -> isAltKey(event.key) || !event.isAltPressed
@@ -175,6 +196,18 @@ internal fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
     "down" -> key == Key.DirectionDown
     "left" -> key == Key.DirectionLeft
     "right" -> key == Key.DirectionRight
+    "f1" -> key == Key.F1
+    "f2" -> key == Key.F2
+    "f3" -> key == Key.F3
+    "f4" -> key == Key.F4
+    "f5" -> key == Key.F5
+    "f6" -> key == Key.F6
+    "f7" -> key == Key.F7
+    "f8" -> key == Key.F8
+    "f9" -> key == Key.F9
+    "f10" -> key == Key.F10
+    "f11" -> key == Key.F11
+    "f12" -> key == Key.F12
     else -> if (name.length == 1) charToKey[name[0].uppercaseChar()] == key else false
 }
 

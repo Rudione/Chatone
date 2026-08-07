@@ -20,8 +20,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +36,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,6 +45,7 @@ import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
+import io.rudione.chatone.util.system.WindowsTitleBar
 
 private val TITLE_BAR_HEIGHT = 32.dp
 
@@ -51,39 +58,55 @@ fun FrameWindowScope.ChatoneTitleBar(
     onMinimize: () -> Unit,
     onToggleMaximize: () -> Unit,
     onClose: () -> Unit,
+    centerContent: (@Composable () -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null,
 ) {
     val isDark = background.luminance() < 0.5f
     val fg = if (isDark) Color(0xFFE6E6EC) else Color(0xFF1A1A20)
     val fgDim = fg.copy(alpha = 0.7f)
+
+    val nativeCaption = isWindowsOs
+    var captionHeightPx by remember { mutableStateOf(0) }
+    var maximizeRect by remember { mutableStateOf<java.awt.Rectangle?>(null) }
+    var buttonsRect by remember { mutableStateOf<java.awt.Rectangle?>(null) }
+    var nativeMaximizeHovered by remember { mutableStateOf(false) }
+
+    val toggleMaximizeLatest by rememberUpdatedState(onToggleMaximize)
+    DisposableEffect(window, nativeCaption) {
+        if (nativeCaption) {
+            WindowsTitleBar.setCaptionCallbacks(
+                window = window,
+                onToggleMaximize = { toggleMaximizeLatest() },
+                onMaximizeHoverChanged = { nativeMaximizeHovered = it }
+            )
+        }
+        onDispose { }
+    }
+
+    DisposableEffect(window, nativeCaption, captionHeightPx, maximizeRect, buttonsRect) {
+        if (nativeCaption && captionHeightPx > 0) {
+            WindowsTitleBar.setCaptionLayout(
+                window = window,
+                layout = WindowsTitleBar.CaptionLayout(
+                    captionHeightPx = captionHeightPx,
+                    maximizeButtonPx = maximizeRect,
+                    interactivePx = listOfNotNull(buttonsRect)
+                )
+            )
+        }
+        onDispose { }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(TITLE_BAR_HEIGHT)
             .background(background)
+            .onGloballyPositioned { coords ->
+                captionHeightPx = coords.boundsInWindow().height.toInt()
+            }
     ) {
-        WindowDraggableArea(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(TITLE_BAR_HEIGHT)
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        var lastClick = 0L
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Press) {
-                                val now = System.currentTimeMillis()
-                                if (now - lastClick < 380) {
-                                    onToggleMaximize()
-                                    lastClick = 0L
-                                } else {
-                                    lastClick = now
-                                }
-                            }
-                        }
-                    }
-                }
-        ) {
+        val titleRow: @Composable () -> Unit = {
             Row(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(start = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -103,17 +126,58 @@ fun FrameWindowScope.ChatoneTitleBar(
                     fontWeight = FontWeight.Medium,
                     maxLines = 1
                 )
+                if (centerContent != null) {
+                    Spacer(Modifier.width(12.dp))
+                    Box(modifier = Modifier.weight(1f)) { centerContent() }
+                }
             }
+        }
+
+        if (nativeCaption) {
+            Box(modifier = Modifier.fillMaxWidth().height(TITLE_BAR_HEIGHT)) { titleRow() }
+        } else {
+            WindowDraggableArea(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(TITLE_BAR_HEIGHT)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            var lastClick = 0L
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.type == PointerEventType.Press) {
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastClick < 380) {
+                                        onToggleMaximize()
+                                        lastClick = 0L
+                                    } else {
+                                        lastClick = now
+                                    }
+                                }
+                            }
+                        }
+                    }
+            ) { titleRow() }
         }
 
         Row(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .padding(end = 4.dp),
+                .padding(end = 4.dp)
+                .onGloballyPositioned { coords ->
+                    val bounds = coords.boundsInWindow()
+                    buttonsRect = java.awt.Rectangle(
+                        bounds.left.toInt(),
+                        bounds.top.toInt(),
+                        bounds.width.toInt(),
+                        bounds.height.toInt()
+                    )
+                },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            trailingContent?.invoke()
             CaptionButton(
                 fg = fgDim,
                 hoverFg = fg,
@@ -129,7 +193,19 @@ fun FrameWindowScope.ChatoneTitleBar(
                 kind = if (windowState.placement == WindowPlacement.Maximized)
                     CaptionKind.Restore
                 else
-                    CaptionKind.Maximize
+                    CaptionKind.Maximize,
+                forceHovered = nativeMaximizeHovered,
+                clickable = !nativeCaption,
+                modifier = Modifier.onGloballyPositioned { coords ->
+                    if (!nativeCaption) return@onGloballyPositioned
+                    val bounds = coords.boundsInWindow()
+                    maximizeRect = java.awt.Rectangle(
+                        bounds.left.toInt(),
+                        bounds.top.toInt(),
+                        bounds.width.toInt(),
+                        bounds.height.toInt()
+                    )
+                }
             )
             CaptionButton(
                 fg = fgDim,
@@ -151,18 +227,22 @@ private fun CaptionButton(
     hoverBg: Color,
     onClick: () -> Unit,
     kind: CaptionKind,
+    modifier: Modifier = Modifier,
+    forceHovered: Boolean = false,
+    clickable: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val isHovered by interaction.collectIsHoveredAsState()
-    val glyphColor = if (isHovered) hoverFg else fg
+    val hovered = isHovered || forceHovered
+    val glyphColor = if (hovered) hoverFg else fg
     Box(
-        modifier = Modifier
+        modifier = modifier
             .padding(vertical = 4.dp)
             .size(width = 38.dp, height = 24.dp)
             .clip(RoundedCornerShape(7.dp))
-            .background(if (isHovered) hoverBg else Color.Transparent)
+            .background(if (hovered) hoverBg else Color.Transparent)
             .hoverable(interaction)
-            .clickable(onClick = onClick),
+            .then(if (clickable) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.size(10.dp)) {

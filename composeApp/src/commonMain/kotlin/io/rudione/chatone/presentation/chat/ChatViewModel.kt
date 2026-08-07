@@ -241,7 +241,8 @@ sealed class ChatEffect : UIEffect {
     object ScrollToBottom : ChatEffect()
     data class MentionDetected(
         val channelLogin: String,
-        val message: DisplayMessage.PrivMsg? = null
+        val message: DisplayMessage.PrivMsg? = null,
+        val playSound: Boolean = false
     ) : ChatEffect()
 
     data class OpenUserProfile(
@@ -309,6 +310,7 @@ class ChatViewModel(
         private const val MAX_HISTORY = 50
         private const val HIDDEN_EVENTS_MEMORY = 50
         private const val PINNED_SCROLLBACK_HEADROOM = 2000
+        private const val MOD_NOTICE_DEDUPE_MS = 4000L
         private const val GQL_TOKEN_REQUIRED_MSG =
             "Set up a first-party token in Settings → Moderation to use this command"
         private val msgCounter = atomic(0L)
@@ -792,9 +794,35 @@ class ChatViewModel(
 
     private data class HighlightMatch(val color: Long, val playSound: Boolean)
 
+    private fun containsUserMention(text: String, name: String): Boolean {
+        if (name.isEmpty()) return false
+        var index = text.indexOf(name, ignoreCase = true)
+        while (index >= 0) {
+            val before = text.getOrNull(index - 1)
+            val after = text.getOrNull(index + name.length)
+            val startOk = before == null || before == '@' || !before.isLetterOrDigit() && before != '_'
+            val endOk = after == null || !after.isLetterOrDigit() && after != '_'
+            if (startOk && endOk) return true
+            index = text.indexOf(name, startIndex = index + 1, ignoreCase = true)
+        }
+        return false
+    }
+
+    private suspend fun checkHighlightRules(
+        message: ChatMessage,
+        currentUserLogin: String
+    ): HighlightMatch? = checkHighlightRules(
+        messageText = message.message,
+        currentUserLogin = currentUserLogin,
+        replyParentLogin = message.replyParentUserLogin,
+        replyParentDisplayName = message.replyParentDisplayName
+    )
+
     private suspend fun checkHighlightRules(
         messageText: String,
-        currentUserLogin: String
+        currentUserLogin: String,
+        replyParentLogin: String? = null,
+        replyParentDisplayName: String? = null
     ): HighlightMatch? {
         val settings = cachedSettings()
         val rules = settings.highlightRules.filter { it.enabled }
@@ -817,16 +845,19 @@ class ChatViewModel(
 
         if (effectiveLogin.isNotEmpty() || effectiveDisplay.isNotEmpty()) {
 
-            val loginMatch = effectiveLogin.isNotEmpty() && (
-                    messageText.contains("@$effectiveLogin", ignoreCase = true) ||
-                            messageText.contains(effectiveLogin, ignoreCase = true)
-                    )
-            val displayMatch =
-                effectiveDisplay.isNotEmpty() && effectiveDisplay != effectiveLogin && (
-                        messageText.contains("@$effectiveDisplay", ignoreCase = true) ||
-                                messageText.contains(effectiveDisplay, ignoreCase = true)
-                        )
-            if (loginMatch || displayMatch) {
+            val repliedToMe = listOfNotNull(replyParentLogin, replyParentDisplayName).any { parent ->
+                val normalized = parent.lowercase()
+                (effectiveLogin.isNotEmpty() && normalized == effectiveLogin) ||
+                        (effectiveDisplay.isNotEmpty() && normalized == effectiveDisplay)
+            }
+
+            val loginMatch = effectiveLogin.isNotEmpty() &&
+                    containsUserMention(messageText, effectiveLogin)
+            val displayMatch = effectiveDisplay.isNotEmpty() &&
+                    effectiveDisplay != effectiveLogin &&
+                    containsUserMention(messageText, effectiveDisplay)
+
+            if (repliedToMe || loginMatch || displayMatch) {
                 val usernameRule = rules.firstOrNull { it.id == "username" }
                 return HighlightMatch(
                     color = usernameRule?.color ?: 0xFFFF6B6BL,
@@ -969,6 +1000,7 @@ class ChatViewModel(
                 is MessageToken.ThirdPartyEmoteToken -> t.emote.code
                 is MessageToken.Link -> t.displayText
                 is MessageToken.Mention -> "@${t.username}"
+                is MessageToken.Cheer -> "${t.prefix}${t.amount}"
             }
         }
 
@@ -986,8 +1018,12 @@ class ChatViewModel(
         }
     }
 
+    private var lastAiSnapshotMessages: List<DisplayMessage>? = null
+
     private fun publishAiSnapshot(s: ChatState) {
         if (s.channelLogin.isEmpty()) return
+        if (lastAiSnapshotMessages === s.messages) return
+        lastAiSnapshotMessages = s.messages
         fun textOf(m: DisplayMessage.PrivMsg): String = m.rawMessage?.message
             ?: m.tokens.joinToString("") { t ->
                 when (t) {
@@ -996,19 +1032,17 @@ class ChatViewModel(
                     is MessageToken.ThirdPartyEmoteToken -> t.emote.code
                     is MessageToken.Link -> t.displayText
                     is MessageToken.Mention -> "@${t.username}"
+                    is MessageToken.Cheer -> "${t.prefix}${t.amount}"
                 }
             }
-        val privs = s.messages.filterIsInstance<DisplayMessage.PrivMsg>().takeLast(80)
+        val privs = s.messages.filterIsInstance<DisplayMessage.PrivMsg>()
         val lines = privs.map {
             io.rudione.chatone.data.repository.AiChatLine(
-                s.channelLogin, it.displayName.ifBlank { it.username }, textOf(it), it.timestamp
+                s.channelLogin, it.displayName.ifBlank { it.username }, textOf(it), it.timestamp,
+                it.username.lowercase()
             )
         }
-        val mentions = privs.filter { it.isMention }.map {
-            io.rudione.chatone.data.repository.AiChatLine(
-                s.channelLogin, it.displayName.ifBlank { it.username }, textOf(it), it.timestamp
-            )
-        }
+        val mentions = lines.filterIndexed { index, _ -> privs[index].isMention }
         aiAssistantController.publishSnapshot(
             io.rudione.chatone.data.repository.AiChatSnapshot(
                 activeChannel = s.channelLogin,
@@ -1745,7 +1779,7 @@ class ChatViewModel(
                     if (msg.userId.isNotEmpty() && msg.userId == currentUserId) {
                         dm
                     } else {
-                        val match = checkHighlightRules(msg.message, currentLogin)
+                        val match = checkHighlightRules(msg, currentLogin)
                         if (match != null) dm.copy(
                             isMention = true,
                             highlightColor = match.color
@@ -1753,29 +1787,8 @@ class ChatViewModel(
                     }
                 }
                 mergeHistoryMessages(channelLogin, displayMessages)
-                val uniqueUserIds = recent.map { it.userId }.distinct().take(50)
-                uniqueUserIds.forEach { userId ->
-                    viewModelScope.launch {
-                        try {
-                            val cosmetics = sevenTvCosmeticsClient.getUserCosmetics(userId)
-                            if (cosmetics != null && (cosmetics.paint != null || cosmetics.badge != null)) {
-                                if (state.value.channelLogin == channelLogin) {
-                                    update { state ->
-
-                                        state.copy(messages = state.messages.map { dm ->
-                                            if (dm is DisplayMessage.PrivMsg && dm.userId == userId)
-                                                dm.copy(
-                                                    sevenTvPaint = cosmetics.paint,
-                                                    sevenTvBadge = cosmetics.badge
-                                                )
-                                            else dm
-                                        })
-                                    }
-                                }
-                            }
-                        } catch (_: Exception) {
-                        }
-                    }
+                recent.map { it.userId }.distinct().take(300).forEach { userId ->
+                    sevenTvCosmeticsClient.requestCosmetics(userId)
                 }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -1921,6 +1934,15 @@ class ChatViewModel(
                     msg.copy(tokens = newTokens, badges = newBadges)
                 } else msg
             })
+        }
+    }
+
+    private fun notifyMention(channelLogin: String, message: ChatMessage) {
+        if (!io.rudione.chatone.util.system.isAppInForeground()) {
+            io.rudione.chatone.util.system.notifySystem(
+                "${message.displayName.ifEmpty { message.username }} · #$channelLogin",
+                message.message.take(180)
+            )
         }
     }
 
@@ -2089,7 +2111,7 @@ class ChatViewModel(
                     if (!isOwnMessage && isPhraseMuted(message.message)) return@collect
 
                     val matchResult = if (!isOwnMessage) {
-                        checkHighlightRules(message.message, s.currentUserLogin)
+                        checkHighlightRules(message, s.currentUserLogin)
                     } else null
 
                     val finalMsg = if (matchResult != null) displayMsg.copy(
@@ -2141,7 +2163,8 @@ class ChatViewModel(
                             sendEffect(
                                 ChatEffect.MentionDetected(
                                     s.channelLogin,
-                                    finalMsg as? DisplayMessage.PrivMsg
+                                    finalMsg as? DisplayMessage.PrivMsg,
+                                    matchResult.playSound
                                 )
                             )
                             if (matchResult.playSound) {
@@ -2151,6 +2174,7 @@ class ChatViewModel(
                                     settings.customMentionSoundPath
                                 )
                             }
+                            notifyMention(s.channelLogin, message)
                         }
                     }
 
@@ -2159,25 +2183,24 @@ class ChatViewModel(
                     val s = state.value
                     val isOwnMessage = message.userId == s.currentUserId
                     if (!isOwnMessage) {
-                        val matchResult = checkHighlightRules(message.message, s.currentUserLogin)
+                        val matchResult = checkHighlightRules(message, s.currentUserLogin)
                         if (matchResult != null) {
-
-                            val otherDisplayMsg = chatMessageToDisplay(message)
-                            val otherFinalMsg = otherDisplayMsg.copy(
-                                isMention = true,
-                                highlightColor = matchResult.color
+                            val muted = mentionMuteRepository.isMuted(
+                                userLogin = message.username,
+                                channelLogin = message.channelName
                             )
-                            sendEffect(
-                                ChatEffect.MentionDetected(
-                                    message.channelName,
-                                    otherFinalMsg
+                            if (!muted) {
+                                val otherDisplayMsg = chatMessageToDisplay(message)
+                                val otherFinalMsg = otherDisplayMsg.copy(
+                                    isMention = true,
+                                    highlightColor = matchResult.color
                                 )
-                            )
-                            if (matchResult.playSound) {
-                                val settings = cachedSettings()
-                                NotificationSoundPlayer.playMentionSound(
-                                    settings.mentionSoundVolume,
-                                    settings.customMentionSoundPath
+                                sendEffect(
+                                    ChatEffect.MentionDetected(
+                                        message.channelName,
+                                        otherFinalMsg,
+                                        matchResult.playSound
+                                    )
                                 )
                             }
                         }
@@ -2604,7 +2627,8 @@ class ChatViewModel(
                                     text = event.message,
                                     color = event.color,
                                     reasonCategory = event.reasonCategory,
-                                    reasonLevel = event.reasonLevel
+                                    reasonLevel = event.reasonLevel,
+                                    flaggedFragments = event.flaggedFragments
                                 )
                             )
                         }
@@ -2755,6 +2779,36 @@ class ChatViewModel(
         }
     }
 
+    private val recentModNotices = mutableMapOf<String, Long>()
+
+    private fun addModerationNotice(
+        action: DisplayMessage.ModerationMsg.ModerationAction,
+        text: String,
+        targetUser: String?,
+        moderatorLogin: String?,
+        idPrefix: String = "modact"
+    ) {
+        val now = Clock.System.now().toEpochMilliseconds()
+        val key = "${action.name}|${targetUser?.lowercase() ?: "-"}"
+        val last = recentModNotices[key]
+        if (last != null && now - last < MOD_NOTICE_DEDUPE_MS) return
+        recentModNotices[key] = now
+        if (recentModNotices.size > 128) {
+            recentModNotices.entries.removeAll { now - it.value > MOD_NOTICE_DEDUPE_MS }
+        }
+        addMessage(
+            DisplayMessage.ModerationMsg(
+                id = uniqueId(idPrefix),
+                timestamp = now,
+                channel = "#${state.value.channelLogin}",
+                text = text,
+                action = action,
+                targetUser = targetUser,
+                moderatorLogin = moderatorLogin
+            )
+        )
+    }
+
     private fun handleModeratorAction(event: IrcEvent.ModeratorAction) {
         when (event.action) {
             IrcEvent.ModeratorAction.ACTION_BAN,
@@ -2779,21 +2833,14 @@ class ChatViewModel(
                     event.action == IrcEvent.ModeratorAction.ACTION_UNTIMEOUT
                 ) {
                     val target = event.target ?: "—"
-                    val text = if (event.action == IrcEvent.ModeratorAction.ACTION_UNBAN) {
-                        "$target was unbanned by ${event.moderator}"
-                    } else {
-                        "$target was untimed out by ${event.moderator}"
-                    }
-                    addMessage(
-                        DisplayMessage.ModerationMsg(
-                            id = uniqueId("modact"),
-                            timestamp = Clock.System.now().toEpochMilliseconds(),
-                            channel = "#${state.value.channelLogin}",
-                            text = text,
-                            action = DisplayMessage.ModerationMsg.ModerationAction.UNBAN,
-                            targetUser = event.target,
-                            moderatorLogin = event.moderator
-                        )
+                    val isUnban = event.action == IrcEvent.ModeratorAction.ACTION_UNBAN
+                    addModerationNotice(
+                        action = if (isUnban) DisplayMessage.ModerationMsg.ModerationAction.UNBAN
+                        else DisplayMessage.ModerationMsg.ModerationAction.UNTIMEOUT,
+                        text = if (isUnban) "$target was unbanned by ${event.moderator}"
+                        else "$target was untimed out by ${event.moderator}",
+                        targetUser = event.target,
+                        moderatorLogin = event.moderator
                     )
                 }
             }
@@ -2815,16 +2862,16 @@ class ChatViewModel(
                     IrcEvent.ModeratorAction.ACTION_VIP -> "$target was made VIP by ${event.moderator}"
                     else -> "$target is no longer VIP by ${event.moderator}"
                 }
-                addMessage(
-                    DisplayMessage.ModerationMsg(
-                        id = uniqueId("modact"),
-                        timestamp = Clock.System.now().toEpochMilliseconds(),
-                        channel = "#${state.value.channelLogin}",
-                        text = text,
-                        action = DisplayMessage.ModerationMsg.ModerationAction.UNBAN,
-                        targetUser = event.target,
-                        moderatorLogin = event.moderator
-                    )
+                addModerationNotice(
+                    action = when (event.action) {
+                        IrcEvent.ModeratorAction.ACTION_MOD -> DisplayMessage.ModerationMsg.ModerationAction.MOD
+                        IrcEvent.ModeratorAction.ACTION_UNMOD -> DisplayMessage.ModerationMsg.ModerationAction.UNMOD
+                        IrcEvent.ModeratorAction.ACTION_VIP -> DisplayMessage.ModerationMsg.ModerationAction.VIP
+                        else -> DisplayMessage.ModerationMsg.ModerationAction.UNVIP
+                    },
+                    text = text,
+                    targetUser = event.target,
+                    moderatorLogin = event.moderator
                 )
             }
 
@@ -3341,6 +3388,7 @@ class ChatViewModel(
                                 is MessageToken.ThirdPartyEmoteToken -> t.emote.code
                                 is MessageToken.Link -> t.displayText
                                 is MessageToken.Mention -> "@${t.username}"
+                                is MessageToken.Cheer -> "${t.prefix}${t.amount}"
                             }
                         }
                         if (regex != null) regex.containsMatchIn(text)
@@ -3444,7 +3492,11 @@ class ChatViewModel(
                     firstTok.startsWith("@") -> {
                         val login = firstTok.removePrefix("@").lowercase()
                         val msg = state.value.messages.filterIsInstance<DisplayMessage.PrivMsg>()
-                            .lastOrNull { it.username.equals(login, true) && it.id.isNotBlank() }
+                            .lastOrNull {
+                                it.username.equals(login, true) &&
+                                        SlashCommand.isMessageId(it.id) &&
+                                        !it.isDeleted
+                            }
                         if (msg != null) pinMessage(msg.id, duration)
                         else pinLatestModLogMessageFrom(login, duration)
                     }
@@ -4163,6 +4215,7 @@ class ChatViewModel(
                     is MessageToken.ThirdPartyEmoteToken -> t.emote.code
                     is MessageToken.Link -> t.displayText
                     is MessageToken.Mention -> "@${t.username}"
+                    is MessageToken.Cheer -> "${t.prefix}${t.amount}"
                 }
             }
         )
@@ -4386,7 +4439,10 @@ class ChatViewModel(
                 reason
             )
             if (result.isError) sendEffect(ChatEffect.ShowError("Failed to timeout user"))
-            else rememberPendingModerator(userId, s.currentUserLogin)
+            else {
+                rememberPendingModerator(userId, s.currentUserLogin)
+                denyPendingAutoModFor(userId)
+            }
         }
     }
 
@@ -4406,8 +4462,24 @@ class ChatViewModel(
                     reason
                 )
             if (result.isError) sendEffect(ChatEffect.ShowError("Failed to ban user"))
-            else rememberPendingModerator(userId, s.currentUserLogin)
+            else {
+                rememberPendingModerator(userId, s.currentUserLogin)
+                denyPendingAutoModFor(userId)
+            }
         }
+    }
+
+    private fun denyPendingAutoModFor(targetUserId: String) {
+        if (targetUserId.isEmpty()) return
+        val pendingIds = state.value.messages
+            .filterIsInstance<DisplayMessage.AutoModMsg>()
+            .filter {
+                it.userId == targetUserId &&
+                        it.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING
+            }
+            .map { it.msgId }
+            .distinct()
+        pendingIds.forEach { handleAutoMod(it, "DENY") }
     }
 
     private fun deleteMessage(messageId: String) {
@@ -4471,16 +4543,12 @@ class ChatViewModel(
                     append("$targetLogin was unbanned")
                     if (showActor && actor.isNotBlank()) append(" by $actor")
                 }
-                addMessage(
-                    DisplayMessage.ModerationMsg(
-                        id = uniqueId("unban"),
-                        timestamp = Clock.System.now().toEpochMilliseconds(),
-                        channel = "#${s.channelLogin}",
-                        text = text,
-                        action = DisplayMessage.ModerationMsg.ModerationAction.UNBAN,
-                        targetUser = targetLogin,
-                        moderatorLogin = if (showActor) actor.takeIf { it.isNotBlank() } else null
-                    )
+                addModerationNotice(
+                    action = DisplayMessage.ModerationMsg.ModerationAction.UNBAN,
+                    text = text,
+                    targetUser = targetLogin,
+                    moderatorLogin = if (showActor) actor.takeIf { it.isNotBlank() } else null,
+                    idPrefix = "unban"
                 )
             }
         }
@@ -4652,20 +4720,36 @@ class ChatViewModel(
         val s = state.value
         val msg = s.messages.filterIsInstance<DisplayMessage.PrivMsg>()
             .firstOrNull { it.id == messageId }
+
+        if (!SlashCommand.isMessageId(messageId)) {
+            sendEffect(ChatEffect.ShowError(pinFailedText("message is no longer pinnable")))
+            return
+        }
+        if (s.currentAccessToken.isBlank() || s.channelId.isBlank()) {
+            sendEffect(ChatEffect.ShowError(pinFailedText("not connected to the channel")))
+            return
+        }
+
+        val previousPinned = s.pinnedMessage
+        val previousEndsAt = s.pinEndsAtMs
         val optimisticEndsAt = if (durationSeconds > 0)
             Clock.System.now().toEpochMilliseconds() + durationSeconds * 1000L else null
         if (msg != null) update { it.copy(pinnedMessage = msg, pinEndsAtMs = optimisticEndsAt) }
-        if (s.currentAccessToken.isBlank() || s.channelId.isBlank()) return
+
         viewModelScope.launch {
             val gqlToken = moderationAuthStore.resolveToken(s.currentAccessToken)
             when (val r = twitchGqlClient.pinMessage(s.channelId, messageId, durationSeconds, gqlToken)) {
                 is io.rudione.chatone.util.Result.Success -> update { it.copy(pinId = r.data) }
-                is io.rudione.chatone.util.Result.Error ->
-                    sendEffect(ChatEffect.ShowError("Pin sent locally, but Twitch pin failed: ${r.exception.message}"))
+                is io.rudione.chatone.util.Result.Error -> {
+                    update { it.copy(pinnedMessage = previousPinned, pinEndsAtMs = previousEndsAt) }
+                    sendEffect(ChatEffect.ShowError(pinFailedText(r.exception.message ?: "unknown error")))
+                }
                 else -> {}
             }
         }
     }
+
+    private fun pinFailedText(reason: String): String = "Pin failed: $reason"
 
     private fun pinLatestModLogMessageFrom(login: String, durationSeconds: Int) {
         val s = state.value

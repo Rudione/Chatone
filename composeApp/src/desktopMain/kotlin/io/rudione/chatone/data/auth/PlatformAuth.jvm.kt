@@ -81,25 +81,22 @@ actual class PlatformAuthHandler actual constructor() {
                         <script>
                             var dbg = document.getElementById('debug');
                             var fragment = window.location.hash.substring(1);
-                            dbg.textContent = 'Fragment: ' + (fragment || '(empty)') + '\nFull URL: ' + window.location.href;
 
                             if (fragment) {
                                 var params = new URLSearchParams(fragment);
                                 var token = params.get('access_token');
                                 var state = params.get('state') || '';
                                 if (token) {
-                                    dbg.textContent += '\nToken found, sending to app...';
                                     fetch('/auth/token?access_token=' + encodeURIComponent(token) + '&state=' + encodeURIComponent(state))
                                         .then(function(r) { return r.text(); })
-                                        .then(function(text) {
+                                        .then(function() {
+                                            history.replaceState(null, '', window.location.pathname);
                                             document.getElementById('status').textContent =
                                                 'Authentication successful! You can close this tab.';
-                                            dbg.textContent += '\nServer response: ' + text;
                                         })
-                                        .catch(function(err) {
+                                        .catch(function() {
                                             document.getElementById('status').textContent = 'Error sending token';
                                             document.getElementById('status').className = 'error';
-                                            dbg.textContent += '\nFetch error: ' + err;
                                         });
                                 } else {
                                     var error = params.get('error');
@@ -107,7 +104,7 @@ actual class PlatformAuthHandler actual constructor() {
                                     document.getElementById('status').textContent =
                                         'No access token in response.';
                                     document.getElementById('status').className = 'error';
-                                    dbg.textContent += '\nError: ' + (error || 'none') + '\nDescription: ' + (desc || 'none');
+                                    dbg.textContent = 'Error: ' + (error || 'none') + '\nDescription: ' + (desc || 'none');
                                 }
                             } else {
 
@@ -117,6 +114,7 @@ actual class PlatformAuthHandler actual constructor() {
                                 if (qtoken) {
                                     fetch('/auth/token?access_token=' + encodeURIComponent(qtoken) + '&state=' + encodeURIComponent(qstate))
                                         .then(function() {
+                                            history.replaceState(null, '', window.location.pathname);
                                             document.getElementById('status').textContent =
                                                 'Authentication successful! You can close this tab.';
                                         });

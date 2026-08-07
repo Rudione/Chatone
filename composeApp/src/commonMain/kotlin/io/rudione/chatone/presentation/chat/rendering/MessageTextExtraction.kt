@@ -45,6 +45,7 @@ internal fun DisplayMessage.PrivMsg.rawTokenText(): String =
             is MessageToken.ThirdPartyEmoteToken -> token.emote.code
             is MessageToken.Link -> token.displayText
             is MessageToken.Mention -> token.username
+            is MessageToken.Cheer -> "${token.prefix}${token.amount}"
         }
     }
 

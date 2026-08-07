@@ -35,14 +35,20 @@ internal val useCustomTitleBar: Boolean = !isMacOs
 
 internal val NATIVE_WINDOW_BG = java.awt.Color(0x0A, 0x0A, 0x0F)
 
-val MIN_WINDOW_WIDTH: Dp = 200.dp
-val MIN_WINDOW_HEIGHT: Dp = 400.dp
+val MIN_WINDOW_WIDTH: Dp = 100.dp
+val MIN_WINDOW_HEIGHT: Dp = 300.dp
 
 val MIN_TOOL_WINDOW_WIDTH: Dp = 400.dp
 val MIN_TOOL_WINDOW_HEIGHT: Dp = 400.dp
 
 internal fun java.awt.Window.applyMinimumSize(width: Dp = MIN_WINDOW_WIDTH, height: Dp = MIN_WINDOW_HEIGHT) {
-    minimumSize = java.awt.Dimension(width.value.toInt(), height.value.toInt())
+    val scale = runCatching {
+        graphicsConfiguration?.defaultTransform?.scaleX?.takeIf { it > 0.0 } ?: 1.0
+    }.getOrDefault(1.0)
+    minimumSize = java.awt.Dimension(
+        (width.value * scale).toInt(),
+        (height.value * scale).toInt()
+    )
 }
 
 internal val DARK_CAPTION_COLOR = Color(0x0D, 0x0F, 0x1A)
@@ -51,14 +57,14 @@ internal val LIGHT_CAPTION_COLOR = Color(0xF0, 0xF0, 0xF5)
 internal fun resolveTitleBar(
     mode: TitleBarMode,
     isDarkTheme: Boolean,
-    dominantColor: Color?
+    themeTopBarColor: Color?
 ): Pair<Color, Boolean> = when (mode) {
     TitleBarMode.DARK -> DARK_CAPTION_COLOR to true
     TitleBarMode.LIGHT -> LIGHT_CAPTION_COLOR to false
     TitleBarMode.ADAPTIVE -> {
-        val blended = dominantColor?.let { blendWithDark(it, isDarkTheme) }
+        val resolved = themeTopBarColor?.takeIf { it.alpha > 0.05f }?.compositeOverBase(isDarkTheme)
             ?: if (isDarkTheme) DARK_CAPTION_COLOR else LIGHT_CAPTION_COLOR
-        blended to isDarkTheme
+        resolved to (resolved.perceivedLuminance() < 0.5f)
     }
     TitleBarMode.SYSTEM -> {
         val systemDark = isSystemDarkMode()
@@ -67,12 +73,26 @@ internal fun resolveTitleBar(
     }
 }
 
+private fun Color.compositeOverBase(isDarkTheme: Boolean): Color {
+    if (alpha >= 0.999f) return this
+    val base = if (isDarkTheme) DARK_CAPTION_COLOR else LIGHT_CAPTION_COLOR
+    return Color(
+        red = red * alpha + base.red * (1f - alpha),
+        green = green * alpha + base.green * (1f - alpha),
+        blue = blue * alpha + base.blue * (1f - alpha)
+    )
+}
+
+private fun Color.perceivedLuminance(): Float = 0.2126f * red + 0.7152f * green + 0.0722f * blue
+
 internal fun isSystemDarkMode(): Boolean = runCatching {
     if (isWindowsOs) {
         val proc = Runtime.getRuntime().exec(
-            arrayOf("reg", "query",
+            arrayOf(
+                io.rudione.chatone.util.system.windowsSystem32Path("reg.exe"), "query",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-                "/v", "AppsUseLightTheme")
+                "/v", "AppsUseLightTheme"
+            )
         )
         val output = proc.inputStream.bufferedReader().readText()
         val value = output.lines()
@@ -84,16 +104,6 @@ internal fun isSystemDarkMode(): Boolean = runCatching {
         true
     }
 }.getOrDefault(true)
-
-private fun blendWithDark(dominant: Color, isDark: Boolean): Color {
-    val base = if (isDark) Color(0x0A, 0x0A, 0x0F) else Color(0xF5, 0xF5, 0xFF)
-    val t = 0.15f
-    return Color(
-        red = base.red * (1f - t) + dominant.red * t,
-        green = base.green * (1f - t) + dominant.green * t,
-        blue = base.blue * (1f - t) + dominant.blue * t
-    )
-}
 
 private data class DetachedWindowSnapshot(
     val width: Float,
@@ -197,9 +207,12 @@ fun ChatoneDetachedWindow(
         }
 
         if (useCustomTitleBar) {
-            val (captionColor, _) = resolveTitleBar(
-                initialSettings.titleBarMode, initialSettings.darkTheme, null
-            )
+            val captionColor = TitleBarState.captionColor
+            LaunchedEffect(captionColor) {
+                WindowsTitleBar.applyTitleBarColor(
+                    window, captionColor, TitleBarState.captionIsDark
+                )
+            }
             Column(modifier = Modifier.fillMaxSize()) {
                 ChatoneTitleBar(
                     title = title,

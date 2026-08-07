@@ -344,16 +344,27 @@ class TwitchIrcClient(
             _events.emit(IrcEvent.Error("Cannot send messages as guest"))
             return
         }
-        val channel = channelName.lowercase().removePrefix("#")
-        session?.send(Frame.Text("PRIVMSG #$channel :$message"))
-        Napier.d("Sent message to #$channel: $message", tag = TAG)
+        val channel = stripIrcFraming(channelName).lowercase().removePrefix("#")
+        if (channel.isEmpty()) return
+        val body = stripIrcFraming(message)
+        if (body.isEmpty()) return
+        session?.send(Frame.Text("PRIVMSG #$channel :$body"))
+        Napier.d("Sent message to #$channel (${body.length} chars)", tag = TAG)
     }
 
     suspend fun sendRawCommand(command: String) {
         if (isAnonymous) return
-        session?.send(Frame.Text(command))
-        Napier.v("Sent raw IRC command: $command", tag = TAG)
+        val safeCommand = stripIrcFraming(command)
+        if (safeCommand.isEmpty()) return
+        session?.send(Frame.Text(safeCommand))
+        Napier.v("Sent raw IRC command: ${safeCommand.substringBefore(' ')}", tag = TAG)
     }
+
+    private fun isIrcFramingChar(c: Char): Boolean =
+        c == '\r' || c == '\n' || c == '\u0000'
+
+    private fun stripIrcFraming(value: String): String =
+        if (value.none(::isIrcFramingChar)) value else value.filterNot(::isIrcFramingChar)
 
     suspend fun disconnect() {
         reconnectJob?.cancelAndJoin()
