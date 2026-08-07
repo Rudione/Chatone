@@ -84,7 +84,8 @@ jobs:
         run: |
           mkdir -p staged
           find composeApp/build/compose/binaries/main-release composeApp/build/installer composeApp/build/distributions \
-            -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' -o -name 'SHA256SUMS.txt' \) \
+            -type f -not -path '*/main-release/app/*' \
+            \( -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' -o -name 'SHA256SUMS.txt' \) \
             -exec cp -v {} staged/ \; 2>/dev/null || true
           ls -la staged
 
@@ -110,7 +111,7 @@ jobs:
       - name: Flatten artifact tree
         run: |
           mkdir -p release-assets
-          find artifacts -type f \( -name '*.msi' -o -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' \) \
+          find artifacts -type f \( -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' \) \
             -exec cp -v {} release-assets/ \;
           find artifacts -type f -name 'SHA256SUMS.txt' -print0 |
             xargs -0 cat > release-assets/SHA256SUMS.txt || true

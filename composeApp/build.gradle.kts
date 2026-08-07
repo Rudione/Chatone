@@ -234,26 +234,7 @@ tasks.register<Zip>("createPortableZip") {
         }
     }
 
-    val sourceDir = provider {
-        val candidates = appDir.listFiles()?.filter { it.isDirectory && it.name.endsWith(".app") } ?: emptyList()
-        when {
-            candidates.isNotEmpty() -> {
-                println("✅ Found .app bundle: ${candidates.first().name}")
-                candidates.first()
-            }
-            appDir.listFiles()?.any { it.isDirectory } == true -> {
-                val first = appDir.listFiles()!!.first { it.isDirectory }
-                println("✅ Using first subdirectory: ${first.name}")
-                first
-            }
-            else -> {
-                println("⚠️ No subdirectories, zipping app/ contents directly")
-                appDir
-            }
-        }
-    }
-
-    from(sourceDir)
+    from(appDir)
 
     archiveFileName.set("Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-portable.zip")
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
@@ -338,14 +319,19 @@ tasks.register("generateReleaseChecksums") {
     val outputFile = layout.buildDirectory.file("distributions/SHA256SUMS.txt")
 
     doLast {
-        val extensions = setOf("msi", "exe", "dmg", "deb", "zip")
+        val extensions = setOf("msi", "dmg", "deb", "zip")
         val artifacts = listOf(binariesDir, distributionsDir, installerDir)
+            .asSequence()
             .mapNotNull { it.orNull?.asFile }
             .filter { it.exists() }
             .flatMap { dir -> dir.walkTopDown().filter { it.isFile }.toList() }
-            .filter { it.extension.lowercase() in extensions }
+            .filterNot { it.invariantSeparatorsPath.contains("/main-release/app/") }
+            .filter {
+                it.extension.lowercase() in extensions || it.name.endsWith("-setup.exe", true)
+            }
             .distinctBy { it.name }
             .sortedBy { it.name }
+            .toList()
 
         if (artifacts.isEmpty()) {
             println("No release artifacts found; skipping checksums")

@@ -82,7 +82,7 @@ object SettingsImportExport {
 
     private val SECRET_FIELDS = setOf("extraHeaders")
 
-    private fun redactForExport(key: String, element: JsonElement): JsonElement {
+    private fun withSecretsRedacted(key: String, element: JsonElement): JsonElement {
         if (key != KEY_IMAGE_UPLOADER) return element
         val text = (element as? JsonPrimitive)?.contentOrNull ?: return element
         if (SECRET_FIELDS.none { text.contains("\"$it\"") }) return element
@@ -101,7 +101,7 @@ object SettingsImportExport {
         }
     }
 
-    fun snapshot(settings: Settings): SettingsBackup {
+    fun snapshot(settings: Settings, redactSecrets: Boolean = false): SettingsBackup {
         val map = mutableMapOf<String, JsonElement>()
         for (key in PORTABLE_KEYS) {
             try {
@@ -119,7 +119,7 @@ object SettingsImportExport {
                     if (asBool != null) return@run JsonPrimitive(asBool)
                     JsonPrimitive("")
                 }
-                map[key] = redactForExport(key, raw)
+                map[key] = if (redactSecrets) withSecretsRedacted(key, raw) else raw
             } catch (e: Exception) {
                 Napier.w("Settings export: failed to read key=$key: ${e.message}", tag = "SettingsIO")
             }

@@ -191,17 +191,33 @@ object AutoUpdater {
         return false
     }
 
+    internal fun isPerUserWindowsInstall(installPath: String?): Boolean {
+        val path = installPath?.replace('/', '\\')?.lowercase() ?: return false
+        return path.contains("\\appdata\\local\\")
+    }
+
+    private fun currentInstallPath(): String? =
+        System.getProperty("jpackage.app-path") ?: System.getProperty("java.home")
+
     private fun selectAssetForCurrentOs(assets: List<GitHubRelease.Asset>): GitHubRelease.Asset? {
         val os = System.getProperty("os.name").lowercase()
         fun endingWith(vararg suffixes: String) = suffixes.firstNotNullOfOrNull { suffix ->
             assets.firstOrNull { it.name.lowercase().endsWith(suffix) }
         }
         return when {
-            os.contains("win") -> endingWith(".exe", ".msi", ".zip")
+            os.contains("win") ->
+                if (isPerUserWindowsInstall(currentInstallPath())) {
+                    endingWith(SETUP_SUFFIX, ".msi", ".zip")
+                } else {
+                    endingWith(".msi", SETUP_SUFFIX, ".zip")
+                }
+
             os.contains("mac") -> endingWith(".dmg", ".zip")
             else -> endingWith(".deb")
         }
     }
+
+    private const val SETUP_SUFFIX = "-setup.exe"
 
     private suspend fun downloadFile(
         url: String,

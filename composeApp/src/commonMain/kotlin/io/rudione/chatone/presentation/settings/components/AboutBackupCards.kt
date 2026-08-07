@@ -209,7 +209,8 @@ internal fun BackupCard(vm: SettingsViewModel) {
                                 scope.launch {
                                     val backup =
                                         io.rudione.chatone.util.settings.SettingsImportExport.snapshot(
-                                            SettingsViewModel.settings
+                                            SettingsViewModel.settings,
+                                            redactSecrets = true
                                         )
                                     val text =
                                         io.rudione.chatone.util.settings.SettingsImportExport.toJson(backup)
@@ -227,7 +228,8 @@ internal fun BackupCard(vm: SettingsViewModel) {
                                 scope.launch {
                                     val backup =
                                         io.rudione.chatone.util.settings.SettingsImportExport.snapshot(
-                                            SettingsViewModel.settings
+                                            SettingsViewModel.settings,
+                                            redactSecrets = true
                                         )
                                     val text =
                                         io.rudione.chatone.util.settings.SettingsImportExport.toCsv(backup)
@@ -245,7 +247,8 @@ internal fun BackupCard(vm: SettingsViewModel) {
                                 scope.launch {
                                     val backup =
                                         io.rudione.chatone.util.settings.SettingsImportExport.snapshot(
-                                            SettingsViewModel.settings
+                                            SettingsViewModel.settings,
+                                            redactSecrets = true
                                         )
                                     val text =
                                         io.rudione.chatone.util.settings.SettingsImportExport.toXlsx(backup)
