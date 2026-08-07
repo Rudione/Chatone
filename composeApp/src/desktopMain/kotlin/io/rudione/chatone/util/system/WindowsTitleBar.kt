@@ -143,6 +143,7 @@ object WindowsTitleBar {
     private const val WM_NCMOUSEMOVE = 0x00A0
     private const val WM_NCLBUTTONDOWN = 0x00A1
     private const val WM_NCLBUTTONUP = 0x00A2
+    private const val WM_NCLBUTTONDBLCLK = 0x00A3
     private const val WM_MOUSELEAVE = 0x02A3
 
     private const val HTCLIENT = 1
@@ -183,8 +184,17 @@ object WindowsTitleBar {
     private val maximizeCallbacks = ConcurrentHashMap<Long, () -> Unit>()
     private val maxButtonHoverListeners = ConcurrentHashMap<Long, (Boolean) -> Unit>()
 
+    private val pendingLayouts = ConcurrentHashMap<Window, CaptionLayout>()
+    private val pendingCallbacks =
+        ConcurrentHashMap<Window, Pair<() -> Unit, (Boolean) -> Unit>>()
+
     fun setCaptionLayout(window: Window, layout: CaptionLayout) {
-        val hwnd = getHwnd(window) ?: return
+        val hwnd = getHwnd(window)
+        if (hwnd == null) {
+            pendingLayouts[window] = layout
+            return
+        }
+        pendingLayouts.remove(window)
         captionLayouts[hwnd] = layout
     }
 
@@ -193,9 +203,22 @@ object WindowsTitleBar {
         onToggleMaximize: () -> Unit,
         onMaximizeHoverChanged: (Boolean) -> Unit
     ) {
-        val hwnd = getHwnd(window) ?: return
+        val hwnd = getHwnd(window)
+        if (hwnd == null) {
+            pendingCallbacks[window] = onToggleMaximize to onMaximizeHoverChanged
+            return
+        }
+        pendingCallbacks.remove(window)
         maximizeCallbacks[hwnd] = onToggleMaximize
         maxButtonHoverListeners[hwnd] = onMaximizeHoverChanged
+    }
+
+    private fun flushPending(window: Window, hwndValue: Long) {
+        pendingLayouts.remove(window)?.let { captionLayouts[hwndValue] = it }
+        pendingCallbacks.remove(window)?.let { (toggle, hover) ->
+            maximizeCallbacks[hwndValue] = toggle
+            maxButtonHoverListeners[hwndValue] = hover
+        }
     }
 
     private class BorderlessWindowProc(
@@ -244,19 +267,22 @@ object WindowsTitleBar {
 
             val layout = captionLayouts[hwndValue] ?: return HTCLIENT
 
+            val (offX, offY) = if (maximized) frameThickness() else 0 to 1
+            val cx = x - offX
+            val cy = y - offY
+
             if (layout.draggablePx.isNotEmpty()) {
-                if (layout.interactivePx.any { it.contains(x, y) }) return HTCLIENT
-                if (layout.draggablePx.any { it.contains(x, y) }) return HTCAPTION
+                if (layout.interactivePx.any { it.contains(cx, cy) }) return HTCLIENT
+                if (layout.draggablePx.any { it.contains(cx, cy) }) return HTCAPTION
                 return HTCLIENT
             }
 
-            if (y >= layout.captionHeightPx) return HTCLIENT
+            if (cy >= layout.captionHeightPx) return HTCLIENT
 
             layout.maximizeButtonPx?.let { button ->
-                if (button.contains(x, y)) return HTMAXBUTTON
+                if (button.contains(cx, cy)) return HTMAXBUTTON
             }
-            if (layout.interactivePx.any { it.contains(x, y) }) return HTCLIENT
-            return HTCAPTION
+            return HTCLIENT
         }
 
         private fun notifyMaxHover(hovered: Boolean) {
@@ -307,9 +333,24 @@ object WindowsTitleBar {
                     User32.INSTANCE.CallWindowProc(original, hwnd, uMsg, wParam, lParam)
                 }
 
-                WM_NCLBUTTONDOWN -> {
-                    if (wParam.toLong().toInt() == HTMAXBUTTON) WinDef.LRESULT(0)
-                    else User32.INSTANCE.CallWindowProc(original, hwnd, uMsg, wParam, lParam)
+                WM_NCLBUTTONDOWN -> when (wParam.toLong().toInt()) {
+                    HTMAXBUTTON -> WinDef.LRESULT(0)
+                    HTCAPTION -> User32.INSTANCE.DefWindowProc(hwnd, uMsg, wParam, lParam)
+                    else -> User32.INSTANCE.CallWindowProc(original, hwnd, uMsg, wParam, lParam)
+                }
+
+                WM_NCLBUTTONDBLCLK -> {
+                    if (wParam.toLong().toInt() == HTCAPTION) {
+                        val toggle = maximizeCallbacks[hwndValue]
+                        if (toggle != null) {
+                            javax.swing.SwingUtilities.invokeLater { runCatching { toggle() } }
+                            WinDef.LRESULT(0)
+                        } else {
+                            User32.INSTANCE.DefWindowProc(hwnd, uMsg, wParam, lParam)
+                        }
+                    } else {
+                        User32.INSTANCE.CallWindowProc(original, hwnd, uMsg, wParam, lParam)
+                    }
                 }
 
                 WM_NCLBUTTONUP -> {
@@ -383,6 +424,8 @@ object WindowsTitleBar {
     }
 
     fun releaseWindow(window: Window) {
+        pendingLayouts.remove(window)
+        pendingCallbacks.remove(window)
         val hwnd = getHwnd(window) ?: return
         captionLayouts.remove(hwnd)
         hoverStates.remove(hwnd)
@@ -402,6 +445,7 @@ object WindowsTitleBar {
 
     private fun applySubclass(window: Window, hwndValue: Long, appWindowStyles: Boolean) {
         if (!isWindows()) return
+        flushPending(window, hwndValue)
         if (subclassed.containsKey(hwndValue)) return
         runCatching {
             val user32 = User32.INSTANCE

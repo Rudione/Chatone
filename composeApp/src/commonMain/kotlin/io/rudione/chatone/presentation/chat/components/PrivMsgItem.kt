@@ -1329,7 +1329,8 @@ fun PrivMsgItem(
                             } catch (_: Exception) {
                             }
                         },
-                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+                        thumbnailWidth = inlineSettings.clipPreviewWidth.dp
                     )
                 }
             }

@@ -356,6 +356,7 @@ object StringsRu : AppStrings {
     override val settingsShowInlineImages = "Показывать встроенные изображения"
     override val settingsShowInlineImagesDesc = "Превью ссылок на изображения (imgur, kappa и т.д.) в чате"
     override val settingsImageMaxHeight = "Максимальная высота изображения"
+    override val settingsClipPreviewWidth = "Размер превью клипа"
     override val settingsChatScrollbarWidth = "Ширина полосы прокрутки чата"
     override val settingsImageMaxHeightUnit = "{0}px"
     override val settingsCreateCustomTheme = "Создать свою тему"

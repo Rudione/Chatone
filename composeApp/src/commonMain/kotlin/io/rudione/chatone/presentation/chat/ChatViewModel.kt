@@ -239,6 +239,7 @@ sealed class ChatEvent : UiEvent {
 sealed class ChatEffect : UIEffect {
     data class ShowError(val message: String) : ChatEffect()
     object ScrollToBottom : ChatEffect()
+    object HistoryMerged : ChatEffect()
     data class MentionDetected(
         val channelLogin: String,
         val message: DisplayMessage.PrivMsg? = null,
@@ -310,6 +311,7 @@ class ChatViewModel(
         private const val MAX_HISTORY = 50
         private const val HIDDEN_EVENTS_MEMORY = 50
         private const val PINNED_SCROLLBACK_HEADROOM = 2000
+        private const val LOCAL_SEED_MAX_AGE_MS = 24L * 60 * 60 * 1000
         private const val MOD_NOTICE_DEDUPE_MS = 4000L
         private const val GQL_TOKEN_REQUIRED_MSG =
             "Set up a first-party token in Settings → Moderation to use this command"
@@ -1825,15 +1827,39 @@ class ChatViewModel(
             history.forEach { dm ->
                 if (dm is DisplayMessage.PrivMsg) messageIdSet.add(dm.id)
             }
-            val merged = (history + state.messages).takeLast(appendCap)
-            val evicted = history.size + state.messages.size - merged.size
+            val existing = state.messages
+            val mergedFull = mergeChronologically(history, existing)
+            val merged =
+                if (mergedFull.size > appendCap) mergedFull.takeLast(appendCap) else mergedFull
+            val evicted = mergedFull.size - merged.size
+            val firstExistingTs = existing.firstOrNull()?.timestamp
+            val insertedBefore = if (firstExistingTs == null) history.size
+            else history.count { it.timestamp <= firstExistingTs }
             state.copy(
                 messages = merged,
                 messagesSeq = state.messagesSeq + history.size,
-                messagesStartOrdinal = state.messagesStartOrdinal - history.size + evicted
+                messagesStartOrdinal = state.messagesStartOrdinal - insertedBefore + evicted
             )
         }
-        sendEffect(ChatEffect.ScrollToBottom)
+        sendEffect(ChatEffect.HistoryMerged)
+    }
+
+    private fun mergeChronologically(
+        history: List<DisplayMessage>,
+        existing: List<DisplayMessage>
+    ): List<DisplayMessage> {
+        if (existing.isEmpty()) return history
+        if (history.isEmpty()) return existing
+        val out = ArrayList<DisplayMessage>(history.size + existing.size)
+        var h = 0
+        var e = 0
+        while (h < history.size && e < existing.size) {
+            if (history[h].timestamp <= existing[e].timestamp) out.add(history[h++])
+            else out.add(existing[e++])
+        }
+        while (h < history.size) out.add(history[h++])
+        while (e < existing.size) out.add(existing[e++])
+        return out
     }
 
     private suspend fun seedHistoryFromLocalCache(channelLogin: String): Boolean {
@@ -1846,7 +1872,14 @@ class ChatViewModel(
         }.getOrNull().orEmpty()
         if (local.isEmpty()) return false
 
-        val displayMessages = local.map { chatMessageToDisplay(it) }
+        val cutoff = Clock.System.now().toEpochMilliseconds() - LOCAL_SEED_MAX_AGE_MS
+        val fresh = local.filter { it.timestamp >= cutoff }
+        if (fresh.isEmpty()) {
+            Napier.d("Local cache for $channelLogin is stale, skipping seed", tag = TAG)
+            return false
+        }
+
+        val displayMessages = fresh.map { chatMessageToDisplay(it) }
         mergeHistoryMessages(channelLogin, displayMessages)
         Napier.d("Seeded ${displayMessages.size} messages from local cache for $channelLogin", tag = TAG)
         return true

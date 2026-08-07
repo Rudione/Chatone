@@ -57,6 +57,7 @@ fun UnifiedEventBanner(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .padding(end = endInset)
             .pointerInput(items.size) {
                 var drag = 0f
                 detectHorizontalDragGestures(
@@ -73,7 +74,7 @@ fun UnifiedEventBanner(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = endInset, top = 4.dp),
+                    .padding(start = 12.dp, top = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 current.endsAtMs?.let { ends ->

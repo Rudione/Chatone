@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -56,11 +57,12 @@ private fun formatClipDuration(seconds: Double): String {
 fun TwitchClipCard(
     clip: TwitchClipInfo,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    thumbnailWidth: Dp = 140.dp
 ) {
     Row(
         modifier = modifier
-            .widthIn(max = 420.dp)
+            .widthIn(max = thumbnailWidth * 3)
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f))
             .clickable(onClick = onClick)
@@ -69,7 +71,7 @@ fun TwitchClipCard(
     ) {
         Box(
             modifier = Modifier
-                .width(140.dp)
+                .width(thumbnailWidth)
                 .aspectRatio(16f / 9f)
                 .clip(RoundedCornerShape(6.dp))
         ) {

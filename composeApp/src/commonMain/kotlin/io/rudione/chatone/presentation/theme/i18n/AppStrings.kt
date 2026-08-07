@@ -376,6 +376,7 @@ interface AppStrings {
     val settingsShowInlineImages: String
     val settingsShowInlineImagesDesc: String
     val settingsImageMaxHeight: String
+    val settingsClipPreviewWidth: String
     val settingsChatScrollbarWidth: String
     val settingsImageMaxHeightUnit: String
     val settingsCreateCustomTheme: String

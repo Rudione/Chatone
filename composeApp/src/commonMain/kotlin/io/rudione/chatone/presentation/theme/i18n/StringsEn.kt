@@ -358,6 +358,7 @@ object StringsEn : AppStrings {
     override val settingsShowInlineImages = "Show inline images"
     override val settingsShowInlineImagesDesc = "Preview image links (imgur, kappa, etc.) in chat"
     override val settingsImageMaxHeight = "Image max height"
+    override val settingsClipPreviewWidth = "Clip preview size"
     override val settingsChatScrollbarWidth = "Chat scrollbar width"
     override val settingsImageMaxHeightUnit = "{0}px"
     override val settingsCreateCustomTheme = "Create custom theme"

@@ -62,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -329,9 +330,12 @@ fun ChatScreen(
             (settingsState.pauseOnHover && isHoveredOverChat && !isHoveredOverEmoteTooltip) ||
             isScrolledAway.value
 
+    var userScrolledSinceJoin by remember(channelLogin) { mutableStateOf(false) }
+
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress && !isAtBottom.value && !isAutoScrolling) {
             hasNewMessagesWhilePaused = true
+            userScrolledSinceJoin = true
         }
     }
 
@@ -412,6 +416,13 @@ fun ChatScreen(
         if (channelId.isNotEmpty()) onChannelIdResolved(channelId)
     }
 
+    val historyStickHeldByUser by rememberUpdatedState(
+        isPausedByHotkey ||
+                (settingsState.pauseOnHover && isHoveredOverChat && !isHoveredOverEmoteTooltip) ||
+                userScrolledSinceJoin
+    )
+    val renderedCountLatest by rememberUpdatedState(renderedCount)
+
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
@@ -421,6 +432,13 @@ fun ChatScreen(
                 ChatEffect.ScrollToBottom -> {
                     if (!effectivelyPaused && renderedCount > 0) {
                         stickToBottom()
+                    }
+                }
+
+                ChatEffect.HistoryMerged -> {
+                    if (!historyStickHeldByUser) {
+                        withFrameNanos { }
+                        if (renderedCountLatest > 0) stickToBottom()
                     }
                 }
 

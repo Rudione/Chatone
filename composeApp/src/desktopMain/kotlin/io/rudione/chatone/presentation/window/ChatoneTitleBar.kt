@@ -133,32 +133,30 @@ fun FrameWindowScope.ChatoneTitleBar(
             }
         }
 
-        if (nativeCaption) {
-            Box(modifier = Modifier.fillMaxWidth().height(TITLE_BAR_HEIGHT)) { titleRow() }
-        } else {
-            WindowDraggableArea(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(TITLE_BAR_HEIGHT)
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            var lastClick = 0L
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                if (event.type == PointerEventType.Press) {
-                                    val now = System.currentTimeMillis()
-                                    if (now - lastClick < 380) {
-                                        onToggleMaximize()
-                                        lastClick = 0L
-                                    } else {
-                                        lastClick = now
-                                    }
+        WindowDraggableArea(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TITLE_BAR_HEIGHT)
+                .pointerInput(window, nativeCaption) {
+                    awaitPointerEventScope {
+                        var lastClick = 0L
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type != PointerEventType.Press) continue
+                            val now = System.currentTimeMillis()
+                            if (now - lastClick < 380) {
+                                lastClick = 0L
+                                toggleMaximizeLatest()
+                            } else {
+                                lastClick = now
+                                if (nativeCaption) {
+                                    runCatching { WindowsTitleBar.beginWindowDrag(window) }
                                 }
                             }
                         }
                     }
-            ) { titleRow() }
-        }
+                }
+        ) { titleRow() }
 
         Row(
             modifier = Modifier
@@ -195,7 +193,6 @@ fun FrameWindowScope.ChatoneTitleBar(
                 else
                     CaptionKind.Maximize,
                 forceHovered = nativeMaximizeHovered,
-                clickable = !nativeCaption,
                 modifier = Modifier.onGloballyPositioned { coords ->
                     if (!nativeCaption) return@onGloballyPositioned
                     val bounds = coords.boundsInWindow()

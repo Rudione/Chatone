@@ -74,6 +74,7 @@ data class SettingsState(
     val pauseHotkeyMode: PauseHotkeyMode = PauseHotkeyMode.TOGGLE,
     val showInlineImages: InlineImageMode = InlineImageMode.ON,
     val inlineImageMaxHeight: Int = 200,
+    val clipPreviewWidth: Int = 140,
     val chatScrollbarWidth: Int = 12,
     val automations: List<io.rudione.chatone.domain.model.ChatAutomation> = emptyList(),
     val autoClaimPoints: Boolean = false,
@@ -205,6 +206,7 @@ sealed class SettingsEvent : UiEvent {
     data class OnPauseHotkeyModeChanged(val mode: PauseHotkeyMode) : SettingsEvent()
     data class OnShowInlineImagesChanged(val mode: InlineImageMode) : SettingsEvent()
     data class OnInlineImageMaxHeightChanged(val height: Int) : SettingsEvent()
+    data class OnClipPreviewWidthChanged(val width: Int) : SettingsEvent()
     data class OnChatScrollbarWidthChanged(val width: Int) : SettingsEvent()
     data class OnAddAutomation(val automation: io.rudione.chatone.domain.model.ChatAutomation) : SettingsEvent()
     data class OnRemoveAutomation(val id: String) : SettingsEvent()
@@ -299,6 +301,7 @@ class SettingsViewModel(
         private const val KEY_PAUSE_HOTKEY_MODE = "pause_hotkey_mode"
         private const val KEY_SHOW_INLINE_IMAGES = "show_inline_images"
         private const val KEY_INLINE_IMAGE_MAX_HEIGHT = "inline_image_max_height"
+        private const val KEY_CLIP_PREVIEW_WIDTH = "clip_preview_width"
         private const val KEY_CHAT_SCROLLBAR_WIDTH = "chat_scrollbar_width"
         private const val KEY_AUTOMATIONS = "chat_automations"
         private const val KEY_AUTO_CLAIM_POINTS = "auto_claim_points"
@@ -509,6 +512,7 @@ class SettingsViewModel(
                     settings.getInt(KEY_SHOW_INLINE_IMAGES, 0)
                 ) ?: InlineImageMode.ON,
                 inlineImageMaxHeight = settings.getInt(KEY_INLINE_IMAGE_MAX_HEIGHT, 200),
+                clipPreviewWidth = settings.getInt(KEY_CLIP_PREVIEW_WIDTH, 140),
                 chatScrollbarWidth = settings.getInt(KEY_CHAT_SCROLLBAR_WIDTH, 12),
                 wallpaperPath = settings.getStringOrNull(KEY_WALLPAPER_PATH) ?: "",
                 wallpaperBlur = settings.getFloat(KEY_WALLPAPER_BLUR, 12f),
@@ -1130,6 +1134,12 @@ class SettingsViewModel(
             is SettingsEvent.OnInlineImageMaxHeightChanged -> {
                 settings.putInt(KEY_INLINE_IMAGE_MAX_HEIGHT, event.height.coerceIn(50, 500))
                 update { it.copy(inlineImageMaxHeight = event.height.coerceIn(50, 500)) }
+            }
+
+            is SettingsEvent.OnClipPreviewWidthChanged -> {
+                val w = event.width.coerceIn(90, 320)
+                settings.putInt(KEY_CLIP_PREVIEW_WIDTH, w)
+                update { it.copy(clipPreviewWidth = w) }
             }
 
             is SettingsEvent.OnChatScrollbarWidthChanged -> {

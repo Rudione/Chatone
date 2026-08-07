@@ -174,6 +174,13 @@ internal fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsVie
                 ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
             }
             SliderRow(
+                label = s.settingsClipPreviewWidth,
+                value = state.clipPreviewWidth.toFloat(),
+                valueRange = 90f..320f,
+                steps = 22,
+                valueLabel = "${state.clipPreviewWidth} dp"
+            ) { vm.sendEvent(SettingsEvent.OnClipPreviewWidthChanged(it.toInt())) }
+            SliderRow(
                 label = s.settingsChatScrollbarWidth,
                 value = state.chatScrollbarWidth.toFloat(),
                 valueRange = 6f..32f,
@@ -233,6 +240,13 @@ internal fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
                 )
             ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
         }
+        SliderRow(
+            label = s.settingsClipPreviewWidth,
+            value = state.clipPreviewWidth.toFloat(),
+            valueRange = 90f..320f,
+            steps = 22,
+            valueLabel = "${state.clipPreviewWidth} dp"
+        ) { vm.sendEvent(SettingsEvent.OnClipPreviewWidthChanged(it.toInt())) }
     }
     io.rudione.chatone.presentation.settings.components.ImageUploaderSection(
         state = state,

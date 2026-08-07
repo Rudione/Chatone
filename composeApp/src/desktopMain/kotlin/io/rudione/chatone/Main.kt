@@ -143,27 +143,31 @@ fun main() {
         ) {
             DisposableEffect(window) {
                 val initialDark = isDarkTheme
+                fun applyChrome() {
+                    window.background = NATIVE_WINDOW_BG
+                    window.contentPane.background = NATIVE_WINDOW_BG
+                    window.applyMinimumSize()
+                    loadAppIconImage()?.let { WindowsTitleBar.applyHighQualityIcons(window, it) }
+                    if (isWindowsOs && useCustomTitleBar) {
+                        WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
+                    }
+                    runCatching {
+                        window.rootPane.putClientProperty(
+                            "apple.awt.windowAppearance",
+                            "NSAppearanceNameDarkAqua"
+                        )
+                    }
+                    if (!useCustomTitleBar) {
+                        val (captionColor, useDark) = resolveTitleBar(
+                            initialSettings.titleBarMode, initialDark, null
+                        )
+                        WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
+                    }
+                }
+                if (window.isDisplayable) applyChrome()
                 val listener = object : java.awt.event.WindowAdapter() {
                     override fun windowOpened(e: java.awt.event.WindowEvent) {
-                        window.background = NATIVE_WINDOW_BG
-                        window.contentPane.background = NATIVE_WINDOW_BG
-                        window.applyMinimumSize()
-                        loadAppIconImage()?.let { WindowsTitleBar.applyHighQualityIcons(window, it) }
-                        if (isWindowsOs && useCustomTitleBar) {
-                            WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
-                        }
-                        runCatching {
-                            window.rootPane.putClientProperty(
-                                "apple.awt.windowAppearance",
-                                "NSAppearanceNameDarkAqua"
-                            )
-                        }
-                        if (!useCustomTitleBar) {
-                            val (captionColor, useDark) = resolveTitleBar(
-                                initialSettings.titleBarMode, initialDark, null
-                            )
-                            WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
-                        }
+                        applyChrome()
                     }
                 }
                 window.addWindowListener(listener)

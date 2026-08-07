@@ -56,6 +56,7 @@ object SettingsImportExport {
         "pause_hotkey_mode",
         "show_inline_images",
         "inline_image_max_height",
+        "clip_preview_width",
         "custom_themes_json",
         "active_custom_theme_id",
         "wallpaper_path",
