@@ -295,15 +295,19 @@ tasks.register("packageWindowsSetup") {
             candidate == "iscc" || File(candidate).exists()
         } ?: throw GradleException("Inno Setup (ISCC.exe) not found. Set INNO_SETUP_ISCC.")
 
-        providers.exec {
-            commandLine(
-                compiler,
-                "/DAppVersion=$version",
-                "/DSourceDir=${source.absolutePath}",
-                "/DOutputDir=${output.absolutePath}",
-                script.asFile.absolutePath
-            )
-        }.standardOutput.asText.get().let(::println)
+        val process = ProcessBuilder(
+            compiler,
+            "/DAppVersion=$version",
+            "/DSourceDir=${source.absolutePath}",
+            "/DOutputDir=${output.absolutePath}",
+            script.asFile.absolutePath
+        ).redirectErrorStream(true).start()
+
+        process.inputStream.bufferedReader().useLines { lines -> lines.forEach(::println) }
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw GradleException("Inno Setup compiler failed with exit code $exitCode")
+        }
 
         println("Installer ready: ${output.resolve("Chatone-$version-setup.exe")}")
     }
