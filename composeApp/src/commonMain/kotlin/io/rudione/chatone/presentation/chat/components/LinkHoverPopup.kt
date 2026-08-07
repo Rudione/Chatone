@@ -23,6 +23,7 @@ import io.rudione.chatone.util.media.LinkPreview
 import io.rudione.chatone.util.media.LinkPreviewCache
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun LinkHoverPopup(url: String) {
@@ -31,7 +32,7 @@ fun LinkHoverPopup(url: String) {
 
     LaunchedEffect(url) {
         if (preview == null) {
-            delay(250)
+            delay(250.milliseconds)
             preview = LinkPreviewCache.fetch(httpClient, url)
         }
     }
