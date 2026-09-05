@@ -25,6 +25,9 @@ import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.util.system.AppDataCleaner
 import io.rudione.chatone.util.system.AppRestarter
 import io.rudione.chatone.util.media.WallpaperLoader
+import io.rudione.chatone.util.security.SecretVault
+import io.rudione.chatone.util.security.getSecret
+import io.rudione.chatone.util.security.putSecret
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -74,6 +77,8 @@ data class SettingsState(
     val pauseHotkeyMode: PauseHotkeyMode = PauseHotkeyMode.TOGGLE,
     val showInlineImages: InlineImageMode = InlineImageMode.ON,
     val inlineImageMaxHeight: Int = 200,
+    val showChatGifs: Boolean = true,
+    val giphyApiKey: String = "",
     val clipPreviewWidth: Int = 140,
     val chatScrollbarWidth: Int = 12,
     val automations: List<io.rudione.chatone.domain.model.ChatAutomation> = emptyList(),
@@ -95,6 +100,7 @@ data class SettingsState(
     val showChatHeader: Boolean = true,
     val smoothChatEnabled: Boolean = false,
     val alternateRowBackground: Boolean = false,
+    val readableNickColors: Boolean = true,
     val showDefaultDeleteButton: Boolean = true,
     val showDefaultTimeoutButton: Boolean = true,
     val showDefaultBanButton: Boolean = true,
@@ -113,7 +119,7 @@ data class SettingsState(
     val fontStrikethrough: Boolean = false,
     val customFontPaths: List<String> = emptyList(),
     val messageSpacing: MessageSpacing = MessageSpacing.LOW,
-    val titleBarMode: TitleBarMode = TitleBarMode.DARK,
+    val titleBarMode: TitleBarMode = TitleBarMode.ADAPTIVE,
     val showBlockedMode: Int = 0,
     val blockedUsernames: List<String> = emptyList(),
     val isLoadingBlockedUsers: Boolean = false,
@@ -206,6 +212,8 @@ sealed class SettingsEvent : UiEvent {
     data class OnPauseHotkeyModeChanged(val mode: PauseHotkeyMode) : SettingsEvent()
     data class OnShowInlineImagesChanged(val mode: InlineImageMode) : SettingsEvent()
     data class OnInlineImageMaxHeightChanged(val height: Int) : SettingsEvent()
+    data class OnShowChatGifsChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnGiphyApiKeyChanged(val key: String) : SettingsEvent()
     data class OnClipPreviewWidthChanged(val width: Int) : SettingsEvent()
     data class OnChatScrollbarWidthChanged(val width: Int) : SettingsEvent()
     data class OnAddAutomation(val automation: io.rudione.chatone.domain.model.ChatAutomation) : SettingsEvent()
@@ -238,6 +246,7 @@ sealed class SettingsEvent : UiEvent {
 
     data class OnSmoothChatEnabledChanged(val enabled: Boolean) : SettingsEvent()
     data class OnAlternateRowBackgroundChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnReadableNickColorsChanged(val enabled: Boolean) : SettingsEvent()
     data class OnDisableScrollOnAltChanged(val enabled: Boolean) : SettingsEvent()
     data class OnLinkOpenModeChanged(val mode: SettingsState.LinkOpenMode) : SettingsEvent()
     data class OnAccentColorChanged(val index: Int) : SettingsEvent()
@@ -301,6 +310,8 @@ class SettingsViewModel(
         private const val KEY_PAUSE_HOTKEY_MODE = "pause_hotkey_mode"
         private const val KEY_SHOW_INLINE_IMAGES = "show_inline_images"
         private const val KEY_INLINE_IMAGE_MAX_HEIGHT = "inline_image_max_height"
+        private const val KEY_SHOW_CHAT_GIFS = "show_chat_gifs"
+        private const val KEY_GIPHY_API_KEY = "giphy_api_key"
         private const val KEY_CLIP_PREVIEW_WIDTH = "clip_preview_width"
         private const val KEY_CHAT_SCROLLBAR_WIDTH = "chat_scrollbar_width"
         private const val KEY_AUTOMATIONS = "chat_automations"
@@ -319,6 +330,7 @@ class SettingsViewModel(
         private const val KEY_SHOW_CHAT_HEADER = "show_chat_header"
         private const val KEY_SMOOTH_CHAT = "smooth_chat_enabled"
         private const val KEY_ALTERNATE_ROW_BG = "alternate_row_bg"
+        private const val KEY_READABLE_NICK_COLORS = "readable_nick_colors"
         private const val KEY_SHOW_DEFAULT_DELETE = "show_default_delete"
         private const val KEY_SHOW_DEFAULT_TIMEOUT = "show_default_timeout"
         private const val KEY_SHOW_DEFAULT_BAN = "show_default_ban"
@@ -463,6 +475,7 @@ class SettingsViewModel(
                 imageUploader = try {
                     settings.getStringOrNull(KEY_IMAGE_UPLOADER)
                         ?.let { json.decodeFromString<ImageUploaderConfig>(it) }
+                        ?.let { it.copy(extraHeaders = SecretVault.open(it.extraHeaders)) }
                         ?: ImageUploaderConfig()
                 } catch (_: Exception) {
                     ImageUploaderConfig()
@@ -512,6 +525,8 @@ class SettingsViewModel(
                     settings.getInt(KEY_SHOW_INLINE_IMAGES, 0)
                 ) ?: InlineImageMode.ON,
                 inlineImageMaxHeight = settings.getInt(KEY_INLINE_IMAGE_MAX_HEIGHT, 200),
+                showChatGifs = settings.getBoolean(KEY_SHOW_CHAT_GIFS, true),
+                giphyApiKey = settings.getSecret(KEY_GIPHY_API_KEY),
                 clipPreviewWidth = settings.getInt(KEY_CLIP_PREVIEW_WIDTH, 140),
                 chatScrollbarWidth = settings.getInt(KEY_CHAT_SCROLLBAR_WIDTH, 12),
                 wallpaperPath = settings.getStringOrNull(KEY_WALLPAPER_PATH) ?: "",
@@ -534,6 +549,7 @@ class SettingsViewModel(
                 showChatHeader = settings.getBoolean(KEY_SHOW_CHAT_HEADER, true),
                 smoothChatEnabled = settings.getBoolean(KEY_SMOOTH_CHAT, false),
                 alternateRowBackground = settings.getBoolean(KEY_ALTERNATE_ROW_BG, false),
+                readableNickColors = settings.getBoolean(KEY_READABLE_NICK_COLORS, true),
                 showDefaultDeleteButton = settings.getBoolean(KEY_SHOW_DEFAULT_DELETE, true),
                 showDefaultTimeoutButton = settings.getBoolean(KEY_SHOW_DEFAULT_TIMEOUT, true),
                 showDefaultBanButton = settings.getBoolean(KEY_SHOW_DEFAULT_BAN, true),
@@ -572,8 +588,8 @@ class SettingsViewModel(
                     settings.getInt(KEY_MESSAGE_SPACING, SettingsState.MessageSpacing.LOW.ordinal)
                 ) ?: SettingsState.MessageSpacing.LOW,
                 titleBarMode = try {
-                    TitleBarMode.valueOf(settings.getString(KEY_TITLE_BAR_MODE, TitleBarMode.DARK.name))
-                } catch (_: Exception) { TitleBarMode.DARK },
+                    TitleBarMode.valueOf(settings.getString(KEY_TITLE_BAR_MODE, TitleBarMode.ADAPTIVE.name))
+                } catch (_: Exception) { TitleBarMode.ADAPTIVE },
                 showBlockedMode = settings.getInt(KEY_SHOW_BLOCKED_MODE, 0),
                 hideChatInputPlaceholder = settings.getBoolean(KEY_HIDE_CHAT_PLACEHOLDER, false),
                 hideEmojiButton = settings.getBoolean(KEY_HIDE_EMOJI_BUTTON, false),
@@ -775,7 +791,12 @@ class SettingsViewModel(
             }
 
             is SettingsEvent.OnImageUploaderChanged -> {
-                settings.putString(KEY_IMAGE_UPLOADER, json.encodeToString(event.config))
+                settings.putString(
+                    KEY_IMAGE_UPLOADER,
+                    json.encodeToString(
+                        event.config.copy(extraHeaders = SecretVault.seal(event.config.extraHeaders))
+                    )
+                )
                 update { it.copy(imageUploader = event.config) }
             }
 
@@ -1136,6 +1157,17 @@ class SettingsViewModel(
                 update { it.copy(inlineImageMaxHeight = event.height.coerceIn(50, 500)) }
             }
 
+            is SettingsEvent.OnShowChatGifsChanged -> {
+                settings.putBoolean(KEY_SHOW_CHAT_GIFS, event.enabled)
+                update { it.copy(showChatGifs = event.enabled) }
+            }
+
+            is SettingsEvent.OnGiphyApiKeyChanged -> {
+                val key = event.key.trim()
+                settings.putSecret(KEY_GIPHY_API_KEY, key)
+                update { it.copy(giphyApiKey = key) }
+            }
+
             is SettingsEvent.OnClipPreviewWidthChanged -> {
                 val w = event.width.coerceIn(90, 320)
                 settings.putInt(KEY_CLIP_PREVIEW_WIDTH, w)
@@ -1332,6 +1364,11 @@ class SettingsViewModel(
             is SettingsEvent.OnAlternateRowBackgroundChanged -> {
                 settings.putBoolean(KEY_ALTERNATE_ROW_BG, event.enabled)
                 update { it.copy(alternateRowBackground = event.enabled) }
+            }
+
+            is SettingsEvent.OnReadableNickColorsChanged -> {
+                settings.putBoolean(KEY_READABLE_NICK_COLORS, event.enabled)
+                update { it.copy(readableNickColors = event.enabled) }
             }
 
             is SettingsEvent.OnDisableScrollOnAltChanged -> {

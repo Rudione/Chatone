@@ -9,7 +9,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +39,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import chatone.composeapp.generated.resources.Res
@@ -53,6 +56,9 @@ import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
 import org.jetbrains.compose.resources.painterResource
 import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneActionRow
+import io.rudione.chatone.presentation.components.ChatoneButtonText
+import io.rudione.chatone.presentation.components.ChatoneLazyScrollbar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -193,14 +199,25 @@ private fun ThemesTab(
     var contrast by remember { mutableStateOf(0f) }
     val preview = remember(seed, isDark, contrast) { ColorSchemeGenerator.generateFromSeed(seed.toArgb(), isDark, contrast) }
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    ThemeTabList(spacing = 12.dp) {
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilledTonalButton(onClick = onToggleGenerator, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (showGenerator) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer)
-                ) { Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text(s.themeAutoGenerate) }
-                OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.Refresh, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text(s.themeReset)
+            ChatoneActionRow {
+                FilledTonalButton(
+                    onClick = onToggleGenerator,
+                    modifier = Modifier.widthIn(min = 150.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = if (showGenerator) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    ChatoneButtonText(s.themeAutoGenerate)
+                }
+                OutlinedButton(onClick = onReset, modifier = Modifier.widthIn(min = 120.dp)) {
+                    Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    ChatoneButtonText(s.themeReset)
                 }
             }
         }
@@ -229,7 +246,7 @@ private fun BackgroundTab(
     wallpaper: WallpaperState,
     onBlurType: (BlurType) -> Unit, onBlurRadius: (Float) -> Unit, onDimming: (Float) -> Unit
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    ThemeTabList(spacing = 16.dp) {
         item {
             InfoBanner("This blur is for the CHAT area when a wallpaper image is active. To blur panels (sidebar, bars), use the Panels tab.")
         }
@@ -275,7 +292,7 @@ private fun PanelsTab(
     val s = LocalStrings.current
     val hasCustomValues = panelConfig != PanelColorConfig()
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    ThemeTabList(spacing = 16.dp) {
         item {
             InfoBanner("Panel blur blurs the wallpaper behind each panel independently. Glass intensity controls LiquidGlass transparency.")
         }
@@ -390,7 +407,7 @@ private fun ChatColorTab(
     val cfg = wallpaper.chatColorConfig
     val wallpaperActive = wallpaper.isActive
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    ThemeTabList(spacing = 16.dp) {
 
         item {
             SectionCard(s.colorsSectionTitle, subtitle = s.colorsSectionSubtitle, icon = Icons.Outlined.Palette) {
@@ -638,7 +655,7 @@ private fun GlobalTab(
     val s = LocalStrings.current
     val isNonDefault = displayConfig != WallpaperDisplayConfig()
 
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    ThemeTabList(spacing = 16.dp) {
 
         item {
 
@@ -1122,3 +1139,28 @@ private fun Color.toHsl(): HslColor {
 
 private fun adjStr(v: Float) = if (v >= 0f) "+${(v*100).toInt()}%" else "${(v*100).toInt()}%"
 private fun genId() = "theme_${Clock.System.now().toEpochMilliseconds()}_${(0..9999).random()}"
+
+@Composable
+private fun ThemeTabList(
+    spacing: Dp = 16.dp,
+    content: LazyListScope.() -> Unit
+) {
+    val listState = rememberLazyListState()
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 22.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+            content = content
+        )
+        ChatoneLazyScrollbar(
+            listState = listState,
+            itemCount = listState.layoutInfo.totalItemsCount,
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(7.dp)
+        )
+    }
+}

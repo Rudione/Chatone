@@ -14,7 +14,7 @@ One Kotlin codebase → Windows, macOS, Linux and Android.
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/Rudione/Chatone?label=download)](https://github.com/Rudione/Chatone/releases/latest)
 
-[Download](#-download) · [Features](#-features) · [Architecture](#-architecture) · [Build](#-building-from-source)
+[**Website**](https://rudione.github.io/Chatone/) · [Download](#-download) · [Features](#-features) · [Architecture](#-architecture) · [Build](#-building-from-source)
 
 </div>
 
@@ -25,11 +25,11 @@ One Kotlin codebase → Windows, macOS, Linux and Android.
 
 | Multi-chat | Moderation | Themes |
 |:--:|:--:|:--:|
-| <img src="docs/screenshots/multichat.png" width="280" alt="Multi-chat layout"> | <img src="docs/screenshots/moderation.png" width="280" alt="Moderation panel"> | <img src="docs/screenshots/themes.png" width="280" alt="Theme editor"> |
+| <img src="screenshots/multichat.png" width="280" alt="Multi-chat layout"> | <img src="screenshots/moderation.png" width="280" alt="Moderation panel"> | <img src="screenshots/themes.png" width="280" alt="Theme editor"> |
 
-| Predictions & polls | AI assistant | Mini-profile |
+| Predictions & polls | AI assistant | AutoMod |
 |:--:|:--:|:--:|
-| <img src="docs/screenshots/predictions.png" width="280" alt="Prediction banner"> | <img src="docs/screenshots/ai.png" width="280" alt="AI assistant"> | <img src="docs/screenshots/profile.png" width="280" alt="User mini-profile"> |
+| <img src="screenshots/predictions.png" width="280" alt="Prediction banner"> | <img src="screenshots/ai.png" width="280" alt="AI assistant"> | <img src="screenshots/automod.png" width="280" alt="AutoMod card"> |
 
 ---
 
@@ -137,14 +137,17 @@ One Kotlin codebase → Windows, macOS, Linux and Android.
 
 ## 📥 Download
 
-Grab an installer from the [**Releases page**](https://github.com/Rudione/Chatone/releases/latest).
+The [**website**](https://rudione.github.io/Chatone/) detects your OS and hands you the right file, or grab an installer straight from the [**Releases page**](https://github.com/Rudione/Chatone/releases/latest).
 
 | File | Platform |
 |---|---|
-| `Chatone-<version>.msi` | Windows installer |
-| `Chatone-<version>-portable.zip` | Windows portable |
+| `Chatone-<version>-setup.exe` | Windows installer (recommended) |
+| `Chatone-<version>.msi` | Windows installer (MSI) |
+| `Chatone-<version>-windows-portable.zip` | Windows portable |
 | `Chatone-<version>.dmg` | macOS |
+| `Chatone-<version>-macos-portable.zip` | macOS portable |
 | `chatone_<version>-1_amd64.deb` | Linux (Debian / Ubuntu) |
+| `Chatone-<version>-linux-portable.zip` | Linux portable |
 | `Chatone-<version>.apk` | Android |
 
 > The **Actions** tab holds CI artifacts and needs a GitHub account. Always use **Releases**.
@@ -260,8 +263,8 @@ composeApp/src/
 # Desktop installers → build/compose/binaries/main-release/
 ./gradlew :composeApp:packageReleaseDistributionForCurrentOS
 
-# Windows portable zip → build/distributions/
-./gradlew :composeApp:packagePortableZip
+# Portable zip for the current OS → build/distributions/
+./gradlew :composeApp:createPortableZip
 
 # Android
 ./gradlew :composeApp:assembleRelease

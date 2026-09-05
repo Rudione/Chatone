@@ -27,6 +27,8 @@ import io.rudione.chatone.domain.model.IrcEvent
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.MacroStep
 import io.rudione.chatone.domain.model.hasGrandModBadge
+import io.rudione.chatone.domain.model.subscriptionTier
+import io.rudione.chatone.domain.model.lockedTwitchEmoteIds
 import io.rudione.chatone.domain.usecase.JoinChannelUseCase
 import io.rudione.chatone.domain.usecase.SendMessageUseCase
 import io.rudione.chatone.presentation.settings.SettingsViewModel
@@ -37,6 +39,7 @@ import io.rudione.chatone.util.automod.AutomodTarget
 import io.rudione.chatone.util.automod.ChatRuleEngine
 import io.rudione.chatone.util.automod.ChatRuleEventEngine
 import io.rudione.chatone.util.chat.MessageToken
+import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.util.chat.MessageTokenizer
 import io.rudione.chatone.util.media.NotificationSoundPlayer
 import io.rudione.chatone.util.automod.RegexCache
@@ -131,6 +134,8 @@ data class ChatState(
     val blockedUserIds: Set<String> = emptySet(),
     val showBlockedMode: Int = 0,
     val twitchSubscriberEmotes: List<GenericEmote> = emptyList(),
+    val ownSubTier: Int = 0,
+    val gifSendError: String? = null,
     val twitchChannelEmotes: List<GenericEmote> = emptyList(),
     val twitchGlobalEmotes: List<GenericEmote> = emptyList(),
     val uploadProgress: Float? = null,
@@ -223,6 +228,8 @@ sealed class ChatEvent : UiEvent {
     data class OnAllowAutoModMessage(val msgId: String) : ChatEvent()
     data class OnDenyAutoModMessage(val msgId: String) : ChatEvent()
     object OnToggleEmotePicker : ChatEvent()
+    data class OnSendGif(val gif: io.rudione.chatone.domain.model.GifSearchItem) : ChatEvent()
+    object OnClearGifSendError : ChatEvent()
     object OnRefreshChannel : ChatEvent()
     data class OnBlockUser(val targetUserId: String, val targetLogin: String) : ChatEvent()
     data class OnUnblockUser(val targetUserId: String, val targetLogin: String) : ChatEvent()
@@ -744,6 +751,8 @@ class ChatViewModel(
     private val channelIdCache = mutableMapOf<String, String>()
     private val channelModCache = mutableMapOf<String, Boolean>()
     private val channelDisplayNameCache = mutableMapOf<String, String>()
+    private val channelTwitchEmoteCache = mutableMapOf<String, List<GenericEmote>>()
+    private val channelSubEmoteCache = mutableMapOf<String, List<GenericEmote>>()
     private var currentUserBadgeRaw: String = ""
 
     private var retokenizeDebounceJob: kotlinx.coroutines.Job? = null
@@ -996,14 +1005,7 @@ class ChatViewModel(
 
     private fun plainTextOf(m: DisplayMessage.PrivMsg): String = m.rawMessage?.message
         ?: m.tokens.joinToString("") { t ->
-            when (t) {
-                is MessageToken.Text -> t.text
-                is MessageToken.TwitchEmoteToken -> t.name
-                is MessageToken.ThirdPartyEmoteToken -> t.emote.code
-                is MessageToken.Link -> t.displayText
-                is MessageToken.Mention -> "@${t.username}"
-                is MessageToken.Cheer -> "${t.prefix}${t.amount}"
-            }
+            t.plainText()
         }
 
     private fun observeAiSnapshotDemand() {
@@ -1028,14 +1030,7 @@ class ChatViewModel(
         lastAiSnapshotMessages = s.messages
         fun textOf(m: DisplayMessage.PrivMsg): String = m.rawMessage?.message
             ?: m.tokens.joinToString("") { t ->
-                when (t) {
-                    is MessageToken.Text -> t.text
-                    is MessageToken.TwitchEmoteToken -> t.name
-                    is MessageToken.ThirdPartyEmoteToken -> t.emote.code
-                    is MessageToken.Link -> t.displayText
-                    is MessageToken.Mention -> "@${t.username}"
-                    is MessageToken.Cheer -> "${t.prefix}${t.amount}"
-                }
+                t.plainText()
             }
         val privs = s.messages.filterIsInstance<DisplayMessage.PrivMsg>()
         val lines = privs.map {
@@ -1163,10 +1158,14 @@ class ChatViewModel(
                     state.copy(
                         isEmotePickerVisible = !state.isEmotePickerVisible,
                         showEmoteCompletions = false,
-                        showMentionCompletions = false
+                        showMentionCompletions = false,
+                        gifSendError = null
                     )
                 }
             }
+
+            is ChatEvent.OnSendGif -> sendGif(event.gif)
+            ChatEvent.OnClearGifSendError -> update { it.copy(gifSendError = null) }
 
             ChatEvent.OnRefreshChannel -> refreshChannel()
 
@@ -1230,6 +1229,46 @@ class ChatViewModel(
                 update {
                     it.copy(uploadProgress = null, uploadError = e.message ?: "error")
                 }
+            }
+        }
+    }
+
+    private fun sendGif(gif: io.rudione.chatone.domain.model.GifSearchItem) {
+        val s = state.value
+        if (s.channelId.isEmpty()) {
+            update { it.copy(gifSendError = "Channel is still loading, try again") }
+            return
+        }
+        if (!moderationAuthStore.hasCustomToken()) {
+            update { it.copy(gifSendError = GQL_TOKEN_REQUIRED_MSG) }
+            return
+        }
+
+        viewModelScope.launch {
+            val token = moderationAuthStore.resolveToken(s.currentAccessToken)
+            val result = twitchGqlClient.sendGifMessage(
+                channelId = s.channelId,
+                gifId = gif.id,
+                gifUrl = gif.sendUrl,
+                token = token
+            )
+            if (result is io.rudione.chatone.util.Result.Error) {
+                val code = (result.exception as? io.rudione.chatone.data.remote.SendGifException)?.code
+                val message = when (code) {
+                    null -> result.exception.message ?: "Failed to send GIF"
+                    "USER_NOT_ELIGIBLE", "NOT_SUBSCRIBED", "INSUFFICIENT_TIER" ->
+                        "GIFs require a Tier 2 or Tier 3 subscription to this channel"
+                    "GIFS_DISABLED", "CHANNEL_SETTINGS_DISABLED" ->
+                        "This channel has GIFs turned off"
+                    "RATE_LIMITED", "SLOW_MODE" -> "GIF cooldown is active, wait a moment"
+                    "INTEGRITY_CHECK_FAILED" ->
+                        "Twitch blocked the request (integrity check). Re-link the first-party token in Settings"
+                    else -> "Failed to send GIF ($code)"
+                }
+                Napier.w("sendGifMessage failed: $message", tag = TAG)
+                update { it.copy(gifSendError = message) }
+            } else {
+                update { it.copy(gifSendError = null, isEmotePickerVisible = false) }
             }
         }
     }
@@ -1377,12 +1416,20 @@ class ChatViewModel(
             if (oldState.channelDisplayName.isNotBlank()) {
                 channelDisplayNameCache[oldKey] = oldState.channelDisplayName
             }
+            if (oldState.twitchChannelEmotes.isNotEmpty()) {
+                channelTwitchEmoteCache[oldKey] = oldState.twitchChannelEmotes
+            }
+            if (oldState.twitchSubscriberEmotes.isNotEmpty()) {
+                channelSubEmoteCache[oldKey] = oldState.twitchSubscriberEmotes
+            }
             if (channelMessageCache.size > MAX_CACHED_CHANNELS) {
                 val oldest = channelMessageCache.keys.first()
                 channelMessageCache.remove(oldest)
                 channelRoomStateCache.remove(oldest)
                 channelIdCache.remove(oldest)
                 channelModCache.remove(oldest)
+                channelTwitchEmoteCache.remove(oldest)
+                channelSubEmoteCache.remove(oldest)
             }
 
             currentUserBadgeRaw = ""
@@ -1452,7 +1499,11 @@ class ChatViewModel(
                 currentUserLogin = userLogin.ifEmpty { it.currentUserLogin },
                 currentDisplayName = userDisplayName.ifEmpty { it.currentDisplayName },
                 sentMessageHistory = emptyList(),
-                historyIndex = -1
+                historyIndex = -1,
+                twitchChannelEmotes = channelTwitchEmoteCache[key] ?: emptyList(),
+                twitchSubscriberEmotes = channelSubEmoteCache[key] ?: emptyList(),
+                ownSubTier = 0,
+                gifSendError = null
             )
         }
 
@@ -1561,7 +1612,10 @@ class ChatViewModel(
                             var pages = 0
                             do {
                                 val r = apiClient.getUserEmotes(
-                                    s2.currentAccessToken, s2.currentUserId, after = cursor
+                                    s2.currentAccessToken,
+                                    s2.currentUserId,
+                                    broadcasterId = s2.channelId.takeIf { it.isNotEmpty() },
+                                    after = cursor
                                 )
                                 if (r !is io.rudione.chatone.util.Result.Success) break
                                 if (template.isEmpty()) template = r.data.template
@@ -2575,6 +2629,14 @@ class ChatViewModel(
                                         ) else st
                                     }
                                 }
+                                val detectedSubTier = freshBadges.subscriptionTier()?.level ?: 0
+                                if (detectedSubTier != state.value.ownSubTier) {
+                                    update { st ->
+                                        if (st.channelLogin == channelLogin) st.copy(
+                                            ownSubTier = detectedSubTier
+                                        ) else st
+                                    }
+                                }
                                 val resolvedFreshBadges = badgeRepository.resolveBadges(
                                     freshBadges,
                                     state.value.channelId.ifEmpty { null }
@@ -3195,8 +3257,14 @@ class ChatViewModel(
         val channelEmotes = emoteRepository.getResolvedEmotes(s.channelLogin)
         val seen = mutableSetOf<String>()
         val combined = mutableListOf<GenericEmote>()
+        val lockedIds = lockedTwitchEmoteIds(
+            channelEmotes = s.twitchChannelEmotes,
+            globalEmotes = s.twitchGlobalEmotes,
+            usableEmotes = s.twitchSubscriberEmotes
+        )
         for (e in channelEmotes.allByCode.values) if (seen.add(e.code)) combined.add(e)
         for (e in s.twitchChannelEmotes + s.twitchGlobalEmotes + s.twitchSubscriberEmotes) {
+            if (e.id in lockedIds) continue
             if (seen.add(e.code)) combined.add(e)
         }
         if (query.isEmpty()) return combined.take(limit)
@@ -3415,14 +3483,7 @@ class ChatViewModel(
                     .filter { it.timestamp >= cutoff && !it.isDeleted && !it.isBroadcaster && !it.isModerator }
                     .filter { msg ->
                         val text = msg.rawMessage?.message ?: msg.tokens.joinToString("") { t ->
-                            when (t) {
-                                is MessageToken.Text -> t.text
-                                is MessageToken.TwitchEmoteToken -> t.name
-                                is MessageToken.ThirdPartyEmoteToken -> t.emote.code
-                                is MessageToken.Link -> t.displayText
-                                is MessageToken.Mention -> "@${t.username}"
-                                is MessageToken.Cheer -> "${t.prefix}${t.amount}"
-                            }
+                            t.plainText()
                         }
                         if (regex != null) regex.containsMatchIn(text)
                         else text.lowercase().contains(phraseLower)
@@ -4235,21 +4296,14 @@ class ChatViewModel(
             displayName = s.currentDisplayName.ifEmpty { s.currentUserLogin },
             message = message,
             timestamp = now,
-            color = s.currentUserColor.ifEmpty { "#9146FF" },
+            color = s.currentUserColor.takeIf { it.isNotBlank() },
             badges = ownBadges,
             isModerator = s.isMod,
             replyParentMsgId = parent?.id,
             replyParentUserLogin = parent?.username,
             replyParentDisplayName = parent?.displayName,
             replyParentMsgBody = parent?.tokens?.joinToString("") { t ->
-                when (t) {
-                    is MessageToken.Text -> t.text
-                    is MessageToken.TwitchEmoteToken -> t.name
-                    is MessageToken.ThirdPartyEmoteToken -> t.emote.code
-                    is MessageToken.Link -> t.displayText
-                    is MessageToken.Mention -> "@${t.username}"
-                    is MessageToken.Cheer -> "${t.prefix}${t.amount}"
-                }
+                t.plainText()
             }
         )
         val displayMsg = chatMessageToDisplay(rawMsg)
@@ -5114,11 +5168,16 @@ class ChatViewModel(
 
     private fun redeemReward(reward: io.rudione.chatone.data.remote.GqlChannelPointReward, textInput: String) {
         val s = state.value
+        if (!reward.isRedeemableInApp) return
         if (!moderationAuthStore.hasCustomToken()) {
             return sendEffect(ChatEffect.ShowError(GQL_TOKEN_REQUIRED_MSG))
         }
         viewModelScope.launch {
             val gqlToken = moderationAuthStore.resolveToken(s.currentAccessToken)
+            if (reward.automaticType != null) {
+                redeemAutomaticReward(reward, gqlToken)
+                return@launch
+            }
             when (val r = twitchGqlClient.redeemCustomRewardGql(s.channelId, reward, textInput, gqlToken)) {
                 is io.rudione.chatone.util.Result.Success -> {
                     update { it.copy(pointsBalance = r.data.balance) }
@@ -5129,6 +5188,38 @@ class ChatViewModel(
                 else -> {}
             }
         }
+    }
+
+    private suspend fun redeemAutomaticReward(
+        reward: io.rudione.chatone.data.remote.GqlChannelPointReward,
+        gqlToken: String
+    ) {
+        val s = state.value
+        val result = when (reward.automaticType) {
+            io.rudione.chatone.data.remote.TwitchAutomaticRewardType.RANDOM_SUB_EMOTE_UNLOCK ->
+                twitchGqlClient.unlockRandomSubEmoteGql(s.channelId, reward.cost, gqlToken)
+
+            else -> return
+        }
+        when (result) {
+            is io.rudione.chatone.util.Result.Success -> {
+                update { it.copy(pointsBalance = (it.pointsBalance - reward.cost).coerceAtLeast(0L)) }
+                refreshPointsBalance()
+            }
+
+            is io.rudione.chatone.util.Result.Error ->
+                sendEffect(ChatEffect.ShowError("Failed to redeem: ${result.exception.message}"))
+
+            else -> {}
+        }
+    }
+
+    private suspend fun refreshPointsBalance() {
+        val s = state.value
+        if (!s.showPointsBitsPanel) return
+        val gqlToken = moderationAuthStore.resolveToken(s.currentAccessToken)
+        val info = twitchGqlClient.getChannelPointRewardsGql(s.channelLogin, gqlToken) ?: return
+        update { it.copy(pointsBalance = info.balance, channelRewards = info.rewards) }
     }
 
     private fun raidNow() {
@@ -5249,6 +5340,27 @@ class ChatViewModel(
         }
     }
 
+    private suspend fun sendMacroText(channelLogin: String, text: String): Boolean {
+        val parsed = SlashCommand.parse(text)
+        if (parsed != null) {
+            runSlashCommand(parsed, channelLogin, state.value)
+            return true
+        }
+        val s = state.value
+        val isPrivileged = s.isMod || s.isBroadcaster || s.isGrandMod
+        val payload = if (!isPrivileged && text == lastSentBaseText) {
+            val suffixed = if (duplicateSuffixToggle) "$text \uDB40\uDC00" else "$text \uDB40\uDC01"
+            duplicateSuffixToggle = !duplicateSuffixToggle
+            suffixed
+        } else {
+            duplicateSuffixToggle = false
+            text
+        }
+        sendMessageUseCase(channelLogin, payload)
+        lastSentBaseText = text
+        return false
+    }
+
     private fun executeMacro(macro: Macro) {
         val s = state.value
         if (s.channelLogin.isEmpty()) return
@@ -5259,7 +5371,11 @@ class ChatViewModel(
                         val times = step.repeatCount.coerceAtLeast(1)
                         repeat(times) { iteration ->
                             try {
-                                sendMessageUseCase(s.channelLogin, step.text)
+                                val sentAsCommand = sendMacroText(s.channelLogin, step.text)
+                                if (sentAsCommand) {
+                                    if (iteration < times - 1) delay(300L)
+                                    return@repeat
+                                }
                                 val now = Clock.System.now().toEpochMilliseconds() + iteration
                                 val rawMsg = ChatMessage(
                                     id = "local_macro_${now}_$iteration",
@@ -5270,7 +5386,7 @@ class ChatViewModel(
                                     displayName = state.value.currentDisplayName.ifEmpty { state.value.currentUserLogin },
                                     message = step.text,
                                     timestamp = now,
-                                    color = state.value.currentUserColor.ifEmpty { "#9146FF" },
+                                    color = state.value.currentUserColor.takeIf { it.isNotBlank() },
                                     isModerator = state.value.isMod
                                 )
                                 val displayMsg = chatMessageToDisplay(rawMsg)
@@ -5292,8 +5408,15 @@ class ChatViewModel(
                         }
                     }
 
-                    is MacroStep.InsertText ->
-                        update { it.copy(messageInput = step.text) }
+                    is MacroStep.InsertText -> {
+                        val times = step.repeatCount.coerceAtLeast(1)
+                        val payload = if (times > 1) {
+                            List(times) { step.text }.joinToString(" ")
+                        } else {
+                            step.text
+                        }
+                        update { it.copy(messageInput = payload) }
+                    }
 
                     is MacroStep.Delay ->
                         repeat(step.repeatCount.coerceAtLeast(1)) { delay(step.seconds * 1000L) }
@@ -5330,7 +5453,7 @@ class ChatViewModel(
 
                     is MacroStep.PinMessage ->
                         try {
-                            sendMessageUseCase(s.channelLogin, "/pin ${step.message}")
+                            sendMacroText(s.channelLogin, "/pin ${step.message}")
                         } catch (_: Exception) {
                         }
 

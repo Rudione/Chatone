@@ -9,7 +9,7 @@ import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.domain.model.AccountProxyConfig
-import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AccountManager
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.InternalCoroutinesApi

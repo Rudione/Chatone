@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.account
 
+import io.rudione.chatone.data.repository.AccountManager
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.data.remote.TwitchEventSubClient
 import io.rudione.chatone.data.remote.TwitchIrcClient
@@ -32,6 +33,13 @@ class AccountSwitchCoordinator(
     fun switchTo(account: TwitchAccount, onComplete: (Boolean) -> Unit = {}) {
         if (_isSwitching.value) {
             Napier.w("Switch already in progress", tag = TAG)
+            return
+        }
+        val alreadyActive = accountManager.activeAccountId.value == account.userId &&
+                ircClient.connectionState.value is TwitchIrcClient.ConnectionState.Connected
+        if (alreadyActive) {
+            Napier.d("${account.login} is already active, nothing to switch", tag = TAG)
+            onComplete(true)
             return
         }
         scope.launch {

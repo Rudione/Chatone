@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.domain.model.ChannelTab
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -127,7 +128,7 @@ import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
 import io.rudione.chatone.presentation.settings.SettingsEffect
 import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
 import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
-import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry

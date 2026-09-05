@@ -45,9 +45,16 @@ actual fun AnimatedEmoteImage(
     url: String,
     contentDescription: String?,
     modifier: Modifier,
-    isScrolling: Boolean
+    isScrolling: Boolean,
+    maxDimension: Int
 ) {
-    AnimatedEmoteImageCore(url = url, contentDescription = contentDescription, modifier = modifier, isScrolling = isScrolling)
+    AnimatedEmoteImageCore(
+        url = url,
+        contentDescription = contentDescription,
+        modifier = modifier,
+        isScrolling = isScrolling,
+        maxDimension = maxDimension
+    )
 }
 
 @Composable
@@ -177,14 +184,17 @@ fun AnimatedEmoteImageCore(
     modifier: Modifier = Modifier,
     emoteId: String? = null,
     entranceAnimationSpec: AnimationSpec<Float> = tween(durationMillis = 150),
-    isScrolling: Boolean = false
+    isScrolling: Boolean = false,
+    maxDimension: Int = 0
 ) {
-    var animData by remember(url) { mutableStateOf(AnimatedEmoteLoader.peek(url)) }
-    var currentFrame by remember(url) { mutableIntStateOf(0) }
+    var animData by remember(url, maxDimension) {
+        mutableStateOf(AnimatedEmoteLoader.peek(url, maxDimension))
+    }
+    var currentFrame by remember(url, maxDimension) { mutableIntStateOf(0) }
 
-    LaunchedEffect(url) {
-        if (animData != null || AnimatedEmoteLoader.isKnownStatic(url)) return@LaunchedEffect
-        animData = AnimatedEmoteLoader.load(url)
+    LaunchedEffect(url, maxDimension) {
+        if (animData != null || AnimatedEmoteLoader.isKnownStatic(url, maxDimension)) return@LaunchedEffect
+        animData = AnimatedEmoteLoader.load(url, maxDimension)
     }
 
     val entranceProgress = if (emoteId != null) {

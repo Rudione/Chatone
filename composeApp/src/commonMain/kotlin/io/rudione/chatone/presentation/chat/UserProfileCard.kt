@@ -553,6 +553,7 @@ internal fun ProfileMessageFeed(
     remoteHistory: List<io.rudione.chatone.data.remote.GqlUsercardMessage>,
     displayName: String,
     userColor: String?,
+    login: String = "",
     isHistoryLoading: Boolean,
     hasMoreHistory: Boolean,
     historyLoadFailed: Boolean,
@@ -563,7 +564,7 @@ internal fun ProfileMessageFeed(
 ) {
     val s = LocalStrings.current
     val listState = rememberLazyListState()
-    val nameColor = parseHexColor(userColor) ?: MaterialTheme.colorScheme.primary
+    val nameColor = rememberNickColors().of(userColor, login.ifBlank { displayName })
 
     val isEmpty = sessionMessages.isEmpty() && localHistory.isEmpty() &&
             remoteHistory.isEmpty() && !isHistoryLoading

@@ -7,7 +7,7 @@ import androidx.compose.ui.graphics.Color
 import io.rudione.chatone.presentation.settings.TitleBarMode
 
 object TitleBarState {
-    var mode by mutableStateOf(TitleBarMode.DARK)
+    var mode by mutableStateOf(TitleBarMode.ADAPTIVE)
     var themeTopBarColor by mutableStateOf<Color?>(null)
     var isDarkTheme by mutableStateOf(true)
 

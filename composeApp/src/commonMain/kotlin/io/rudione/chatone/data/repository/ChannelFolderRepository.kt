@@ -1,7 +1,7 @@
 package io.rudione.chatone.data.repository
 
 import io.rudione.chatone.data.local.ChatoneDatabase
-import io.rudione.chatone.presentation.main.ChannelFolder
+import io.rudione.chatone.domain.model.ChannelFolder
 
 class ChannelFolderRepository(
     private val database: ChatoneDatabase

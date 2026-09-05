@@ -932,7 +932,9 @@ private fun ModPanelButton(
         ) {
             when {
                 icon != null -> Icon(icon, null, modifier = Modifier.size(14.dp), tint = tint)
-                iconText != null -> Text(iconText, fontSize = 13.sp, color = tint)
+                iconText != null -> io.rudione.chatone.presentation.settings.components.MacroIcon(
+                    iconText, size = 14.dp, fontSize = 13.sp, tint = tint
+                )
             }
             Text(
                 label,

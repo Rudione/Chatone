@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.domain.model.ChannelTab
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +45,7 @@ import io.rudione.chatone.data.remote.TwitchEventSubClient
 import io.rudione.chatone.data.remote.TwitchPubSubClient
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.domain.model.IrcEvent
+import io.rudione.chatone.presentation.chat.rememberNickColors
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.flow.merge
 import org.koin.compose.koinInject
@@ -56,6 +58,7 @@ private data class MonitorLine(
     val channel: String,
     val channelAvatar: String,
     val username: String,
+    val login: String,
     val color: String?,
     val text: String,
     val reason: String?
@@ -94,7 +97,7 @@ fun MonitorFeedScreen(
             chatRepository.messages.collect { m ->
                 val ch = m.channelName.lowercase().removePrefix("#")
                 if (liveLogins.isEmpty() || ch in liveLogins) {
-                    lines = (lines + MonitorLine(m.id, ch, avatarFor(ch), m.displayName.ifBlank { m.username }, m.color, m.message, null))
+                    lines = (lines + MonitorLine(m.id, ch, avatarFor(ch), m.displayName.ifBlank { m.username }, m.username, m.color, m.message, null))
                         .takeLast(300)
                 }
             }
@@ -108,13 +111,13 @@ fun MonitorFeedScreen(
                         val ch = ev.channel.lowercase().removePrefix("#")
                         lines = (lines + MonitorLine(
                             ev.msgId, ch, avatarFor(ch), ev.displayName.ifBlank { ev.username },
-                            ev.color, ev.message, ev.reasonCategory
+                            ev.username, ev.color, ev.message, ev.reasonCategory
                         )).takeLast(300)
                     }
                     is IrcEvent.AutoModResolved -> {
                         val ch = ev.channel.lowercase().removePrefix("#")
                         lines = (lines + MonitorLine(
-                            ev.msgId + "_r", ch, avatarFor(ch), ev.resolvedBy, null,
+                            ev.msgId + "_r", ch, avatarFor(ch), ev.resolvedBy, ev.resolvedBy, null,
                             "→ ${ev.action}", "resolved"
                         )).takeLast(300)
                     }
@@ -177,10 +180,7 @@ fun MonitorFeedScreen(
 
 @Composable
 private fun MonitorRow(line: MonitorLine) {
-    val nameColor = remember(line.color) {
-        runCatching { Color(line.color!!.removePrefix("#").toLong(16) or 0xFF000000L) }
-            .getOrDefault(Color(0xFF9146FF))
-    }
+    val nameColor = rememberNickColors().of(line.color, line.login)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
         verticalAlignment = Alignment.Top

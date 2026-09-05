@@ -397,6 +397,7 @@ fun UserProfilePopup(
                         messages = userMessages,
                         displayName = displayName,
                         userColor = color,
+                        login = username,
                         history = historyMessages,
                         isHistoryLoading = isHistoryLoading,
                         hasMoreHistory = hasMoreHistory,
@@ -516,6 +517,7 @@ fun UserProfileHeader(
                     ProfileDisplayName(
                         displayName = displayName,
                         color = color,
+                        fallbackLogin = username,
                         paint = sevenTv?.paint,
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f, fill = false)

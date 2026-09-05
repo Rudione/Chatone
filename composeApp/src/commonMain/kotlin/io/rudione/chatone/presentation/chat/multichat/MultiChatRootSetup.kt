@@ -5,7 +5,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import io.rudione.chatone.presentation.account.AccountInitializer
-import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.presentation.account.AccountMigration
 import io.rudione.chatone.presentation.account.AccountStateRefresher
 import org.koin.compose.koinInject

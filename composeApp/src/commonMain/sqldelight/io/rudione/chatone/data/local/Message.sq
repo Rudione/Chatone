@@ -15,37 +15,33 @@ CREATE TABLE MessageEntity (
     isVip INTEGER NOT NULL DEFAULT 0,
     isBroadcaster INTEGER NOT NULL DEFAULT 0,
     isMention INTEGER NOT NULL DEFAULT 0,
-    isAction INTEGER NOT NULL DEFAULT 0
+    isAction INTEGER NOT NULL DEFAULT 0,
+    gifs TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE INDEX IF NOT EXISTS idx_message_channel_user ON MessageEntity(channelId, userId);
 
--- Insert message
 insertMessage:
-INSERT OR REPLACE INTO MessageEntity(id, channelId, channelName, userId, username, displayName, message, timestamp, color, badges, emotes, isModerator, isSubscriber, isVip, isBroadcaster, isMention, isAction)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO MessageEntity(id, channelId, channelName, userId, username, displayName, message, timestamp, color, badges, emotes, isModerator, isSubscriber, isVip, isBroadcaster, isMention, isAction, gifs)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
--- Get messages for channel (with limit)
 getMessagesByChannel:
 SELECT * FROM MessageEntity 
 WHERE channelId = ?
 ORDER BY timestamp DESC
 LIMIT ?;
 
--- Get recent messages for channel
 getRecentMessages:
 SELECT * FROM MessageEntity
 WHERE channelId = ? AND timestamp > ?
 ORDER BY timestamp ASC;
 
--- Get full local history for a specific user in a channel
 getMessagesByChannelAndUser:
 SELECT * FROM MessageEntity
 WHERE channelId = ? AND userId = ?
 ORDER BY timestamp DESC
 LIMIT ?;
 
--- Delete old messages (keep last N messages per channel)
 deleteOldMessages:
 DELETE FROM MessageEntity
 WHERE id NOT IN (
@@ -55,14 +51,11 @@ WHERE id NOT IN (
     LIMIT ?
 );
 
--- Delete messages for channel
 deleteChannelMessages:
 DELETE FROM MessageEntity WHERE channelId = ?;
 
--- Clear all messages
 clearAllMessages:
 DELETE FROM MessageEntity;
 
--- Count messages for channel
 countMessagesByChannel:
 SELECT COUNT(*) FROM MessageEntity WHERE channelId = ?;

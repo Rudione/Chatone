@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.account
 
+import io.rudione.chatone.data.repository.AccountManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.outlined.PublicOff
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material.icons.outlined.VpnLock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -51,23 +53,24 @@ import io.rudione.chatone.domain.model.AccountProxyConfig
 import io.rudione.chatone.domain.model.ProxyType
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.data.repository.ModerationAuthStore
 import io.rudione.chatone.presentation.components.ChatoneTextField
+import org.koin.compose.koinInject
 
 @Composable
 fun AccountsSettingsSectionCompact(
     accounts: List<TwitchAccount>,
     accountManager: AccountManager,
     onAddAccount: () -> Unit,
-    onAddAccountBrowser: () -> Unit,
     onRemoveAccount: (TwitchAccount) -> Unit,
     onSetPrimary: (TwitchAccount) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val strings = LocalStrings.current
+    val moderationAuthStore: ModerationAuthStore = koinInject()
     val activeId by accountManager.activeAccountId.collectAsState()
     var expandedAccount by remember { mutableStateOf<String?>(null) }
     var confirmRemove by remember { mutableStateOf<TwitchAccount?>(null) }
-    var showAddDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -88,6 +91,7 @@ fun AccountsSettingsSectionCompact(
                     account = account,
                     isPrimary = account.userId == activeId,
                     isExpanded = expandedAccount == account.userId,
+                    hasExtendedRights = moderationAuthStore.hasTokenFor(account.userId),
                     accountManager = accountManager,
                     onToggleExpand = {
                         expandedAccount = if (expandedAccount == account.userId) null else account.userId
@@ -100,25 +104,11 @@ fun AccountsSettingsSectionCompact(
 
         Spacer(Modifier.height(4.dp))
         Button(
-            onClick = { showAddDialog = true },
+            onClick = onAddAccount,
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(strings.accountsAdd)
         }
-    }
-
-    if (showAddDialog) {
-        AddAccountChoiceDialog(
-            onDismiss = { showAddDialog = false },
-            onBrowser = {
-                showAddDialog = false
-                onAddAccountBrowser()
-            },
-            onPasteToken = {
-                showAddDialog = false
-                onAddAccount()
-            }
-        )
     }
 
     confirmRemove?.let { acc ->
@@ -145,6 +135,7 @@ private fun AccountRowCompact(
     account: TwitchAccount,
     isPrimary: Boolean,
     isExpanded: Boolean,
+    hasExtendedRights: Boolean,
     accountManager: AccountManager,
     onToggleExpand: () -> Unit,
     onSetPrimary: () -> Unit,
@@ -193,6 +184,15 @@ private fun AccountRowCompact(
                             Icons.Outlined.Star,
                             contentDescription = strings.accountsActive,
                             tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    if (hasExtendedRights) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(
+                            Icons.Outlined.VerifiedUser,
+                            contentDescription = strings.extRightsConnected,
+                            tint = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -440,36 +440,4 @@ private fun ProxyExpandableRow(
             }
         }
     }
-}
-
-@Composable
-private fun AddAccountChoiceDialog(
-    onDismiss: () -> Unit,
-    onBrowser: () -> Unit,
-    onPasteToken: () -> Unit
-) {
-    val strings = LocalStrings.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(strings.accountsAdd) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(strings.accountsAdd, style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    "Twitch OAuth",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onBrowser) { Text(strings.authBrowser) }
-        },
-        dismissButton = {
-            Row {
-                TextButton(onClick = onPasteToken) { Text(strings.authPasteToken) }
-                TextButton(onClick = onDismiss) { Text(strings.cancel) }
-            }
-        }
-    )
 }

@@ -104,7 +104,7 @@ import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
 import io.rudione.chatone.presentation.settings.SettingsEffect
 import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
 import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
-import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
@@ -112,8 +112,8 @@ import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.main.MainEvent
-import io.rudione.chatone.presentation.main.ChannelFolder
-import io.rudione.chatone.presentation.main.ChannelTab
+import io.rudione.chatone.domain.model.ChannelFolder
+import io.rudione.chatone.domain.model.ChannelTab
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneCountBadge
 

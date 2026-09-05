@@ -31,6 +31,7 @@ data class ChatMessage(
     val replyParentDisplayName: String? = null,
     val replyParentMsgBody: String? = null,
     val bits: Int = 0,
+    val gifs: List<ChatGif> = emptyList(),
 )
 
 @Serializable
@@ -82,3 +83,38 @@ data class Channel(
     val gameName: String = "",
     val title: String = ""
 )
+
+@Serializable
+data class ChatGif(
+    val id: String,
+    val url: String,
+    val title: String,
+    val positions: List<EmotePosition>
+)
+
+enum class SubscriptionTier(val level: Int) {
+    TIER_1(1), TIER_2(2), TIER_3(3);
+
+    companion object {
+        fun fromBadgeVersion(version: String): SubscriptionTier {
+            val numeric = version.toIntOrNull() ?: return TIER_1
+            return when (numeric / 1000) {
+                3 -> TIER_3
+                2 -> TIER_2
+                else -> TIER_1
+            }
+        }
+    }
+}
+
+fun List<Badge>.subscriptionTier(): SubscriptionTier? = firstOrNull {
+    val id = it.id.lowercase()
+    id == "subscriber" || id == "founder"
+}?.let { SubscriptionTier.fromBadgeVersion(it.version) }
+
+fun Badge.subscriptionTierOverlay(): Int? {
+    val id = this.id.lowercase()
+    if (id != "subscriber" && id != "founder") return null
+    val tier = SubscriptionTier.fromBadgeVersion(version)
+    return tier.level.takeIf { it > 1 }
+}

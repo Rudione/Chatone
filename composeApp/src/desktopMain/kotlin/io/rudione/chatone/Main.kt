@@ -28,6 +28,8 @@ import io.rudione.chatone.presentation.window.isWindowsOs
 import io.rudione.chatone.presentation.window.TitleBarState
 import io.rudione.chatone.presentation.window.resolveTitleBar
 import io.rudione.chatone.presentation.window.useCustomTitleBar
+import io.rudione.chatone.data.repository.AccountManager
+import io.rudione.chatone.util.emote.AnimatedEmoteLoader
 import io.rudione.chatone.util.system.AutoUpdater
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
 import io.rudione.chatone.util.system.WindowsTitleBar
@@ -56,9 +58,12 @@ fun main() {
     System.setProperty("http.maxConnections", "64")
     System.setProperty("jdk.httpclient.connectionPoolSize", "64")
 
-    startKoin {
+    val koin = startKoin {
         modules(appModules())
-    }
+    }.koin
+
+    val accountManager = koin.get<AccountManager>()
+    AnimatedEmoteLoader.setProxyProvider { accountManager.activeProxy.value }
 
     CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
         delay(3000)

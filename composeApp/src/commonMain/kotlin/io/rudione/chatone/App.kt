@@ -11,16 +11,23 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.ui.NavDisplay
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import coil3.SingletonImageLoader
+import coil3.annotation.DelicateCoilApi
+import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
 import com.russhwolf.settings.Settings
+import io.rudione.chatone.data.repository.AccountManager
 import io.github.aakira.napier.Antilog
 import io.github.aakira.napier.LogLevel
 import io.github.aakira.napier.Napier
@@ -48,11 +55,14 @@ import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
-private data object LoadingRoute
-private data object AuthRoute
-private data object MainRoute
+private sealed interface RootRoute {
+    data object Loading : RootRoute
+    data object Auth : RootRoute
+    data object Main : RootRoute
+}
 
-private fun MutableList<Any>.replaceWith(route: Any) {
+private fun MutableList<RootRoute>.replaceWith(route: RootRoute) {
+    if (lastOrNull() == route) return
     clear()
     add(route)
 }
@@ -80,6 +90,7 @@ private class ChatoneAntilog : Antilog() {
     }
 }
 
+@OptIn(DelicateCoilApi::class)
 @Composable
 fun App(
     darkTheme: Boolean = true,
@@ -97,15 +108,25 @@ fun App(
         Napier.base(ChatoneAntilog())
     }
 
+    val accountManager: AccountManager = koinInject()
     setSingletonImageLoaderFactory { context ->
-        createAnimatedImageLoader(context)
+        createAnimatedImageLoader(context, accountManager.activeProxy.value)
+    }
+
+    val platformContext = LocalPlatformContext.current
+    val imageProxy by accountManager.activeProxy.collectAsState()
+    var appliedImageProxy by remember { mutableStateOf(imageProxy) }
+    LaunchedEffect(imageProxy) {
+        if (imageProxy == appliedImageProxy) return@LaunchedEffect
+        appliedImageProxy = imageProxy
+        SingletonImageLoader.setUnsafe(createAnimatedImageLoader(platformContext, imageProxy))
     }
 
     val wallpaperController = remember { WallpaperController() }
 
     KoinContext {
         var isDarkTheme by remember { mutableStateOf(darkTheme) }
-        val backStack = remember { mutableStateListOf<Any>(LoadingRoute) }
+        val backStack = remember { mutableStateListOf<RootRoute>(RootRoute.Loading) }
         val getFirstValidAccount: GetFirstValidAccountUseCase = koinInject()
         val settingsViewModel: SettingsViewModel = koinViewModel()
         val settingsState by settingsViewModel.state.collectAsState()
@@ -190,10 +211,10 @@ fun App(
         LaunchedEffect(Unit) {
             try {
                 val account = getFirstValidAccount()
-                backStack.replaceWith(if (account != null) MainRoute else AuthRoute)
+                backStack.replaceWith(if (account != null) RootRoute.Main else RootRoute.Auth)
             } catch (e: Exception) {
                 Napier.w("Auto-login check failed: ${e.message}", tag = "App")
-                backStack.replaceWith(AuthRoute)
+                backStack.replaceWith(RootRoute.Auth)
             }
         }
 
@@ -245,6 +266,8 @@ fun App(
             LocalCustomThemeManager provides customThemeManager,
             io.rudione.chatone.presentation.chat.LocalNicknames provides nicknames,
             io.rudione.chatone.presentation.chat.LocalThirdPartyBadges provides thirdPartyBadgeMaps,
+            io.rudione.chatone.presentation.chat.LocalChatGifsEnabled provides settingsState.showChatGifs,
+            io.rudione.chatone.presentation.chat.LocalReadableNickColors provides settingsState.readableNickColors,
             io.rudione.chatone.presentation.chat.LocalSevenTvCosmetics provides sevenTvCosmetics,
             io.rudione.chatone.presentation.chat.LocalSevenTvPaints provides sevenTvPaints,
             LocalDensity provides Density(
@@ -284,26 +307,29 @@ fun App(
                             }
                         }
                 ) {
-                    NavDisplay(
-                        backStack = backStack,
-                        onBack = {},
-                        entryProvider = entryProvider {
-                            entry<LoadingRoute> { LoadingScreen() }
-                            entry<AuthRoute> {
-                                AuthScreen(onAuthSuccess = { backStack.replaceWith(MainRoute) })
-                            }
-                            entry<MainRoute> {
-                                MainScreen(
-                                    onNavigateToAuth = { backStack.replaceWith(AuthRoute) },
-                                    onThemeChanged = { dark ->
-                                        isDarkTheme = dark
-                                        onThemeChanged?.invoke(dark)
-                                    }
-                                )
-                            }
+                    val currentRoute = backStack.lastOrNull() ?: RootRoute.Loading
+                    AnimatedContent(
+                        targetState = currentRoute,
+                        transitionSpec = {
+                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                        },
+                        label = "root-route"
+                    ) { route ->
+                        when (route) {
+                            RootRoute.Loading -> LoadingScreen()
+                            RootRoute.Auth ->
+                                AuthScreen(onAuthSuccess = { backStack.replaceWith(RootRoute.Main) })
+
+                            RootRoute.Main -> MainScreen(
+                                onNavigateToAuth = { backStack.replaceWith(RootRoute.Auth) },
+                                onThemeChanged = { dark ->
+                                    isDarkTheme = dark
+                                    onThemeChanged?.invoke(dark)
+                                }
+                            )
                         }
-                    )
-                    if (backStack.lastOrNull() == MainRoute) {
+                    }
+                    if (currentRoute == RootRoute.Main) {
                         io.rudione.chatone.presentation.ai.AiAssistantOverlay()
                     }
                 }

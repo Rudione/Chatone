@@ -50,6 +50,7 @@ import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.domain.model.SevenTvUserCosmetic
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.window.windowDragArea
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.copy_check
 import chatone.composeapp.generated.resources.ic_copy
@@ -235,6 +236,7 @@ internal fun UserProfileDesktopCard(
                         remoteHistory = profileState.remoteHistory,
                         displayName = data.displayName,
                         userColor = data.color,
+                        login = data.username,
                         isHistoryLoading = profileState.isHistoryLoading,
                         hasMoreHistory = profileState.hasMoreHistory,
                         historyLoadFailed = profileState.historyError != null,
@@ -379,7 +381,7 @@ private fun ProfileCardHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .profileWindowDrag()
+            .windowDragArea()
             .padding(
                 start = if (compact) 8.dp else 12.dp,
                 end = 4.dp,
@@ -422,6 +424,7 @@ private fun ProfileCardHeader(
                     ProfileDisplayName(
                         displayName = data.displayName,
                         color = data.color,
+                        fallbackLogin = data.username,
                         paint = sevenTv?.paint,
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f, fill = false)

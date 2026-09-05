@@ -2,6 +2,7 @@ package io.rudione.chatone.data.remote
 
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -311,8 +312,28 @@ data class GqlChannelPointReward(
     val isEnabled: Boolean,
     val isInStock: Boolean,
     val isUserInputRequired: Boolean,
-    val imageUrl: String? = null
-)
+    val imageUrl: String? = null,
+    val automaticType: TwitchAutomaticRewardType? = null
+) {
+    val isRedeemableInApp: Boolean
+        get() = automaticType == null || automaticType.isRedeemableInApp
+}
+
+enum class TwitchAutomaticRewardType(val rawValue: String, val isRedeemableInApp: Boolean) {
+    SEND_HIGHLIGHTED_MESSAGE("SEND_HIGHLIGHTED_MESSAGE", false),
+    RANDOM_SUB_EMOTE_UNLOCK("RANDOM_SUB_EMOTE_UNLOCK", true),
+    CHOSEN_SUB_EMOTE_UNLOCK("CHOSEN_SUB_EMOTE_UNLOCK", false),
+    CHOSEN_MODIFIED_SUB_EMOTE_UNLOCK("CHOSEN_MODIFIED_SUB_EMOTE_UNLOCK", false),
+    SINGLE_MESSAGE_BYPASS_SUB_MODE("SINGLE_MESSAGE_BYPASS_SUB_MODE", false),
+    SEND_ANIMATED_MESSAGE("SEND_ANIMATED_MESSAGE", false),
+    SEND_GIGANTIFIED_EMOTE("SEND_GIGANTIFIED_EMOTE", false),
+    CELEBRATION("CELEBRATION", false);
+
+    companion object {
+        fun fromRaw(raw: String?): TwitchAutomaticRewardType? =
+            entries.firstOrNull { it.rawValue == raw }
+    }
+}
 
 data class GqlChannelPointRewardsInfo(
     val channelId: String,
@@ -759,34 +780,11 @@ class TwitchGqlClient(
         val balance = self?.get("communityPoints")?.jsonObject
             ?.get("balance")?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
 
-        val rewards = settings["customRewards"]?.jsonArray.orEmpty().mapNotNull { el ->
-            val obj = el.jsonObject
-            val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-            val pricingType = obj["pricingType"]?.jsonPrimitive?.contentOrNull ?: "POINTS"
-            val cost = obj["cost"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
-            if ((pricingType != "POINTS" && pricingType != "BITS") || cost <= 0) return@mapNotNull null
-            val imageObj = obj["image"] as? JsonObject
-            val defaultImageObj = obj["defaultImage"] as? JsonObject
-            val imageUrl = imageObj?.get("url4x")?.jsonPrimitive?.contentOrNull
-                ?: imageObj?.get("url2x")?.jsonPrimitive?.contentOrNull
-                ?: defaultImageObj?.get("url4x")?.jsonPrimitive?.contentOrNull
-            GqlChannelPointReward(
-                id = id,
-                title = obj["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                prompt = obj["prompt"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                cost = cost,
-                pricingType = pricingType,
-                isEnabled = (obj["isEnabled"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
-                    ?: false) &&
-                        !(obj["isPaused"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
-                            ?: false),
-                isInStock = obj["isInStock"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
-                    ?: true,
-                isUserInputRequired = obj["isUserInputRequired"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
-                    ?: false,
-                imageUrl = imageUrl
-            )
-        }
+        val customRewards = settings["customRewards"]?.jsonArray.orEmpty()
+            .mapNotNull { customRewardFromJson(it.jsonObject) }
+        val automaticRewards = settings["automaticRewards"]?.jsonArray.orEmpty()
+            .mapNotNull { automaticRewardFromJson(it.jsonObject) }
+        val rewards = customRewards + automaticRewards
         val settingsImageObj = settings["image"] as? JsonObject
         val currencyIconUrl = settingsImageObj?.get("png")?.jsonPrimitive?.contentOrNull
             ?: settingsImageObj?.get("url")?.jsonPrimitive?.contentOrNull
@@ -797,6 +795,87 @@ class TwitchGqlClient(
             currencyIconUrl = currencyIconUrl,
             rewards = rewards
         )
+    }
+
+    private fun customRewardFromJson(obj: JsonObject): GqlChannelPointReward? {
+        val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return null
+        val pricingType = obj["pricingType"]?.jsonPrimitive?.contentOrNull ?: "POINTS"
+        val cost = obj["cost"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
+        if ((pricingType != "POINTS" && pricingType != "BITS") || cost <= 0) return null
+        return GqlChannelPointReward(
+            id = id,
+            title = obj["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            prompt = obj["prompt"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            cost = cost,
+            pricingType = pricingType,
+            isEnabled = obj.boolOrNull("isEnabled") == true && obj.boolOrNull("isPaused") != true,
+            isInStock = obj.boolOrNull("isInStock") ?: true,
+            isUserInputRequired = obj.boolOrNull("isUserInputRequired") ?: false,
+            imageUrl = rewardImageUrl(obj)
+        )
+    }
+
+    private fun automaticRewardFromJson(obj: JsonObject): GqlChannelPointReward? {
+        val id = obj["id"]?.jsonPrimitive?.contentOrNull ?: return null
+        val type = TwitchAutomaticRewardType.fromRaw(
+            obj["type"]?.jsonPrimitive?.contentOrNull
+        ) ?: return null
+        val pricingType = obj["pricingType"]?.jsonPrimitive?.contentOrNull ?: "POINTS"
+        val costKey = if (pricingType == "BITS") "bitsCost" else "cost"
+        val cost = obj[costKey]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
+        if (cost <= 0) return null
+        return GqlChannelPointReward(
+            id = id,
+            title = "",
+            prompt = "",
+            cost = cost,
+            pricingType = pricingType,
+            isEnabled = obj.boolOrNull("isEnabled") ?: false,
+            isInStock = obj.boolOrNull("isInStock") ?: true,
+            isUserInputRequired = false,
+            imageUrl = rewardImageUrl(obj),
+            automaticType = type
+        )
+    }
+
+    private fun rewardImageUrl(obj: JsonObject): String? {
+        val image = obj["image"] as? JsonObject
+        val defaultImage = obj["defaultImage"] as? JsonObject
+        return image?.get("url4x")?.jsonPrimitive?.contentOrNull
+            ?: image?.get("url2x")?.jsonPrimitive?.contentOrNull
+            ?: defaultImage?.get("url4x")?.jsonPrimitive?.contentOrNull
+            ?: defaultImage?.get("url2x")?.jsonPrimitive?.contentOrNull
+    }
+
+    private fun JsonObject.boolOrNull(key: String): Boolean? =
+        this[key]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
+
+    suspend fun unlockRandomSubEmoteGql(
+        channelId: String,
+        cost: Long,
+        token: String
+    ): Result<Unit> {
+        val variables = buildJsonObject {
+            putJsonObject("input") {
+                put("channelID", channelId)
+                put("cost", cost)
+                put("transactionID", randomHexId())
+            }
+        }
+        val r = inlineQuery(UNLOCK_RANDOM_SUB_EMOTE_MUTATION, token, variables)
+        if (r is Result.Error) return r
+        val node = (r as Result.Success).data.firstDataNode()
+        node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
+        val payload = node?.get("data")?.jsonObject
+            ?.get("unlockRandomSubscriberEmote")?.jsonObject
+            ?: return Result.Error(Exception("Failed to redeem reward"))
+        val error = payload["error"]
+        if (error != null && error !is kotlinx.serialization.json.JsonNull) {
+            val message = error.jsonObject["code"]?.jsonPrimitive?.contentOrNull
+                ?: error.jsonObject["message"]?.jsonPrimitive?.contentOrNull
+            return Result.Error(Exception(message ?: "Failed to redeem reward"))
+        }
+        return Result.Success(Unit)
     }
 
     suspend fun redeemCustomRewardGql(
@@ -868,6 +947,141 @@ class TwitchGqlClient(
         } catch (e: Exception) {
             Napier.w("GQL inline query failed: ${e.message}", tag = TAG)
             Result.Error(e)
+        }
+    }
+
+    private fun HttpRequestBuilder.firstPartyHeaders(
+        profile: GqlClientProfile,
+        token: String,
+        integrityToken: String?
+    ) {
+        header("Client-Id", profile.clientId)
+        header("User-Agent", profile.userAgent)
+        header("X-Device-Id", deviceId)
+        header("Authorization", "OAuth ${normalizeGqlToken(token)}")
+        if (profile.webHeaders) {
+            header("Client-Session-Id", sessionId)
+            header("Client-Version", CLIENT_VERSION)
+        }
+        integrityToken?.let { header("Client-Integrity", it) }
+    }
+
+    private suspend fun inlineProfileQuery(
+        query: String,
+        token: String,
+        variables: kotlinx.serialization.json.JsonObject,
+        profile: GqlClientProfile,
+        integrityToken: String? = null
+    ): Result<JsonArray> {
+        return try {
+            val body = buildJsonArray {
+                addJsonObject {
+                    put("query", query)
+                    put("variables", variables)
+                }
+            }
+            val response = httpClient.post(GQL_ENDPOINT) {
+                firstPartyHeaders(profile, token, integrityToken)
+                contentType(ContentType.Application.Json)
+                setBody(json.encodeToString(JsonArray.serializer(), body))
+            }
+            val text = response.bodyAsText()
+            if (!response.status.isSuccess()) {
+                Napier.w(
+                    "GQL ${profile.label} HTTP ${response.status.value}: $text",
+                    tag = TAG
+                )
+                return Result.Error(Exception("HTTP ${response.status.value}"))
+            }
+            Result.Success(json.parseToJsonElement(text).jsonArray)
+        } catch (e: Exception) {
+            Napier.w("GQL ${profile.label} query failed: ${e.message}", tag = TAG)
+            Result.Error(e)
+        }
+    }
+
+    private suspend fun integrityToken(profile: GqlClientProfile, token: String): String? {
+        return try {
+            val response = httpClient.post(INTEGRITY_ENDPOINT) {
+                firstPartyHeaders(profile, token, null)
+                contentType(ContentType.Application.Json)
+                setBody("{}")
+            }
+            val text = response.bodyAsText()
+            if (!response.status.isSuccess()) {
+                Napier.w("GQL integrity HTTP ${response.status.value}: $text", tag = TAG)
+                return null
+            }
+            json.parseToJsonElement(text).jsonObject["token"]?.jsonPrimitive?.contentOrNull
+                ?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            Napier.w("GQL integrity request failed: ${e.message}", tag = TAG)
+            null
+        }
+    }
+
+    suspend fun sendGifMessage(
+        channelId: String,
+        gifId: String,
+        gifUrl: String,
+        token: String
+    ): Result<Unit> {
+        if (channelId.isBlank() || gifId.isBlank() || gifUrl.isBlank()) {
+            return Result.Error(Exception("Invalid GIF payload"))
+        }
+        val variables = buildJsonObject {
+            putJsonObject("input") {
+                put("channelID", channelId)
+                put("gifID", gifId)
+                put("gifURL", gifUrl)
+            }
+        }
+
+        var lastError: Result.Error? = null
+        for (profile in GIF_SEND_PROFILES) {
+            val integrity = if (profile.useIntegrity) {
+                integrityToken(profile, token) ?: continue
+            } else {
+                null
+            }
+            val r = inlineProfileQuery(
+                query = SEND_GIF_MUTATION,
+                token = token,
+                variables = variables,
+                profile = profile,
+                integrityToken = integrity
+            )
+            if (r is Result.Error) {
+                lastError = r
+                continue
+            }
+            val node = (r as Result.Success).data.firstDataNode()
+            if (node.isIntegrityRejection()) {
+                Napier.w("sendGifMessage: ${profile.label} rejected by the integrity gate", tag = TAG)
+                lastError = Result.Error(SendGifException(INTEGRITY_FAILED_CODE))
+                continue
+            }
+            node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
+            val payload = node?.get("data")?.jsonObject?.get("sendGifMessage")?.jsonObject
+                ?: return Result.Error(Exception("Empty sendGifMessage response"))
+            Napier.d("sendGifMessage: ${profile.label} passed the integrity gate", tag = TAG)
+            val error = payload["error"]
+            if (error != null && error !is kotlinx.serialization.json.JsonNull) {
+                val code = error.jsonPrimitive.contentOrNull ?: "SEND_FAILED"
+                return Result.Error(SendGifException(code))
+            }
+            return Result.Success(Unit)
+        }
+        return lastError ?: Result.Error(SendGifException(INTEGRITY_FAILED_CODE))
+    }
+
+    private fun kotlinx.serialization.json.JsonObject?.isIntegrityRejection(): Boolean {
+        val errors = this?.get("errors")?.jsonArray ?: return false
+        return errors.any { entry ->
+            val obj = entry as? JsonObject ?: return@any false
+            val code = obj["extensions"]?.jsonObject?.get("code")?.jsonPrimitive?.contentOrNull
+            val message = obj["message"]?.jsonPrimitive?.contentOrNull
+            code == "IntegrityCheckFailed" || message?.contains("integrity", ignoreCase = true) == true
         }
     }
 
@@ -1337,12 +1551,33 @@ class TwitchGqlClient(
         private const val BROWSER_USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+        private const val INTEGRITY_ENDPOINT = "https://gql.twitch.tv/integrity"
+        private const val INTEGRITY_FAILED_CODE = "INTEGRITY_CHECK_FAILED"
+        private const val ANDROID_CLIENT_ID = "kd1unb4b3q4t58fwlpcbzcbnm76a8fp"
+        private const val IOS_CLIENT_ID = "851cqzxpb9bqu9z6galvkkzsc5dy24"
+        private const val ANDROID_USER_AGENT = "tv.twitch.android.app/24.2.0/2402000 (Linux; U; Android 13)"
+        private const val IOS_USER_AGENT = "Twitch/1400 CFNetwork/1494.0.7 Darwin/23.4.0"
+        private val GIF_SEND_PROFILES = listOf(
+            GqlClientProfile("android", ANDROID_CLIENT_ID, ANDROID_USER_AGENT),
+            GqlClientProfile("ios", IOS_CLIENT_ID, IOS_USER_AGENT),
+            GqlClientProfile("tv", TV_CLIENT_ID, TV_USER_AGENT),
+            GqlClientProfile(
+                "web",
+                WEB_CLIENT_ID,
+                BROWSER_USER_AGENT,
+                webHeaders = true,
+                useIntegrity = true
+            )
+        )
         private const val TV_CLIENT_ID = "ue6666qo983tsx6so1t0vnawi233wa"
         private const val TV_ORIGIN = "https://android.tv.twitch.tv"
         private const val TV_REFERER = "https://android.tv.twitch.tv/"
         private const val TV_USER_AGENT =
             "Mozilla/5.0 (Linux; Android 7.1; Smart Box C1) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36"
+        private const val SEND_GIF_MUTATION =
+            "mutation ChatoneSendGif(\$input: SendGifMessageInput!) { " +
+                    "sendGifMessage(input: \$input) { error } }"
         private const val SPADE_CHAT_EVENT_HASH =
             "9cb0f182474382a0e72e817318460eeefc7c1cab0d163ac064a603d850b085ea"
         private const val PIN_HASH =
@@ -1389,9 +1624,27 @@ class TwitchGqlClient(
                 }
             }
         """.trimIndent()
+        private val UNLOCK_RANDOM_SUB_EMOTE_MUTATION = """
+            mutation ChatoneUnlockRandomSubEmote(${'$'}input: UnlockRandomSubscriberEmoteInput!) {
+              unlockRandomSubscriberEmote(input: ${'$'}input) {
+                error { code }
+                emote { id token }
+              }
+            }
+        """.trimIndent()
         private const val CHANNEL_POINTS_CONTEXT_HASH =
             "7fe050e3761eb2cf258d70ee1a21cbd76fa8cf3d7e7b12fc437e7029d446b5e3"
         private const val REDEEM_CUSTOM_REWARD_HASH =
             "d56249a7adb4978898ea3412e196688d4ac3cea1c0c2dfd65561d229ea5dcc42"
     }
 }
+
+private data class GqlClientProfile(
+    val label: String,
+    val clientId: String,
+    val userAgent: String,
+    val webHeaders: Boolean = false,
+    val useIntegrity: Boolean = false
+)
+
+class SendGifException(val code: String) : Exception(code)

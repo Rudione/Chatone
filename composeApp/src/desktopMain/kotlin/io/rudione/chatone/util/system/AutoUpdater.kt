@@ -207,17 +207,20 @@ object AutoUpdater {
         return when {
             os.contains("win") ->
                 if (isPerUserWindowsInstall(currentInstallPath())) {
-                    endingWith(SETUP_SUFFIX, ".msi", ".zip")
+                    endingWith(SETUP_SUFFIX, ".msi", WINDOWS_PORTABLE_SUFFIX)
                 } else {
-                    endingWith(".msi", SETUP_SUFFIX, ".zip")
+                    endingWith(".msi", SETUP_SUFFIX, WINDOWS_PORTABLE_SUFFIX)
                 }
 
-            os.contains("mac") -> endingWith(".dmg", ".zip")
-            else -> endingWith(".deb")
+            os.contains("mac") -> endingWith(".dmg", MACOS_PORTABLE_SUFFIX)
+            else -> endingWith(".deb", LINUX_PORTABLE_SUFFIX)
         }
     }
 
     private const val SETUP_SUFFIX = "-setup.exe"
+    private const val WINDOWS_PORTABLE_SUFFIX = "-windows-portable.zip"
+    private const val MACOS_PORTABLE_SUFFIX = "-macos-portable.zip"
+    private const val LINUX_PORTABLE_SUFFIX = "-linux-portable.zip"
 
     private suspend fun downloadFile(
         url: String,

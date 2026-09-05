@@ -13,6 +13,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import com.russhwolf.settings.Settings
+import io.rudione.chatone.presentation.window.LocalDraggableWindow
 import io.rudione.chatone.presentation.window.isWindowsOs
 import io.rudione.chatone.util.system.WindowsTitleBar
 import java.awt.Dimension
@@ -141,7 +142,7 @@ actual fun UserProfileContainer(
             }
         }
 
-        CompositionLocalProvider(LocalProfileWindow provides window) {
+        CompositionLocalProvider(LocalDraggableWindow provides window) {
             ProfileCardSurface(
                 width = windowState.size.width,
                 height = windowState.size.height,

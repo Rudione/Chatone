@@ -3,7 +3,7 @@ package io.rudione.chatone.presentation.chat.multichat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AccountManager
 
 @Composable
 fun rememberMultiChatReadyState(

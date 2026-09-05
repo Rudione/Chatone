@@ -33,7 +33,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.MentionEntry
-import io.rudione.chatone.presentation.chat.parseColor
+import io.rudione.chatone.presentation.chat.rememberNickColors
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 private data class MentionTabData(val login: String, val count: Int, val latest: MentionEntry)
@@ -85,9 +85,7 @@ fun MentionTabsBar(
 private fun MentionTab(data: MentionTabData, active: Boolean, onClick: () -> Unit) {
     val accent = MaterialTheme.colorScheme.primary
     val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
-    val senderColor = remember(data.latest.fromColor) {
-        parseColor(data.latest.fromColor)
-    } ?: MaterialTheme.colorScheme.onSurface
+    val senderColor = rememberNickColors().of(data.latest.fromColor, data.latest.fromUsername)
 
     Surface(
         shape = RoundedCornerShape(8.dp),

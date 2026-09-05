@@ -35,18 +35,12 @@ import io.rudione.chatone.presentation.chat.TranslationLanguages
 import io.rudione.chatone.presentation.chat.TranslationUiState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.MessageToken
+import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 
 internal fun DisplayMessage.PrivMsg.rawTokenText(): String =
     tokens.joinToString("") { token ->
-        when (token) {
-            is MessageToken.Text -> token.text
-            is MessageToken.TwitchEmoteToken -> token.name
-            is MessageToken.ThirdPartyEmoteToken -> token.emote.code
-            is MessageToken.Link -> token.displayText
-            is MessageToken.Mention -> token.username
-            is MessageToken.Cheer -> "${token.prefix}${token.amount}"
-        }
+        token.plainText()
     }
 
 @Composable

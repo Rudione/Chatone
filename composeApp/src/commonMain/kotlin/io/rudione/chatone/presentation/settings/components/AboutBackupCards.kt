@@ -196,10 +196,10 @@ internal fun BackupCard(vm: SettingsViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            io.rudione.chatone.presentation.components.ChatoneActionRow {
                 Box {
                     OutlinedButton(onClick = { menuOpen = true }) {
-                        Text(s.automodExport)
+                        io.rudione.chatone.presentation.components.ChatoneButtonText(s.automodExport)
                     }
                     ChatoneDropdownMenu(menuOpen, { menuOpen = false }) {
                         DropdownMenuItem(
@@ -267,7 +267,7 @@ internal fun BackupCard(vm: SettingsViewModel) {
                         vm.sendEvent(SettingsEvent.OnImportSettingsText(text))
                     }
                 }) {
-                    Text(s.settingsBackupImport)
+                    io.rudione.chatone.presentation.components.ChatoneButtonText(s.settingsBackupImport)
                 }
             }
         }

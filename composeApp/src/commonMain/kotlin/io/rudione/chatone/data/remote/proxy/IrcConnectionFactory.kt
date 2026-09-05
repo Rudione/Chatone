@@ -1,7 +1,7 @@
 package io.rudione.chatone.data.remote.proxy
 
 import io.rudione.chatone.data.remote.TwitchIrcClient
-import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AccountManager
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.CoroutineScope

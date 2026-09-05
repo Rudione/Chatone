@@ -130,6 +130,7 @@ import io.rudione.chatone.presentation.theme.luminance
 import io.rudione.chatone.util.EmoteAnimationCache
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
 import io.rudione.chatone.util.chat.MessageToken
+import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.util.media.NotificationSoundPlayer
 import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
@@ -399,18 +400,6 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(channelLogin, accessToken) {
-        viewModel.sendEvent(
-            ChatEvent.OnInit(
-                channelLogin,
-                accessToken,
-                currentUserId,
-                currentUserLogin,
-                currentDisplayName
-            )
-        )
-    }
-
     val channelId = state.channelId
     LaunchedEffect(channelId) {
         if (channelId.isNotEmpty()) onChannelIdResolved(channelId)
@@ -473,14 +462,7 @@ fun ChatScreen(
                             fromDisplayName = mentionMsg.displayName,
                             fromColor = mentionMsg.color,
                             text = mentionMsg.tokens.joinToString("") { token ->
-                                when (token) {
-                                    is MessageToken.Text -> token.text
-                                    is MessageToken.TwitchEmoteToken -> token.name
-                                    is MessageToken.ThirdPartyEmoteToken -> token.emote.code
-                                    is MessageToken.Link -> token.displayText
-                                    is MessageToken.Mention -> token.username
-                                    is MessageToken.Cheer -> "${token.prefix}${token.amount}"
-                                }
+                                token.plainText()
                             },
                             timestamp = mentionMsg.timestamp
                         )
@@ -544,14 +526,7 @@ fun ChatScreen(
                 val text = when (msg) {
                     is DisplayMessage.PrivMsg -> (msg.rawMessage?.message
                         ?: msg.tokens.joinToString("") {
-                            when (it) {
-                                is MessageToken.Text -> it.text
-                                is MessageToken.TwitchEmoteToken -> it.name
-                                is MessageToken.ThirdPartyEmoteToken -> it.emote.code
-                                is MessageToken.Link -> it.displayText
-                                is MessageToken.Mention -> it.username
-                                is MessageToken.Cheer -> "${it.prefix}${it.amount}"
-                            }
+                            it.plainText()
                         }).lowercase()
 
                     is DisplayMessage.SystemMsg -> msg.text.lowercase()
@@ -672,7 +647,7 @@ fun ChatScreen(
         onDispose { unregister() }
     }
 
-    LaunchedEffect(channelLogin) {
+    LaunchedEffect(channelLogin, accessToken) {
         EmoteAnimationCache.clearAll()
         viewModel.sendEvent(
             ChatEvent.OnInit(
@@ -870,14 +845,7 @@ fun ChatScreen(
                                         if (m !is DisplayMessage.PrivMsg) continue
                                         val ts = m.timestamp
                                         val norm = m.tokens.joinToString("") { tok ->
-                                            when (tok) {
-                                                is MessageToken.Text -> tok.text
-                                                is MessageToken.TwitchEmoteToken -> tok.name
-                                                is MessageToken.ThirdPartyEmoteToken -> tok.emote.code
-                                                is MessageToken.Link -> tok.displayText
-                                                is MessageToken.Mention -> "@${tok.username}"
-                                                is MessageToken.Cheer -> "${tok.prefix}${tok.amount}"
-                                            }
+                                            tok.plainText()
                                         }.trim().lowercase()
                                         if (norm.isEmpty()) continue
                                         while (recent.isNotEmpty() && ts - recent.first().second > repeatWindowMs) {
@@ -1156,6 +1124,11 @@ fun ChatScreen(
 
                                             is DisplayMessage.ModerationMsg -> ModerationMsgItem(
                                                 message = message,
+                                                chatFontSizeSp = when (settingsState.fontSize) {
+                                                    SettingsState.FontSize.SMALL -> 12f
+                                                    SettingsState.FontSize.MEDIUM -> 15f
+                                                    SettingsState.FontSize.LARGE -> 18f
+                                                },
                                                 onUsernameClick = { targetUser ->
                                                     val found = state.messages
                                                         .filterIsInstance<DisplayMessage.PrivMsg>()
@@ -1732,14 +1705,7 @@ fun ChatScreen(
                 ReplyBar(
                     displayName = replyMsg.displayName,
                     messagePreview = replyMsg.tokens.joinToString("") { token ->
-                        when (token) {
-                            is MessageToken.Text -> token.text
-                            is MessageToken.TwitchEmoteToken -> token.name
-                            is MessageToken.ThirdPartyEmoteToken -> token.emote.code
-                            is MessageToken.Link -> token.displayText
-                            is MessageToken.Mention -> token.username
-                            is MessageToken.Cheer -> "${token.prefix}${token.amount}"
-                        }
+                        token.plainText()
                     },
                     onCancel = { viewModel.sendEvent(ChatEvent.OnCancelReply) }
                 )
@@ -1984,6 +1950,9 @@ fun ChatScreen(
                 if (current.isEmpty() || current.endsWith(" ")) "$current$emoji" else "$current $emoji"
             viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
         }
+        val onGifPicked: (io.rudione.chatone.domain.model.GifSearchItem) -> Unit = { gif ->
+            viewModel.sendEvent(ChatEvent.OnSendGif(gif))
+        }
 
         if (dockHost == null) {
             Box(
@@ -1997,6 +1966,9 @@ fun ChatScreen(
                     closeOnMouseLeave = settingsState.closeEmotePickerOnMouseLeave,
                     onEmoteSelected = onEmotePicked,
                     onEmojiSelected = onEmojiPicked,
+                    onGifSelected = onGifPicked,
+                    canSendGifs = state.ownSubTier >= 2,
+                    gifSendError = state.gifSendError,
                     onDismiss = { viewModel.sendEvent(ChatEvent.OnToggleEmotePicker) }
                 )
             }
@@ -2008,6 +1980,9 @@ fun ChatScreen(
                     closeOnMouseLeave = false,
                     onEmoteSelected = onEmotePicked,
                     onEmojiSelected = onEmojiPicked,
+                    onGifSelected = onGifPicked,
+                    canSendGifs = state.ownSubTier >= 2,
+                    gifSendError = state.gifSendError,
                     onDismiss = { viewModel.sendEvent(ChatEvent.OnToggleEmotePicker) },
                     docked = true
                 )

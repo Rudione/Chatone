@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -21,6 +25,9 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
 
 internal fun formatTimestamp(
     timestamp: Long,
@@ -43,8 +50,10 @@ internal fun formatTimestamp(
 
 internal fun parseColor(hexColor: String?): Color? {
     if (hexColor == null || !hexColor.startsWith("#")) return null
+    val hex = hexColor.substring(1)
+    if (hex.length != 6 && hex.length != 8) return null
     return try {
-        val c = hexColor.substring(1).toLong(16)
+        val c = hex.takeLast(6).toLong(16)
         Color(
             red = ((c shr 16) and 0xFF) / 255f,
             green = ((c shr 8) and 0xFF) / 255f,
@@ -214,7 +223,7 @@ internal fun keyNameMatches(key: Key, name: String): Boolean = when (name) {
 private val TWITCH_USERNAME_COLORS = longArrayOf(
     0xFFFF0000L,
     0xFF0000FFL,
-    0xFF00FF00L,
+    0xFF008000L,
     0xFFB22222L,
     0xFFFF7F50L,
     0xFF9ACD32L,
@@ -234,4 +243,96 @@ internal fun stableUserColor(login: String): Color {
     if (key.isEmpty()) return Color(TWITCH_USERNAME_COLORS[0])
     val idx = (key.first().code + key.last().code) % TWITCH_USERNAME_COLORS.size
     return Color(TWITCH_USERNAME_COLORS[idx])
+}
+
+internal fun twitchNickColor(hexColor: String?, login: String): Color =
+    parseColor(hexColor) ?: stableUserColor(login)
+
+private const val NICK_MIN_CONTRAST = 4.5f
+private const val NICK_LIGHTNESS_STEP = 0.1f
+private const val NICK_NEAR_BLACK = 36f / 255f
+private val NICK_NEAR_BLACK_REPLACEMENT = Color(0xFF7A7A7A)
+
+private fun srgbToLinear(channel: Float): Float =
+    if (channel <= 0.03928f) channel / 12.92f else ((channel + 0.055f) / 1.055f).pow(2.4f)
+
+private fun relativeLuminance(color: Color): Float =
+    0.2126f * srgbToLinear(color.red) +
+        0.7152f * srgbToLinear(color.green) +
+        0.0722f * srgbToLinear(color.blue)
+
+private fun contrastRatio(a: Color, b: Color): Float {
+    val la = relativeLuminance(a)
+    val lb = relativeLuminance(b)
+    return (max(la, lb) + 0.05f) / (min(la, lb) + 0.05f)
+}
+
+private fun hslToColor(hue: Float, saturation: Float, lightness: Float): Color {
+    if (saturation <= 0f) return Color(lightness, lightness, lightness)
+    val q = if (lightness < 0.5f) lightness * (1f + saturation)
+    else lightness + saturation - lightness * saturation
+    val p = 2f * lightness - q
+    fun channel(offset: Float): Float {
+        var t = offset
+        if (t < 0f) t += 1f
+        if (t > 1f) t -= 1f
+        return when {
+            t < 1f / 6f -> p + (q - p) * 6f * t
+            t < 1f / 2f -> q
+            t < 2f / 3f -> p + (q - p) * (2f / 3f - t) * 6f
+            else -> p
+        }
+    }
+    return Color(channel(hue + 1f / 3f), channel(hue), channel(hue - 1f / 3f))
+}
+
+private fun shiftLightness(color: Color, delta: Float): Color {
+    val r = color.red
+    val g = color.green
+    val b = color.blue
+    val mx = maxOf(r, g, b)
+    val mn = minOf(r, g, b)
+    val l = (mx + mn) / 2f
+    val d = mx - mn
+    var h = 0f
+    var s = 0f
+    if (d > 0.0001f) {
+        s = if (l > 0.5f) d / (2f - mx - mn) else d / (mx + mn)
+        h = when (mx) {
+            r -> (g - b) / d + if (g < b) 6f else 0f
+            g -> (b - r) / d + 2f
+            else -> (r - g) / d + 4f
+        } / 6f
+    }
+    return hslToColor(h, s, (l + delta).coerceIn(0f, 1f)).copy(alpha = color.alpha)
+}
+
+internal fun readableNickColor(color: Color, background: Color): Color {
+    if (contrastRatio(color, background) >= NICK_MIN_CONTRAST) return color
+    val darkBackground = relativeLuminance(background) < 0.18f
+    if (darkBackground &&
+        color.red < NICK_NEAR_BLACK && color.green < NICK_NEAR_BLACK && color.blue < NICK_NEAR_BLACK
+    ) return NICK_NEAR_BLACK_REPLACEMENT
+    val step = if (darkBackground) NICK_LIGHTNESS_STEP else -NICK_LIGHTNESS_STEP
+    var adjusted = color
+    var iterations = 0
+    while (contrastRatio(adjusted, background) < NICK_MIN_CONTRAST && iterations < 50) {
+        adjusted = shiftLightness(adjusted, step)
+        iterations++
+    }
+    return adjusted
+}
+
+@Immutable
+internal data class NickColors(val background: Color, val readable: Boolean) {
+    fun of(hexColor: String?, login: String): Color = adjust(twitchNickColor(hexColor, login))
+    fun adjust(color: Color): Color =
+        if (readable) readableNickColor(color, background) else color
+}
+
+@Composable
+internal fun rememberNickColors(): NickColors {
+    val readable = LocalReadableNickColors.current
+    val background = MaterialTheme.colorScheme.background
+    return remember(readable, background) { NickColors(background, readable) }
 }

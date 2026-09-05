@@ -10,7 +10,7 @@ data class FolderColorOption(
 )
 
 object FolderColors {
-    const val DEFAULT_HEX = "#9B6DFF"
+    const val DEFAULT_HEX = io.rudione.chatone.domain.model.DEFAULT_FOLDER_COLOR_HEX
 
     val options: List<FolderColorOption> = listOf(
         FolderColorOption(DEFAULT_HEX, Color(0xFF9B6DFF)) { it.folderColorPurple },

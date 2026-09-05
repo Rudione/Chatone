@@ -20,6 +20,21 @@ sealed class MessageToken {
     data class Link(val url: String, val displayText: String) : MessageToken()
     data class Mention(val username: String) : MessageToken()
     data class Cheer(val prefix: String, val amount: Int) : MessageToken()
+    data class GifToken(
+        val id: String,
+        val url: String,
+        val title: String
+    ) : MessageToken()
+}
+
+fun MessageToken.plainText(): String = when (this) {
+    is MessageToken.Text -> text
+    is MessageToken.TwitchEmoteToken -> name
+    is MessageToken.ThirdPartyEmoteToken -> emote.code
+    is MessageToken.Link -> displayText
+    is MessageToken.Mention -> username
+    is MessageToken.Cheer -> "$prefix$amount"
+    is MessageToken.GifToken -> title
 }
 
 object MessageTokenizer {
@@ -49,14 +64,22 @@ object MessageTokenizer {
         val text = message.message
         if (text.isEmpty()) return emptyList()
 
-        val twitchEmoteRanges = mutableMapOf<IntRange, MessageToken.TwitchEmoteToken>()
+        val anchoredRanges = mutableMapOf<IntRange, MessageToken>()
         message.emotes.forEach { emote ->
             emote.positions.forEach { pos ->
-                val range = pos.start..pos.end
-                twitchEmoteRanges[range] = MessageToken.TwitchEmoteToken(
+                anchoredRanges[pos.start..pos.end] = MessageToken.TwitchEmoteToken(
                     id = emote.id,
                     name = emote.name,
                     url = emote.imageUrl
+                )
+            }
+        }
+        message.gifs.forEach { gif ->
+            gif.positions.forEach { pos ->
+                anchoredRanges[pos.start..pos.end] = MessageToken.GifToken(
+                    id = gif.id,
+                    url = gif.url,
+                    title = gif.title
                 )
             }
         }
@@ -67,22 +90,22 @@ object MessageTokenizer {
 
         while (i < text.length) {
 
-            val twitchEntry = twitchEmoteRanges.entries.find { it.key.first == i }
-            if (twitchEntry != null) {
-                tokens.add(twitchEntry.value)
-                i = twitchEntry.key.last + 1
+            val anchored = anchoredRanges.entries.find { it.key.first == i }
+            if (anchored != null) {
+                tokens.add(anchored.value)
+                i = anchored.key.last + 1
                 continue
             }
 
-            val nextTwitchStart = twitchEmoteRanges.keys
+            val nextAnchorStart = anchoredRanges.keys
                 .filter { it.first > i }
                 .minByOrNull { it.first }?.first ?: text.length
 
-            val segment = text.substring(i, nextTwitchStart)
+            val segment = text.substring(i, nextAnchorStart)
             tokens.addAll(
                 tokenizeSegment(segment, channelEmotes, currentUsername, personalEmotes, hasBits)
             )
-            i = nextTwitchStart
+            i = nextAnchorStart
         }
 
         return adjustOverlayEmotes(tokens)

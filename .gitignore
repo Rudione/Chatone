@@ -10,6 +10,7 @@ build/
 *.kotlin_metadata
 .kotlin/metadata
 .kotlin/sessions
+.kotlin/errors
 
 # IntelliJ IDEA
 .idea/
@@ -85,3 +86,9 @@ memory/
 *.zip
 !gradle/wrapper/*.jar
 composeApp/src/**/*.zip
+# Site (client + /auth) — lives in its own repository (app.chatone.im)
+site/
+
+# Python
+__pycache__/
+*.pyc

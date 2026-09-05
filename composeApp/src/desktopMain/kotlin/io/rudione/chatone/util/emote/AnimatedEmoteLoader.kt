@@ -2,6 +2,8 @@ package io.rudione.chatone.util.emote
 
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import io.rudione.chatone.domain.model.AccountProxyConfig
+import io.rudione.chatone.domain.model.ProxyType
 import io.rudione.chatone.util.link.isSafeHttpUrl
 import io.rudione.chatone.util.media.scaledTo
 import kotlinx.coroutines.CoroutineScope
@@ -15,7 +17,10 @@ import kotlinx.coroutines.sync.withPermit
 import org.jetbrains.skia.Bitmap
 import org.jetbrains.skia.Codec
 import org.jetbrains.skia.Data
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.URI
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -49,6 +54,16 @@ object AnimatedEmoteLoader {
     private val decodeGate = Semaphore(4)
 
     private val loaderScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
+    private var proxyProvider: () -> AccountProxyConfig? = { null }
+
+    @Volatile
+    private var lastProxySignature: String = ""
+
+    fun setProxyProvider(provider: () -> AccountProxyConfig?) {
+        proxyProvider = provider
+    }
 
     fun isKnownStatic(url: String, maxDimension: Int = 0): Boolean = cacheKey(url, maxDimension) in staticUrls
 
@@ -87,7 +102,11 @@ object AnimatedEmoteLoader {
         }
 
         val bytes = try {
-            val conn = URI(url).toURL().openConnection()
+            val proxy = activeProxy()
+            val conn = URI(url).toURL().openConnection(proxy.toJavaProxy())
+            proxy?.proxyAuthorizationHeader()?.let {
+                conn.setRequestProperty("Proxy-Authorization", it)
+            }
             conn.connectTimeout = 10_000
             conn.readTimeout = 15_000
             conn.getInputStream().use { it.readNBytes(MAX_DOWNLOAD_BYTES) }
@@ -150,6 +169,34 @@ object AnimatedEmoteLoader {
             codec.close()
             data.close()
         }
+    }
+
+    private fun activeProxy(): AccountProxyConfig? {
+        val proxy = runCatching { proxyProvider() }.getOrNull()
+            ?.takeIf { it.enabled && it.isValid }
+        val signature = proxy?.let { "${it.type}|${it.host}:${it.port}" }.orEmpty()
+        if (signature != lastProxySignature) {
+            lastProxySignature = signature
+            clear()
+        }
+        return proxy
+    }
+
+    private fun AccountProxyConfig?.toJavaProxy(): Proxy {
+        val config = this ?: return Proxy.NO_PROXY
+        val type = when (config.type) {
+            ProxyType.HTTP -> Proxy.Type.HTTP
+            ProxyType.SOCKS5 -> Proxy.Type.SOCKS
+        }
+        return runCatching {
+            Proxy(type, InetSocketAddress.createUnresolved(config.host, config.port))
+        }.getOrDefault(Proxy.NO_PROXY)
+    }
+
+    private fun AccountProxyConfig.proxyAuthorizationHeader(): String? {
+        if (type != ProxyType.HTTP || !requiresAuth) return null
+        val raw = "${username.orEmpty()}:${password.orEmpty()}"
+        return "Basic " + Base64.getEncoder().encodeToString(raw.encodeToByteArray())
     }
 
     private fun markStatic(key: String) {

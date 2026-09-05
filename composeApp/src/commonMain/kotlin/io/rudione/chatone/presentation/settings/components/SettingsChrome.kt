@@ -71,6 +71,12 @@ import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
+import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
+import io.rudione.chatone.presentation.theme.ChatoneIndication
+import io.rudione.chatone.presentation.window.windowDragArea
 import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
 import io.rudione.chatone.presentation.components.rows.LocalSettingsSearch
 import io.rudione.chatone.presentation.components.rows.RowDivider
@@ -188,5 +194,102 @@ internal fun SettingsGroup(title: String? = null, content: @Composable ColumnSco
             Column(content = content)
         }
         Spacer(Modifier.height(6.dp))
+    }
+}
+
+@Composable
+internal fun SettingsPaneHeader(
+    isPinned: Boolean?,
+    onTogglePin: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val s = LocalStrings.current
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(34.dp)
+            .windowDragArea()
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isPinned != null) {
+            SettingsPaneIcon(
+                icon = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                label = if (isPinned) s.settingsUnpinWindow else s.settingsPinWindow,
+                tint = if (isPinned) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                onClick = onTogglePin
+            )
+        }
+        SettingsPaneIcon(
+            icon = Icons.Filled.Close,
+            label = s.close,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            onClick = onClose
+        )
+    }
+}
+
+@Composable
+private fun SettingsPaneIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    LiquidGlassTooltipBox(tooltip = label) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = ChatoneIndication,
+                    onClick = onClick
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(15.dp))
+        }
+    }
+}
+
+private val TwoColumnBreakpoint = 700.dp
+private val ColumnGap = 10.dp
+
+@Composable
+internal fun SettingsPair(
+    first: @Composable () -> Unit,
+    second: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    if (second == null) {
+        Box(modifier = modifier.fillMaxWidth()) { first() }
+        return
+    }
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        if (maxWidth >= TwoColumnBreakpoint) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(ColumnGap),
+                verticalAlignment = Alignment.Top
+            ) {
+                Box(modifier = Modifier.weight(1f)) { first() }
+                Box(modifier = Modifier.weight(1f)) { second() }
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(ColumnGap)
+            ) {
+                first()
+                second()
+            }
+        }
     }
 }

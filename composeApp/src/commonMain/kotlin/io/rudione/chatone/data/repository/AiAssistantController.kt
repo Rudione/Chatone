@@ -1,6 +1,8 @@
 package io.rudione.chatone.data.repository
 
 import com.russhwolf.settings.Settings
+import io.rudione.chatone.util.security.getSecret
+import io.rudione.chatone.util.security.putSecret
 import io.rudione.chatone.data.remote.AiAssistantClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -70,7 +72,7 @@ class AiAssistantController(private val settings: Settings) {
         val c = update(_config.value)
         settings.putString(KEY_BASE_URL, c.baseUrl)
         settings.putString(KEY_MODEL, c.model)
-        settings.putString(KEY_API_KEY, c.apiKey)
+        settings.putSecret(KEY_API_KEY, c.apiKey)
         settings.putDouble(KEY_TEMP, c.temperature)
         _config.value = c
     }
@@ -127,7 +129,7 @@ class AiAssistantController(private val settings: Settings) {
         return Config(
             baseUrl = baseUrl,
             model = model,
-            apiKey = settings.getStringOrNull(KEY_API_KEY).orEmpty(),
+            apiKey = settings.getSecret(KEY_API_KEY),
             temperature = settings.getDouble(KEY_TEMP, 0.7)
         )
     }

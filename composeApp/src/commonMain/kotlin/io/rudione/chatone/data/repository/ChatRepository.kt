@@ -252,7 +252,8 @@ class ChatRepositoryImpl(
             isVip = if (message.isVip) 1 else 0,
             isBroadcaster = if (message.isBroadcaster) 1 else 0,
             isMention = if (message.isMention) 1 else 0,
-            isAction = if (message.isAction) 1 else 0
+            isAction = if (message.isAction) 1 else 0,
+            gifs = Json.encodeToString(message.gifs)
         )
     }
 
@@ -295,6 +296,11 @@ class ChatRepositoryImpl(
         isVip = isVip == 1L,
         isBroadcaster = isBroadcaster == 1L,
         isMention = isMention == 1L,
-        isAction = isAction == 1L
+        isAction = isAction == 1L,
+        gifs = try {
+            Json.decodeFromString(gifs)
+        } catch (e: Exception) {
+            emptyList()
+        }
     )
 }

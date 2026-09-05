@@ -227,6 +227,8 @@ interface AppStrings {
     val settingsSmoothChatDesc: String
     val settingsAlternateRowBg: String
     val settingsAlternateRowBgDesc: String
+    val settingsReadableNickColors: String
+    val settingsReadableNickColorsDesc: String
     val settingsBackupTitle: String
     val settingsBackupDesc: String
     val settingsBackupExportJson: String
@@ -299,6 +301,15 @@ interface AppStrings {
     val pointsBitsGetBits: String
     val pointsBitsNoRewards: String
     val pointsBitsUnavailableRewards: String
+    val pointsBitsTwitchOnlyRewards: String
+    val pointsRewardHighlightMessage: String
+    val pointsRewardRandomSubEmote: String
+    val pointsRewardChosenSubEmote: String
+    val pointsRewardModifySubEmote: String
+    val pointsRewardBypassSubMode: String
+    val pointsRewardAnimatedMessage: String
+    val pointsRewardGigantifiedEmote: String
+    val pointsRewardCelebration: String
     val creationRepeatFromHistory: String
     val settingsChatControls: String
     val settingsPauseAutoScroll: String
@@ -801,6 +812,21 @@ interface AppStrings {
     val emoteNoFavorites: String
     val emoteNoLoaded: String
     val emoteClearSearch: String
+    val gifTabTitle: String
+    val gifSearchPlaceholder: String
+    val gifNoResults: String
+    val gifTrending: String
+    val gifFavorites: String
+    val gifKeyMissingTitle: String
+    val gifKeyMissingBody: String
+    val gifKeyMissingAction: String
+    val gifTierHint: String
+    val gifLoadFailed: String
+    val gifPoweredBy: String
+    val settingsShowChatGifs: String
+    val settingsShowChatGifsDesc: String
+    val settingsGiphyApiKey: String
+    val settingsGiphyApiKeyDesc: String
     val emoteNoEmojiFound: String
 
     val automodLocalTitle: String
@@ -1119,6 +1145,10 @@ interface AppStrings {
     val colorMentionBg: String
     val colorHighlightBg: String
     val colorOwnMessageBg: String
+    val modIconTabEmoji: String
+    val modIconTabMaterial: String
+    val modRepeatDuplicateHint: String
+    val modButtonColorHint: String
     val colorModDelete: String
 
     val chatTranslate: String
@@ -1184,6 +1214,59 @@ interface AppStrings {
     val automodAddVariant: String
 
     val profileMessageDeleted: String
+
+    val loginOpenSite: String
+    val loginOpenSiteHint: String
+    val loginReopenSite: String
+    val loginPasteFromClipboard: String
+    val loginPasteManualLabel: String
+    val loginPasteManualHint: String
+    val loginPreparing: String
+    val loginVerifying: String
+    val loginStepOpen: String
+    val loginStepConfirm: String
+    val loginStepPaste: String
+    val loginModPending: String
+    val loginModLinked: String
+    val loginModFailed: String
+    val loginClipboardCleared: String
+    val loginErrClipboardEmpty: String
+    val loginErrMalformed: String
+    val loginErrDecrypt: String
+    val loginErrIncomplete: String
+    val loginErrForeignClient: String
+    val loginErrIdentity: String
+    val loginErrTokenRejected: String
+    val loginErrEncryptionUnsupported: String
+    val loginErrUnsafeUrl: String
+    val loginErrRightsNotGranted: String
+    val loginErrNetwork: String
+    val loginCodeAccepted: String
+    val loginAutoWatch: String
+    val loginRetrying: String
+    val loginRetryNow: String
+    val loginAwaitingRights: String
+    val loginContinueWithoutRights: String
+    val loginSupport: String
+    val settingsPinWindow: String
+    val settingsUnpinWindow: String
+    val extRightsTitle: String
+    val extRightsWhat: String
+    val extRightsUnlocks: String
+    val extRightsConnected: String
+    val extRightsNotConnected: String
+    val extRightsConnect: String
+    val extRightsReconnect: String
+    val extRightsDisconnect: String
+    val extRightsApproveAs: String
+    val extRightsCodeLabel: String
+    val extRightsOpenTwitch: String
+    val extRightsWaiting: String
+    val extRightsMismatch: String
+    val extRightsForAccount: String
+    val extRightsManual: String
+    val extRightsManualShow: String
+    val extRightsManualHide: String
 
     companion object {
         fun forLocale(locale: String): AppStrings = when (locale) {

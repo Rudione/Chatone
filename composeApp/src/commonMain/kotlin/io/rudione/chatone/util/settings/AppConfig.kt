@@ -2,15 +2,11 @@ package io.rudione.chatone.util.settings
 
 object AppConfig {
 
-    const val TWITCH_CLIENT_ID_DESKTOP = "5ez3vtq4fbp8nvpgbkpxk15oga8o7l"
-    const val TWITCH_CLIENT_ID_MOBILE = "8hw5ezro8y4opnuqv5myh11up48hwz"
+    const val TWITCH_CLIENT_ID = "5ez3vtq4fbp8nvpgbkpxk15oga8o7l"
 
-    const val REDIRECT_URI_DESKTOP = "http://localhost:3829/auth/callback"
-    const val REDIRECT_URI_MOBILE = "chatone://auth/callback"
+    const val SITE_LOGIN_URL = "https://app.chatone.im/auth/"
 
-    const val ANDROID_USE_LOOPBACK_REDIRECT = true
-
-    const val OAUTH_CALLBACK_PORT = 3829
+    const val LOGIN_PAYLOAD_VERSION = 1
 
     val REQUIRED_SCOPES = listOf(
         "chat:read",
@@ -52,19 +48,4 @@ object AppConfig {
         "whispers:read",
         "whispers:edit"
     )
-
-    fun getAuthUrl(clientId: String, redirectUri: String, state: String = ""): String {
-        val scopesString = REQUIRED_SCOPES.joinToString("%20")
-        val encodedRedirect = redirectUri
-            .replace(":", "%3A")
-            .replace("/", "%2F")
-        val stateParam = if (state.isNotEmpty()) "&state=$state" else ""
-        return "https://id.twitch.tv/oauth2/authorize" +
-                "?client_id=$clientId" +
-                "&redirect_uri=$encodedRedirect" +
-                "&response_type=token" +
-                "&scope=$scopesString" +
-                stateParam +
-                "&force_verify=true"
-    }
 }

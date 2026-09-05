@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.GqlChannelPointReward
+import io.rudione.chatone.data.remote.TwitchAutomaticRewardType
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.icons.TwitchBitsIcon
 import io.rudione.chatone.util.icons.TwitchPointsIcon
@@ -66,6 +68,22 @@ private fun rewardTileColor(rewardId: String): Color {
 }
 
 @Composable
+private fun rewardTitle(reward: GqlChannelPointReward): String {
+    val s = LocalStrings.current
+    return when (reward.automaticType) {
+        null -> reward.title
+        TwitchAutomaticRewardType.SEND_HIGHLIGHTED_MESSAGE -> s.pointsRewardHighlightMessage
+        TwitchAutomaticRewardType.RANDOM_SUB_EMOTE_UNLOCK -> s.pointsRewardRandomSubEmote
+        TwitchAutomaticRewardType.CHOSEN_SUB_EMOTE_UNLOCK -> s.pointsRewardChosenSubEmote
+        TwitchAutomaticRewardType.CHOSEN_MODIFIED_SUB_EMOTE_UNLOCK -> s.pointsRewardModifySubEmote
+        TwitchAutomaticRewardType.SINGLE_MESSAGE_BYPASS_SUB_MODE -> s.pointsRewardBypassSubMode
+        TwitchAutomaticRewardType.SEND_ANIMATED_MESSAGE -> s.pointsRewardAnimatedMessage
+        TwitchAutomaticRewardType.SEND_GIGANTIFIED_EMOTE -> s.pointsRewardGigantifiedEmote
+        TwitchAutomaticRewardType.CELEBRATION -> s.pointsRewardCelebration
+    }
+}
+
+@Composable
 private fun RewardTile(
     reward: GqlChannelPointReward,
     balance: Long,
@@ -73,7 +91,9 @@ private fun RewardTile(
 ) {
     var showTextInputPrompt by remember { mutableStateOf(false) }
     var textInput by remember { mutableStateOf("") }
-    val affordable = balance >= reward.cost && reward.isEnabled && reward.isInStock
+    val title = rewardTitle(reward)
+    val affordable = balance >= reward.cost && reward.isEnabled && reward.isInStock &&
+            reward.isRedeemableInApp
 
     Box(
         modifier = Modifier
@@ -99,7 +119,7 @@ private fun RewardTile(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                reward.title,
+                title,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp),
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -127,7 +147,7 @@ private fun RewardTile(
     if (showTextInputPrompt) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showTextInputPrompt = false },
-            title = { Text(reward.title) },
+            title = { Text(title) },
             text = {
                 ChatoneTextField(
                     value = textInput,
@@ -147,6 +167,49 @@ private fun RewardTile(
                 TextButton(onClick = { showTextInputPrompt = false }) { Text(LocalStrings.current.cancel) }
             }
         )
+    }
+}
+
+private data class RewardGroups(
+    val available: List<GqlChannelPointReward>,
+    val twitchOnly: List<GqlChannelPointReward>,
+    val unavailable: List<GqlChannelPointReward>
+)
+
+private fun groupRewards(rewards: List<GqlChannelPointReward>): RewardGroups {
+    val available = mutableListOf<GqlChannelPointReward>()
+    val twitchOnly = mutableListOf<GqlChannelPointReward>()
+    val unavailable = mutableListOf<GqlChannelPointReward>()
+    for (reward in rewards) {
+        when {
+            !reward.isEnabled || !reward.isInStock -> unavailable.add(reward)
+            !reward.isRedeemableInApp -> twitchOnly.add(reward)
+            else -> available.add(reward)
+        }
+    }
+    return RewardGroups(available, twitchOnly, unavailable)
+}
+
+private fun LazyGridScope.rewardGroup(
+    rewards: List<GqlChannelPointReward>,
+    title: String,
+    balance: Long,
+    onRedeem: (GqlChannelPointReward, String) -> Unit
+) {
+    if (rewards.isEmpty()) return
+    item(span = { GridItemSpan(maxLineSpan) }, key = "header_$title") {
+        Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            Text(
+                title,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+            )
+        }
+    }
+    items(rewards, key = { it.id }) { reward ->
+        RewardTile(reward = reward, balance = balance) { text -> onRedeem(reward, text) }
     }
 }
 
@@ -317,7 +380,7 @@ internal fun ChannelPointsBitsSheet(
                 }
 
                 else -> {
-                    val (availableRewards, unavailableRewards) = rewards.partition { it.isEnabled && it.isInStock }
+                    val groups = remember(rewards) { groupRewards(rewards) }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(4),
                         contentPadding = PaddingValues(10.dp),
@@ -325,29 +388,13 @@ internal fun ChannelPointsBitsSheet(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)
                     ) {
-                        items(availableRewards, key = { it.id }) { reward ->
+                        items(groups.available, key = { it.id }) { reward ->
                             RewardTile(reward = reward, balance = balance) { text ->
                                 onRedeem(reward, text)
                             }
                         }
-                        if (unavailableRewards.isNotEmpty()) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-                                    Text(
-                                        s.pointsBitsUnavailableRewards,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
-                                    )
-                                }
-                            }
-                            items(unavailableRewards, key = { it.id }) { reward ->
-                                RewardTile(reward = reward, balance = balance) { text ->
-                                    onRedeem(reward, text)
-                                }
-                            }
-                        }
+                        rewardGroup(groups.twitchOnly, s.pointsBitsTwitchOnlyRewards, balance, onRedeem)
+                        rewardGroup(groups.unavailable, s.pointsBitsUnavailableRewards, balance, onRedeem)
                     }
                 }
             }

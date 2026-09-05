@@ -1,10 +1,13 @@
 package io.rudione.chatone.util.chat
 
 import io.rudione.chatone.domain.model.Badge
+import io.rudione.chatone.domain.model.ChatGif
 import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.Emote
 import io.rudione.chatone.domain.model.EmotePosition
 import io.rudione.chatone.domain.model.hasGrandModBadge
+import io.rudione.chatone.util.link.httpUrlHost
+import io.rudione.chatone.util.link.isSafeHttpUrl
 import kotlin.time.Clock
 
 data class IrcMessage(
@@ -111,6 +114,10 @@ data class IrcMessage(
 
 object IrcMessageParser {
 
+    private val GIF_ENTRY_REGEX = Regex("""(\d+)-(\d+)\|([^|,]+)\|""")
+
+    private val GIF_HOST_SUFFIXES = listOf("giphy.com", "jtvnw.net", "twitchcdn.net")
+
     fun parsePrivMsg(ircMessage: IrcMessage): ChatMessage {
         val tags = ircMessage.tags
         val channelName = ircMessage.channel
@@ -124,7 +131,9 @@ object IrcMessageParser {
         val messageId = tags["id"] ?: generateMessageId()
 
         val badges = parseBadges(tags["badges"] ?: "")
+            .withBadgeInfo(tags["badge-info"] ?: "")
         val emotes = parseEmotes(tags["emotes"] ?: "", messageText)
+        val gifs = parseGifs(tags["gifs"] ?: "", messageText)
 
         val isModerator = tags["mod"] == "1"
         val isSubscriber = tags["subscriber"] == "1"
@@ -165,15 +174,11 @@ object IrcMessageParser {
         }
         val displayMessage = replyMentionPrefixLength?.let { finalMessage.substring(it) } ?: finalMessage
         val displayEmotes = if (replyMentionPrefixLength != null && emotes.isNotEmpty()) {
-            emotes.map { emote ->
-                emote.copy(positions = emote.positions.map { pos ->
-                    EmotePosition(
-                        start = (pos.start - replyMentionPrefixLength).coerceAtLeast(0),
-                        end = (pos.end - replyMentionPrefixLength).coerceAtLeast(0)
-                    )
-                })
-            }
+            emotes.map { it.copy(positions = it.positions.shiftedBy(replyMentionPrefixLength)) }
         } else emotes
+        val displayGifs = if (replyMentionPrefixLength != null && gifs.isNotEmpty()) {
+            gifs.map { it.copy(positions = it.positions.shiftedBy(replyMentionPrefixLength)) }
+        } else gifs
 
         return ChatMessage(
             id = messageId,
@@ -202,7 +207,8 @@ object IrcMessageParser {
             replyParentMsgId = replyParentId,
             replyParentUserLogin = replyParentLogin,
             replyParentDisplayName = replyParentName,
-            replyParentMsgBody = replyParentBody
+            replyParentMsgBody = replyParentBody,
+            gifs = displayGifs
         )
     }
 
@@ -210,6 +216,71 @@ object IrcMessageParser {
         val ircMessage = IrcMessage.parse(rawMessage)
             ?: throw IllegalArgumentException("Invalid IRC message format")
         return parsePrivMsg(ircMessage)
+    }
+
+    private fun List<EmotePosition>.shiftedBy(prefixLength: Int): List<EmotePosition> = map { pos ->
+        EmotePosition(
+            start = (pos.start - prefixLength).coerceAtLeast(0),
+            end = (pos.end - prefixLength).coerceAtLeast(0)
+        )
+    }
+
+    private fun List<Badge>.withBadgeInfo(badgeInfoString: String): List<Badge> {
+        if (badgeInfoString.isEmpty()) return this
+        val months = parseBadges(badgeInfoString)
+            .associate { it.id.lowercase() to it.version.toIntOrNull() }
+        if (months.isEmpty()) return this
+        return map { badge ->
+            months[badge.id.lowercase()]?.let { badge.copy(months = it) } ?: badge
+        }
+    }
+
+    fun parseGifs(gifsString: String, messageText: String): List<ChatGif> {
+        if (gifsString.isEmpty()) return emptyList()
+
+        val heads = GIF_ENTRY_REGEX.findAll(gifsString).toList()
+        if (heads.isEmpty()) return emptyList()
+
+        return heads.mapIndexedNotNull { index, head ->
+            val urlStart = head.range.last + 1
+            val nextHeadStart = heads.getOrNull(index + 1)?.range?.first
+            val urlEnd = if (nextHeadStart == null) {
+                gifsString.length
+            } else {
+                gifsString.lastIndexOf(',', nextHeadStart).takeIf { it >= urlStart } ?: nextHeadStart
+            }
+            if (urlEnd <= urlStart) return@mapIndexedNotNull null
+
+            val url = gifsString.substring(urlStart, urlEnd).trim()
+            if (!isAllowedGifUrl(url)) return@mapIndexedNotNull null
+
+            val start = head.groupValues[1].toIntOrNull() ?: return@mapIndexedNotNull null
+            val end = head.groupValues[2].toIntOrNull() ?: return@mapIndexedNotNull null
+            if (end < start) return@mapIndexedNotNull null
+
+            val gifId = head.groupValues[3]
+            val title = messageText
+                .substring(
+                    start.coerceIn(0, messageText.length),
+                    (end + 1).coerceIn(0, messageText.length)
+                )
+                .removeSurrounding("[", "]")
+                .trim()
+
+            ChatGif(
+                id = gifId,
+                url = url,
+                title = title.ifEmpty { gifId },
+                positions = listOf(EmotePosition(start = start, end = end))
+            )
+        }
+    }
+
+    private fun isAllowedGifUrl(url: String): Boolean {
+        if (!isSafeHttpUrl(url)) return false
+        if (!url.startsWith("https://", ignoreCase = true)) return false
+        val host = httpUrlHost(url) ?: return false
+        return GIF_HOST_SUFFIXES.any { host == it || host.endsWith(".$it") }
     }
 
     fun parseBadges(badgesString: String): List<Badge> {

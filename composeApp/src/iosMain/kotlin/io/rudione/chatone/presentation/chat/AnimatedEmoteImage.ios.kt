@@ -9,7 +9,8 @@ actual fun AnimatedEmoteImage(
     url: String,
     contentDescription: String?,
     modifier: Modifier,
-    isScrolling: Boolean
+    isScrolling: Boolean,
+    maxDimension: Int
 ) {
 
     AsyncImage(

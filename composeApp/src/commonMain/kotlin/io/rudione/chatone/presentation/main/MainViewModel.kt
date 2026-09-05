@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.domain.model.ChannelFolder
+import io.rudione.chatone.domain.model.ChannelTab
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewModelScope
 import com.russhwolf.settings.Settings
@@ -34,23 +36,6 @@ import kotlin.time.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-
-data class ChannelFolder(
-    val id: String,
-    val name: String,
-    val color: String = FolderColors.DEFAULT_HEX,
-    val isExpanded: Boolean = true,
-    val channels: List<ChannelTab> = emptyList()
-)
-
-data class ChannelTab(
-    val login: String,
-    val displayName: String,
-    val profileImageUrl: String = "",
-    val isLive: Boolean = false,
-    val unreadCount: Int = 0,
-    val notificationsMuted: Boolean = false
-)
 
 data class MainState(
     val accounts: List<TwitchAccount> = emptyList(),

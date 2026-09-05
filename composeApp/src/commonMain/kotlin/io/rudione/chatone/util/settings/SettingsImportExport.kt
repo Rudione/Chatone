@@ -57,6 +57,7 @@ object SettingsImportExport {
         "show_inline_images",
         "inline_image_max_height",
         "clip_preview_width",
+        "show_chat_gifs",
         "custom_themes_json",
         "active_custom_theme_id",
         "wallpaper_path",

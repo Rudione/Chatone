@@ -2,12 +2,18 @@ package io.rudione.chatone.data.repository
 
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.data.local.ChatoneDatabase
+import io.rudione.chatone.data.local.TwitchAccountEntity
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.util.map
+import io.rudione.chatone.util.security.SecretVault
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
+import io.rudione.chatone.util.concurrent.IoDispatcher
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlin.time.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -33,12 +39,51 @@ class AuthRepositoryImpl(
         private const val TAG = "AuthRepository"
     }
 
+    private var legacyTokensMigrated = false
+
+    private fun toAccount(entity: TwitchAccountEntity) = TwitchAccount(
+        userId = entity.userId,
+        login = entity.login,
+        displayName = entity.displayName,
+        profileImageUrl = entity.profileImageUrl,
+        accessToken = SecretVault.open(entity.accessToken),
+        refreshToken = SecretVault.open(entity.refreshToken),
+        expiresAt = entity.expiresAt,
+        scopes = try {
+            Json.decodeFromString<List<String>>(entity.scopes)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    )
+
+    private fun migrateLegacyTokens() {
+        if (legacyTokensMigrated) return
+        legacyTokensMigrated = true
+        try {
+            database.twitchAccountQueries.getAllAccounts().executeAsList().forEach { entity ->
+                if (entity.accessToken.isNotEmpty() && !SecretVault.isSealed(entity.accessToken)) {
+                    database.twitchAccountQueries.updateTokens(
+                        accessToken = SecretVault.seal(entity.accessToken),
+                        refreshToken = SecretVault.seal(entity.refreshToken),
+                        expiresAt = entity.expiresAt,
+                        userId = entity.userId
+                    )
+                    Napier.d("Token for ${entity.login} moved to encrypted storage", tag = TAG)
+                }
+            }
+        } catch (e: Exception) {
+            Napier.w("Token migration skipped: ${e.message}", tag = TAG)
+        }
+    }
+
     override suspend fun authenticateWithToken(accessToken: String): Result<TwitchAccount> {
         return try {
 
             val validateResult = apiClient.validateToken(accessToken)
             if (validateResult !is Result.Success) {
-                return Result.Error(Exception("Token validation failed"))
+                return Result.Error(
+                    validateResult.exceptionOrNull() ?: Exception("Token validation failed")
+                )
             }
 
             val validateData = validateResult.data
@@ -46,7 +91,9 @@ class AuthRepositoryImpl(
 
             val userResult = apiClient.getUsers(accessToken = accessToken)
             if (userResult !is Result.Success || userResult.data.data.isEmpty()) {
-                return Result.Error(Exception("Failed to get user info"))
+                return Result.Error(
+                    userResult.exceptionOrNull() ?: Exception("Failed to get user info")
+                )
             }
 
             val userData = userResult.data.data.first()
@@ -91,55 +138,26 @@ class AuthRepositoryImpl(
             login = account.login,
             displayName = account.displayName,
             profileImageUrl = account.profileImageUrl,
-            accessToken = account.accessToken,
-            refreshToken = account.refreshToken,
+            accessToken = SecretVault.seal(account.accessToken),
+            refreshToken = SecretVault.seal(account.refreshToken),
             expiresAt = account.expiresAt,
             scopes = Json.encodeToString(account.scopes)
         )
         Napier.d("Account saved: ${account.login}", tag = TAG)
     }
 
-    override suspend fun getAccounts(): Flow<List<TwitchAccount>> = flow {
-        val accounts = database.twitchAccountQueries.getAllAccounts()
-            .executeAsList()
-            .map { entity ->
-                TwitchAccount(
-                    userId = entity.userId,
-                    login = entity.login,
-                    displayName = entity.displayName,
-                    profileImageUrl = entity.profileImageUrl,
-                    accessToken = entity.accessToken,
-                    refreshToken = entity.refreshToken,
-                    expiresAt = entity.expiresAt,
-                    scopes = try {
-                        Json.decodeFromString<List<String>>(entity.scopes)
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
-                )
-            }
-        emit(accounts)
-    }
+    override suspend fun getAccounts(): Flow<List<TwitchAccount>> =
+        database.twitchAccountQueries.getAllAccounts()
+            .asFlow()
+            .onStart { migrateLegacyTokens() }
+            .mapToList(IoDispatcher)
+            .map { entities -> entities.map(::toAccount) }
 
     override suspend fun getAccountById(userId: String): TwitchAccount? {
+        migrateLegacyTokens()
         return database.twitchAccountQueries.getAccountById(userId)
             .executeAsOneOrNull()
-            ?.let { entity ->
-                TwitchAccount(
-                    userId = entity.userId,
-                    login = entity.login,
-                    displayName = entity.displayName,
-                    profileImageUrl = entity.profileImageUrl,
-                    accessToken = entity.accessToken,
-                    refreshToken = entity.refreshToken,
-                    expiresAt = entity.expiresAt,
-                    scopes = try {
-                        Json.decodeFromString<List<String>>(entity.scopes)
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
-                )
-            }
+            ?.let(::toAccount)
     }
 
     override suspend fun deleteAccount(userId: String) {
@@ -148,22 +166,10 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun getFirstValidAccount(): TwitchAccount? {
+        migrateLegacyTokens()
         val accounts = database.twitchAccountQueries.getAllAccounts().executeAsList()
         for (entity in accounts) {
-            val account = TwitchAccount(
-                userId = entity.userId,
-                login = entity.login,
-                displayName = entity.displayName,
-                profileImageUrl = entity.profileImageUrl,
-                accessToken = entity.accessToken,
-                refreshToken = entity.refreshToken,
-                expiresAt = entity.expiresAt,
-                scopes = try {
-                    Json.decodeFromString<List<String>>(entity.scopes)
-                } catch (e: Exception) {
-                    emptyList()
-                }
-            )
+            val account = toAccount(entity)
             when (val result = apiClient.validateToken(account.accessToken)) {
                 is Result.Success -> return account
                 is Result.Error -> {

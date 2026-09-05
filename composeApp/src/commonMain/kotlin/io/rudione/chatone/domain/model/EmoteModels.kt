@@ -75,3 +75,18 @@ data class ChannelEmotes(
         result
     }
 }
+
+fun lockedTwitchEmoteIds(
+    channelEmotes: List<GenericEmote>,
+    globalEmotes: List<GenericEmote>,
+    usableEmotes: List<GenericEmote>
+): Set<String> {
+    if (channelEmotes.isEmpty() || usableEmotes.isEmpty()) return emptySet()
+    val usableIds = HashSet<String>(usableEmotes.size + globalEmotes.size)
+    usableEmotes.mapTo(usableIds) { it.id }
+    globalEmotes.mapTo(usableIds) { it.id }
+    return channelEmotes.asSequence()
+        .map { it.id }
+        .filterNot { it in usableIds }
+        .toSet()
+}

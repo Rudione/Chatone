@@ -38,11 +38,12 @@ import io.rudione.chatone.domain.model.GenericEmote
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.presentation.chat.AnimatedEmoteImage
-import io.rudione.chatone.presentation.chat.parseColor
+import io.rudione.chatone.presentation.chat.rememberNickColors
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.MessageToken
+import io.rudione.chatone.util.chat.plainText
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -127,7 +128,7 @@ internal fun PinnedMessageBar(
                             message.displayName,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = parseColor(message.color) ?: primaryColor,
+                            color = rememberNickColors().of(message.color, message.username),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
@@ -159,12 +160,7 @@ internal fun PinnedMessageBar(
                     }
                     Text(
                         message.tokens.joinToString("") { token ->
-                            when (token) {
-                                is MessageToken.Text -> token.text; is MessageToken.TwitchEmoteToken -> token.name
-                                is MessageToken.ThirdPartyEmoteToken -> token.emote.code; is MessageToken.Link -> token.displayText
-                                is MessageToken.Mention -> token.username
-                                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
-                            }
+                            token.plainText()
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),

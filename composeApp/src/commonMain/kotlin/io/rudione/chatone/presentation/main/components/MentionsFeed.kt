@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.domain.model.MentionEntry
+import io.rudione.chatone.presentation.chat.rememberNickColors
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.main.MainState
@@ -308,8 +309,7 @@ private fun MentionRow(entry: MentionEntry, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
-                val nameColor =
-                    parseHexColorMentions(entry.fromColor) ?: MaterialTheme.colorScheme.primary
+                val nameColor = rememberNickColors().of(entry.fromColor, entry.fromUsername)
                 Text(
                     entry.fromDisplayName,
                     style = MaterialTheme.typography.labelMedium,
@@ -445,20 +445,6 @@ private fun FilterMenuRow(
                 tint = MaterialTheme.colorScheme.primary
             )
         }
-    }
-}
-
-private fun parseHexColorMentions(hex: String?): Color? {
-    if (hex == null || !hex.startsWith("#")) return null
-    return try {
-        val v = hex.substring(1).toLong(16)
-        Color(
-            red = ((v shr 16) and 0xFF) / 255f,
-            green = ((v shr 8) and 0xFF) / 255f,
-            blue = (v and 0xFF) / 255f
-        )
-    } catch (_: Exception) {
-        null
     }
 }
 

@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.account
 
+import io.rudione.chatone.data.repository.AccountManager
+
 object SettingsExportSnapshot {
 
     fun snapshot(globalJson: String, accountManager: AccountManager, userId: String) {

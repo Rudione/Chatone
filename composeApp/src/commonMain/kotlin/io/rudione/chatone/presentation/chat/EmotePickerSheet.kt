@@ -45,6 +45,7 @@ import com.russhwolf.settings.Settings
 import io.rudione.chatone.domain.model.ChannelEmotes
 import io.rudione.chatone.domain.model.EmoteProvider
 import io.rudione.chatone.domain.model.GenericEmote
+import io.rudione.chatone.domain.model.lockedTwitchEmoteIds
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -57,6 +58,22 @@ import io.rudione.chatone.presentation.chat.models.EmoteUiData
 import io.rudione.chatone.util.emote.EmoteSearchIndex
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.ui.graphics.painter.Painter
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.emoji_icon
+import chatone.composeapp.generated.resources.ic_bttv
+import chatone.composeapp.generated.resources.ic_ffz
+import chatone.composeapp.generated.resources.ic_gif
+import chatone.composeapp.generated.resources.ic_seventv
+import chatone.composeapp.generated.resources.ic_twitch
+import chatone.composeapp.generated.resources.star_filled
+import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
+import io.rudione.chatone.presentation.theme.ChatoneIndication
+import org.jetbrains.compose.resources.painterResource
 
 private const val PAGE_SIZE = 100
 private const val PRELOAD_THRESHOLD = 20
@@ -928,6 +945,9 @@ fun EmotePickerSheet(
     personalEmotes: List<GenericEmote> = emptyList(),
     onEmoteSelected: (GenericEmote) -> Unit,
     onEmojiSelected: (String) -> Unit = {},
+    onGifSelected: ((io.rudione.chatone.domain.model.GifSearchItem) -> Unit)? = null,
+    canSendGifs: Boolean = false,
+    gifSendError: String? = null,
     onDismiss: () -> Unit,
     closeOnMouseLeave: Boolean = false,
     docked: Boolean = false
@@ -1077,22 +1097,33 @@ fun EmotePickerSheet(
                     settings.putString("favorite_emotes", favoriteIds.joinToString(","))
                 },
                 onEmojiSelected = onEmojiSelected,
-                onToggleFavoriteEmoji = { toggleFavoriteEmoji(it) }
+                onToggleFavoriteEmoji = { toggleFavoriteEmoji(it) },
+                onGifSelected = onGifSelected,
+                canSendGifs = canSendGifs,
+                gifSendError = gifSendError
             )
             Spacer(Modifier.height(8.dp))
         }
     }
 }
 
+private data class TabEntry(val label: String, val tab: PickerTab, val count: Int)
+
+private data class EmoteSetAnchor(
+    val title: String,
+    val preview: GenericEmote,
+    val itemIndex: Int
+)
+
 private sealed class PickerTab {
     object Favorites : PickerTab()
     object All : PickerTab()
     object Twitch : PickerTab()
-    object TwitchSubscribed : PickerTab()
     object SevenTv : PickerTab()
     object Bttv : PickerTab()
     object Ffz : PickerTab()
     object Emoji : PickerTab()
+    object Gifs : PickerTab()
 }
 
 private data class EmoteSection(val title: String?, val emotes: List<GenericEmote>)
@@ -1105,10 +1136,11 @@ private fun providerName(p: EmoteProvider): String = when (p) {
 }
 
 @Composable
-private fun CompactEmoteSearchBar(
+internal fun CompactEmoteSearchBar(
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholder: String? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -1146,7 +1178,7 @@ private fun CompactEmoteSearchBar(
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     if (value.isEmpty()) {
                         Text(
-                            LocalStrings.current.emoteSearchPlaceholder,
+                            placeholder ?: LocalStrings.current.emoteSearchPlaceholder,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             maxLines = 1
@@ -1204,9 +1236,11 @@ internal fun EmoteTab(
     onToggleFavorite: (GenericEmote) -> Unit,
     onFavoriteAll: (List<GenericEmote>) -> Unit = {},
     onEmojiSelected: (String) -> Unit = {},
-    onToggleFavoriteEmoji: (String) -> Unit = {}
+    onToggleFavoriteEmoji: (String) -> Unit = {},
+    onGifSelected: ((io.rudione.chatone.domain.model.GifSearchItem) -> Unit)? = null,
+    canSendGifs: Boolean = false,
+    gifSendError: String? = null
 ) {
-    data class TabEntry(val label: String, val tab: PickerTab, val count: Int)
 
     val twitchChannel = channelEmotes.twitchEmotes
     val twitchGlobal: List<GenericEmote> = channelEmotes.twitchGlobal
@@ -1216,7 +1250,11 @@ internal fun EmoteTab(
     val sevenTv = channelEmotes.byProvider[EmoteProvider.SEVEN_TV] ?: emptyList()
     val bttv = channelEmotes.byProvider[EmoteProvider.BTTV] ?: emptyList()
     val ffz = channelEmotes.byProvider[EmoteProvider.FFZ] ?: emptyList()
+    val lockedEmoteIds = remember(twitchChannel, twitchGlobal, twitchSubscribed) {
+        lockedTwitchEmoteIds(twitchChannel, twitchGlobal, twitchSubscribed)
+    }
 
+    val hasGifs = onGifSelected != null
     val tabs = remember(
         allEmotes.size,
         favoriteEmotes.size,
@@ -1224,29 +1262,28 @@ internal fun EmoteTab(
         hasSub,
         sevenTv.size,
         bttv.size,
-        ffz.size
+        ffz.size,
+        hasGifs
     ) {
-        buildList<TabEntry> {
-            if (favoriteEmotes.isNotEmpty()) add(
-                TabEntry(
-                    "★ ${favoriteEmotes.size}",
-                    PickerTab.Favorites,
-                    favoriteEmotes.size
+        buildList {
+            if (favoriteEmotes.isNotEmpty()) {
+                add(TabEntry("Favorites", PickerTab.Favorites, favoriteEmotes.size))
+            }
+            add(TabEntry("All", PickerTab.All, allEmotes.size))
+            if (hasTwitch || hasSub) {
+                add(
+                    TabEntry(
+                        "Twitch",
+                        PickerTab.Twitch,
+                        twitchChannel.size + twitchGlobal.size + twitchSubscribed.size
+                    )
                 )
-            )
-            add(TabEntry("All (${allEmotes.size})", PickerTab.All, allEmotes.size))
-            if (hasTwitch) add(
-                TabEntry(
-                    "Twitch",
-                    PickerTab.Twitch,
-                    twitchChannel.size + twitchGlobal.size
-                )
-            )
-            if (hasSub) add(TabEntry("Sub ★", PickerTab.TwitchSubscribed, twitchSubscribed.size))
+            }
             if (sevenTv.isNotEmpty()) add(TabEntry("7TV", PickerTab.SevenTv, sevenTv.size))
             if (bttv.isNotEmpty()) add(TabEntry("BTTV", PickerTab.Bttv, bttv.size))
             if (ffz.isNotEmpty()) add(TabEntry("FFZ", PickerTab.Ffz, ffz.size))
-            add(TabEntry("😀 Emoji", PickerTab.Emoji, 0))
+            if (hasGifs) add(TabEntry("GIF", PickerTab.Gifs, 0))
+            add(TabEntry("Emoji", PickerTab.Emoji, 0))
         }
     }
 
@@ -1254,6 +1291,7 @@ internal fun EmoteTab(
     val safeTab = selectedTabIndex.coerceAtMost(tabs.lastIndex.coerceAtLeast(0))
     val currentTab = tabs.getOrNull(safeTab)
     val isEmojiTab = currentTab?.tab == PickerTab.Emoji
+    val isGifTab = currentTab?.tab == PickerTab.Gifs
 
     val baseSections: List<EmoteSection> = remember(
         currentTab,
@@ -1287,14 +1325,13 @@ internal fun EmoteTab(
             PickerTab.Twitch -> buildList {
                 if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Channel · $it" }
                     ?: "Channel", twitchChannel))
+                twitchSubscribed
+                    .groupBy { it.authorName.ifBlank { "Subscriptions" } }
+                    .toList()
+                    .sortedBy { it.first.lowercase() }
+                    .forEach { (chan, list) -> add(EmoteSection(chan, list)) }
                 if (twitchGlobal.isNotEmpty()) add(EmoteSection("Global", twitchGlobal))
             }
-
-            PickerTab.TwitchSubscribed -> twitchSubscribed
-                .groupBy { it.authorName.ifBlank { "Other" } }
-                .toList()
-                .sortedBy { it.first.lowercase() }
-                .map { (chan, list) -> EmoteSection(chan, list) }
 
             PickerTab.SevenTv -> listOf(EmoteSection(null, sevenTv))
             PickerTab.Bttv -> listOf(EmoteSection(null, bttv))
@@ -1311,7 +1348,7 @@ internal fun EmoteTab(
         flatSource.size,
         currentTab
     ) {
-        if (isEmojiTab) {
+        if (isEmojiTab || isGifTab) {
             value = null; return@produceState
         }
         value =
@@ -1341,67 +1378,39 @@ internal fun EmoteTab(
 
     val isEmpty = displaySections.all { it.emotes.isEmpty() }
     val gridState = rememberLazyGridState()
+    val railScope = rememberCoroutineScope()
     val scrollActivity =
         io.rudione.chatone.presentation.chat.rendering.rememberScrollActivity(gridState)
     LaunchedEffect(safeTab, searchQuery) {
         if (gridState.canScrollForward || gridState.canScrollBackward) gridState.scrollToItem(0)
     }
 
+    val sectionAnchors = remember(displaySections) {
+        buildList {
+            var index = 0
+            displaySections.forEach { section ->
+                if (section.emotes.isEmpty()) return@forEach
+                if (section.title != null) {
+                    add(EmoteSetAnchor(section.title, section.emotes.first(), index))
+                    index++
+                }
+                index += section.emotes.size
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxWidth()) {
 
-        if (!isEmojiTab) {
-            CompactEmoteSearchBar(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+
+        if (isGifTab && onGifSelected != null) {
+            GifPickerTab(
+                onGifSelected = onGifSelected,
+                canSendGifs = canSendGifs,
+                sendError = gifSendError
             )
-        }
-
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            ScrollableTabRow(
-                selectedTabIndex = safeTab,
-                modifier = Modifier.weight(1f),
-                containerColor = Color.Transparent,
-                edgePadding = 12.dp,
-                divider = {}
-            ) {
-                tabs.forEachIndexed { index, tab ->
-                    Tab(
-                        selected = safeTab == index,
-                        onClick = { selectedTabIndex = index; onSearchQueryChange("") },
-                        modifier = Modifier.padding(horizontal = 2.dp)
-                    ) {
-                        Text(
-                            tab.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (safeTab == index) FontWeight.SemiBold else FontWeight.Normal,
-                            color = when (tab.tab) {
-                                is PickerTab.Favorites -> Color(0xFFFFD700)
-                                is PickerTab.TwitchSubscribed -> Color(0xFF9147FF)
-                                else -> Color.Unspecified
-                            },
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    }
-                }
-            }
-            if (currentTab?.tab == PickerTab.Favorites && favoriteEmotes.isNotEmpty()) {
-                ChatoneIconButton(
-                    onClick = { onFavoriteAll(currentEmoteSource) },
-                    modifier = Modifier.padding(end = 4.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = "Favorite all",
-                        tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-        if (isEmojiTab) {
+        } else if (isEmojiTab) {
             EmojiTab(
                 searchQuery = searchQuery,
                 onSearchQueryChange = onSearchQueryChange,
@@ -1453,10 +1462,12 @@ internal fun EmoteTab(
                         key = { it.listKey },
                         contentType = { it.provider }
                     ) { emote ->
-                        val uiData = remember(emote.listKey, favoriteIds) {
+                        val uiData = remember(emote.listKey, favoriteIds, lockedEmoteIds) {
                             EmoteUiData.fromEmote(
                                 emote,
-                                "${emote.provider}_${emote.id}" in favoriteIds
+                                "${emote.provider}_${emote.id}" in favoriteIds,
+                                emote.provider == EmoteProvider.TWITCH &&
+                                        emote.id in lockedEmoteIds
                             )
                         }
                         EmoteGridItemFlyweight(
@@ -1468,6 +1479,33 @@ internal fun EmoteTab(
                 }
             }
           }
+        }
+            }
+
+            if (!isEmojiTab && !isGifTab && sectionAnchors.size > 1) {
+                EmoteSetRail(
+                    anchors = sectionAnchors,
+                    onJump = { anchor -> railScope.launch { gridState.scrollToItem(anchor.itemIndex) } }
+                )
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+        EmoteProviderTabStrip(
+            tabs = tabs,
+            selectedIndex = safeTab,
+            onSelect = { index -> selectedTabIndex = index; onSearchQueryChange("") },
+            showFavoriteAll = currentTab?.tab == PickerTab.Favorites && favoriteEmotes.isNotEmpty(),
+            onFavoriteAll = { onFavoriteAll(currentEmoteSource) }
+        )
+
+        if (!isEmojiTab && !isGifTab) {
+            CompactEmoteSearchBar(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
+            )
         }
     }
 }
@@ -1693,4 +1731,174 @@ private fun EmojiGridItem(
             )
         }
     }
+}
+
+private val TabTileSize = 30.dp
+private val TabIconSize = 17.dp
+private val SetRailWidth = 40.dp
+private val SetTileSize = 32.dp
+
+@Composable
+private fun PickerTab.icon(): Painter? = when (this) {
+    PickerTab.SevenTv -> painterResource(Res.drawable.ic_seventv)
+    PickerTab.Bttv -> painterResource(Res.drawable.ic_bttv)
+    PickerTab.Ffz -> painterResource(Res.drawable.ic_ffz)
+    PickerTab.Twitch -> painterResource(Res.drawable.ic_twitch)
+    PickerTab.Gifs -> painterResource(Res.drawable.ic_gif)
+    PickerTab.Emoji -> painterResource(Res.drawable.emoji_icon)
+    PickerTab.Favorites -> painterResource(Res.drawable.star_filled)
+    PickerTab.All -> null
+}
+
+private fun PickerTab.accent(): Color? = when (this) {
+    PickerTab.Favorites -> Color(0xFFFFD700)
+    PickerTab.SevenTv -> Color(0xFF29D8F6)
+    PickerTab.Bttv -> Color(0xFFD50014)
+    PickerTab.Ffz -> Color(0xFF7A9DE0)
+    PickerTab.Twitch -> Color(0xFF9147FF)
+    PickerTab.Gifs -> Color(0xFF00C2A8)
+    else -> null
+}
+
+@Composable
+private fun EmoteProviderTabStrip(
+    tabs: List<TabEntry>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    showFavoriteAll: Boolean,
+    onFavoriteAll: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEachIndexed { index, entry ->
+                EmoteTabTile(
+                    entry = entry,
+                    selected = index == selectedIndex,
+                    onClick = { onSelect(index) }
+                )
+            }
+        }
+
+        if (showFavoriteAll) {
+            VerticalDivider(
+                modifier = Modifier.height(20.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
+            )
+            EmoteTabTile(
+                entry = TabEntry("Favorite all", PickerTab.Favorites, 0),
+                selected = false,
+                onClick = onFavoriteAll
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmoteTabTile(
+    entry: TabEntry,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val accent = entry.tab.accent() ?: MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(9.dp)
+    val background = if (selected) accent.copy(alpha = 0.22f) else Color.Transparent
+    val tint = when {
+        selected -> accent
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val painter = entry.tab.icon()
+    val label = if (entry.count > 0) "${entry.label} · ${entry.count}" else entry.label
+
+    LiquidGlassTooltipBox(tooltip = label) {
+        Box(
+            modifier = Modifier
+                .size(TabTileSize)
+                .clip(shape)
+                .background(background)
+                .then(
+                    if (selected) Modifier.border(1.dp, accent.copy(alpha = 0.45f), shape)
+                    else Modifier
+                )
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = ChatoneIndication,
+                    onClick = onClick
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (painter != null) {
+                Icon(
+                    painter = painter,
+                    contentDescription = label,
+                    tint = tint,
+                    modifier = Modifier.size(TabIconSize)
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Filled.Apps,
+                    contentDescription = label,
+                    tint = tint,
+                    modifier = Modifier.size(TabIconSize)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmoteSetRail(
+    anchors: List<EmoteSetAnchor>,
+    onJump: (EmoteSetAnchor) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(SetRailWidth)
+            .heightIn(max = 280.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        anchors.forEach { anchor ->
+            LiquidGlassTooltipBox(tooltip = anchor.title) {
+                Box(
+                    modifier = Modifier
+                        .size(SetTileSize)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ChatoneIndication,
+                            onClick = { onJump(anchor) }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EmoteSetPreview(anchor.preview)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmoteSetPreview(emote: GenericEmote) {
+    AnimatedEmoteImage(
+        url = emote.url2x.ifBlank { emote.url1x },
+        contentDescription = emote.code,
+        modifier = Modifier
+            .size(24.dp)
+            .clip(RoundedCornerShape(5.dp))
+    )
 }

@@ -23,6 +23,8 @@ data class ModActionButton(
         else -> label.ifEmpty { formatDuration(durationSeconds) }
     }
 
+    val durationParts: Pair<String, String>? get() = splitDuration(durationSeconds)
+
     companion object {
         fun formatDuration(seconds: Int): String = when {
             seconds <= 0 -> ""
@@ -30,6 +32,14 @@ data class ModActionButton(
             seconds < 3600 -> "${seconds / 60}m"
             seconds < 86400 -> "${seconds / 3600}h"
             else -> "${seconds / 86400}d"
+        }
+
+        fun splitDuration(seconds: Int): Pair<String, String>? = when {
+            seconds <= 0 -> null
+            seconds < 60 -> "$seconds" to "s"
+            seconds < 3600 -> "${seconds / 60}" to "m"
+            seconds < 86400 -> "${seconds / 3600}" to "h"
+            else -> "${seconds / 86400}" to "d"
         }
 
         val DEFAULT_DELETE  = ModActionButton("default_delete",  0,   sortOrder = 0)

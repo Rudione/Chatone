@@ -39,6 +39,7 @@ import io.rudione.chatone.data.repository.UserNoteRepository
 import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.util.chat.MessageToken
+import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.theme.i18n.format
@@ -452,6 +453,7 @@ internal fun MessagesTab(
     messages: List<DisplayMessage.PrivMsg>,
     displayName: String,
     userColor: String?,
+    login: String = "",
     history: List<GqlUsercardMessage> = emptyList(),
     isHistoryLoading: Boolean = false,
     hasMoreHistory: Boolean = false,
@@ -461,7 +463,7 @@ internal fun MessagesTab(
     localHistory: List<ChatMessage> = emptyList()
 ) {
     val listState = rememberLazyListState()
-    val nameColor = parseHexColor(userColor) ?: MaterialTheme.colorScheme.primary
+    val nameColor = rememberNickColors().of(userColor, login.ifBlank { displayName })
     if (messages.isEmpty() && history.isEmpty() && localHistory.isEmpty() && !isHistoryLoading) {
         Box(
             modifier = Modifier.fillMaxWidth().height(200.dp),
@@ -652,14 +654,7 @@ internal fun MessageHistoryItem(message: DisplayMessage.PrivMsg, nameColor: Colo
     val timeText = remember(message.timestamp) { formatMessageTime(message.timestamp) }
     val rawText = remember(message.tokens) {
         message.tokens.joinToString("") { token ->
-            when (token) {
-                is MessageToken.Text -> token.text
-                is MessageToken.TwitchEmoteToken -> token.name
-                is MessageToken.ThirdPartyEmoteToken -> token.emote.code
-                is MessageToken.Link -> token.displayText
-                is MessageToken.Mention -> token.username
-                is MessageToken.Cheer -> "${token.prefix}${token.amount}"
-            }
+            token.plainText()
         }
     }
     val bodyColor = if (message.isDeleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)

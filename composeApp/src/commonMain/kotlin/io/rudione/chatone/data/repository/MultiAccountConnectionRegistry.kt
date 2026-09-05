@@ -4,7 +4,7 @@ import io.github.aakira.napier.Napier
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.remote.proxy.IrcConnectionFactory
 import io.rudione.chatone.domain.model.TwitchAccount
-import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AccountManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

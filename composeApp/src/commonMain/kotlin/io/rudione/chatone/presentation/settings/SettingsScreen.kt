@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.pointerInput
@@ -71,6 +72,7 @@ import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.ChatoneSlider
+import io.rudione.chatone.presentation.window.windowDragArea
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
 import io.rudione.chatone.presentation.components.rows.LocalSettingsSearch
@@ -80,6 +82,7 @@ import io.rudione.chatone.presentation.components.rows.ListRow
 import io.rudione.chatone.presentation.components.rows.DropdownRow
 import io.rudione.chatone.presentation.components.rows.SliderRow
 import io.rudione.chatone.presentation.components.rows.HotkeyRow
+import io.rudione.chatone.presentation.settings.components.SettingsPair
 import io.rudione.chatone.presentation.settings.components.ModerationSettingsSection
 import io.rudione.chatone.presentation.settings.components.NotificationGroupCard
 import io.rudione.chatone.presentation.settings.components.CustomSoundCard
@@ -179,6 +182,8 @@ fun SettingsScreen(
     wallpaperLoader: WallpaperLoader = koinInject(),
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {},
     onLogoutSuccess: (() -> Unit)? = null,
+    isPinned: Boolean? = null,
+    onTogglePin: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -205,6 +210,8 @@ fun SettingsScreen(
             onThemeChanged = onThemeChanged,
             viewModel = viewModel,
             isDetached = true,
+            isPinned = isPinned,
+            onTogglePin = onTogglePin,
             onOpenThemeCreator = { seedColor ->
                 viewModel.sendEvent(SettingsEvent.OnOpenThemeCreator(seedColor))
             }
@@ -220,7 +227,7 @@ fun SettingsScreen(
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 dismissOnBackPress = true,
-                dismissOnClickOutside = true
+                dismissOnClickOutside = false
             )
         ) {
             SettingsDialogContent(
@@ -265,7 +272,7 @@ fun SettingsScreen(
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 dismissOnBackPress = true,
-                dismissOnClickOutside = true,
+                dismissOnClickOutside = false,
             )
         ) {
             CompositionLocalProvider(
@@ -307,6 +314,8 @@ private fun SettingsDialogContent(
     onThemeChanged: (Boolean) -> Unit,
     viewModel: SettingsViewModel,
     isDetached: Boolean = false,
+    isPinned: Boolean? = null,
+    onTogglePin: () -> Unit = {},
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
     val s = LocalStrings.current
@@ -456,7 +465,7 @@ private fun SettingsDialogContent(
         modifier = Modifier
             .fillMaxWidth(if (isDetached) 1f else 0.88f)
             .fillMaxHeight(if (isDetached) 1f else 0.86f),
-        shape = RoundedCornerShape(20.dp),
+        shape = if (isDetached) RectangleShape else RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 8.dp,
         shadowElevation = 32.dp
@@ -480,7 +489,12 @@ private fun SettingsDialogContent(
                         )
                     }
             ) {
-                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowDragArea()
+                        .padding(horizontal = 20.dp, vertical = 20.dp)
+                ) {
                     Text(
                         s.settingsTitle,
                         style = MaterialTheme.typography.titleLarge,
@@ -578,15 +592,24 @@ private fun SettingsDialogContent(
                 }
             }
 
-            CompositionLocalProvider(LocalSettingsSearch provides searchQuery) {
-                SectionContentLazy(
-                    section = selectedSection,
-                    state = state,
-                    onThemeChanged = onThemeChanged,
-                    viewModel = viewModel,
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    onOpenThemeCreator = onOpenThemeCreator
-                )
+            Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                if (isDetached) {
+                    io.rudione.chatone.presentation.settings.components.SettingsPaneHeader(
+                        isPinned = isPinned,
+                        onTogglePin = onTogglePin,
+                        onClose = onNavigateBack
+                    )
+                }
+                CompositionLocalProvider(LocalSettingsSearch provides searchQuery) {
+                    SectionContentLazy(
+                        section = selectedSection,
+                        state = state,
+                        onThemeChanged = onThemeChanged,
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        onOpenThemeCreator = onOpenThemeCreator
+                    )
+                }
             }
         }
     }
@@ -917,9 +940,13 @@ private fun SectionContentColumn(
 }
 
 private fun LazyListScope.notificationLazyItems(state: SettingsState, vm: SettingsViewModel) {
-    item { NotificationGroupCard(state, vm) }
-    if (state.mentionSoundEnabled) {
-        item { CustomSoundCard(state, vm) }
+    item {
+        SettingsPair(
+            first = { NotificationGroupCard(state, vm) },
+            second = if (state.mentionSoundEnabled) {
+                { CustomSoundCard(state, vm) }
+            } else null
+        )
     }
 }
 
@@ -938,8 +965,12 @@ private fun LazyListScope.moderationLazyItems(state: SettingsState, vm: Settings
 }
 
 private fun LazyListScope.aiLazyItems() {
-    item { io.rudione.chatone.presentation.settings.components.AiAssistantConfigCard() }
-    item { io.rudione.chatone.presentation.settings.components.AiAutoModCard() }
+    item {
+        SettingsPair(
+            first = { io.rudione.chatone.presentation.settings.components.AiAssistantConfigCard() },
+            second = { io.rudione.chatone.presentation.settings.components.AiAutoModCard() }
+        )
+    }
 }
 
 private fun LazyListScope.actionsLazyItems(state: SettingsState, vm: SettingsViewModel) {
@@ -961,8 +992,12 @@ private fun LazyListScope.commandsLazyItems(state: SettingsState, vm: SettingsVi
 }
 
 private fun LazyListScope.aboutLazyItems(vm: SettingsViewModel) {
-    item { BackupCard(vm) }
-    item { AboutCard() }
+    item {
+        SettingsPair(
+            first = { BackupCard(vm) },
+            second = { AboutCard() }
+        )
+    }
 }
 
 private fun LazyListScope.accountLazyItems(vm: SettingsViewModel) {
@@ -1066,19 +1101,17 @@ private fun AccountSectionBody(
 private fun AccountContent(viewModel: SettingsViewModel) {
     val s = LocalStrings.current
     val state by viewModel.state.collectAsState()
-    val accountManager = org.koin.compose.koinInject<io.rudione.chatone.presentation.account.AccountManager>()
+    val accountManager = org.koin.compose.koinInject<io.rudione.chatone.data.repository.AccountManager>()
     val accountActions = org.koin.compose.koinInject<io.rudione.chatone.presentation.account.AccountActions>()
     val accountLoader = org.koin.compose.koinInject<io.rudione.chatone.presentation.account.AccountListLoader>()
     val accountUi = io.rudione.chatone.presentation.account.rememberAccountUiState(accountLoader, accountManager)
-    val oauthHandler = org.koin.compose.koinInject<io.rudione.chatone.presentation.account.oauth.AddAccountOAuthHandler>()
-    var showTokenDialog by remember { mutableStateOf(false) }
+    var showAddAccountDialog by remember { mutableStateOf(false) }
 
     SettingsGroup(s.accountsTitle) {
         io.rudione.chatone.presentation.account.AccountsSettingsSectionCompact(
             accounts = accountUi.accounts,
             accountManager = accountManager,
-            onAddAccount = { showTokenDialog = true },
-            onAddAccountBrowser = { oauthHandler.launchBrowserAuth { _ -> } },
+            onAddAccount = { showAddAccountDialog = true },
             onRemoveAccount = { accountActions.remove(it) },
             onSetPrimary = { accountActions.setPrimary(it) }
         )
@@ -1107,17 +1140,10 @@ private fun AccountContent(viewModel: SettingsViewModel) {
         onRefresh = { viewModel.sendEvent(SettingsEvent.OnLoadBlockedUsers) }
     )
 
-    if (showTokenDialog) {
+    if (showAddAccountDialog) {
         io.rudione.chatone.presentation.account.AccountAddDialog(
-            onDismiss = { showTokenDialog = false },
-            onLaunchOAuth = {
-                oauthHandler.launchBrowserAuth { _ -> }
-                showTokenDialog = false
-            },
-            onSubmitToken = { token ->
-                oauthHandler.completeWithToken(token) { _ -> }
-                showTokenDialog = false
-            }
+            onDismiss = { showAddAccountDialog = false },
+            onAccountAdded = { accountActions.setPrimary(it) }
         )
     }
 }

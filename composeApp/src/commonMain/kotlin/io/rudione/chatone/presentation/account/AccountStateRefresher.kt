@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.account
 
+import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.CoroutineScope

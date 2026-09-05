@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -123,9 +124,12 @@ fun ChatoneDetachedWindow(
     minHeight: Dp = MIN_WINDOW_HEIGHT,
     alwaysOnTop: Boolean = false,
     resizable: Boolean = true,
+    showTitleBar: Boolean = true,
     onCloseRequest: () -> Unit,
     content: @Composable () -> Unit
 ) {
+    val withCustomTitleBar = showTitleBar && useCustomTitleBar
+    val isUndecorated = !showTitleBar || useCustomTitleBar
     val settings = remember { Settings() }
     val keyX = "win_${windowId}_x"
     val keyY = "win_${windowId}_y"
@@ -137,7 +141,7 @@ fun ChatoneDetachedWindow(
     val savedY = remember { settings.getFloatOrNull(keyY) }
     val savedW = remember { settings.getFloat(keyW, defaultWidth.value) }
     val savedH = remember { settings.getFloat(keyH, defaultHeight.value) }
-    val savedMaximized = remember { settings.getBoolean(keyMax, false) }
+    val savedMaximized = remember { showTitleBar && settings.getBoolean(keyMax, false) }
 
     val windowState = rememberWindowState(
         width = savedW.dp.coerceAtLeast(minWidth),
@@ -184,7 +188,7 @@ fun ChatoneDetachedWindow(
         state = windowState,
         alwaysOnTop = alwaysOnTop,
         resizable = resizable,
-        undecorated = useCustomTitleBar,
+        undecorated = isUndecorated,
         icon = appIcon
     ) {
         DisposableEffect(window) {
@@ -192,7 +196,7 @@ fun ChatoneDetachedWindow(
                 window.background = NATIVE_WINDOW_BG
                 window.contentPane.background = NATIVE_WINDOW_BG
                 window.applyMinimumSize(minWidth, minHeight)
-                if (isWindowsOs && useCustomTitleBar) {
+                if (isWindowsOs && isUndecorated) {
                     WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
                 }
             }
@@ -206,35 +210,37 @@ fun ChatoneDetachedWindow(
             onDispose { window.removeWindowListener(listener) }
         }
 
-        if (useCustomTitleBar) {
-            val captionColor = TitleBarState.captionColor
-            LaunchedEffect(captionColor) {
-                WindowsTitleBar.applyTitleBarColor(
-                    window, captionColor, TitleBarState.captionIsDark
-                )
-            }
-            Column(modifier = Modifier.fillMaxSize()) {
-                ChatoneTitleBar(
-                    title = title,
-                    icon = appIcon,
-                    background = captionColor,
-                    windowState = windowState,
-                    onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
-                    onToggleMaximize = {
-                        windowState.placement =
-                            if (windowState.placement == WindowPlacement.Maximized)
-                                WindowPlacement.Floating
-                            else
-                                WindowPlacement.Maximized
-                    },
-                    onClose = onCloseRequest
-                )
-                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    content()
+        CompositionLocalProvider(LocalDraggableWindow provides window) {
+            if (withCustomTitleBar) {
+                val captionColor = TitleBarState.captionColor
+                LaunchedEffect(captionColor) {
+                    WindowsTitleBar.applyTitleBarColor(
+                        window, captionColor, TitleBarState.captionIsDark
+                    )
                 }
+                Column(modifier = Modifier.fillMaxSize()) {
+                    ChatoneTitleBar(
+                        title = title,
+                        icon = appIcon,
+                        background = captionColor,
+                        windowState = windowState,
+                        onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
+                        onToggleMaximize = {
+                            windowState.placement =
+                                if (windowState.placement == WindowPlacement.Maximized)
+                                    WindowPlacement.Floating
+                                else
+                                    WindowPlacement.Maximized
+                        },
+                        onClose = onCloseRequest
+                    )
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                        content()
+                    }
+                }
+            } else {
+                content()
             }
-        } else {
-            content()
         }
     }
 }

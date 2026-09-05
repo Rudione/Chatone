@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,9 +53,12 @@ import androidx.compose.ui.unit.dp
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.palette_fill_16
 import io.rudione.chatone.presentation.components.ChatoneFieldLabel
+import io.rudione.chatone.presentation.components.ChatoneScrollbar
 import io.rudione.chatone.presentation.components.interactiveIcon
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.AccentPalette
+import io.rudione.chatone.presentation.theme.ColorSchemeGenerator
+import io.rudione.chatone.presentation.theme.CustomThemeConfig
 import io.rudione.chatone.presentation.theme.DEFAULT_ACCENT_INDEX
 import io.rudione.chatone.presentation.theme.ExpressivePalettes
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
@@ -68,6 +72,7 @@ private val PaletteCardCorner = 16.dp
 private val PaletteCardSpacing = 8.dp
 private val PaletteGridMaxHeight = 236.dp
 private val TwoColumnMinWidth = 260.dp
+private val PaletteScrollbarWidth = 7.dp
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -81,6 +86,7 @@ internal fun AccentColorPaletteRow(
     val s = LocalStrings.current
     val customThemeManager = LocalCustomThemeManager.current
     val activeTheme by customThemeManager.currentTheme.collectAsState()
+    val savedThemes by customThemeManager.savedThemes.collectAsState()
     val isCustomised = activeTheme != null || selectedIndex != DEFAULT_ACCENT_INDEX
 
     Column(
@@ -137,17 +143,29 @@ internal fun AccentColorPaletteRow(
 
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val columns = if (maxWidth < TwoColumnMinWidth) 1 else 2
-            val rows = (ExpressivePalettes.size + columns - 1) / columns
+            val cardCount = ExpressivePalettes.size + savedThemes.size
+            val rows = (cardCount + columns - 1) / columns
             val fullHeight = PaletteCardHeight * rows + PaletteCardSpacing * (rows - 1)
+            val gridScroll = rememberScrollState()
+
             FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = minOf(fullHeight, PaletteGridMaxHeight))
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(gridScroll)
+                    .padding(end = PaletteScrollbarWidth),
                 horizontalArrangement = Arrangement.spacedBy(PaletteCardSpacing),
                 verticalArrangement = Arrangement.spacedBy(PaletteCardSpacing),
                 maxItemsInEachRow = columns
             ) {
+                savedThemes.forEach { theme ->
+                    CustomThemeCard(
+                        theme = theme,
+                        selected = activeTheme?.id == theme.id,
+                        modifier = Modifier.weight(1f),
+                        onClick = { customThemeManager.setTheme(theme) }
+                    )
+                }
                 ExpressivePalettes.forEachIndexed { index, palette ->
                     PaletteCard(
                         palette = palette,
@@ -157,6 +175,14 @@ internal fun AccentColorPaletteRow(
                     )
                 }
             }
+
+            ChatoneScrollbar(
+                scrollState = gridScroll,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .width(PaletteScrollbarWidth)
+            )
         }
 
         ChatoneFieldLabel(
@@ -332,6 +358,84 @@ private fun PaletteCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CustomThemeCard(
+    theme: CustomThemeConfig,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val scheme = remember(theme.seedColor, theme.isDark, theme.contrastLevel) {
+        ColorSchemeGenerator.generateFromSeed(theme.seedColor, theme.isDark, theme.contrastLevel)
+    }
+    val accent = Color(theme.seedColor)
+    val interactionSource = remember { MutableInteractionSource() }
+    val hovered by interactionSource.collectIsHoveredAsState()
+    val shape = RoundedCornerShape(PaletteCardCorner)
+
+    val borderColor by animateColorAsState(
+        targetValue = when {
+            selected -> accent.copy(alpha = 0.85f)
+            hovered -> accent.copy(alpha = 0.40f)
+            else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+        },
+        animationSpec = tween(180),
+        label = "customThemeBorder"
+    )
+
+    Box(
+        modifier = modifier
+            .height(PaletteCardHeight)
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(scheme.surfaceContainerHigh, scheme.surfaceContainerLowest)
+                )
+            )
+            .border(width = if (selected) 1.5.dp else 1.dp, color = borderColor, shape = shape)
+            .hoverable(interactionSource)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(accent)
+                )
+                ChatoneFieldLabel(text = theme.name, color = scheme.onSurface)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(scheme.primary, scheme.secondary, scheme.tertiary).forEach { swatch ->
+                    Box(
+                        modifier = Modifier
+                            .size(width = 22.dp, height = 8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(swatch)
+                    )
+                }
+            }
+        }
+        if (selected) {
+            Icon(
+                Icons.Default.Check,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.align(Alignment.TopEnd).size(14.dp)
+            )
         }
     }
 }

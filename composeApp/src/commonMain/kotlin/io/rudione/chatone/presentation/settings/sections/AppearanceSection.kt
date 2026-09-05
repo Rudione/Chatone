@@ -126,6 +126,7 @@ import io.rudione.chatone.presentation.settings.components.AccentColorPaletteRow
 import io.rudione.chatone.presentation.settings.components.HighlightRuleCardFor
 import io.rudione.chatone.presentation.settings.components.HightlightRuleCard
 import io.rudione.chatone.presentation.settings.components.FontSettingsCard
+import io.rudione.chatone.presentation.settings.components.SettingsPair
 
 internal fun LazyListScope.appearanceLazyItems(
     state: SettingsState,
@@ -189,22 +190,24 @@ internal fun LazyListScope.appearanceLazyItems(
         }
     }
     item {
-        FontSettingsCard(state = state, vm = vm)
-    }
-    item {
         val s = LocalStrings.current
-        SettingsGroup(s.settingsLinks) {
-            ListRow(
-                s.settingsOpenLinks,
-                when (state.linkOpenMode) {
-                    SettingsState.LinkOpenMode.DEFAULT -> s.settingsDefaultBrowser
-                    SettingsState.LinkOpenMode.INCOGNITO -> s.settingsIncognitoMode
-                },
-                listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
-            ) {
-                vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it]))
+        SettingsPair(
+            first = { FontSettingsCard(state = state, vm = vm) },
+            second = {
+                SettingsGroup(s.settingsLinks) {
+                    ListRow(
+                        s.settingsOpenLinks,
+                        when (state.linkOpenMode) {
+                            SettingsState.LinkOpenMode.DEFAULT -> s.settingsDefaultBrowser
+                            SettingsState.LinkOpenMode.INCOGNITO -> s.settingsIncognitoMode
+                        },
+                        listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
+                    ) {
+                        vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it]))
+                    }
+                }
             }
-        }
+        )
     }
     item {
         val s = LocalStrings.current

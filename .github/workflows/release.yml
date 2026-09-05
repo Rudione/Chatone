@@ -110,11 +110,39 @@ jobs:
 
       - name: Flatten artifact tree
         run: |
+          set -euo pipefail
           mkdir -p release-assets
+
+          duplicates=$(find artifacts -type f \( -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' \) \
+            -printf '%f\n' | sort | uniq -d)
+          if [ -n "$duplicates" ]; then
+            echo "::error::Duplicate asset names across platforms; they would overwrite each other:"
+            echo "$duplicates"
+            exit 1
+          fi
+
           find artifacts -type f \( -name '*.msi' -o -name '*-setup.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*-portable.zip' \) \
             -exec cp -v {} release-assets/ \;
+
           find artifacts -type f -name 'SHA256SUMS.txt' -print0 |
-            xargs -0 cat > release-assets/SHA256SUMS.txt || true
+            xargs -0 cat | grep -v '^[[:space:]]*$' | sort -k2 > combined-sums.txt
+
+          sum_duplicates=$(awk '{print $2}' combined-sums.txt | sort | uniq -d)
+          if [ -n "$sum_duplicates" ]; then
+            echo "::error::SHA256SUMS.txt lists the same file name more than once:"
+            echo "$sum_duplicates"
+            exit 1
+          fi
+
+          while read -r _ name; do
+            if [ ! -f "release-assets/$name" ]; then
+              echo "::error::SHA256SUMS.txt references $name, which is not published"
+              exit 1
+            fi
+          done < combined-sums.txt
+
+          mv combined-sums.txt release-assets/SHA256SUMS.txt
+          cat release-assets/SHA256SUMS.txt
           ls -la release-assets
 
       - name: Resolve tag name
@@ -139,7 +167,9 @@ jobs:
             echo '| Windows (MSI) | `Chatone-*.msi` |'
             echo '| macOS | `Chatone-*.dmg` |'
             echo '| Linux | `chatone_*.deb` |'
-            echo '| Портативная версия | `Chatone-*-portable.zip` |'
+            echo '| Windows — портативная | `Chatone-*-windows-portable.zip` |'
+            echo '| macOS — портативная | `Chatone-*-macos-portable.zip` |'
+            echo '| Linux — портативная | `Chatone-*-linux-portable.zip` |'
             echo ''
             echo 'Контрольные суммы — в `SHA256SUMS.txt`. Приложение обновляется само и проверяет их при загрузке.'
             echo ''

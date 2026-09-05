@@ -29,7 +29,10 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.times
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
@@ -103,14 +106,15 @@ internal fun announceAccentColor(name: String?, fallback: Color): Color = when (
 internal fun ChatEventRow(
     accent: Color,
     modifier: Modifier = Modifier,
+    contentVerticalPadding: Dp = 9.dp,
     trailing: @Composable (RowScope.() -> Unit)? = null,
     content: @Composable RowScope.() -> Unit
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .padding(horizontal = 8.dp, vertical = 1.dp)
+            .clip(RoundedCornerShape(6.dp))
             .background(accent.copy(alpha = 0.10f))
             .height(IntrinsicSize.Min)
             .padding(end = 12.dp),
@@ -121,13 +125,13 @@ internal fun ChatEventRow(
             Modifier
                 .width(3.dp)
                 .fillMaxHeight()
-                .padding(vertical = 5.dp)
+                .padding(vertical = 2.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(accent)
         )
-        Spacer(Modifier.width(11.dp))
+        Spacer(Modifier.width(8.dp))
         Row(
-            modifier = Modifier.weight(1f).padding(vertical = 9.dp),
+            modifier = Modifier.weight(1f).padding(vertical = contentVerticalPadding),
             verticalAlignment = Alignment.CenterVertically
         ) { content() }
         trailing?.let { it() }
@@ -143,10 +147,14 @@ private fun formatModDuration(seconds: Int, s: io.rudione.chatone.presentation.t
 @Composable
 internal fun ModerationMsgItem(
     message: DisplayMessage.ModerationMsg,
+    chatFontSizeSp: Float = 15f,
     onUsernameClick: ((String) -> Unit)? = null,
     onUnbanByLogin: ((String) -> Unit)? = null
 ) {
     val s = LocalStrings.current
+    val resolvedFontSize = chatFontSizeSp.coerceIn(11f, 16f)
+    val rowLineHeight = (resolvedFontSize * 1.35f).sp
+    val rowFontSize = (resolvedFontSize * 0.92f).sp
     val color = when (message.action) {
         DisplayMessage.ModerationMsg.ModerationAction.BAN -> ChatoneTheme.extraColors.modBan
         DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT -> ChatoneTheme.extraColors.modTimeout
@@ -178,16 +186,17 @@ internal fun ModerationMsgItem(
 
     ChatEventRow(
         accent = color,
+        contentVerticalPadding = 1.dp,
         trailing = {
             if (showUnbanButton) {
                 ChatoneIconButton(
                     onClick = { onUnbanByLogin!!(targetUser!!) },
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(16.dp)
                 ) {
                     Icon(
                         Icons.Outlined.CheckCircle,
                         contentDescription = "${s.chatUnbanUser} $targetUser",
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(13.dp),
                         tint = ChatoneTheme.extraColors.modUnban.copy(alpha = 0.85f)
                     )
                 }
@@ -196,7 +205,10 @@ internal fun ModerationMsgItem(
             message.moderatorLogin?.takeIf { it.isNotBlank() }?.let { mod ->
                 Text(
                     s.format(s.modRowBy, mod),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = rowFontSize * 0.9f,
+                        lineHeight = rowLineHeight
+                    ),
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.42f),
                     maxLines = 1,
@@ -208,7 +220,10 @@ internal fun ModerationMsgItem(
         if (targetUser != null && message.action != DisplayMessage.ModerationMsg.ModerationAction.CLEAR) {
             Text(
                 targetUser,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = rowFontSize,
+                    lineHeight = rowLineHeight
+                ),
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.92f),
                 maxLines = 1,
@@ -220,13 +235,16 @@ internal fun ModerationMsgItem(
                     ) { onUsernameClick(targetUser) }
                 } else Modifier
             )
-            Spacer(Modifier.width(7.dp))
+            Spacer(Modifier.width(6.dp))
         }
         Text(
             predicate,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = rowFontSize,
+                lineHeight = rowLineHeight
+            ),
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f),
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false)
         )

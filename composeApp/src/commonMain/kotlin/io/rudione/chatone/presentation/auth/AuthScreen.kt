@@ -1,29 +1,19 @@
 package io.rudione.chatone.presentation.auth
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.EaseInOutSine
 import androidx.compose.animation.core.EaseOutCubic
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,17 +21,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,39 +35,30 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.OutlinedButton
 import io.github.aakira.napier.Napier
-import io.rudione.chatone.data.repository.DeviceAuthState
-import io.rudione.chatone.data.repository.FirstPartyDeviceAuthController
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
-private enum class AuthPhase { CHECKING, LOADING, FIRST_PARTY, CONTENT }
+private enum class AuthPhase { CHECKING, CONTENT }
 
 @Composable
 fun AuthScreen(
     onAuthSuccess: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: AuthViewModel = koinViewModel(),
-    firstPartyController: FirstPartyDeviceAuthController = koinInject()
+    viewModel: AuthViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val deviceState by firstPartyController.state.collectAsState()
     val uriHandler = LocalUriHandler.current
 
     val backgroundColor = MaterialTheme.colorScheme.background
     val primaryColor = MaterialTheme.colorScheme.primary
-    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
 
     val fadeIn by animateFloatAsState(
         targetValue = 1f,
@@ -100,12 +73,8 @@ fun AuthScreen(
                     Napier.d("Auth successful, navigating to home")
                     onAuthSuccess()
                 }
-                is AuthEffect.ShowError -> {
-                    Napier.e("Auth error: ${effect.message}")
-                }
-                is AuthEffect.OpenAuthUrl -> {
-                    uriHandler.openUri(effect.url)
-                }
+
+                is AuthEffect.OpenAuthUrl -> uriHandler.openUri(effect.url)
             }
         }
     }
@@ -129,36 +98,147 @@ fun AuthScreen(
     ) {
         DecorativeBackgroundOrbs()
 
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            val phase = when {
-                state.isCheckingToken -> AuthPhase.CHECKING
-                state.isLoading -> AuthPhase.LOADING
-                state.awaitingFirstParty -> AuthPhase.FIRST_PARTY
-                else -> AuthPhase.CONTENT
-            }
-            AnimatedContent(
-                targetState = phase,
-                label = "authStateTransition"
-            ) { p ->
-                when (p) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val phase = if (state.isCheckingToken) AuthPhase.CHECKING else AuthPhase.CONTENT
+            AnimatedContent(targetState = phase, label = "authStateTransition") { current ->
+                when (current) {
                     AuthPhase.CHECKING -> CheckingAuthState()
-                    AuthPhase.LOADING -> LoadingAuthState()
-                    AuthPhase.FIRST_PARTY -> FirstPartyAuthStep(
-                        deviceState = deviceState,
-                        onOpenVerificationUrl = { url -> uriHandler.openUri(url) },
-                        onSkip = { viewModel.sendEvent(AuthEvent.OnSkipFirstParty) }
-                    )
                     AuthPhase.CONTENT -> AuthContentState(
                         state = state,
-                        onLoginClick = { viewModel.sendEvent(AuthEvent.OnLoginClicked) },
+                        onStartLogin = { viewModel.sendEvent(AuthEvent.OnStartLogin) },
+                        onReopenBrowser = { viewModel.sendEvent(AuthEvent.OnReopenBrowser) },
+                        onSubmitPayload = { payload, auto ->
+                            viewModel.sendEvent(AuthEvent.OnPastePayload(payload, auto))
+                        },
+                        onRetryPayload = { viewModel.sendEvent(AuthEvent.OnRetryPayload) },
                         onGuestClick = { viewModel.sendEvent(AuthEvent.OnGuestClicked) },
-                        onRetry = { viewModel.sendEvent(AuthEvent.OnRetry) }
+                        onContinueWithoutRights = {
+                            viewModel.sendEvent(AuthEvent.OnContinueWithoutRights)
+                        }
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AuthContentState(
+    state: AuthState,
+    onStartLogin: () -> Unit,
+    onReopenBrowser: () -> Unit,
+    onSubmitPayload: (String, Boolean) -> Unit,
+    onRetryPayload: () -> Unit,
+    onGuestClick: () -> Unit,
+    onContinueWithoutRights: () -> Unit
+) {
+    val s = LocalStrings.current
+    val uriHandler = LocalUriHandler.current
+
+    LiquidGlassSurface(
+        modifier = Modifier
+            .padding(24.dp)
+            .widthIn(max = 460.dp),
+        backgroundAlphaHigh = 0.88f,
+        backgroundAlphaLow = 0.75f,
+        borderAlphaHigh = 0.25f,
+        borderAlphaLow = 0.08f
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Chatone",
+                style = MaterialTheme.typography.displaySmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = s.authSubtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            WebLoginPanel(
+                awaitingPaste = state.awaitingPaste,
+                isPreparing = state.isPreparing,
+                isVerifying = state.isVerifying,
+                deviceState = state.deviceState,
+                failure = state.failure,
+                onStartLogin = onStartLogin,
+                onReopenBrowser = onReopenBrowser,
+                onSubmitPayload = onSubmitPayload,
+                prepareAttempt = state.prepareAttempt,
+                verifyAttempt = state.verifyAttempt,
+                awaitingRights = state.awaitingRights,
+                onRetryPayload = onRetryPayload,
+                onContinueWithoutRights = onContinueWithoutRights
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            TextButton(onClick = onGuestClick) {
+                Text(s.chatGuestMode, style = MaterialTheme.typography.labelLarge)
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            LiquidGlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                backgroundAlphaHigh = 0.7f,
+                backgroundAlphaLow = 0.5f,
+                borderAlphaHigh = 0.15f,
+                borderAlphaLow = 0.03f,
+                contentPadding = PaddingValues(14.dp)
+            ) {
+                Column {
+                    Text(
+                        text = s.loginSupport,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "t.me/rudionee",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { uriHandler.openUri("https://t.me/rudionee") }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CheckingAuthState() {
+    val s = LocalStrings.current
+    LiquidGlassSurface(
+        modifier = Modifier
+            .padding(24.dp)
+            .widthIn(max = 400.dp),
+        backgroundAlphaHigh = 0.85f,
+        backgroundAlphaLow = 0.70f
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(40.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+            )
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = s.loading,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -188,7 +268,6 @@ private fun DecorativeBackgroundOrbs() {
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -221,465 +300,4 @@ private fun DecorativeBackgroundOrbs() {
                 )
         )
     }
-}
-
-@Composable
-private fun CheckingAuthState() {
-    LiquidGlassSurface(
-        modifier = Modifier
-            .padding(24.dp)
-            .widthIn(max = 400.dp),
-        backgroundAlphaHigh = 0.85f,
-        backgroundAlphaLow = 0.70f
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(40.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = "Checking session...",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun LoadingAuthState() {
-    LiquidGlassSurface(
-        modifier = Modifier
-            .padding(24.dp)
-            .widthIn(max = 400.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            PulsingLogo()
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            CircularProgressIndicator(
-                modifier = Modifier.size(40.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Connecting to Twitch...",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun FirstPartyAuthStep(
-    deviceState: DeviceAuthState,
-    onOpenVerificationUrl: (String) -> Unit,
-    onSkip: () -> Unit
-) {
-    val s = LocalStrings.current
-
-    LiquidGlassSurface(
-        modifier = Modifier
-            .padding(24.dp)
-            .widthIn(max = 420.dp),
-        backgroundAlphaHigh = 0.88f,
-        backgroundAlphaLow = 0.75f,
-        borderAlphaHigh = 0.25f,
-        borderAlphaLow = 0.08f
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = s.authFirstPartyTitle,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = s.authFirstPartyDesc,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-
-            when (deviceState) {
-                is DeviceAuthState.WaitingForApproval -> {
-                    Text(
-                        text = s.tokenCardDeviceCodeHint,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = deviceState.userCode,
-                        style = MaterialTheme.typography.displaySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    ModernAuthButton(
-                        text = s.tokenCardOpenTwitch,
-                        onClick = { onOpenVerificationUrl(deviceState.verificationUri) },
-                        isLoading = false,
-                        isPrimary = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                DeviceAuthState.Validating -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = s.tokenCardValidating,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                is DeviceAuthState.Success -> {
-                    Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = s.authFirstPartyGranted,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                is DeviceAuthState.Error -> {
-                    Text(
-                        text = deviceState.message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                    )
-                }
-
-                DeviceAuthState.Idle -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            OutlinedButton(
-                onClick = onSkip,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(s.authFirstPartySkip)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PulsingLogo() {
-    val infiniteTransition = rememberInfiniteTransition(label = "logoPulse")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1500, easing = EaseInOut),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "logoScale"
-    )
-
-    Text(
-        text = "Chatone",
-        style = MaterialTheme.typography.displayMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.scale(scale)
-    )
-}
-
-@Composable
-private fun AuthContentState(
-    state: AuthState,
-    onLoginClick: () -> Unit,
-    onGuestClick: () -> Unit,
-    onRetry: () -> Unit
-) {
-    val uriHandler = LocalUriHandler.current
-
-    LiquidGlassSurface(
-        modifier = Modifier
-            .padding(24.dp)
-            .widthIn(max = 420.dp),
-        backgroundAlphaHigh = 0.88f,
-        backgroundAlphaLow = 0.75f,
-        borderAlphaHigh = 0.25f,
-        borderAlphaLow = 0.08f
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn() + slideInVertically { -20 }
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "Chatone",
-                        style = MaterialTheme.typography.displayMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Twitch Chat Client",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn() + slideInVertically { 15 }
-                ) {
-                    ModernAuthButton(
-                        text = "Login with Twitch",
-                        onClick = onLoginClick,
-                        isLoading = state.isLoading,
-                        isPrimary = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn() + slideInVertically { 15 }
-                ) {
-                    ModernAuthButton(
-                        text = "Watch as Guest",
-                        subtitle = "Read-only mode",
-                        onClick = onGuestClick,
-                        isLoading = false,
-                        isPrimary = false,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            AnimatedVisibility(
-                visible = state.error != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically(),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                state.error?.let { error ->
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f)
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Authentication Error",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = error,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.9f)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            TextButton(
-                                onClick = onRetry,
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            ) {
-                                Text(io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.tryAgain, style = MaterialTheme.typography.labelMedium)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            AnimatedVisibility(
-                visible = true,
-                enter = fadeIn() + slideInVertically { 10 }
-            ) {
-                LiquidGlassSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    backgroundAlphaHigh = 0.7f,
-                    backgroundAlphaLow = 0.5f,
-                    borderAlphaHigh = 0.15f,
-                    borderAlphaLow = 0.03f,
-                    contentPadding = PaddingValues(16.dp)
-                ) {
-                    Column {
-                        Text(
-                            text = "Setup Guide",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = "t.me/rudionee",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            textAlign = TextAlign.Start,
-                            modifier = Modifier.clickable {
-                                uriHandler.openUri("https://t.me/rudionee")
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ModernAuthButton(
-    text: String,
-    subtitle: String? = null,
-    onClick: () -> Unit,
-    isLoading: Boolean,
-    isPrimary: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier
-            .clickable(
-                enabled = !isLoading,
-                onClick = onClick
-            ),
-        shape = RoundedCornerShape(14.dp),
-        color = if (isPrimary) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-        },
-        tonalElevation = if (isPrimary) 2.dp else 0.dp
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (isLoading && isPrimary) {
-                ShimmerLoadingIndicator()
-            } else {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (isPrimary) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
-                subtitle?.let { sub ->
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = sub,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (isPrimary) {
-                            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ShimmerLoadingIndicator() {
-    val shimmerColors = listOf(
-        Color.White.copy(alpha = 0.3f),
-        Color.White.copy(alpha = 0.6f),
-        Color.White.copy(alpha = 0.3f)
-    )
-
-    val transition = rememberInfiniteTransition(label = "shimmer")
-    val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 200f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmerTranslate"
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth(0.6f)
-            .height(20.dp)
-            .background(
-                brush = Brush.horizontalGradient(
-                    colors = shimmerColors,
-                    startX = translateAnim,
-                    endX = translateAnim + 100f
-                ),
-                shape = RoundedCornerShape(4.dp)
-            )
-    )
 }

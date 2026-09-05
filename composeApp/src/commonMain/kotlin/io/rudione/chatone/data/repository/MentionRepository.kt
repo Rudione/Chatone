@@ -1,5 +1,6 @@
 package io.rudione.chatone.data.repository
 
+import io.rudione.chatone.util.concurrent.IoDispatcher
 import io.rudione.chatone.data.local.ChatoneDatabase
 import io.rudione.chatone.domain.model.MentionEntry
 import kotlinx.coroutines.Dispatchers
@@ -9,7 +10,7 @@ import kotlin.time.Clock
 
 class MentionRepository(private val database: ChatoneDatabase) {
 
-    suspend fun saveMention(entry: MentionEntry) = withContext(Dispatchers.IO) {
+    suspend fun saveMention(entry: MentionEntry) = withContext(IoDispatcher) {
         try {
             database.mentionQueries.insertMention(
                 id = entry.messageId,
@@ -24,7 +25,7 @@ class MentionRepository(private val database: ChatoneDatabase) {
         } catch (_: Exception) {}
     }
 
-    suspend fun loadMentions(): List<MentionEntry> = withContext(Dispatchers.IO) {
+    suspend fun loadMentions(): List<MentionEntry> = withContext(IoDispatcher) {
         try {
             database.mentionQueries.getMentions().executeAsList().map { row ->
                 MentionEntry(
@@ -41,22 +42,22 @@ class MentionRepository(private val database: ChatoneDatabase) {
         } catch (_: Exception) { emptyList() }
     }
 
-    suspend fun markAsRead(messageId: String) = withContext(Dispatchers.IO) {
+    suspend fun markAsRead(messageId: String) = withContext(IoDispatcher) {
         try { database.mentionQueries.markAsRead(messageId) } catch (_: Exception) {}
     }
 
-    suspend fun markAllAsRead() = withContext(Dispatchers.IO) {
+    suspend fun markAllAsRead() = withContext(IoDispatcher) {
         try { database.mentionQueries.markAllAsRead() } catch (_: Exception) {}
     }
 
-    suspend fun pruneOld(keepMs: Long = 7 * 24 * 60 * 60 * 1000L) = withContext(Dispatchers.IO) {
+    suspend fun pruneOld(keepMs: Long = 7 * 24 * 60 * 60 * 1000L) = withContext(IoDispatcher) {
         try {
             val cutoff = Clock.System.now().toEpochMilliseconds() - keepMs
             database.mentionQueries.deleteMentionsOlderThan(cutoff)
         } catch (_: Exception) {}
     }
 
-    suspend fun countUnread(): Long = withContext(Dispatchers.IO) {
+    suspend fun countUnread(): Long = withContext(IoDispatcher) {
         try { database.mentionQueries.countUnread().executeAsOne() } catch (_: Exception) { 0L }
     }
 }

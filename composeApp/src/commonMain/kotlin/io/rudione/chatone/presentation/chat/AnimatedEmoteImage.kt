@@ -8,5 +8,6 @@ expect fun AnimatedEmoteImage(
     url: String,
     contentDescription: String?,
     modifier: Modifier = Modifier,
-    isScrolling: Boolean = false
+    isScrolling: Boolean = false,
+    maxDimension: Int = 0
 )

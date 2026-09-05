@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.ic_sword
 import io.rudione.chatone.domain.model.Macro
@@ -180,9 +181,11 @@ internal fun ChatTopBar(
                                                     .clickable { onExecuteMacro(macro) },
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Text(
+                                                io.rudione.chatone.presentation.settings.components.MacroIcon(
                                                     macro.icon,
-                                                    style = MaterialTheme.typography.labelSmall
+                                                    size = 16.dp,
+                                                    fontSize = 13.sp,
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                                                 )
                                             }
                                         }

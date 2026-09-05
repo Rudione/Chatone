@@ -60,15 +60,12 @@ kotlin {
         }
     }
 
-    // iOS targets temporarily disabled: navigation3-ui's iOS klibs (all versions, incl. 1.1.1)
-    // are built with Kotlin/Native ABI 2.3.0, unreadable by our Kotlin 2.2.20 toolchain.
-    // Re-enable once the project moves to Kotlin 2.3.x + Compose Multiplatform 1.11.x.
-    // listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
-    //     iosTarget.binaries.framework {
-    //         baseName = "ComposeApp"
-    //         isStatic = true
-    //     }
-    // }
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "ComposeApp"
+            isStatic = true
+        }
+    }
 
     sourceSets {
         val desktopMain by getting
@@ -106,7 +103,6 @@ kotlin {
             implementation(libs.coil.svg)
             implementation("org.jetbrains.kotlinx:atomicfu:0.27.0")
             implementation(compose.materialIconsExtended)
-            implementation(libs.navigation3.ui)
         }
 
         androidMain.dependencies {
@@ -121,10 +117,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.android)
         }
 
-        // iosMain.dependencies {
-        //     implementation(libs.ktor.client.darwin)
-        //     implementation(libs.sqldelight.driver.native)
-        // }
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.sqldelight.driver.native)
+        }
 
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)
@@ -236,7 +232,15 @@ tasks.register<Zip>("createPortableZip") {
 
     from(appDir)
 
-    archiveFileName.set("Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-portable.zip")
+    val osTag = when {
+        org.gradle.internal.os.OperatingSystem.current().isWindows -> "windows"
+        org.gradle.internal.os.OperatingSystem.current().isMacOsX -> "macos"
+        else -> "linux"
+    }
+
+    archiveFileName.set(
+        "Chatone-${compose.desktop.application.nativeDistributions.packageVersion}-$osTag-portable.zip"
+    )
     destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 
     entryCompression = ZipEntryCompression.DEFLATED

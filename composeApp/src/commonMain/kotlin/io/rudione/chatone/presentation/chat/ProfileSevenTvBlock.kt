@@ -63,10 +63,14 @@ internal fun ProfileDisplayName(
     color: String?,
     paint: SevenTvCosmetics.Paint?,
     style: TextStyle,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fallbackLogin: String? = null
 ) {
     val density = LocalDensity.current
-    val fallback = parseHexColor(color) ?: MaterialTheme.colorScheme.primary
+    val nickColors = rememberNickColors()
+    val fallback = parseHexColor(color)?.let { nickColors.adjust(it) }
+        ?: fallbackLogin?.takeIf { it.isNotBlank() }?.let { nickColors.adjust(stableUserColor(it)) }
+        ?: MaterialTheme.colorScheme.primary
     val brush = paint?.let { rememberSevenTvPaintBrush(it, fallback) }
     val shadow = paint?.let { sevenTvPaintShadow(it, density.density) }
 

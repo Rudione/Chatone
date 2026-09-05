@@ -4,61 +4,87 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import io.rudione.chatone.data.repository.WebLoginController
+import io.rudione.chatone.data.repository.WebLoginStage
+import io.rudione.chatone.domain.model.TwitchAccount
+import io.rudione.chatone.presentation.auth.WebLoginPanel
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.components.ChatoneTextField
+import org.koin.compose.koinInject
 
 @Composable
 fun AccountAddDialog(
     onDismiss: () -> Unit,
-    onLaunchOAuth: () -> Unit,
-    onSubmitToken: (String) -> Unit
+    onAccountAdded: (TwitchAccount) -> Unit,
+    controller: WebLoginController = koinInject()
 ) {
     val strings = LocalStrings.current
-    var token by remember { mutableStateOf("") }
+    val uriHandler = LocalUriHandler.current
+    val stage by controller.stage.collectAsState()
+    val deviceState by controller.deviceAuthState.collectAsState()
+
+    LaunchedEffect(Unit) { controller.reset() }
+
+    LaunchedEffect(stage) {
+        val current = stage
+        if (current is WebLoginStage.Success) {
+            onAccountAdded(current.account)
+            controller.reset()
+            onDismiss()
+        }
+    }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            controller.reset()
+            onDismiss()
+        },
         title = { Text(strings.accountsAdd) },
         text = {
-            Column {
+            Column(modifier = Modifier.widthIn(min = 340.dp, max = 460.dp)) {
                 Text(
-                    text = strings.accountsAdd,
-                    style = MaterialTheme.typography.bodyMedium
+                    text = strings.loginOpenSiteHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(8.dp))
-                ChatoneTextField(
-                    value = token,
-                    onValueChange = { token = it.trim() },
-                    label = io.rudione.chatone.presentation.theme.i18n.LocalStrings.current.oauthTokenLabel,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                Spacer(Modifier.height(14.dp))
+                WebLoginPanel(
+                    awaitingPaste = stage is WebLoginStage.AwaitingPaste ||
+                            stage is WebLoginStage.Verifying ||
+                            stage is WebLoginStage.Failure,
+                    isPreparing = stage is WebLoginStage.Preparing,
+                    isVerifying = stage is WebLoginStage.Verifying,
+                    deviceState = deviceState,
+                    failure = (stage as? WebLoginStage.Failure)?.reason,
+                    onStartLogin = { controller.begin { url -> uriHandler.openUri(url) } },
+                    onReopenBrowser = { controller.loginUrl.value?.let(uriHandler::openUri) },
+                    onSubmitPayload = { payload, auto -> controller.submit(payload, auto) },
+                    prepareAttempt = (stage as? WebLoginStage.Preparing)?.attempt ?: 1,
+                    verifyAttempt = (stage as? WebLoginStage.Verifying)?.attempt ?: 1,
+                    onRetryPayload = { controller.retryPendingPayload() },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
-        confirmButton = {
+        confirmButton = {},
+        dismissButton = {
             TextButton(
                 onClick = {
-                    if (token.isNotBlank()) onSubmitToken(token)
-                    else onLaunchOAuth()
+                    controller.reset()
+                    onDismiss()
                 }
-            ) {
-                Text(if (token.isNotBlank()) strings.save else strings.accountsAdd)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(strings.cancel) }
+            ) { Text(strings.cancel) }
         }
     )
 }

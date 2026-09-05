@@ -107,7 +107,7 @@ import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
 import io.rudione.chatone.presentation.settings.SettingsEffect
 import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
 import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
-import io.rudione.chatone.presentation.account.AccountManager
+import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
@@ -115,8 +115,8 @@ import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.main.MainEvent
-import io.rudione.chatone.presentation.main.ChannelFolder
-import io.rudione.chatone.presentation.main.ChannelTab
+import io.rudione.chatone.domain.model.ChannelFolder
+import io.rudione.chatone.domain.model.ChannelTab
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
@@ -127,6 +127,10 @@ internal fun CompactChannelAvatar(
     indented: Boolean = false
 ) {
     var showTooltip by remember { mutableStateOf(false) }
+    var tooltipOffset by remember { mutableStateOf(IntOffset.Zero) }
+    val density = LocalDensity.current
+    val tooltipGapPx = with(density) { 14.dp.roundToPx() }
+    val tooltipLiftPx = with(density) { 11.dp.roundToPx() }
     Box(
         modifier = Modifier.fillMaxWidth().padding(start = if (indented) 6.dp else 0.dp),
         contentAlignment = Alignment.Center
@@ -154,7 +158,23 @@ internal fun CompactChannelAvatar(
                             while (true) {
                                 val event = awaitPointerEvent()
                                 when (event.type) {
-                                    PointerEventType.Enter -> showTooltip = true
+                                    PointerEventType.Enter -> {
+                                        val pos = event.changes.firstOrNull()?.position ?: Offset.Zero
+                                        tooltipOffset = IntOffset(
+                                            pos.x.toInt() + tooltipGapPx,
+                                            pos.y.toInt() - tooltipLiftPx
+                                        )
+                                        showTooltip = true
+                                    }
+
+                                    PointerEventType.Move -> {
+                                        val pos = event.changes.firstOrNull()?.position ?: Offset.Zero
+                                        tooltipOffset = IntOffset(
+                                            pos.x.toInt() + tooltipGapPx,
+                                            pos.y.toInt() - tooltipLiftPx
+                                        )
+                                    }
+
                                     PointerEventType.Exit -> showTooltip = false
                                 }
                             }
@@ -178,6 +198,31 @@ internal fun CompactChannelAvatar(
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                if (showTooltip) {
+                    Popup(
+                        alignment = Alignment.TopStart,
+                        offset = tooltipOffset,
+                        properties = androidx.compose.ui.window.PopupProperties(focusable = false)
+                    ) {
+                        Box(
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                                    RoundedCornerShape(6.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = channel.displayName.ifBlank { channel.login.replaceFirstChar { it.uppercaseChar() } },
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
             }
             if (channel.isLive) {
                 Box(
@@ -193,31 +238,6 @@ internal fun CompactChannelAvatar(
                 modifier = Modifier.align(Alignment.BottomEnd)
                     .offset(x = 1.5.dp, y = 1.5.dp)
             )
-        }
-        if (showTooltip) {
-            Popup(
-                alignment = Alignment.CenterEnd,
-                offset = IntOffset(20, 0),
-                properties = androidx.compose.ui.window.PopupProperties(focusable = false)
-            ) {
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                            RoundedCornerShape(6.dp)
-                        )
-                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                ) {
-                    Text(
-                        text = channel.displayName.ifBlank { channel.login.replaceFirstChar { it.uppercaseChar() } },
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1
-                    )
-                }
-            }
         }
     }
 }

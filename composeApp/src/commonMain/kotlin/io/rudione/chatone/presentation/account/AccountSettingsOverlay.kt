@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.account
 
+import io.rudione.chatone.data.repository.AccountManager
+
 object AccountSettingsOverlay {
 
     fun getEffectiveOverrideJson(

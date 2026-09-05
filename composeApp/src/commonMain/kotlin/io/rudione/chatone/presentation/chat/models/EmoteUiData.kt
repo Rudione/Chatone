@@ -11,7 +11,8 @@ data class EmoteUiData(
     val cacheKey: String,
     val listKey: String,
     val isFavorite: Boolean,
-    val providerColor: Color
+    val providerColor: Color,
+    val isLocked: Boolean = false
 ) {
     companion object {
         private val PROVIDER_COLORS = mapOf(
@@ -21,7 +22,11 @@ data class EmoteUiData(
             "FFZ" to Color(0xFF6441A5)
         )
 
-        fun fromEmote(emote: GenericEmote, isFavorite: Boolean): EmoteUiData {
+        fun fromEmote(
+            emote: GenericEmote,
+            isFavorite: Boolean,
+            isLocked: Boolean = false
+        ): EmoteUiData {
             return EmoteUiData(
                 displayCode = emote.code,
                 imageUrl = emote.url1x.ifEmpty { emote.url2x },
@@ -29,7 +34,8 @@ data class EmoteUiData(
                 listKey = "${emote.provider.name}_${emote.id}",
                 isFavorite = isFavorite,
                 providerColor = if (isFavorite) Color(0xFFFFD700)
-                else PROVIDER_COLORS[emote.provider.name] ?: Color.Unspecified
+                else PROVIDER_COLORS[emote.provider.name] ?: Color.Unspecified,
+                isLocked = isLocked
             )
         }
     }

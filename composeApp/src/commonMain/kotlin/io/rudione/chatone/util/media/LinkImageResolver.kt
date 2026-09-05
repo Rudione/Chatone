@@ -76,10 +76,10 @@ private val RESOLVERS = listOf(KappaLolResolver, EbloResolver, KappaShortResolve
 
 private val DIRECT_IMAGE_EXT = Regex(""".*\.(png|jpe?g|gif|webp|bmp|svg|avif)(\?.*)?$""")
 
-private val DIRECT_IMAGE_HOSTS = listOf(
-    "i.imgur.com/", "cdn.7tv.app/", "cdn.betterttv.net/", "cdn.frankerfacez.com/",
-    "pbs.twimg.com/", "media.discordapp.net/", "cdn.discordapp.com/attachments/",
-    "i.redd.it/", "preview.redd.it/", "static-cdn.jtvnw.net/"
+private val DIRECT_IMAGE_HOSTS = setOf(
+    "i.imgur.com", "cdn.7tv.app", "cdn.betterttv.net", "cdn.frankerfacez.com",
+    "pbs.twimg.com", "media.discordapp.net", "cdn.discordapp.com",
+    "i.redd.it", "preview.redd.it", "static-cdn.jtvnw.net"
 )
 
 private val AUTOLOAD_HOSTS = setOf(
@@ -140,19 +140,22 @@ object LinkImageResolver {
     private val cacheLock = SynchronizedObject()
 
     fun isAutoLoadHost(url: String): Boolean {
+        if (!OutboundUrlPolicy.isFetchAllowed(url)) return false
         val host = httpUrlHost(url) ?: return false
         if (host in AUTOLOAD_HOSTS) return true
         return AUTOLOAD_HOSTS.any { host.endsWith(".$it") }
     }
 
     fun isDirectImageUrl(url: String): Boolean {
+        if (!OutboundUrlPolicy.isFetchAllowed(url)) return false
         val lower = url.lowercase().substringBefore('#')
         if (DIRECT_IMAGE_EXT.matches(lower)) return true
-        return DIRECT_IMAGE_HOSTS.any { lower.contains(it) }
+        val host = httpUrlHost(url) ?: return false
+        return host in DIRECT_IMAGE_HOSTS
     }
 
     fun hasResolver(url: String): Boolean {
-        if (!isSafeHttpUrl(url)) return false
+        if (!OutboundUrlPolicy.isFetchAllowed(url)) return false
         if (isDirectImageUrl(url)) return true
         val (host, path) = hostAndPath(url) ?: return false
         return RESOLVERS.any { it.matches(host, path) }
@@ -162,7 +165,7 @@ object LinkImageResolver {
     fun cached(url: String): ImageSource? = synchronized(cacheLock) { cache[url] }
 
     fun resolveImmediate(url: String): String? {
-        if (!isSafeHttpUrl(url)) return null
+        if (!OutboundUrlPolicy.isFetchAllowed(url)) return null
         if (isDirectImageUrl(url)) return url
         val (host, path) = hostAndPath(url) ?: return null
         val resolver = RESOLVERS.firstOrNull { it.matches(host, path) } ?: return null

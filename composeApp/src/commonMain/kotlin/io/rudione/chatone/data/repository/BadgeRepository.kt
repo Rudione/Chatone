@@ -4,6 +4,7 @@ import io.github.aakira.napier.Napier
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.remote.dto.BadgeSetDto
 import io.rudione.chatone.domain.model.Badge
+import io.rudione.chatone.domain.model.SubscriptionTier
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -98,10 +99,16 @@ class BadgeRepository(
         }
     }
 
+    private fun subscriptionTooltip(label: String, version: String, months: Int?): String {
+        val tier = SubscriptionTier.fromBadgeVersion(version)
+        val head = "$label · Tier ${tier.level}"
+        return if (months != null && months > 0) "$head · $months mo" else head
+    }
+
     private fun buildTooltip(badgeId: String, version: String, months: Int?): String {
         return when (badgeId.lowercase()) {
-            "subscriber" -> if (months != null) "Subscriber for $months months" else "Subscriber"
-            "founder" -> if (months != null) "Founder for $months months" else "Founder"
+            "subscriber" -> subscriptionTooltip("Subscriber", version, months)
+            "founder" -> subscriptionTooltip("Founder", version, months)
             "vip" -> "VIP"
             "moderator" -> "Moderator"
             "grand_moderator", "chat_manager", "super_moderator" -> "Grand Moderator"

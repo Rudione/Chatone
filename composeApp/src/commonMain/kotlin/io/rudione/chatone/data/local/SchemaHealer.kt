@@ -114,6 +114,9 @@ internal object SchemaHealer {
             "eventMessage" to "TEXT NOT NULL DEFAULT ''",
             "eventRepeat" to "INTEGER NOT NULL DEFAULT 1",
             "eventDelaySeconds" to "INTEGER NOT NULL DEFAULT 0"
+        ),
+        "MessageEntity" to listOf(
+            "gifs" to "TEXT NOT NULL DEFAULT '[]'"
         )
     )
 
