@@ -1,0 +1,690 @@
+package io.rudione.chatone.presentation.chat
+
+import io.rudione.chatone.presentation.chat.roles.rememberUserRoles
+import io.rudione.chatone.presentation.chat.roles.UserRolesTab
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ic_twitch
+import coil3.compose.AsyncImage
+import io.rudione.chatone.data.remote.GqlDisplayBadge
+import io.rudione.chatone.data.remote.GqlUsercardMessage
+import io.rudione.chatone.data.remote.IvrApiClient
+import io.rudione.chatone.data.remote.SubAgeInfo
+import io.rudione.chatone.data.remote.TwitchApiClient
+import io.rudione.chatone.data.remote.TwitchGqlClient
+import io.rudione.chatone.data.repository.ChatRepository
+import io.rudione.chatone.data.repository.MentionMuteRepository
+import io.rudione.chatone.data.repository.ModerationHistoryEntry
+import io.rudione.chatone.data.repository.ModerationHistoryRepository
+import io.rudione.chatone.data.repository.UserNoteRepository
+import io.rudione.chatone.domain.model.Badge
+import io.rudione.chatone.domain.model.ChatMessage
+import io.rudione.chatone.domain.model.DisplayMessage
+import io.rudione.chatone.util.Result
+import io.rudione.chatone.domain.model.SevenTvCosmetics
+import io.rudione.chatone.presentation.components.ExpressiveCheckbox
+import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.util.chat.MessageToken
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.compose.resources.painterResource
+import org.koin.compose.koinInject
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneTextField
+import io.rudione.chatone.presentation.window.FloatingPanel
+import io.rudione.chatone.presentation.window.FloatingPanelGrip
+import io.rudione.chatone.presentation.window.rememberFloatingPlacement
+import io.rudione.chatone.presentation.window.rememberFloatingPopupPositionProvider
+import io.rudione.chatone.util.system.isDesktopPlatform
+import io.rudione.chatone.icons.lucide.Copy
+import io.rudione.chatone.icons.lucide.CopyCheck
+import io.rudione.chatone.icons.lucide.ExternalLink
+import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.X
+
+private const val MOBILE_PROFILE_POSITION_KEY = "mobile.profile_popup"
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class)
+@Composable
+fun UserProfilePopup(
+    userId: String,
+    username: String,
+    displayName: String,
+    color: String?,
+    accessToken: String = "",
+    channelId: String = "",
+    profileImageUrl: String = "",
+    createdAt: String = "",
+    isModerator: Boolean = false,
+    isSubscriber: Boolean = false,
+    isVip: Boolean = false,
+    isBroadcaster: Boolean = false,
+    badges: List<Badge> = emptyList(),
+    sevenTvBadge: SevenTvCosmetics.Badge? = null,
+    channelMessages: List<DisplayMessage> = emptyList(),
+    showModActions: Boolean = false,
+
+    currentUserIsBroadcaster: Boolean = false,
+    isBlocked: Boolean = false,
+    onBlock: () -> Unit = {},
+    onUnblock: () -> Unit = {},
+    onTimeout: (Int) -> Unit = {},
+    onBan: () -> Unit = {},
+    onBanWithReason: (String) -> Unit = { onBan() },
+    onUnban: () -> Unit = {},
+    onMod: () -> Unit = {},
+    onUnmod: () -> Unit = {},
+    onVip: () -> Unit = {},
+    onUnvip: () -> Unit = {},
+    onWhisper: () -> Unit = {},
+    onDetach: (() -> Unit)? = null,
+    channelLogin: String = "",
+    startPinned: Boolean = false,
+    mentionMuteRepository: MentionMuteRepository? = null,
+    onPinnedChange: (Boolean) -> Unit = {},
+    onDismiss: () -> Unit
+) {
+    val noteRepository: UserNoteRepository = koinInject()
+
+    if (isDesktopPlatform) {
+        DesktopUserProfilePopup(
+            userId = userId,
+            username = username,
+            displayName = displayName,
+            color = color,
+            initialAvatarUrl = profileImageUrl,
+            initialCreatedAt = createdAt,
+            badges = badges,
+            sevenTvBadge = sevenTvBadge,
+            isBroadcaster = isBroadcaster,
+            isModerator = isModerator,
+            isVip = isVip,
+            isSubscriber = isSubscriber,
+            sessionMessages = remember(channelMessages, userId) {
+                channelMessages.filterIsInstance<DisplayMessage.PrivMsg>()
+                    .filter { it.userId == userId }
+                    .takeLast(1000)
+            },
+            canModerate = showModActions,
+            currentUserIsBroadcaster = currentUserIsBroadcaster,
+            isBlocked = isBlocked,
+            channelId = channelId,
+            channelLogin = channelLogin,
+            accessToken = accessToken,
+            startPinned = startPinned,
+            onPinnedChange = onPinnedChange,
+            mentionMuteRepository = mentionMuteRepository,
+            noteRepository = noteRepository,
+            onBlock = onBlock,
+            onUnblock = onUnblock,
+            onTimeout = onTimeout,
+            onBan = onBan,
+            onUnban = onUnban,
+            onMod = onMod,
+            onUnmod = onUnmod,
+            onVip = onVip,
+            onUnvip = onUnvip,
+            onWhisper = onWhisper,
+            onBanWithReason = onBanWithReason,
+            onDismiss = onDismiss
+        )
+        return
+    }
+
+    val twitchApiClient: TwitchApiClient = koinInject()
+    val twitchGqlClient: TwitchGqlClient = koinInject()
+    val chatRepository: ChatRepository = koinInject()
+    val moderationHistoryRepository: ModerationHistoryRepository = koinInject()
+    var noteText by remember { mutableStateOf("") }
+    var isNoteLoaded by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+
+    var moderationHistory by remember(userId) { mutableStateOf<List<ModerationHistoryEntry>>(emptyList()) }
+    var isModerationHistoryLoading by remember(userId) { mutableStateOf(false) }
+    val archive = rememberUserLogArchive(channelId, userId)
+    val roles = rememberUserRoles(userId, username)
+    val uriHandler = LocalUriHandler.current
+
+    var localHistory by remember(userId) { mutableStateOf<List<ChatMessage>>(emptyList()) }
+
+    var historyMessages by remember(userId) { mutableStateOf<List<GqlUsercardMessage>>(emptyList()) }
+    var historyCursor by remember(userId) { mutableStateOf<String?>(null) }
+    var hasMoreHistory by remember(userId) { mutableStateOf(false) }
+    var isHistoryLoading by remember(userId) { mutableStateOf(false) }
+    var localHistoryLoaded by remember(userId) { mutableStateOf(false) }
+    val historyScope = rememberCoroutineScope()
+    val canLoadHistory = showModActions && accessToken.isNotEmpty() && channelId.isNotEmpty() && userId.isNotEmpty()
+    val loadHistory: () -> Unit = {
+        if (!isHistoryLoading && canLoadHistory) {
+            isHistoryLoading = true
+            historyScope.launch {
+                val page = twitchGqlClient.getUsercardMessagesBySender(
+                    channelId, userId, historyCursor, accessToken
+                )
+                if (page != null) {
+                    historyMessages = historyMessages + page.messages
+                    historyCursor = page.nextCursor
+                    hasMoreHistory = page.hasNextPage
+                } else {
+                    hasMoreHistory = false
+                }
+                isHistoryLoading = false
+            }
+        }
+    }
+
+    var fetchedAvatarUrl by remember(userId) { mutableStateOf(profileImageUrl) }
+    var fetchedCreatedAt by remember(userId) { mutableStateOf(createdAt) }
+    var gqlBadges by remember(userId) {
+        mutableStateOf<List<GqlDisplayBadge>>(emptyList())
+    }
+    var followedAt by remember(userId) { mutableStateOf<String?>(null) }
+    var subAge by remember(userId) { mutableStateOf<SubAgeInfo?>(null) }
+    val ivrApiClient: IvrApiClient = koinInject()
+
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var archiveSearchOpen by remember(userId) { mutableStateOf(false) }
+    var banReasonPrompt by remember { mutableStateOf(false) }
+    var banReasonText by remember { mutableStateOf("") }
+
+    val userMessages = remember(channelMessages, userId) {
+        channelMessages
+            .filterIsInstance<DisplayMessage.PrivMsg>()
+            .filter { it.userId == userId }
+            .takeLast(1000)
+    }
+
+    LaunchedEffect(userId, localHistoryLoaded, isHistoryLoading) {
+        val silent = userMessages.isEmpty() && localHistory.isEmpty() && historyMessages.isEmpty()
+        if (localHistoryLoaded && !isHistoryLoading && silent) archive.openIfLogged()
+    }
+
+    LaunchedEffect(userId) {
+        fetchedAvatarUrl = profileImageUrl
+        fetchedCreatedAt = createdAt
+        followedAt = null
+        subAge = null
+        gqlBadges = emptyList()
+        if (username.isNotEmpty() && channelLogin.isNotEmpty()) {
+            launch { subAge = ivrApiClient.getSubAge(username, channelLogin) }
+        }
+        if (username.isNotEmpty()) {
+            launch {
+                gqlBadges = runCatching {
+                    twitchGqlClient.getUserDisplayBadges(username, channelLogin, accessToken)
+                }.getOrDefault(emptyList())
+            }
+        }
+
+        if (channelId.isNotEmpty() && userId.isNotEmpty()) {
+            launch {
+                val sessionIds = userMessages.map { it.id }.toSet()
+                localHistory = chatRepository.getLocalHistoryForUser(channelId, userId)
+                    .filterNot { it.id in sessionIds }
+                localHistoryLoaded = true
+            }
+            if (showModActions) {
+                launch {
+                    isModerationHistoryLoading = true
+                    moderationHistory =
+                        moderationHistoryRepository.loadHistoryForUser(channelId, userId, accessToken)
+                    isModerationHistoryLoading = false
+                }
+            }
+            loadHistory()
+        }
+
+        val existing = noteRepository.getNote(userId)
+        noteText = existing ?: ""
+        isNoteLoaded = true
+
+        if (accessToken.isNotEmpty() && userId.isNotEmpty()) {
+            val result = twitchApiClient.getUsers(accessToken, ids = listOf(userId))
+            if (result is Result.Success) {
+                result.data.data.firstOrNull()?.let { userData ->
+                    fetchedAvatarUrl = userData.profileImageUrl
+                    fetchedCreatedAt = userData.createdAt.take(10)
+                }
+            }
+            if (channelId.isNotEmpty()) {
+                try {
+                    val followResult =
+                        twitchApiClient.getChannelFollower(accessToken, channelId, userId)
+                    if (followResult is Result.Success) {
+                        followResult.data.data.firstOrNull()?.let { follower ->
+                            followedAt = follower.followedAt.take(10)
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    if (showDeleteConfirmation) {
+        val sd = LocalStrings.current
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text(sd.profileDeleteNote) },
+            text = { Text(sd.profileDeleteNoteConfirm) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        noteRepository.deleteNote(userId); noteText = ""; showDeleteConfirmation =
+                        false
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(sd.delete) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteConfirmation = false
+                }) { Text(sd.cancel) }
+            }
+        )
+    }
+
+
+    val placement = rememberFloatingPlacement(MOBILE_PROFILE_POSITION_KEY)
+    val card: @Composable (dragHandle: Modifier?) -> Unit = { dragHandle ->
+        Card(
+            modifier = Modifier.width(320.dp).padding(8.dp)
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown || !event.isAltPressed) return@onPreviewKeyEvent false
+                    if (!showModActions || isBroadcaster) return@onPreviewKeyEvent false
+                    when (event.key) {
+                        Key.B -> {
+                            if (event.isShiftPressed) { banReasonPrompt = true }
+                            else { onBan(); onDismiss() }
+                            true
+                        }
+                        Key.U -> { onUnban(); onDismiss(); true }
+                        Key.W -> { onWhisper(); onDismiss(); true }
+                        Key.K -> { if (isBlocked) onUnblock() else onBlock(); onDismiss(); true }
+                        Key.M -> if (currentUserIsBroadcaster) {
+                            if (isModerator) onUnmod() else onMod(); onDismiss(); true
+                        } else false
+                        Key.V -> if (currentUserIsBroadcaster) {
+                            if (isVip) onUnvip() else onVip(); onDismiss(); true
+                        } else false
+                        else -> false
+                    }
+                },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            if (dragHandle != null) FloatingPanelGrip(dragHandle)
+            Column {
+                UserProfileHeader(
+                    modifier = dragHandle ?: Modifier,
+                    avatarUrl = fetchedAvatarUrl,
+                    displayName = displayName,
+                    username = username,
+                    userId = userId,
+                    color = color,
+                    badges = badges,
+                    gqlBadges = gqlBadges,
+                    sevenTvBadge = sevenTvBadge,
+                    isBroadcaster = isBroadcaster,
+                    isModerator = isModerator,
+                    isVip = isVip,
+                    isSubscriber = isSubscriber,
+                    onDetach = onDetach,
+                    onDismiss = onDismiss
+                )
+                val showHistoryTab = showModActions &&
+                        (isModerationHistoryLoading || moderationHistory.isNotEmpty())
+                val activeTab = if (selectedTab == 2 && !showHistoryTab) 1 else selectedTab
+                CompactProfileTabs(
+                    selectedTab = activeTab,
+                    onSelect = { selectedTab = it },
+                    messagesCount = userMessages.size,
+                    showHistoryTab = showHistoryTab,
+                    historyCount = moderationHistory.size,
+                    showRolesTab = roles.isSupported,
+                    trailing = {
+                        if (activeTab == 1) {
+                            ProfileArchiveControls(
+                                archive = archive,
+                                inlineSearch = false,
+                                searchExpanded = archiveSearchOpen,
+                                onToggleSearch = {
+                                    if (archiveSearchOpen && archive.isSearching) archive.updateQuery("")
+                                    archiveSearchOpen = !archiveSearchOpen
+                                }
+                            )
+                        }
+                    }
+                )
+                ProfileArchiveSearchBar(
+                    archive = archive,
+                    visible = activeTab == 1 && (archiveSearchOpen || archive.isSearching)
+                )
+
+                when (activeTab) {
+                    0 -> UsercardTab(
+                        userId = userId,
+                        fetchedCreatedAt = fetchedCreatedAt,
+                        subAge = subAge,
+                        followedAt = followedAt,
+                        noteText = noteText,
+                        isNoteLoaded = isNoteLoaded,
+                        noteRepository = noteRepository,
+                        clipboardManager = clipboardManager,
+                        showModActions = showModActions,
+                        isBroadcaster = isBroadcaster,
+                        isModerator = isModerator,
+                        isVip = isVip,
+                        isSubscriber = isSubscriber,
+                        currentUserIsBroadcaster = currentUserIsBroadcaster,
+                        isBlocked = isBlocked,
+                        onBlock = onBlock,
+                        onUnblock = onUnblock,
+                        onNoteChange = { noteText = it },
+                        onShowDeleteConfirmation = { showDeleteConfirmation = true },
+                        onWhisper = onWhisper,
+                        onTimeout = onTimeout,
+                        onBan = onBan,
+                        onUnban = onUnban,
+                        onMod = onMod,
+                        onUnmod = onUnmod,
+                        onVip = onVip,
+                        onUnvip = onUnvip,
+                        onDismiss = onDismiss,
+                        channelLogin = channelLogin,
+                        mentionMuteRepository = mentionMuteRepository,
+                        username = username
+                    )
+
+                    1 -> if (archive.isActive) {
+                        ProfileArchiveFeed(
+                            archive = archive,
+                            displayName = displayName,
+                            nameColor = rememberNickColors().of(color, username.ifBlank { displayName }),
+                            modifier = Modifier.fillMaxWidth().height(380.dp)
+                        )
+                    } else MessagesTab(
+                        messages = userMessages,
+                        displayName = displayName,
+                        userColor = color,
+                        login = username,
+                        history = historyMessages,
+                        isHistoryLoading = isHistoryLoading,
+                        hasMoreHistory = hasMoreHistory,
+                        onLoadHistory = loadHistory.takeIf { canLoadHistory },
+                        localHistory = localHistory
+                    )
+
+                    2 -> ModerationHistoryTab(
+                        entries = moderationHistory,
+                        isLoading = isModerationHistoryLoading
+                    )
+
+                    PROFILE_ROLES_TAB -> UserRolesTab(
+                        state = roles,
+                        onOpenChannel = { login -> uriHandler.openUri("https://www.twitch.tv/${login.lowercase()}") },
+                        modifier = Modifier.fillMaxWidth().height(320.dp)
+                    )
+                }
+            }
+        }
+    }
+    if (startPinned) {
+        FloatingPanel(
+            placement = placement,
+            modifier = Modifier.windowInsetsPadding(
+                WindowInsets.navigationBars.union(WindowInsets.ime).only(WindowInsetsSides.Bottom)
+            )
+        ) { dragHandle -> card(dragHandle) }
+    } else {
+        Popup(
+            popupPositionProvider = rememberFloatingPopupPositionProvider(placement),
+            onDismissRequest = onDismiss,
+            properties = PopupProperties(focusable = true)
+        ) { card(null) }
+    }
+
+    if (banReasonPrompt) {
+        AlertDialog(
+            onDismissRequest = { banReasonPrompt = false },
+            title = { Text("${LocalStrings.current.profileBan}: $displayName") },
+            text = {
+                Column {
+                    Text(
+                        LocalStrings.current.chatBanReasonHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ChatoneTextField(
+                        value = banReasonText,
+                        onValueChange = { banReasonText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = LocalStrings.current.chatBanReasonPlaceholder,
+                        singleLine = false
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onBanWithReason(banReasonText.trim())
+                    banReasonPrompt = false
+                    onDismiss()
+                }) { Text(LocalStrings.current.profileBan) }
+            },
+            dismissButton = {
+                TextButton(onClick = { banReasonPrompt = false }) { Text(LocalStrings.current.cancel) }
+            }
+        )
+    }
+}
+
+@Composable
+fun UserProfileHeader(
+    avatarUrl: String,
+    displayName: String,
+    username: String,
+    color: String?,
+    badges: List<Badge>,
+    sevenTvBadge: SevenTvCosmetics.Badge?,
+    isBroadcaster: Boolean,
+    isModerator: Boolean,
+    isVip: Boolean,
+    isSubscriber: Boolean,
+    modifier: Modifier = Modifier,
+    userId: String = "",
+    gqlBadges: List<GqlDisplayBadge> = emptyList(),
+    onDetach: (() -> Unit)? = null,
+    onDismiss: (() -> Unit)? = null,
+    showIconDetached: Boolean = true
+) {
+    val clipboardManager = LocalClipboardManager.current
+    var showCopied by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    val sevenTv = rememberSevenTvCosmetic(userId)
+    val thirdPartyMaps = LocalThirdPartyBadges.current
+    val badgeItems = remember(userId, badges, gqlBadges, sevenTvBadge, thirdPartyMaps) {
+        buildProfileBadges(
+            chatBadges = badges,
+            gqlBadges = gqlBadges,
+            sevenTvBadge = sevenTvBadge,
+            thirdPartyBadges = buildList {
+                thirdPartyMaps.ffzByLogin[username.lowercase()]?.let { addAll(it) }
+                thirdPartyMaps.bttvByUserId[userId]?.let { add(it) }
+            }
+        )
+    }
+
+    LaunchedEffect(showCopied) {
+        if (showCopied) {
+            kotlinx.coroutines.delay(1500)
+            showCopied = false
+        }
+    }
+
+    Column(modifier = modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (avatarUrl.isNotEmpty()) {
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = displayName,
+                    modifier = Modifier.size(44.dp).clip(CircleShape)
+                )
+            } else {
+                Box(
+                    modifier = Modifier.size(44.dp).clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        displayName.take(2).uppercase(),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ProfileDisplayName(
+                        displayName = displayName,
+                        color = color,
+                        fallbackLogin = username,
+                        paint = sevenTv?.paint,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    ChatoneIconButton(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(username))
+                            showCopied = true
+                        },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            if (showCopied) Lucide.CopyCheck
+                            else Lucide.Copy,
+                            contentDescription = "Copy username",
+                            modifier = Modifier.size(14.dp),
+                            tint = if (showCopied)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    ChatoneIconButton(
+                        onClick = {
+                            val twitchUrl = "https://www.twitch.tv/${username.lowercase()}"
+                            uriHandler.openUri(twitchUrl)
+                        },
+                        modifier = Modifier.size(22.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(Res.drawable.ic_twitch),
+                            contentDescription = "Open Twitch profile",
+                            modifier = Modifier.size(14.dp),
+                            tint = Color(0xFF9146FF)
+                        )
+                    }
+                    if (sevenTv?.profile != null) {
+                        Spacer(Modifier.width(2.dp))
+                        SevenTvLinkButton(profile = sevenTv.profile)
+                    }
+                }
+                if (username.lowercase() != displayName.lowercase()) {
+                    Text(
+                        "@$username", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (onDetach != null) {
+                ChatoneIconButton(onClick = onDetach, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Lucide.ExternalLink, null, modifier = Modifier.size(15.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            if (onDismiss != null) {
+                if (showIconDetached) {
+                    ChatoneIconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(28.dp),
+                    ) {
+                        Icon(
+                            Lucide.X, null, modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        if (badgeItems.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            ProfileBadgeStrip(badges = badgeItems, badgeSize = 20.dp, spacing = 4.dp)
+        }
+
+        val hasRoles = isBroadcaster || isModerator || isVip || isSubscriber
+        if (hasRoles) {
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (isBroadcaster) RoleBadge("Broadcaster", MaterialTheme.colorScheme.error)
+                if (isModerator) RoleBadge("Mod", ChatoneTheme.extraColors.connected)
+                if (isVip) RoleBadge("VIP", Color(0xFFE005B9))
+                if (isSubscriber) RoleBadge("Sub", MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}

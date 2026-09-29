@@ -1,0 +1,98 @@
+package io.rudione.chatone.presentation.main.components
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.icons.lucide.AtSign
+import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.MessageCircle
+import io.rudione.chatone.icons.lucide.X
+
+@Composable
+fun MentionToast(
+    fromDisplayName: String,
+    channelLogin: String,
+    text: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isWhisper = channelLogin.startsWith("💬")
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(4000)
+        onDismiss()
+    }
+
+    LiquidGlassSurface(
+        modifier = modifier
+            .widthIn(max = 420.dp)
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+        tintColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        glassIntensity = 0.98f
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Icon(
+                if (isWhisper) Lucide.MessageCircle else Lucide.AtSign,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = if (isWhisper) Color(0xFF9B59B6) else MaterialTheme.colorScheme.primary
+            )
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isWhisper) "💬 $fromDisplayName"
+                    else "@$fromDisplayName ${LocalStrings.current.mentionInChannel.replace("{0}", channelLogin)}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = text.take(120),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            ChatoneIconButton(
+                onClick = onDismiss,
+                modifier = Modifier.size(24.dp)
+            ) {
+                Icon(
+                    Lucide.X,
+                    contentDescription = "Dismiss",
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+}

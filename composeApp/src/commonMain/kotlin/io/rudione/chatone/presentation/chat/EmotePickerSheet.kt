@@ -1,0 +1,1907 @@
+package io.rudione.chatone.presentation.chat
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import io.rudione.chatone.presentation.chat.components.EmoteGridItemFlyweight
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.russhwolf.settings.Settings
+import io.rudione.chatone.domain.model.ChannelEmotes
+import io.rudione.chatone.domain.model.EmoteProvider
+import io.rudione.chatone.domain.model.GenericEmote
+import io.rudione.chatone.domain.model.lockedTwitchEmoteIds
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import io.rudione.chatone.presentation.chat.models.EmoteUiData
+import io.rudione.chatone.util.emote.EmoteSearchIndex
+import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ic_bttv
+import chatone.composeapp.generated.resources.ic_ffz
+import chatone.composeapp.generated.resources.ic_gif
+import chatone.composeapp.generated.resources.ic_seventv
+import chatone.composeapp.generated.resources.ic_twitch
+import io.rudione.chatone.domain.model.GifSearchItem
+import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
+import io.rudione.chatone.presentation.chat.rendering.LocalScrollActivity
+import io.rudione.chatone.presentation.chat.rendering.rememberScrollActivity
+import io.rudione.chatone.presentation.theme.ChatoneIndication
+import org.jetbrains.compose.resources.painterResource
+import io.rudione.chatone.icons.lucide.LayoutGrid
+import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.Search
+import io.rudione.chatone.icons.lucide.Smile
+import io.rudione.chatone.icons.lucide.Star
+import io.rudione.chatone.icons.lucide.X
+
+private const val PAGE_SIZE = 100
+private const val PRELOAD_THRESHOLD = 20
+
+private data class EmojiCategory(val icon: String, val label: String, val emojis: List<String>)
+
+private val EMOJI_CATEGORIES = listOf(
+    EmojiCategory(
+        "😀",
+        "Smileys",
+        listOf(
+            "😀",
+            "😃",
+            "😄",
+            "😁",
+            "😆",
+            "😅",
+            "🤣",
+            "😂",
+            "🙂",
+            "🙃",
+            "🫠",
+            "😉",
+            "😊",
+            "😇",
+            "🥰",
+            "😍",
+            "🤩",
+            "😘",
+            "😗",
+            "😚",
+            "😙",
+            "🥲",
+            "😋",
+            "😛",
+            "😜",
+            "🤪",
+            "😝",
+            "🤑",
+            "🤗",
+            "🤭",
+            "🫢",
+            "🫣",
+            "🤫",
+            "🤔",
+            "🫡",
+            "🤐",
+            "🤨",
+            "😐",
+            "😑",
+            "😶",
+            "🫥",
+            "😏",
+            "😒",
+            "🙄",
+            "😬",
+            "🤥",
+            "😌",
+            "😔",
+            "😪",
+            "🤤",
+            "😴",
+            "😷",
+            "🤒",
+            "🤕",
+            "🤢",
+            "🤮",
+            "🤧",
+            "🥵",
+            "🥶",
+            "🥴",
+            "😵",
+            "🤯",
+            "🤠",
+            "🥳",
+            "🥸",
+            "😎",
+            "🤓",
+            "🧐",
+            "😕",
+            "🫤",
+            "😟",
+            "🙁",
+            "☹️",
+            "😮",
+            "😯",
+            "😲",
+            "😳",
+            "🥺",
+            "🫣",
+            "😦",
+            "😧",
+            "😨",
+            "😰",
+            "😥",
+            "😢",
+            "😭",
+            "😱",
+            "😖",
+            "😣",
+            "😞",
+            "😓",
+            "😩",
+            "😫",
+            "🥱",
+            "😤",
+            "😡",
+            "😠",
+            "🤬",
+            "😈",
+            "👿",
+            "💀",
+            "☠️",
+            "💩",
+            "🤡",
+            "👹",
+            "👺",
+            "👻",
+            "👽",
+            "👾",
+            "🤖"
+        )
+    ),
+    EmojiCategory(
+        "👋",
+        "People",
+        listOf(
+            "👋",
+            "🤚",
+            "🖐️",
+            "✋",
+            "🖖",
+            "🫱",
+            "🫲",
+            "🫳",
+            "🫴",
+            "👌",
+            "🤌",
+            "🤏",
+            "✌️",
+            "🤞",
+            "🫰",
+            "🤟",
+            "🤘",
+            "🤙",
+            "👈",
+            "👉",
+            "👆",
+            "🖕",
+            "👇",
+            "☝️",
+            "🫵",
+            "👍",
+            "👎",
+            "✊",
+            "👊",
+            "🤛",
+            "🤜",
+            "👏",
+            "🙌",
+            "🫶",
+            "👐",
+            "🤲",
+            "🤝",
+            "🙏",
+            "✍️",
+            "💅",
+            "🤳",
+            "💪",
+            "🦾",
+            "🦿",
+            "🦵",
+            "🦶",
+            "👂",
+            "🦻",
+            "👃",
+            "🫀",
+            "🫁",
+            "🧠",
+            "🦷",
+            "🦴",
+            "👀",
+            "👁️",
+            "👅",
+            "👄",
+            "🫦",
+            "💋",
+            "👶",
+            "🧒",
+            "👦",
+            "👧",
+            "🧑",
+            "👱",
+            "👨",
+            "🧔",
+            "👩",
+            "🧓",
+            "👴",
+            "👵",
+            "🙍",
+            "🙎",
+            "🙅",
+            "🙆",
+            "💁",
+            "🙋",
+            "🧏",
+            "🙇",
+            "🤦",
+            "🤷",
+            "💆",
+            "💇",
+            "🚶",
+            "🧍",
+            "🧎",
+            "🏃",
+            "💃",
+            "🕺",
+            "👫",
+            "👬",
+            "👭",
+            "💑",
+            "👨‍👩‍👦",
+            "👨‍👩‍👧"
+        )
+    ),
+    EmojiCategory(
+        "🐶",
+        "Animals",
+        listOf(
+            "🐶",
+            "🐱",
+            "🐭",
+            "🐹",
+            "🐰",
+            "🦊",
+            "🐻",
+            "🐼",
+            "🐨",
+            "🐯",
+            "🦁",
+            "🐮",
+            "🐷",
+            "🐸",
+            "🐵",
+            "🙈",
+            "🙉",
+            "🙊",
+            "🐒",
+            "🐔",
+            "🐧",
+            "🐦",
+            "🐤",
+            "🦆",
+            "🦅",
+            "🦉",
+            "🦇",
+            "🐺",
+            "🐗",
+            "🐴",
+            "🦄",
+            "🐝",
+            "🪱",
+            "🐛",
+            "🦋",
+            "🐌",
+            "🐞",
+            "🐜",
+            "🦟",
+            "🦗",
+            "🦂",
+            "🐢",
+            "🐍",
+            "🦎",
+            "🦖",
+            "🦕",
+            "🐙",
+            "🦑",
+            "🦐",
+            "🦞",
+            "🦀",
+            "🐡",
+            "🐠",
+            "🐟",
+            "🐬",
+            "🐳",
+            "🐋",
+            "🦈",
+            "🦭",
+            "🐊",
+            "🐅",
+            "🐆",
+            "🦓",
+            "🦍",
+            "🦧",
+            "🦣",
+            "🐘",
+            "🦛",
+            "🦏",
+            "🐪",
+            "🐫",
+            "🦒",
+            "🦘",
+            "🦬",
+            "🐃",
+            "🐂",
+            "🐄",
+            "🐎",
+            "🐖",
+            "🐏",
+            "🐑",
+            "🦙",
+            "🐐",
+            "🦌",
+            "🐕",
+            "🐩",
+            "🦮",
+            "🐈",
+            "🐈‍⬛",
+            "🪶",
+            "🐓",
+            "🦃",
+            "🦤",
+            "🦚",
+            "🦜"
+        )
+    ),
+    EmojiCategory(
+        "🍎",
+        "Food",
+        listOf(
+            "🍎",
+            "🍊",
+            "🍋",
+            "🍇",
+            "🍓",
+            "🫐",
+            "🍈",
+            "🍒",
+            "🍑",
+            "🥭",
+            "🍍",
+            "🥥",
+            "🥝",
+            "🍅",
+            "🍆",
+            "🥑",
+            "🥦",
+            "🥬",
+            "🥒",
+            "🌶️",
+            "🫑",
+            "🧄",
+            "🧅",
+            "🥔",
+            "🍠",
+            "🫘",
+            "🌰",
+            "🥜",
+            "🍞",
+            "🥐",
+            "🥖",
+            "🫓",
+            "🥨",
+            "🥯",
+            "🧀",
+            "🥚",
+            "🍳",
+            "🧈",
+            "🥞",
+            "🧇",
+            "🥓",
+            "🥩",
+            "🍗",
+            "🍖",
+            "🦴",
+            "🌭",
+            "🍔",
+            "🍟",
+            "🍕",
+            "🫔",
+            "🌮",
+            "🌯",
+            "🥙",
+            "🧆",
+            "🍿",
+            "🧂",
+            "🍱",
+            "🍘",
+            "🍙",
+            "🍚",
+            "🍛",
+            "🍜",
+            "🍝",
+            "🦪",
+            "🍣",
+            "🍤",
+            "🥟",
+            "🍦",
+            "🍧",
+            "🍨",
+            "🍩",
+            "🍪",
+            "🎂",
+            "🍰",
+            "🧁",
+            "🥧",
+            "🍫",
+            "🍬",
+            "🍭",
+            "🍮",
+            "🍯",
+            "🍼",
+            "🥛",
+            "☕",
+            "🫖",
+            "🍵",
+            "🧃",
+            "🥤",
+            "🧋",
+            "🍶",
+            "🍺",
+            "🍻",
+            "🥂"
+        )
+    ),
+    EmojiCategory(
+        "⚽",
+        "Activities",
+        listOf(
+            "⚽",
+            "🏀",
+            "🏈",
+            "⚾",
+            "🥎",
+            "🎾",
+            "🏐",
+            "🏉",
+            "🥏",
+            "🎱",
+            "🪀",
+            "🏓",
+            "🏸",
+            "🏒",
+            "🏑",
+            "🥍",
+            "🏏",
+            "🪃",
+            "🥅",
+            "⛳",
+            "🪁",
+            "🎣",
+            "🤿",
+            "🎽",
+            "🎿",
+            "🛷",
+            "🥌",
+            "🎯",
+            "🎱",
+            "🔮",
+            "🪄",
+            "🎮",
+            "🕹️",
+            "🎲",
+            "♟️",
+            "🧩",
+            "🧸",
+            "🪅",
+            "🎭",
+            "🎨",
+            "🖼️",
+            "🎪",
+            "🤹",
+            "🎬",
+            "🎤",
+            "🎧",
+            "🎼",
+            "🎵",
+            "🎶",
+            "🎹",
+            "🥁",
+            "🪘",
+            "🎷",
+            "🎺",
+            "🪗",
+            "🎸",
+            "🪕",
+            "🎻",
+            "🏆",
+            "🥇",
+            "🥈",
+            "🥉",
+            "🏅",
+            "🎖️",
+            "🏵️",
+            "🎗️",
+            "🎫",
+            "🎟️"
+        )
+    ),
+    EmojiCategory(
+        "🚗",
+        "Travel",
+        listOf(
+            "🚗",
+            "🚕",
+            "🚙",
+            "🚌",
+            "🚎",
+            "🏎️",
+            "🚓",
+            "🚑",
+            "🚒",
+            "🚐",
+            "🛻",
+            "🚚",
+            "🚛",
+            "🚜",
+            "🏍️",
+            "🛵",
+            "🚲",
+            "🛴",
+            "🛹",
+            "🛼",
+            "🚢",
+            "✈️",
+            "🛩️",
+            "🛫",
+            "🛬",
+            "🪂",
+            "💺",
+            "🚁",
+            "🚟",
+            "🚠",
+            "🚡",
+            "🛰️",
+            "🚀",
+            "🛸",
+            "🪐",
+            "⭐",
+            "🌟",
+            "💫",
+            "✨",
+            "🌈",
+            "☀️",
+            "🌤️",
+            "⛅",
+            "🌥️",
+            "🌦️",
+            "🌧️",
+            "⛈️",
+            "🌩️",
+            "🌨️",
+            "🌪️",
+            "🌫️",
+            "🌬️",
+            "🌀",
+            "🌊",
+            "🌁",
+            "🏔️",
+            "⛰️",
+            "🌋",
+            "🗻",
+            "🏕️",
+            "🏖️",
+            "🏜️",
+            "🏝️"
+        )
+    ),
+    EmojiCategory(
+        "💡",
+        "Objects",
+        listOf(
+            "⌚",
+            "📱",
+            "💻",
+            "⌨️",
+            "🖥️",
+            "🖨️",
+            "🖱️",
+            "💾",
+            "💿",
+            "📀",
+            "📷",
+            "📸",
+            "📹",
+            "🎥",
+            "📽️",
+            "🎞️",
+            "📞",
+            "☎️",
+            "📟",
+            "📠",
+            "📺",
+            "📻",
+            "🧭",
+            "⏱️",
+            "⏲️",
+            "⏰",
+            "🕰️",
+            "⌛",
+            "⏳",
+            "📡",
+            "🔋",
+            "🔌",
+            "💡",
+            "🔦",
+            "🕯️",
+            "🧱",
+            "💰",
+            "💴",
+            "💵",
+            "💶",
+            "💷",
+            "💸",
+            "💳",
+            "🧾",
+            "📈",
+            "📉",
+            "📊",
+            "📋",
+            "📌",
+            "📍",
+            "📎",
+            "🖇️",
+            "📏",
+            "📐",
+            "✂️",
+            "🗃️",
+            "🗄️",
+            "🗑️",
+            "🔒",
+            "🔓",
+            "🔏",
+            "🔐",
+            "🔑",
+            "🗝️",
+            "🔨",
+            "🪓",
+            "⛏️",
+            "⚒️",
+            "🛠️",
+            "🗡️",
+            "⚔️",
+            "🛡️",
+            "🪚",
+            "🔧",
+            "🪛",
+            "🔩",
+            "⚙️",
+            "🗜️",
+            "⚖️",
+            "🦯",
+            "🔗",
+            "⛓️",
+            "🪝",
+            "🧲",
+            "🪜",
+            "⚗️",
+            "🧪",
+            "🧫",
+            "🧬",
+            "🔭",
+            "🔬",
+            "🩺",
+            "💊",
+            "💉",
+            "🩹",
+            "🩼"
+        )
+    ),
+    EmojiCategory(
+        "❤️",
+        "Symbols",
+        listOf(
+            "❤️",
+            "🧡",
+            "💛",
+            "💚",
+            "💙",
+            "💜",
+            "🖤",
+            "🤍",
+            "🤎",
+            "💔",
+            "❤️‍🔥",
+            "❤️‍🩹",
+            "💕",
+            "💞",
+            "💓",
+            "💗",
+            "💖",
+            "💘",
+            "💝",
+            "💟",
+            "☮️",
+            "✝️",
+            "☪️",
+            "🕉️",
+            "☸️",
+            "✡️",
+            "🔯",
+            "🕎",
+            "☯️",
+            "🛐",
+            "⛎",
+            "♈",
+            "♉",
+            "♊",
+            "♋",
+            "♌",
+            "♍",
+            "♎",
+            "♏",
+            "♐",
+            "♑",
+            "♒",
+            "♓",
+            "🆔",
+            "⚛️",
+            "☢️",
+            "☣️",
+            "📴",
+            "📳",
+            "✴️",
+            "🆚",
+            "💮",
+            "🉐",
+            "㊙️",
+            "㊗️",
+            "🈴",
+            "🈵",
+            "🈹",
+            "🈲",
+            "🅰️",
+            "🅱️",
+            "🆎",
+            "🆑",
+            "🅾️",
+            "🆘",
+            "❌",
+            "⭕",
+            "🛑",
+            "⛔",
+            "📛",
+            "🚫",
+            "💯",
+            "💢",
+            "♨️",
+            "™️",
+            "©️",
+            "®️",
+            "〰️",
+            "➰",
+            "➿",
+            "🔚",
+            "🔙"
+        )
+    ),
+    EmojiCategory(
+        "🎌",
+        "Flags",
+        listOf(
+            "🏳️",
+            "🏴",
+            "🏁",
+            "🚩",
+            "🏳️‍🌈",
+            "🏳️‍⚧️",
+            "🏴‍☠️",
+            "🇦🇫",
+            "🇦🇱",
+            "🇩🇿",
+            "🇦🇩",
+            "🇦🇴",
+            "🇦🇷",
+            "🇦🇲",
+            "🇦🇺",
+            "🇦🇹",
+            "🇦🇿",
+            "🇧🇸",
+            "🇧🇭",
+            "🇧🇩",
+            "🇧🇧",
+            "🇧🇾",
+            "🇧🇪",
+            "🇧🇿",
+            "🇧🇯",
+            "🇧🇹",
+            "🇧🇴",
+            "🇧🇦",
+            "🇧🇼",
+            "🇧🇷",
+            "🇧🇳",
+            "🇧🇬",
+            "🇧🇫",
+            "🇧🇮",
+            "🇨🇻",
+            "🇰🇭",
+            "🇨🇲",
+            "🇨🇦",
+            "🇨🇫",
+            "🇹🇩",
+            "🇨🇱",
+            "🇨🇳",
+            "🇨🇴",
+            "🇨🇷",
+            "🇭🇷",
+            "🇨🇺",
+            "🇨🇾",
+            "🇨🇿",
+            "🇩🇰",
+            "🇩🇯",
+            "🇩🇴",
+            "🇪🇨",
+            "🇪🇬",
+            "🇸🇻",
+            "🇬🇶",
+            "🇪🇷",
+            "🇪🇪",
+            "🇸🇿",
+            "🇪🇹",
+            "🇫🇯",
+            "🇫🇮",
+            "🇫🇷",
+            "🇬🇦",
+            "🇬🇲",
+            "🇬🇪",
+            "🇩🇪",
+            "🇬🇭",
+            "🇬🇷",
+            "🇬🇹",
+            "🇬🇳",
+            "🇬🇼",
+            "🇬🇾",
+            "🇭🇹",
+            "🇭🇳",
+            "🇭🇺",
+            "🇮🇸",
+            "🇮🇳",
+            "🇮🇩",
+            "🇮🇷",
+            "🇮🇶",
+            "🇮🇪",
+            "🇮🇱",
+            "🇮🇹",
+            "🇯🇲",
+            "🇯🇵",
+            "🇯🇴",
+            "🇰🇿",
+            "🇰🇪",
+            "🇰🇷",
+            "🇰🇼",
+            "🇰🇬",
+            "🇱🇦",
+            "🇱🇻",
+            "🇱🇧",
+            "🇱🇸",
+            "🇱🇷",
+            "🇱🇾",
+            "🇱🇮"
+        )
+    )
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EmotePickerSheet(
+    channelEmotes: ChannelEmotes,
+    personalEmotes: List<GenericEmote> = emptyList(),
+    onEmoteSelected: (GenericEmote) -> Unit,
+    onEmojiSelected: (String) -> Unit = {},
+    onGifSelected: ((GifSearchItem) -> Unit)? = null,
+    canSendGifs: Boolean = false,
+    gifSendError: String? = null,
+    onDismiss: () -> Unit,
+    closeOnMouseLeave: Boolean = false,
+    docked: Boolean = false
+) {
+    val scope = rememberCoroutineScope()
+    var dismissJob by remember { mutableStateOf<Job?>(null) }
+
+    val settings = remember { Settings() }
+    var favoriteIds by remember {
+        mutableStateOf(
+            settings.getStringOrNull("favorite_emotes")
+                ?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+        )
+    }
+
+    var favoriteEmojis by remember {
+        mutableStateOf(
+            settings.getStringOrNull("favorite_emojis")
+                ?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+        )
+    }
+
+    fun toggleFavorite(emote: GenericEmote) {
+        val key = "${emote.provider}_${emote.id}"
+        favoriteIds = if (key in favoriteIds) favoriteIds - key else favoriteIds + key
+        settings.putString("favorite_emotes", favoriteIds.joinToString(","))
+    }
+
+    fun toggleFavoriteEmoji(emoji: String) {
+        favoriteEmojis =
+            if (emoji in favoriteEmojis) favoriteEmojis - emoji else favoriteEmojis + emoji
+        settings.putString("favorite_emojis", favoriteEmojis.joinToString(","))
+    }
+
+    val allEmotes = remember(channelEmotes, personalEmotes) {
+        val seen = mutableSetOf<String>()
+        val result = mutableListOf<GenericEmote>()
+        for (e in channelEmotes.all) if (seen.add(e.listKey)) result.add(e)
+        for (e in personalEmotes) if (seen.add(e.listKey)) result.add(e)
+        result
+    }
+
+    val favoriteEmotes = remember(favoriteIds, allEmotes) {
+        allEmotes.filter { "${it.provider}_${it.id}" in favoriteIds }
+    }
+
+    val backdropSource = remember { MutableInteractionSource() }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val sheetShape =
+        if (docked) RoundedCornerShape(0.dp)
+        else RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+
+    if (!docked) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.35f))
+                .clickable(indication = null, interactionSource = backdropSource) { onDismiss() }
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (docked) Modifier.fillMaxHeight() else Modifier.wrapContentHeight())
+                .then(
+                    if (docked) Modifier else Modifier.shadow(
+                        24.dp, sheetShape,
+                        ambientColor = Color.Black.copy(alpha = 0.3f),
+                        spotColor = Color.Black.copy(alpha = 0.4f)
+                    )
+                )
+                .clip(sheetShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
+                            MaterialTheme.colorScheme.surfaceContainerHigh
+                        )
+                    )
+                )
+                .then(
+                    if (docked) Modifier else Modifier.border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.18f),
+                                Color.White.copy(alpha = 0.04f)
+                            )
+                        ),
+                        sheetShape
+                    )
+                )
+                .then(
+                    if (closeOnMouseLeave) Modifier.pointerInput(Unit) {
+                        delay(500)
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                when (event.type) {
+                                    PointerEventType.Enter -> {
+                                        dismissJob?.cancel(); dismissJob = null
+                                    }
+
+                                    PointerEventType.Exit -> {
+                                        dismissJob = scope.launch { delay(250); onDismiss() }
+                                    }
+                                }
+                            }
+                        }
+                    } else Modifier
+                )
+                .then(if (docked) Modifier else Modifier.heightIn(max = 520.dp))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }) {}
+        ) {
+            if (!docked) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 10.dp, bottom = 6.dp)
+                        .width(36.dp).height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        .align(Alignment.CenterHorizontally)
+                )
+            } else {
+                Spacer(Modifier.height(8.dp))
+            }
+
+            EmoteTab(
+                channelEmotes = channelEmotes,
+                personalEmotes = personalEmotes,
+                allEmotes = allEmotes,
+                favoriteEmotes = favoriteEmotes,
+                favoriteIds = favoriteIds,
+                favoriteEmojis = favoriteEmojis,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                onEmoteSelected = onEmoteSelected,
+                onToggleFavorite = { toggleFavorite(it) },
+                onFavoriteAll = { emotes ->
+                    val newKeys = emotes.map { "${it.provider}_${it.id}" }.toSet()
+                    favoriteIds = favoriteIds + newKeys
+                    settings.putString("favorite_emotes", favoriteIds.joinToString(","))
+                },
+                onEmojiSelected = onEmojiSelected,
+                onToggleFavoriteEmoji = { toggleFavoriteEmoji(it) },
+                onGifSelected = onGifSelected,
+                canSendGifs = canSendGifs,
+                gifSendError = gifSendError
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+private data class TabEntry(val label: String, val tab: PickerTab, val count: Int)
+
+private data class EmoteSetAnchor(
+    val title: String,
+    val preview: GenericEmote,
+    val itemIndex: Int
+)
+
+private sealed class PickerTab {
+    object Favorites : PickerTab()
+    object All : PickerTab()
+    object Twitch : PickerTab()
+    object SevenTv : PickerTab()
+    object Bttv : PickerTab()
+    object Ffz : PickerTab()
+    object Emoji : PickerTab()
+    object Gifs : PickerTab()
+}
+
+private data class EmoteSection(val title: String?, val emotes: List<GenericEmote>)
+
+private fun providerName(p: EmoteProvider): String = when (p) {
+    EmoteProvider.TWITCH -> "Twitch"
+    EmoteProvider.SEVEN_TV -> "7TV"
+    EmoteProvider.BTTV -> "BTTV"
+    EmoteProvider.FFZ -> "FFZ"
+}
+
+@Composable
+internal fun CompactEmoteSearchBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    placeholder: String? = null
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val borderColor =
+        if (isFocused) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+        else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        interactionSource = interactionSource,
+        textStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        keyboardOptions = KeyboardOptions.Default.copy(
+            keyboardType = KeyboardType.Text,
+            imeAction = ImeAction.Search
+        ),
+        modifier = modifier
+            .height(34.dp)
+            .clip(RoundedCornerShape(17.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f))
+            .border(1.dp, borderColor, RoundedCornerShape(17.dp)),
+        decorationBox = { innerTextField ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp)
+            ) {
+                Icon(
+                    Lucide.Search, null,
+                    modifier = Modifier.size(15.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.width(7.dp))
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) {
+                        Text(
+                            placeholder ?: LocalStrings.current.emoteSearchPlaceholder,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            maxLines = 1
+                        )
+                    }
+                    innerTextField()
+                }
+                if (value.isNotEmpty()) {
+                    Icon(
+                        Lucide.X, "Clear",
+                        modifier = Modifier
+                            .size(15.dp)
+                            .clip(CircleShape)
+                            .clickable { onValueChange("") },
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun EmoteSectionHeader(title: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .padding(start = 6.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        )
+    }
+}
+
+@Composable
+internal fun EmoteTab(
+    channelEmotes: ChannelEmotes,
+    personalEmotes: List<GenericEmote> = emptyList(),
+    allEmotes: List<GenericEmote>,
+    favoriteEmotes: List<GenericEmote>,
+    favoriteIds: Set<String>,
+    favoriteEmojis: Set<String> = emptySet(),
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onEmoteSelected: (GenericEmote) -> Unit,
+    onToggleFavorite: (GenericEmote) -> Unit,
+    onFavoriteAll: (List<GenericEmote>) -> Unit = {},
+    onEmojiSelected: (String) -> Unit = {},
+    onToggleFavoriteEmoji: (String) -> Unit = {},
+    onGifSelected: ((GifSearchItem) -> Unit)? = null,
+    canSendGifs: Boolean = false,
+    gifSendError: String? = null
+) {
+
+    val twitchChannel = channelEmotes.twitchEmotes
+    val twitchGlobal: List<GenericEmote> = channelEmotes.twitchGlobal
+    val twitchSubscribed = personalEmotes.filter { it.provider == EmoteProvider.TWITCH }
+    val hasTwitch = twitchChannel.isNotEmpty() || twitchGlobal.isNotEmpty()
+    val hasSub = twitchSubscribed.isNotEmpty()
+    val sevenTv = channelEmotes.byProvider[EmoteProvider.SEVEN_TV] ?: emptyList()
+    val bttv = channelEmotes.byProvider[EmoteProvider.BTTV] ?: emptyList()
+    val ffz = channelEmotes.byProvider[EmoteProvider.FFZ] ?: emptyList()
+    val lockedEmoteIds = remember(twitchChannel, twitchGlobal, twitchSubscribed) {
+        lockedTwitchEmoteIds(twitchChannel, twitchGlobal, twitchSubscribed)
+    }
+
+    val hasGifs = onGifSelected != null
+    val tabs = remember(
+        allEmotes.size,
+        favoriteEmotes.size,
+        hasTwitch,
+        hasSub,
+        sevenTv.size,
+        bttv.size,
+        ffz.size,
+        hasGifs
+    ) {
+        buildList {
+            if (favoriteEmotes.isNotEmpty()) {
+                add(TabEntry("Favorites", PickerTab.Favorites, favoriteEmotes.size))
+            }
+            add(TabEntry("All", PickerTab.All, allEmotes.size))
+            if (hasTwitch || hasSub) {
+                add(
+                    TabEntry(
+                        "Twitch",
+                        PickerTab.Twitch,
+                        twitchChannel.size + twitchGlobal.size + twitchSubscribed.size
+                    )
+                )
+            }
+            if (sevenTv.isNotEmpty()) add(TabEntry("7TV", PickerTab.SevenTv, sevenTv.size))
+            if (bttv.isNotEmpty()) add(TabEntry("BTTV", PickerTab.Bttv, bttv.size))
+            if (ffz.isNotEmpty()) add(TabEntry("FFZ", PickerTab.Ffz, ffz.size))
+            if (hasGifs) add(TabEntry("GIF", PickerTab.Gifs, 0))
+            add(TabEntry("Emoji", PickerTab.Emoji, 0))
+        }
+    }
+
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val safeTab = selectedTabIndex.coerceAtMost(tabs.lastIndex.coerceAtLeast(0))
+    val currentTab = tabs.getOrNull(safeTab)
+    val isEmojiTab = currentTab?.tab == PickerTab.Emoji
+    val isGifTab = currentTab?.tab == PickerTab.Gifs
+
+    val baseSections: List<EmoteSection> = remember(
+        currentTab,
+        allEmotes,
+        favoriteEmotes,
+        twitchChannel,
+        twitchGlobal,
+        twitchSubscribed,
+        sevenTv,
+        bttv,
+        ffz
+    ) {
+        val channelName = twitchChannel.firstOrNull()?.authorName?.takeIf { it.isNotBlank() }
+        when (currentTab?.tab) {
+            PickerTab.Favorites -> listOf(EmoteSection(null, favoriteEmotes))
+            PickerTab.All -> buildList {
+                if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Twitch · $it" }
+                    ?: "Twitch", twitchChannel))
+                if (twitchGlobal.isNotEmpty()) add(EmoteSection("Twitch Global", twitchGlobal))
+                if (sevenTv.isNotEmpty()) add(EmoteSection("7TV", sevenTv))
+                if (bttv.isNotEmpty()) add(EmoteSection("BTTV", bttv))
+                if (ffz.isNotEmpty()) add(EmoteSection("FFZ", ffz))
+                if (twitchSubscribed.isNotEmpty()) add(
+                    EmoteSection(
+                        "Subscriptions",
+                        twitchSubscribed
+                    )
+                )
+            }
+
+            PickerTab.Twitch -> buildList {
+                if (twitchChannel.isNotEmpty()) add(EmoteSection(channelName?.let { "Channel · $it" }
+                    ?: "Channel", twitchChannel))
+                twitchSubscribed
+                    .groupBy { it.authorName.ifBlank { "Subscriptions" } }
+                    .toList()
+                    .sortedBy { it.first.lowercase() }
+                    .forEach { (chan, list) -> add(EmoteSection(chan, list)) }
+                if (twitchGlobal.isNotEmpty()) add(EmoteSection("Global", twitchGlobal))
+            }
+
+            PickerTab.SevenTv -> listOf(EmoteSection(null, sevenTv))
+            PickerTab.Bttv -> listOf(EmoteSection(null, bttv))
+            PickerTab.Ffz -> listOf(EmoteSection(null, ffz))
+            else -> emptyList()
+        }
+    }
+
+    val flatSource = remember(baseSections) { baseSections.flatMap { it.emotes } }
+    val currentEmoteSource = flatSource
+
+    val searchIndex by produceState<EmoteSearchIndex?>(
+        initialValue = null,
+        flatSource.size,
+        currentTab
+    ) {
+        if (isEmojiTab || isGifTab) {
+            value = null; return@produceState
+        }
+        value =
+            withContext(Dispatchers.Default) { EmoteSearchIndex().also { it.build(flatSource) } }
+    }
+    val allIndex by produceState<EmoteSearchIndex?>(initialValue = null, allEmotes.size) {
+        value = withContext(Dispatchers.Default) { EmoteSearchIndex().also { it.build(allEmotes) } }
+    }
+
+    val displaySections: List<EmoteSection> =
+        remember(baseSections, searchQuery, searchIndex, allIndex) {
+            if (isEmojiTab) emptyList()
+            else if (searchQuery.isBlank() || searchIndex == null) baseSections
+            else {
+                val matched =
+                    searchIndex!!.search(searchQuery, limit = 500).map { it.listKey }.toSet()
+                val filtered = baseSections
+                    .map { sec -> sec.copy(emotes = sec.emotes.filter { it.listKey in matched }) }
+                    .filter { it.emotes.isNotEmpty() }
+                if (filtered.isNotEmpty()) filtered
+                else (allIndex?.search(searchQuery, limit = 500) ?: emptyList())
+                    .groupBy { it.provider }
+                    .toList()
+                    .map { (prov, list) -> EmoteSection("${providerName(prov)} · search", list) }
+            }
+        }
+
+    val isEmpty = displaySections.all { it.emotes.isEmpty() }
+    val gridState = rememberLazyGridState()
+    val railScope = rememberCoroutineScope()
+    val scrollActivity =
+        rememberScrollActivity(gridState)
+    LaunchedEffect(safeTab, searchQuery) {
+        if (gridState.canScrollForward || gridState.canScrollBackward) gridState.scrollToItem(0)
+    }
+
+    val sectionAnchors = remember(displaySections) {
+        buildList {
+            var index = 0
+            displaySections.forEach { section ->
+                if (section.emotes.isEmpty()) return@forEach
+                if (section.title != null) {
+                    add(EmoteSetAnchor(section.title, section.emotes.first(), index))
+                    index++
+                }
+                index += section.emotes.size
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+
+        if (isGifTab && onGifSelected != null) {
+            GifPickerTab(
+                onGifSelected = onGifSelected,
+                canSendGifs = canSendGifs,
+                sendError = gifSendError
+            )
+        } else if (isEmojiTab) {
+            EmojiTab(
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                onEmojiSelected = onEmojiSelected,
+                favoriteEmojis = favoriteEmojis,
+                onToggleFavoriteEmoji = onToggleFavoriteEmoji
+            )
+        } else if (currentTab?.tab == PickerTab.Favorites && favoriteEmojis.isNotEmpty() && isEmpty) {
+
+            EmojiTab(
+                searchQuery = "",
+                onSearchQueryChange = {},
+                onEmojiSelected = onEmojiSelected,
+                favoriteEmojis = favoriteEmojis,
+                showOnlyFavorites = true,
+                onToggleFavoriteEmoji = onToggleFavoriteEmoji
+            )
+        } else if (isEmpty) {
+            EmptyEmoteState(
+                searchQuery = searchQuery,
+                isFavoritesTab = currentTab?.tab == PickerTab.Favorites,
+                onClearSearch = { onSearchQueryChange("") }
+            )
+        } else {
+          CompositionLocalProvider(
+            LocalScrollActivity provides scrollActivity
+          ) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(56.dp),
+                state = gridState,
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                    .heightIn(min = 120.dp, max = 280.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                displaySections.forEach { section ->
+                    if (section.title != null && section.emotes.isNotEmpty()) {
+                        item(
+                            span = { GridItemSpan(maxLineSpan) },
+                            key = "header_${section.title}",
+                            contentType = "header"
+                        ) {
+                            EmoteSectionHeader(section.title)
+                        }
+                    }
+                    items(
+                        items = section.emotes,
+                        key = { it.listKey },
+                        contentType = { it.provider }
+                    ) { emote ->
+                        val uiData = remember(emote.listKey, favoriteIds, lockedEmoteIds) {
+                            EmoteUiData.fromEmote(
+                                emote,
+                                "${emote.provider}_${emote.id}" in favoriteIds,
+                                emote.provider == EmoteProvider.TWITCH &&
+                                        emote.id in lockedEmoteIds
+                            )
+                        }
+                        EmoteGridItemFlyweight(
+                            uiData = uiData,
+                            onClick = { onEmoteSelected(emote) },
+                            onToggleFavorite = { onToggleFavorite(emote) }
+                        )
+                    }
+                }
+            }
+          }
+        }
+            }
+
+            if (!isEmojiTab && !isGifTab && sectionAnchors.size > 1) {
+                EmoteSetRail(
+                    anchors = sectionAnchors,
+                    onJump = { anchor -> railScope.launch { gridState.scrollToItem(anchor.itemIndex) } }
+                )
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+        EmoteProviderTabStrip(
+            tabs = tabs,
+            selectedIndex = safeTab,
+            onSelect = { index -> selectedTabIndex = index; onSearchQueryChange("") },
+            showFavoriteAll = currentTab?.tab == PickerTab.Favorites && favoriteEmotes.isNotEmpty(),
+            onFavoriteAll = { onFavoriteAll(currentEmoteSource) }
+        )
+
+        if (!isEmojiTab && !isGifTab) {
+            CompactEmoteSearchBar(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun EmptyEmoteState(
+    searchQuery: String,
+    isFavoritesTab: Boolean,
+    onClearSearch: () -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxWidth().height(180.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val sl = LocalStrings.current
+            Text(
+                text = when {
+                    searchQuery.isNotBlank() -> sl.emoteNoMatch.replace("{0}", searchQuery)
+                    isFavoritesTab -> sl.emoteNoFavorites
+                    else -> sl.emoteNoLoaded
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center
+            )
+            if (searchQuery.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onClearSearch) {
+                    Text(LocalStrings.current.emoteClearSearch, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LoadMoreIndicator(isLoading: Boolean) {
+    Box(
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmojiTab(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onEmojiSelected: (String) -> Unit,
+    favoriteEmojis: Set<String> = emptySet(),
+    showOnlyFavorites: Boolean = false,
+    onToggleFavoriteEmoji: (String) -> Unit = {}
+) {
+    var selectedCategoryIndex by remember { mutableIntStateOf(0) }
+
+    val displayEmojis =
+        remember(searchQuery, selectedCategoryIndex, showOnlyFavorites, favoriteEmojis) {
+            when {
+                showOnlyFavorites -> favoriteEmojis.toList()
+                searchQuery.isNotBlank() -> EMOJI_CATEGORIES.flatMap { it.emojis }
+                    .filter { it.contains(searchQuery) }
+
+                else -> EMOJI_CATEGORIES.getOrNull(selectedCategoryIndex)?.emojis ?: emptyList()
+            }
+        }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+
+        if (!showOnlyFavorites && favoriteEmojis.isNotEmpty() && searchQuery.isBlank()) {
+            Text(
+                "★ ${LocalStrings.current.emotePickerFavoritesSection}",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFFFFD700),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(44.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 88.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                items(favoriteEmojis.toList(), key = { "fav_$it" }) { emoji ->
+                    EmojiGridItem(
+                        emoji = emoji,
+                        isFavorite = true,
+                        onClick = { onEmojiSelected(emoji) },
+                        onToggleFavorite = { onToggleFavoriteEmoji(emoji) }
+                    )
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+        }
+        if (searchQuery.isBlank()) {
+            ScrollableTabRow(
+                selectedTabIndex = selectedCategoryIndex,
+                modifier = Modifier.fillMaxWidth(),
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.primary,
+                edgePadding = 8.dp,
+                divider = {}
+            ) {
+                EMOJI_CATEGORIES.forEachIndexed { index, category ->
+                    Tab(
+                        selected = selectedCategoryIndex == index,
+                        onClick = { selectedCategoryIndex = index },
+                        modifier = Modifier.padding(horizontal = 2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (selectedCategoryIndex == index)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    else Color.Transparent
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) { Text(category.icon, fontSize = 18.sp, textAlign = TextAlign.Center) }
+                    }
+                }
+            }
+            Text(
+                EMOJI_CATEGORIES.getOrNull(selectedCategoryIndex)?.label ?: "",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+            )
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+        if (displayEmojis.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    LocalStrings.current.emoteNoEmojiFound,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(44.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                    .heightIn(min = 100.dp, max = 280.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(0.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                itemsIndexed(
+                    items = displayEmojis,
+                    key = { index, emoji -> "$index-$emoji" }
+                ) { _, emoji ->
+                    EmojiGridItem(
+                        emoji = emoji,
+                        isFavorite = emoji in favoriteEmojis,
+                        onClick = { onEmojiSelected(emoji) },
+                        onToggleFavorite = { onToggleFavoriteEmoji(emoji) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EmojiGridItem(
+    emoji: String,
+    isFavorite: Boolean = false,
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit = {}
+) {
+    val interactionSource = remember(emoji) { MutableInteractionSource() }
+    var showMenu by remember { mutableStateOf(false) }
+    val strings = LocalStrings.current
+
+    Box(
+        modifier = Modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                if (isFavorite) Color(0xFFFFD700).copy(alpha = 0.12f) else Color.Transparent
+            )
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick,
+                onLongClick = { showMenu = true }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = emoji, fontSize = 22.sp, textAlign = TextAlign.Center)
+
+        ChatoneDropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        if (isFavorite) strings.emotePickerRemoveFavorite
+                        else strings.emotePickerAddFavorite,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Lucide.Star, null,
+                        modifier = Modifier.size(14.dp),
+                        tint = if (isFavorite) Color(0xFFFFD700)
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                onClick = { onToggleFavorite(); showMenu = false }
+            )
+        }
+    }
+}
+
+private val TabTileSize = 30.dp
+private val TabIconSize = 17.dp
+private val SetRailWidth = 40.dp
+private val SetTileSize = 32.dp
+
+@Composable
+private fun PickerTab.icon(): Painter? = when (this) {
+    PickerTab.SevenTv -> painterResource(Res.drawable.ic_seventv)
+    PickerTab.Bttv -> painterResource(Res.drawable.ic_bttv)
+    PickerTab.Ffz -> painterResource(Res.drawable.ic_ffz)
+    PickerTab.Twitch -> painterResource(Res.drawable.ic_twitch)
+    PickerTab.Gifs -> painterResource(Res.drawable.ic_gif)
+    PickerTab.Emoji -> rememberVectorPainter(Lucide.Smile)
+    PickerTab.Favorites -> rememberVectorPainter(Lucide.Star)
+    PickerTab.All -> null
+}
+
+private fun PickerTab.accent(): Color? = when (this) {
+    PickerTab.Favorites -> Color(0xFFFFD700)
+    PickerTab.SevenTv -> Color(0xFF29D8F6)
+    PickerTab.Bttv -> Color(0xFFD50014)
+    PickerTab.Ffz -> Color(0xFF7A9DE0)
+    PickerTab.Twitch -> Color(0xFF9147FF)
+    PickerTab.Gifs -> Color(0xFF00C2A8)
+    else -> null
+}
+
+@Composable
+private fun EmoteProviderTabStrip(
+    tabs: List<TabEntry>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    showFavoriteAll: Boolean,
+    onFavoriteAll: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEachIndexed { index, entry ->
+                EmoteTabTile(
+                    entry = entry,
+                    selected = index == selectedIndex,
+                    onClick = { onSelect(index) }
+                )
+            }
+        }
+
+        if (showFavoriteAll) {
+            VerticalDivider(
+                modifier = Modifier.height(20.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.20f)
+            )
+            EmoteTabTile(
+                entry = TabEntry("Favorite all", PickerTab.Favorites, 0),
+                selected = false,
+                onClick = onFavoriteAll
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmoteTabTile(
+    entry: TabEntry,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val accent = entry.tab.accent() ?: MaterialTheme.colorScheme.primary
+    val shape = RoundedCornerShape(9.dp)
+    val background = if (selected) accent.copy(alpha = 0.22f) else Color.Transparent
+    val tint = when {
+        selected -> accent
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val painter = entry.tab.icon()
+    val label = if (entry.count > 0) "${entry.label} · ${entry.count}" else entry.label
+
+    LiquidGlassTooltipBox(tooltip = label) {
+        Box(
+            modifier = Modifier
+                .size(TabTileSize)
+                .clip(shape)
+                .background(background)
+                .then(
+                    if (selected) Modifier.border(1.dp, accent.copy(alpha = 0.45f), shape)
+                    else Modifier
+                )
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = ChatoneIndication,
+                    onClick = onClick
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (painter != null) {
+                Icon(
+                    painter = painter,
+                    contentDescription = label,
+                    tint = tint,
+                    modifier = Modifier.size(TabIconSize)
+                )
+            } else {
+                Icon(
+                    imageVector = Lucide.LayoutGrid,
+                    contentDescription = label,
+                    tint = tint,
+                    modifier = Modifier.size(TabIconSize)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmoteSetRail(
+    anchors: List<EmoteSetAnchor>,
+    onJump: (EmoteSetAnchor) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(SetRailWidth)
+            .heightIn(max = 280.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        anchors.forEach { anchor ->
+            LiquidGlassTooltipBox(tooltip = anchor.title) {
+                Box(
+                    modifier = Modifier
+                        .size(SetTileSize)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = ChatoneIndication,
+                            onClick = { onJump(anchor) }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EmoteSetPreview(anchor.preview)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmoteSetPreview(emote: GenericEmote) {
+    AnimatedEmoteImage(
+        url = emote.url2x.ifBlank { emote.url1x },
+        contentDescription = emote.code,
+        modifier = Modifier
+            .size(24.dp)
+            .clip(RoundedCornerShape(5.dp))
+    )
+}

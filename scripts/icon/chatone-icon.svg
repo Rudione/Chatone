@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="ring" x1="0.06" y1="0.04" x2="0.90" y2="0.96">
+      <stop offset="0" stop-color="#D9A2FF"/>
+      <stop offset="0.38" stop-color="#A063FF"/>
+      <stop offset="0.70" stop-color="#6D3AF0"/>
+      <stop offset="1" stop-color="#2B7FFF"/>
+    </linearGradient>
+    <linearGradient id="plate" x1="0.20" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#221B33"/>
+      <stop offset="0.55" stop-color="#141020"/>
+      <stop offset="1" stop-color="#0A0810"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#plate)"/>
+  <path d="M756.6 275.8A340 340 0 1 0 756.6 748.2" fill="none"
+        stroke="url(#ring)" stroke-width="150" stroke-linecap="round"/>
+  <rect x="4.5" y="4.5" width="1015" height="1015" rx="225.5" fill="none"
+        stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="9"/>
+</svg>

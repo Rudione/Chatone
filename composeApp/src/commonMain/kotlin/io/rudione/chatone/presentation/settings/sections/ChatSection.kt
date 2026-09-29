@@ -1,0 +1,438 @@
+package io.rudione.chatone.presentation.settings.sections
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import io.rudione.chatone.presentation.components.ChatoneSecretField
+import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
+import io.rudione.chatone.presentation.components.rows.DropdownRow
+import io.rudione.chatone.presentation.components.rows.ListRow
+import io.rudione.chatone.presentation.components.rows.RowDivider
+import io.rudione.chatone.presentation.components.rows.SliderRow
+import io.rudione.chatone.presentation.components.rows.SwitchRow
+import io.rudione.chatone.presentation.settings.InlineImageMode
+import io.rudione.chatone.presentation.settings.MentionTabsSettingsGroup
+import io.rudione.chatone.presentation.settings.SettingsEvent
+import io.rudione.chatone.presentation.settings.SettingsState
+import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.presentation.settings.TranslationSettingsGroup
+import io.rudione.chatone.presentation.settings.components.SettingsGroup
+import io.rudione.chatone.presentation.chat.zoom.ChatMessageScaleSettingRow
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.icons.lucide.Check
+import io.rudione.chatone.icons.lucide.Lucide
+
+internal fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewModel) {
+    item {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsMessages) {
+            ChatMessageScaleSettingRow()
+            RowDivider()
+            SwitchRow(
+                s.settingsTimestamps, s.settingsShowTimestampsDesc,
+                state.timestampFormat != SettingsState.TimestampFormat.OFF
+            ) { enabled ->
+                vm.sendEvent(
+                    SettingsEvent.OnTimestampFormatChanged(
+                        if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
+                    )
+                )
+            }
+            if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
+                RowDivider()
+                ListRow(
+                    s.settingsTimestampFormat,
+                    when (state.timestampFormat) {
+                        SettingsState.TimestampFormat.H12 -> s.settingsTimestamp12h
+                        SettingsState.TimestampFormat.H24 -> s.settingsTimestamp24h
+                        else -> s.settingsTimestampOff
+                    },
+                    listOf(s.settingsTimestamp12h, s.settingsTimestamp24h)
+                ) {
+                    vm.sendEvent(
+                        SettingsEvent.OnTimestampFormatChanged(
+                            if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
+                        )
+                    )
+                }
+            }
+            RowDivider()
+            SwitchRow(
+                s.settingsShowChatHeader,
+                s.settingsShowChatHeaderDesc,
+                state.showChatHeader
+            ) {
+                vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
+            }
+            RowDivider()
+            SwitchRow(s.chatShowBadges, s.chatShowBadgesDesc, state.showBadges) {
+                vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
+            }
+            RowDivider()
+            SwitchRow(
+                s.settingsShowDeletedMessages,
+                s.settingsShowDeletedMessagesDesc,
+                state.showDeletedMessages
+            ) {
+                vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
+            }
+            RowDivider()
+            SwitchRow(
+                s.settingsShowViewerJoinLeave,
+                s.settingsShowViewerJoinLeaveDesc,
+                state.showViewerJoinLeave
+            ) {
+                vm.sendEvent(SettingsEvent.OnShowViewerJoinLeaveChanged(it))
+            }
+            RowDivider()
+            SwitchRow(
+                s.settingsSmoothChat,
+                s.settingsSmoothChatDesc,
+                state.smoothChatEnabled
+            ) {
+                vm.sendEvent(SettingsEvent.OnSmoothChatEnabledChanged(it))
+            }
+            RowDivider()
+            SwitchRow(
+                s.settingsAlternateRowBg,
+                s.settingsAlternateRowBgDesc,
+                state.alternateRowBackground
+            ) {
+                vm.sendEvent(SettingsEvent.OnAlternateRowBackgroundChanged(it))
+            }
+            RowDivider()
+            SwitchRow(
+                s.settingsReadableNickColors,
+                s.settingsReadableNickColorsDesc,
+                state.readableNickColors
+            ) {
+                vm.sendEvent(SettingsEvent.OnReadableNickColorsChanged(it))
+            }
+        }
+    }
+    item {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsImageLinks) {
+            DropdownRow(
+                label = s.settingsShowInlineImages,
+                description = s.settingsShowInlineImagesDesc,
+                options = listOf(s.on, s.off, s.blur),
+                selected = state.showInlineImages.ordinal
+            ) { idx ->
+                vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
+            }
+            if (state.showInlineImages != InlineImageMode.OFF) {
+                SliderRow(
+                    label = s.settingsImageMaxHeight,
+                    value = state.inlineImageMaxHeight.toFloat(),
+                    valueRange = 50f..500f,
+                    steps = 8,
+                    valueLabel = s.settingsImageMaxHeightUnit.replace(
+                        "{0}",
+                        state.inlineImageMaxHeight.toString()
+                    )
+                ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
+            }
+            SliderRow(
+                label = s.settingsClipPreviewWidth,
+                value = state.clipPreviewWidth.toFloat(),
+                valueRange = 90f..320f,
+                steps = 22,
+                valueLabel = "${state.clipPreviewWidth} dp"
+            ) { vm.sendEvent(SettingsEvent.OnClipPreviewWidthChanged(it.toInt())) }
+            SwitchRow(
+                s.settingsShowChatGifs,
+                s.settingsShowChatGifsDesc,
+                state.showChatGifs
+            ) { vm.sendEvent(SettingsEvent.OnShowChatGifsChanged(it)) }
+            GiphyApiKeyRow(state.giphyApiKey) {
+                vm.sendEvent(SettingsEvent.OnGiphyApiKeyChanged(it))
+            }
+            SliderRow(
+                label = s.settingsChatScrollbarWidth,
+                value = state.chatScrollbarWidth.toFloat(),
+                valueRange = 6f..32f,
+                steps = 12,
+                valueLabel = "${state.chatScrollbarWidth} dp"
+            ) { vm.sendEvent(SettingsEvent.OnChatScrollbarWidthChanged(it.toInt())) }
+            SliderRow(
+                label = s.settingsChatTopBarHeight,
+                value = state.chatTopBarHeight.toFloat(),
+                valueRange = 28f..64f,
+                steps = 17,
+                valueLabel = "${state.chatTopBarHeight} dp"
+            ) { vm.sendEvent(SettingsEvent.OnChatTopBarHeightChanged(it.toInt())) }
+        }
+    }
+    item {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsAutoScroll) {
+            SwitchRow(
+                s.settingsPauseOnHover,
+                s.settingsPauseOnHoverDesc,
+                state.pauseOnHover
+            ) {
+                vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
+            }
+        }
+    }
+    item {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsEmotePicker) {
+            SwitchRow(
+                s.settingsCloseOnMouseLeave,
+                s.settingsCloseOnMouseLeaveDesc,
+                state.closeEmotePickerOnMouseLeave
+            ) {
+                vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
+            }
+        }
+    }
+    item {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsHistoryGroup) {
+            SliderRow(
+                s.settingsMessageHistoryLimit, state.scrollbackLimit, 100f..2000f, 18,
+                s.settingsMessagesUnit.replace("{0}", state.scrollbackLimit.toString())
+            ) {
+                vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
+            }
+        }
+    }
+    item {
+        val s = LocalStrings.current
+        SettingsGroup(s.settingsChatInputGroup) {
+            SwitchRow(
+                s.settingsHidePlaceholder, s.settingsHidePlaceholderDesc,
+                state.hideChatInputPlaceholder
+            ) { vm.sendEvent(SettingsEvent.OnHideChatPlaceholderChanged(it)) }
+            RowDivider()
+            SwitchRow(
+                s.settingsHideEmojiButton, s.settingsHideEmojiButtonDesc,
+                state.hideEmojiButton
+            ) { vm.sendEvent(SettingsEvent.OnHideEmojiButtonChanged(it)) }
+            RowDivider()
+            SwitchRow(
+                s.settingsChatInputGlow, s.settingsChatInputGlowDesc,
+                state.chatInputEventGlow
+            ) { vm.sendEvent(SettingsEvent.OnChatInputGlowChanged(it)) }
+            RowDivider()
+            SwitchRow(
+                s.settingsShowRepeatedCounter, s.settingsShowRepeatedCounterDesc,
+                state.showRepeatedMessageCounter
+            ) { vm.sendEvent(SettingsEvent.OnShowRepeatedCounterChanged(it)) }
+            if (state.showRepeatedMessageCounter) {
+                RowDivider()
+                SliderRow(
+                    s.settingsRepeatedWindow, state.repeatedMessageWindow, 5f..120f, 11,
+                    s.settingsSecondsUnit.replace("{0}", state.repeatedMessageWindow.toString())
+                ) { vm.sendEvent(SettingsEvent.OnRepeatedWindowChanged(it.toInt())) }
+            }
+        }
+    }
+    item { MentionTabsSettingsGroup(state, vm) }
+    item { TranslationSettingsGroup(state, vm) }
+}
+
+@Composable
+internal fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsMessages) {
+        ChatMessageScaleSettingRow()
+        RowDivider()
+        SwitchRow(
+            s.settingsTimestamps, s.settingsShowTimestampsDesc,
+            state.timestampFormat != SettingsState.TimestampFormat.OFF
+        ) { enabled ->
+            vm.sendEvent(
+                SettingsEvent.OnTimestampFormatChanged(
+                    if (enabled) SettingsState.TimestampFormat.H24 else SettingsState.TimestampFormat.OFF
+                )
+            )
+        }
+        if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
+            RowDivider()
+            ListRow(
+                s.settingsTimestampFormat,
+                when (state.timestampFormat) {
+                    SettingsState.TimestampFormat.H12 -> s.settingsTimestamp12h
+                    SettingsState.TimestampFormat.H24 -> s.settingsTimestamp24h
+                    else -> s.settingsTimestampOff
+                },
+                listOf(s.settingsTimestamp12h, s.settingsTimestamp24h)
+            ) {
+                vm.sendEvent(
+                    SettingsEvent.OnTimestampFormatChanged(
+                        if (it == 0) SettingsState.TimestampFormat.H12 else SettingsState.TimestampFormat.H24
+                    )
+                )
+            }
+        }
+        RowDivider()
+        SwitchRow(
+            s.settingsShowChatHeader,
+            s.settingsShowChatHeaderDesc,
+            state.showChatHeader
+        ) {
+            vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
+        }
+        RowDivider()
+        SwitchRow(s.chatShowBadges, s.chatShowBadgesDesc, state.showBadges) {
+            vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
+        }
+        RowDivider()
+        SwitchRow(
+            s.settingsShowDeletedMessages,
+            s.settingsShowDeletedMessagesDesc,
+            state.showDeletedMessages
+        ) {
+            vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
+        }
+        RowDivider()
+        SwitchRow(
+            s.settingsShowViewerJoinLeave,
+            s.settingsShowViewerJoinLeaveDesc,
+            state.showViewerJoinLeave
+        ) {
+            vm.sendEvent(SettingsEvent.OnShowViewerJoinLeaveChanged(it))
+        }
+        RowDivider()
+        SwitchRow(
+            s.settingsSmoothChat,
+            s.settingsSmoothChatDesc,
+            state.smoothChatEnabled
+        ) {
+            vm.sendEvent(SettingsEvent.OnSmoothChatEnabledChanged(it))
+        }
+        RowDivider()
+        SwitchRow(
+            s.settingsAlternateRowBg,
+            s.settingsAlternateRowBgDesc,
+            state.alternateRowBackground
+        ) {
+            vm.sendEvent(SettingsEvent.OnAlternateRowBackgroundChanged(it))
+        }
+    }
+    SettingsGroup(s.settingsImageLinks) {
+        DropdownRow(
+            label = s.settingsShowInlineImages,
+            description = s.settingsShowInlineImagesDesc,
+            options = listOf(s.on, s.off, s.blur),
+            selected = state.showInlineImages.ordinal
+        ) { idx ->
+            vm.sendEvent(SettingsEvent.OnShowInlineImagesChanged(InlineImageMode.entries[idx]))
+        }
+        if (state.showInlineImages != InlineImageMode.OFF) {
+            SliderRow(
+                label = s.settingsImageMaxHeight,
+                value = state.inlineImageMaxHeight.toFloat(),
+                valueRange = 50f..500f,
+                steps = 8,
+                valueLabel = s.settingsImageMaxHeightUnit.replace(
+                    "{0}",
+                    state.inlineImageMaxHeight.toString()
+                )
+            ) { vm.sendEvent(SettingsEvent.OnInlineImageMaxHeightChanged(it.toInt())) }
+        }
+        SliderRow(
+            label = s.settingsClipPreviewWidth,
+            value = state.clipPreviewWidth.toFloat(),
+            valueRange = 90f..320f,
+            steps = 22,
+            valueLabel = "${state.clipPreviewWidth} dp"
+        ) { vm.sendEvent(SettingsEvent.OnClipPreviewWidthChanged(it.toInt())) }
+        SliderRow(
+            label = s.settingsChatScrollbarWidth,
+            value = state.chatScrollbarWidth.toFloat(),
+            valueRange = 6f..32f,
+            steps = 12,
+            valueLabel = "${state.chatScrollbarWidth} dp"
+        ) { vm.sendEvent(SettingsEvent.OnChatScrollbarWidthChanged(it.toInt())) }
+        SliderRow(
+            label = s.settingsChatTopBarHeight,
+            value = state.chatTopBarHeight.toFloat(),
+            valueRange = 28f..64f,
+            steps = 17,
+            valueLabel = "${state.chatTopBarHeight} dp"
+        ) { vm.sendEvent(SettingsEvent.OnChatTopBarHeightChanged(it.toInt())) }
+    }
+    SettingsGroup(s.settingsAutoScroll) {
+        SwitchRow(
+            s.settingsPauseOnHover,
+            s.settingsPauseOnHoverDesc,
+            state.pauseOnHover
+        ) {
+            vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
+        }
+    }
+    SettingsGroup(s.settingsEmotePicker) {
+        SwitchRow(
+            s.settingsCloseOnMouseLeave,
+            s.settingsCloseOnMouseLeaveDesc,
+            state.closeEmotePickerOnMouseLeave
+        ) {
+            vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
+        }
+    }
+    SettingsGroup(s.settingsHistoryGroup) {
+        SliderRow(
+            s.settingsMessageHistoryLimit, state.scrollbackLimit, 100f..2000f, 18,
+            s.settingsMessagesUnit.replace("{0}", state.scrollbackLimit.toString())
+        ) {
+            vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt()))
+        }
+    }
+    MentionTabsSettingsGroup(state, vm)
+    TranslationSettingsGroup(state, vm)
+}
+
+@Composable
+private fun GiphyApiKeyRow(currentKey: String, onSave: (String) -> Unit) {
+    val s = LocalStrings.current
+    var draft by remember(currentKey) { mutableStateOf(currentKey) }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp)
+    ) {
+        HighlightedSettingsText(s.settingsGiphyApiKey, style = MaterialTheme.typography.bodyMedium)
+        HighlightedSettingsText(
+            s.settingsGiphyApiKeyDesc,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            ChatoneSecretField(
+                value = draft,
+                onValueChange = { draft = it },
+                modifier = Modifier.weight(1f),
+                placeholder = s.settingsGiphyApiKey
+            )
+            FilledIconButton(
+                onClick = { onSave(draft) },
+                enabled = draft.trim() != currentKey
+            ) {
+                Icon(Lucide.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}

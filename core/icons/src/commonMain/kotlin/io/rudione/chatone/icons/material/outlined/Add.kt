@@ -1,0 +1,34 @@
+package io.rudione.chatone.icons.material.outlined
+
+import io.rudione.chatone.icons.material.Icons
+import io.rudione.chatone.icons.material.materialIcon
+import io.rudione.chatone.icons.material.materialPath
+import androidx.compose.ui.graphics.vector.ImageVector
+
+public val Icons.Outlined.Add: ImageVector
+    get() {
+        if (_add != null) {
+            return _add!!
+        }
+        _add = materialIcon(name = "Outlined.Add") {
+            materialPath {
+                moveTo(19.0f, 13.0f)
+                horizontalLineToRelative(-6.0f)
+                verticalLineToRelative(6.0f)
+                horizontalLineToRelative(-2.0f)
+                verticalLineToRelative(-6.0f)
+                horizontalLineTo(5.0f)
+                verticalLineToRelative(-2.0f)
+                horizontalLineToRelative(6.0f)
+                verticalLineTo(5.0f)
+                horizontalLineToRelative(2.0f)
+                verticalLineToRelative(6.0f)
+                horizontalLineToRelative(6.0f)
+                verticalLineToRelative(2.0f)
+                close()
+            }
+        }
+        return _add!!
+    }
+
+private var _add: ImageVector? = null

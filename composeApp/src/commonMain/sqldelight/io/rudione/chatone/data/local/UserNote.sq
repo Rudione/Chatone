@@ -1,0 +1,15 @@
+CREATE TABLE UserNoteEntity (
+    twitchUserId TEXT NOT NULL PRIMARY KEY,
+    note TEXT NOT NULL DEFAULT '',
+    updatedAt INTEGER NOT NULL DEFAULT 0
+);
+
+getNote:
+SELECT * FROM UserNoteEntity WHERE twitchUserId = ?;
+
+upsertNote:
+INSERT OR REPLACE INTO UserNoteEntity (twitchUserId, note, updatedAt)
+VALUES (?, ?, ?);
+
+deleteNote:
+DELETE FROM UserNoteEntity WHERE twitchUserId = ?;

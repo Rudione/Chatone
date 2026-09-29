@@ -1,0 +1,13 @@
+package io.rudione.chatone.presentation.chat
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+
+@Composable
+expect fun AnimatedEmoteImage(
+    url: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    isScrolling: Boolean = false,
+    maxDimension: Int = 0
+)
