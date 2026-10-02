@@ -157,6 +157,8 @@ import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.util.system.isDesktopPlatform
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.startup.ReportLaunchStage
+import io.rudione.chatone.presentation.startup.launchStage
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.util.chat.SlashCommand
 import io.rudione.chatone.util.system.ChannelPanelRequestBus
@@ -339,7 +341,9 @@ fun ChatScreen(
         onPinnedToBottom = {
             unreadCount = 0
             hasNewMessagesWhilePaused = false
-        }
+        },
+        holdBottomWhilePaused = settingsState.pauseOnHover && isHoveredOverChat &&
+                !isPausedByHotkey && !follow.isPausedByScroll
     )
 
     val messagesSeq = state.messagesSeq
@@ -383,6 +387,7 @@ fun ChatScreen(
                 }
 
                 ChatEffect.FocusChatInput -> {
+                    repeat(FOCUS_SETTLE_FRAMES) { withFrameNanos { } }
                     try {
                         inputFocusRequester.requestFocus()
                     } catch (_: Throwable) {
@@ -587,6 +592,8 @@ fun ChatScreen(
         val unregister = GlobalKeyDispatcher.register(hotkeyHandler)
         onDispose { unregister() }
     }
+
+    ReportLaunchStage(state.warmup.launchStage())
 
     LaunchedEffect(channelLogin, identity.accessToken) {
         EmoteAnimationCache.clearAll()
@@ -1718,3 +1725,5 @@ private fun ChatErrorBanner(message: String?, onDismiss: () -> Unit) {
         }
     }
 }
+
+private const val FOCUS_SETTLE_FRAMES = 2

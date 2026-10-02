@@ -9,7 +9,7 @@ class WebLoginSession {
 
     private var sessionKey: ByteArray? = null
 
-    fun begin(loginUrl: String = AppConfig.SITE_LOGIN_URL): String {
+    fun begin(loginUrl: String = AppConfig.SITE_LOGIN_URL, returnTarget: LoginReturnTarget? = null): String {
         val key = if (PlatformAead.isSupported) {
             PlatformAead.secureRandomBytes(AEAD_KEY_BYTES)
         } else {
@@ -22,6 +22,7 @@ class WebLoginSession {
             append(loginUrl.trimEnd('#'))
             append(if (loginUrl.contains('#')) '&' else '#')
             append("k=").append(key?.let(Base64Url::encode).orEmpty())
+            if (key != null && returnTarget != null) append('&').append(returnTarget.fragmentParameter)
         }
     }
 

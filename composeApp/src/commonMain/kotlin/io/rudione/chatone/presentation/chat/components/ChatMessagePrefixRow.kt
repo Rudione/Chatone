@@ -9,7 +9,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
@@ -662,7 +661,6 @@ private fun RowScope.MessageInputTextField(
                 .weight(1f)
                 .padding(vertical = 4.dp)
                 .focusRequester(focusRequester)
-                .focusable(interactionSource = interactionSource)
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
                         while (true) {

@@ -19,6 +19,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,8 +47,12 @@ private val SEVEN_TV_COLOR = Color(0xFF29D8F6)
 @Composable
 fun resolveSevenTvPaint(
     message: io.rudione.chatone.domain.model.DisplayMessage.PrivMsg
-): SevenTvCosmetics.Paint? =
-    message.sevenTvPaint ?: LocalSevenTvPaints.current[message.userId]
+): SevenTvCosmetics.Paint? {
+    val paints = LocalSevenTvPaints.current
+    val userId = message.userId
+    val published by remember(paints, userId) { derivedStateOf { paints.value[userId] } }
+    return message.sevenTvPaint ?: published
+}
 
 @Composable
 internal fun rememberSevenTvCosmetic(userId: String): SevenTvUserCosmetic? {
@@ -54,7 +61,8 @@ internal fun rememberSevenTvCosmetic(userId: String): SevenTvUserCosmetic? {
     LaunchedEffect(userId) {
         if (userId.isNotBlank()) client.requestCosmetics(userId)
     }
-    return cosmetics[userId]
+    val cosmetic by remember(cosmetics, userId) { derivedStateOf { cosmetics.value[userId] } }
+    return cosmetic
 }
 
 @Composable

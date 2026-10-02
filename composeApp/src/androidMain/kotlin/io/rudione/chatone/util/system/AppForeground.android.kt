@@ -6,10 +6,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 private val foreground = MutableStateFlow(false)
 
-val appForeground: StateFlow<Boolean> = foreground.asStateFlow()
+actual val appForeground: StateFlow<Boolean> = foreground.asStateFlow()
 
 fun setAppForeground(value: Boolean) {
     foreground.value = value
 }
-
-actual fun isAppInForeground(): Boolean = foreground.value

@@ -8,6 +8,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.rudione.chatone.data.auth.LoginSiteResolver
+import io.rudione.chatone.data.auth.LoginReturnChannel
+import io.rudione.chatone.data.auth.LoginReturnHandler
+import io.rudione.chatone.data.auth.LoginReturnOutcome
+import io.rudione.chatone.data.auth.LoginReturnTarget
+import io.rudione.chatone.data.auth.NoLoginReturn
 import io.rudione.chatone.data.remote.TwitchDeviceAuthClient
 import io.rudione.chatone.data.remote.TwitchFirstPartyClient
 import io.rudione.chatone.data.remote.TwitchGqlClient
@@ -65,7 +70,8 @@ class WebLoginControllerRightsTest {
     private fun controller(
         deviceStatus: HttpStatusCode = HttpStatusCode.OK,
         approved: Boolean = false,
-        rightsOwner: String = "42"
+        rightsOwner: String = "42",
+        returnChannel: LoginReturnChannel = NoLoginReturn
     ): WebLoginController {
         val json = headersOf(HttpHeaders.ContentType, "application/json")
         val twitch = HttpClient(MockEngine { request ->
@@ -115,6 +121,7 @@ class WebLoginControllerRightsTest {
             deviceAuthController = device,
             moderationAuthStore = store,
             siteResolver = LoginSiteResolver(twitch, "https://app.example.test/auth/", "https://ru.example.test/auth/"),
+            returnChannel = returnChannel,
             scope = scope
         )
     }
@@ -264,6 +271,100 @@ class WebLoginControllerRightsTest {
 
         assertIs<WebLoginStage.Idle>(login.stage.value)
         assertEquals(DeviceAuthState.ConfirmingOnLoginPage, login.deviceAuthState.value)
+    }
+
+    @Test
+    fun loopbackLoginTellsTheSiteWhereToReturn() {
+        val login = controller(returnChannel = CapturingReturn(LoginReturnTarget.Loopback(45123)))
+
+        val url = login.openSite()
+
+        assertTrue(url.contains("#k="))
+        assertTrue(url.endsWith("&r=45123"))
+        assertTrue(login.supportsAutomaticReturn)
+    }
+
+    @Test
+    fun returnedLineContinuesToActivationInTheSameTab() {
+        val channel = CapturingReturn(LoginReturnTarget.Loopback(45123))
+        val login = controller(returnChannel = channel)
+        val url = login.openSite()
+
+        val outcome = runBlocking { channel.deliver(sealedLine(url, chatFields())) }
+
+        assertEquals(LoginReturnOutcome.Continue("https://www.twitch.tv/activate?device-code=ABCDEFGH"), outcome)
+        val stage = assertIs<WebLoginStage.AwaitingRights>(login.stage.value)
+        assertEquals(RightsHandoff.InBrowser, stage.handoff)
+    }
+
+    @Test
+    fun appLinkReturnAsksTheAppToOpenActivation() {
+        val channel = CapturingReturn(LoginReturnTarget.AppLink)
+        val login = controller(returnChannel = channel)
+        val url = login.openSite()
+
+        assertTrue(url.endsWith("&app=1"))
+        runBlocking { channel.deliver(sealedLine(url, chatFields())) }
+        val stage = assertIs<WebLoginStage.AwaitingRights>(login.stage.value)
+        assertEquals(RightsHandoff.OpenNow, stage.handoff)
+
+        login.markActivationOpened()
+        assertEquals(RightsHandoff.InBrowser, assertIs<WebLoginStage.AwaitingRights>(login.stage.value).handoff)
+    }
+
+    @Test
+    fun returnChannelAcceptsOnlySealedLines() {
+        val channel = CapturingReturn(LoginReturnTarget.Loopback(45123))
+        val login = controller(returnChannel = channel)
+        login.openSite()
+
+        val outcome = runBlocking { channel.deliver(chatFields()) }
+
+        assertEquals(LoginReturnOutcome.Rejected, outcome)
+        assertIs<WebLoginStage.AwaitingPaste>(login.stage.value)
+    }
+
+    @Test
+    fun lineSealedForAnotherSessionIsDroppedSilently() {
+        val channel = CapturingReturn(LoginReturnTarget.Loopback(45123))
+        val login = controller(returnChannel = channel)
+        login.openSite()
+        val strangerKey = Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(ByteArray(32).also(SecureRandom()::nextBytes))
+
+        val outcome = runBlocking { channel.deliver(sealedLine("https://x/#k=$strangerKey", chatFields())) }
+
+        assertEquals(LoginReturnOutcome.Rejected, outcome)
+        assertIs<WebLoginStage.AwaitingPaste>(login.stage.value)
+    }
+
+    @Test
+    fun resetClosesTheReturnChannel() {
+        val channel = CapturingReturn(LoginReturnTarget.Loopback(45123))
+        val login = controller(returnChannel = channel)
+        login.openSite()
+
+        login.reset()
+
+        assertTrue(channel.closed > 0)
+    }
+
+    private class CapturingReturn(private val target: LoginReturnTarget) : LoginReturnChannel {
+        private var handler: LoginReturnHandler? = null
+        var closed = 0
+            private set
+
+        override suspend fun open(handler: LoginReturnHandler): LoginReturnTarget {
+            this.handler = handler
+            return target
+        }
+
+        override fun close() {
+            closed++
+        }
+
+        suspend fun deliver(line: String): LoginReturnOutcome =
+            handler?.accept(line) ?: LoginReturnOutcome.Rejected
     }
 
     private class FakeAuthRepository(private val account: TwitchAccount) : AuthRepository {

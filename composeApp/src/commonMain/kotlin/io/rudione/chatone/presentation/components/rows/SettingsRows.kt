@@ -27,6 +27,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import io.rudione.chatone.presentation.components.expressive.HelpHint
+import io.rudione.chatone.util.system.isDesktopPlatform
 import io.rudione.chatone.presentation.settings.theme_settings.ThinSlider
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -91,9 +97,57 @@ fun HighlightedSettingsText(
 @Composable
 fun RowDivider() {
     HorizontalDivider(
-        modifier = Modifier.padding(start = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        modifier = Modifier.padding(horizontal = SettingsRowMetrics.horizontal),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     )
+}
+
+internal object SettingsRowMetrics {
+    val horizontal: Dp = if (isDesktopPlatform) 14.dp else 18.dp
+    val vertical: Dp = if (isDesktopPlatform) 6.dp else 10.dp
+    val minHeight: Dp = if (isDesktopPlatform) 44.dp else 56.dp
+}
+
+@Composable
+private fun settingsTitleStyle(): TextStyle =
+    if (isDesktopPlatform) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge
+
+@Composable
+private fun RowScope.RowTitle(title: String, help: String?) {
+    Row(
+        modifier = Modifier.weight(1f),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HighlightedSettingsText(
+            title,
+            style = settingsTitleStyle(),
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f, fill = false)
+        )
+        if (!help.isNullOrBlank()) HelpHint(title = title, text = help)
+    }
+}
+
+@Composable
+private fun ValuePill(value: String, trailing: (@Composable () -> Unit)? = null) {
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            .padding(start = 12.dp, end = if (trailing != null) 8.dp else 12.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        HighlightedSettingsText(
+            value,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 180.dp)
+        )
+        trailing?.invoke()
+    }
 }
 
 @Composable
@@ -104,18 +158,14 @@ fun SwitchRow(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 9.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = SettingsRowMetrics.minHeight)
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyMedium)
-            if (subtitle != null) HighlightedSettingsText(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        RowTitle(title, subtitle)
         Spacer(Modifier.width(12.dp))
         ChatoneSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
@@ -126,29 +176,29 @@ fun ListRow(
     title: String,
     value: String,
     options: List<String>,
+    help: String? = null,
     onSelected: (Int) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 9.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = SettingsRowMetrics.minHeight)
+                .clickable { expanded = true }
+                .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                HighlightedSettingsText(title, style = MaterialTheme.typography.bodyMedium)
-                HighlightedSettingsText(
-                    value,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            RowTitle(title, help)
+            Spacer(Modifier.width(12.dp))
+            ValuePill(value) {
+                Icon(
+                    Lucide.ChevronsUpDown,
+                    null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
-            Icon(
-                Lucide.ChevronsUpDown,
-                null,
-                modifier = Modifier.size(17.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
         ChatoneDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEachIndexed { i, opt ->
@@ -168,35 +218,13 @@ fun DropdownRow(
     selected: Int,
     onSelected: (Int) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = true }
-                .padding(horizontal = 16.dp, vertical = 13.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                HighlightedSettingsText(label, style = MaterialTheme.typography.bodyLarge)
-                HighlightedSettingsText(
-                    description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Text(
-                options.getOrElse(selected) { "" },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        ChatoneDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEachIndexed { i, opt ->
-                DropdownMenuItem(
-                    text = { Text(opt) },
-                    onClick = { onSelected(i); expanded = false })
-            }
-        }
-    }
+    ListRow(
+        title = label,
+        value = options.getOrElse(selected) { "" },
+        options = options,
+        help = description.takeIf { it.isNotBlank() },
+        onSelected = onSelected
+    )
 }
 
 @Composable
@@ -208,14 +236,12 @@ fun SliderRow(
     valueLabel: String,
     onValueChange: (Float) -> Unit
 ) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            HighlightedSettingsText(label, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                valueLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
+    Column(
+        modifier = Modifier.padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            RowTitle(label, null)
+            ValuePill(valueLabel)
         }
         ThinSlider(value = value, onValueChange = onValueChange, valueRange = valueRange)
     }
@@ -232,14 +258,12 @@ fun SliderRow(
     onFloatChange: ((Float) -> Unit)? = null,
     onValueChange: ((Float) -> Unit)? = null
 ) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                valueLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
+    Column(
+        modifier = Modifier.padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            RowTitle(title, null)
+            ValuePill(valueLabel)
         }
         if (isFloat && onFloatChange != null) {
             ChatoneSlider(

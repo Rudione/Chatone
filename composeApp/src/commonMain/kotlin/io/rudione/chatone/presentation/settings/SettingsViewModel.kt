@@ -75,6 +75,7 @@ data class SettingsState(
     val mentionSoundVolume: Float = 0.8f,
     val customMentionSoundPath: String = "",
     val alwaysOnTop: Boolean = false,
+    val hideSidebar: Boolean = false,
     val uiScale: Float = 1.0f,
     val pauseOnHover: Boolean = false,
     val pauseHotkey: String = "",
@@ -216,6 +217,7 @@ sealed class SettingsEvent : UiEvent {
     data class OnMentionSoundVolumeChanged(val volume: Float) : SettingsEvent()
     data class OnCustomMentionSoundPathChanged(val path: String) : SettingsEvent()
     data class OnAlwaysOnTopChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnHideSidebarChanged(val enabled: Boolean) : SettingsEvent()
     data class OnPauseOnHoverChanged(val enabled: Boolean) : SettingsEvent()
     data class OnPauseHotkeyChanged(val hotkey: String) : SettingsEvent()
     data class OnPauseHotkeyModeChanged(val mode: PauseHotkeyMode) : SettingsEvent()
@@ -312,6 +314,7 @@ class SettingsViewModel(
         private const val KEY_MENTION_VOLUME = "mention_volume"
         private const val KEY_CUSTOM_SOUND_PATH = "custom_sound_path"
         private const val KEY_ALWAYS_ON_TOP = "always_on_top"
+        private const val KEY_HIDE_SIDEBAR = "hide_sidebar"
         private const val KEY_UI_SCALE = "ui_scale"
         private const val KEY_LANGUAGE = "language"
         private const val KEY_PAUSE_ON_HOVER = "pause_on_hover"
@@ -541,6 +544,7 @@ class SettingsViewModel(
                 mentionSoundVolume = settings.getFloat(KEY_MENTION_VOLUME, 0.8f),
                 customMentionSoundPath = settings.getStringOrNull(KEY_CUSTOM_SOUND_PATH) ?: "",
                 alwaysOnTop = settings.getBoolean(KEY_ALWAYS_ON_TOP, false),
+                hideSidebar = settings.getBoolean(KEY_HIDE_SIDEBAR, false),
                 uiScale = settings.getFloat(KEY_UI_SCALE, 1.0f),
                 language = settings.getString(KEY_LANGUAGE, "en"),
                 pauseOnHover = settings.getBoolean(KEY_PAUSE_ON_HOVER, false),
@@ -1159,6 +1163,11 @@ class SettingsViewModel(
                     KEY_ALWAYS_ON_TOP,
                     event.enabled
                 ); update { it.copy(alwaysOnTop = event.enabled) }
+            }
+
+            is SettingsEvent.OnHideSidebarChanged -> {
+                settings.putBoolean(KEY_HIDE_SIDEBAR, event.enabled)
+                update { it.copy(hideSidebar = event.enabled) }
             }
 
             is SettingsEvent.OnPauseOnHoverChanged -> {

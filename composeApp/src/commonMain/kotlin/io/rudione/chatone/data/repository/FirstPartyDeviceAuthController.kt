@@ -7,8 +7,7 @@ import io.rudione.chatone.data.remote.DevicePollResult
 import io.rudione.chatone.data.remote.TwitchDeviceAuthClient
 import io.rudione.chatone.data.remote.TwitchFirstPartyClient
 import io.rudione.chatone.util.network.isRetryableMessage
-import io.rudione.chatone.util.system.isAppInForeground
-import io.rudione.chatone.util.system.isDesktopPlatform
+import io.rudione.chatone.util.system.appForeground
 import io.rudione.chatone.util.system.notifySystem
 import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
@@ -17,11 +16,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.milliseconds
 
 sealed class DeviceAuthState {
     data object Idle : DeviceAuthState()
-    data class WaitingForApproval(val userCode: String, val verificationUri: String) : DeviceAuthState()
+    data class WaitingForApproval(val userCode: String, val verificationUri: String) :
+        DeviceAuthState()
+
     data object ConfirmingOnLoginPage : DeviceAuthState()
     data object Validating : DeviceAuthState()
     data class Success(val displayName: String, val userId: String) : DeviceAuthState()
@@ -36,7 +40,8 @@ sealed interface DeviceAuthStart {
 class FirstPartyDeviceAuthController(
     private val deviceAuthClient: TwitchDeviceAuthClient,
     private val moderationAuthStore: ModerationAuthStore,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val foreground: StateFlow<Boolean> = appForeground
 ) {
     private val _state = MutableStateFlow<DeviceAuthState>(DeviceAuthState.Idle)
     val state: StateFlow<DeviceAuthState> = _state.asStateFlow()
@@ -56,14 +61,18 @@ class FirstPartyDeviceAuthController(
             }
         }
 
-        val activation = if (isDesktopPlatform) info.activationUri else info.triggerUri
-        val waiting = DeviceAuthState.WaitingForApproval(info.userCode, activation)
+        val waiting = DeviceAuthState.WaitingForApproval(info.userCode, info.activationUri)
         _state.value = waiting
         startPolling(info, expectedUserId = "", pollImmediately = false)
         return DeviceAuthStart.Started(waiting)
     }
 
-    fun adopt(deviceCode: String, client: TwitchFirstPartyClient, expectedUserId: String, quiet: Boolean = false) {
+    fun adopt(
+        deviceCode: String,
+        client: TwitchFirstPartyClient,
+        expectedUserId: String,
+        quiet: Boolean = false
+    ) {
         if (deviceCode.isBlank() || expectedUserId.isBlank()) return
         pollJob?.cancel()
         _state.value = if (quiet) DeviceAuthState.Idle else DeviceAuthState.ConfirmingOnLoginPage
@@ -96,7 +105,8 @@ class FirstPartyDeviceAuthController(
             var offlineStreak = 0
 
             while (Clock.System.now().toEpochMilliseconds() < deadline) {
-                delay(waitMs)
+                waitBeforePoll(waitMs)
+                val startedInBackground = !foreground.value
                 when (val result = deviceAuthClient.pollToken(info)) {
                     is DevicePollResult.Success -> {
                         if (!quiet) _state.value = DeviceAuthState.Validating
@@ -113,6 +123,7 @@ class FirstPartyDeviceAuthController(
                             quiet -> DeviceAuthState.Idle
                             binding == ModerationAuthStore.Binding.WrongAccount ->
                                 DeviceAuthState.Error("Twitch confirmed a different account than the one you logged in with")
+
                             else -> DeviceAuthState.Error("Twitch rejected the token")
                         }
                         return@launch
@@ -131,18 +142,38 @@ class FirstPartyDeviceAuthController(
                     }
 
                     is DevicePollResult.Error -> {
+                        val backgrounded = startedInBackground || !foreground.value
+                        if (backgrounded && isRetryableMessage(result.message)) {
+                            intervalMs = baseIntervalMs
+                            waitMs = intervalMs
+                            continue
+                        }
                         offlineStreak++
                         if (!isRetryableMessage(result.message) || offlineStreak >= MAX_OFFLINE_POLLS) {
-                            _state.value = if (quiet) DeviceAuthState.Idle else DeviceAuthState.Error(result.message)
+                            _state.value =
+                                if (quiet) DeviceAuthState.Idle else DeviceAuthState.Error(result.message)
                             return@launch
                         }
-                        Napier.d("Device poll retry $offlineStreak after ${result.message}", tag = TAG)
+                        Napier.d(
+                            "Device poll retry $offlineStreak after ${result.message}",
+                            tag = TAG
+                        )
                         intervalMs = (intervalMs * 2).coerceAtMost(MAX_POLL_INTERVAL_MS)
                     }
                 }
                 waitMs = intervalMs
             }
-            _state.value = if (quiet) DeviceAuthState.Idle else DeviceAuthState.Error("Authorization timed out")
+            _state.value =
+                if (quiet) DeviceAuthState.Idle else DeviceAuthState.Error("Authorization timed out")
+        }
+    }
+
+    private suspend fun waitBeforePoll(waitMs: Long) {
+        if (waitMs <= 0L) return
+        if (foreground.value) {
+            delay(waitMs.milliseconds)
+        } else {
+            withTimeoutOrNull(waitMs.milliseconds) { foreground.first { it } }
         }
     }
 
@@ -156,7 +187,10 @@ class FirstPartyDeviceAuthController(
         _state.value = DeviceAuthState.Idle
     }
 
-    private suspend fun bindWithRetry(token: String, expectedUserId: String): ModerationAuthStore.Binding {
+    private suspend fun bindWithRetry(
+        token: String,
+        expectedUserId: String
+    ): ModerationAuthStore.Binding {
         var attempt = 1
         while (true) {
             val binding = runCatching { moderationAuthStore.bind(token, userId = expectedUserId) }
@@ -169,7 +203,7 @@ class FirstPartyDeviceAuthController(
     }
 
     private fun notifyAuthorized() {
-        if (isAppInForeground()) return
+        if (foreground.value) return
         runCatching {
             notifySystem(
                 "Chatone",

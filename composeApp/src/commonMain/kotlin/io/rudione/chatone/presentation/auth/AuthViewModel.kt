@@ -8,6 +8,7 @@ import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
 import io.rudione.chatone.data.repository.DeviceAuthState
 import io.rudione.chatone.data.repository.LoginFailure
+import io.rudione.chatone.data.repository.RightsHandoff
 import io.rudione.chatone.data.repository.WebLoginController
 import io.rudione.chatone.data.repository.WebLoginStage
 import io.rudione.chatone.domain.model.TwitchAccount
@@ -23,6 +24,8 @@ data class AuthState(
     val awaitingPaste: Boolean = false,
     val awaitingRights: Boolean = false,
     val activationUrl: String? = null,
+    val rightsHandoff: RightsHandoff = RightsHandoff.Manual,
+    val automaticReturn: Boolean = false,
     val loginUrl: String? = null,
     val deviceState: DeviceAuthState = DeviceAuthState.Idle,
     val failure: LoginFailure? = null,
@@ -52,7 +55,9 @@ sealed class AuthEffect : UIEffect {
 class AuthViewModel(
     private val getFirstValidAccountUseCase: GetFirstValidAccountUseCase,
     private val webLoginController: WebLoginController
-) : BaseViewModel<AuthState, AuthEvent, AuthEffect>(AuthState()) {
+) : BaseViewModel<AuthState, AuthEvent, AuthEffect>(
+    AuthState(automaticReturn = webLoginController.supportsAutomaticReturn)
+) {
 
     companion object {
         private const val TAG = "AuthViewModel"
@@ -104,6 +109,7 @@ class AuthViewModel(
                                 (stage is WebLoginStage.Failure && stage.reason != LoginFailure.RightsNotGranted),
                         awaitingRights = stage is WebLoginStage.AwaitingRights,
                         activationUrl = (stage as? WebLoginStage.AwaitingRights)?.activationUrl,
+                        rightsHandoff = (stage as? WebLoginStage.AwaitingRights)?.handoff ?: RightsHandoff.Manual,
                         failure = (stage as? WebLoginStage.Failure)?.reason,
                         failureDetail = (stage as? WebLoginStage.Failure)?.detail
                     )
@@ -112,11 +118,18 @@ class AuthViewModel(
                     Napier.d("Login complete for ${stage.account.login}", tag = TAG)
                     sendEffect(AuthEffect.NavigateToHome(stage.account))
                 }
+                if (stage is WebLoginStage.AwaitingRights && stage.handoff == RightsHandoff.OpenNow) {
+                    stage.activationUrl?.let { url ->
+                        sendEffect(AuthEffect.OpenAuthTab(url))
+                        webLoginController.markActivationOpened()
+                    }
+                }
             }
         }
         viewModelScope.launch {
             webLoginController.loginUrl.collect { url -> update { it.copy(loginUrl = url) } }
         }
+
         viewModelScope.launch {
             webLoginController.deviceAuthState.collect { device ->
                 update { it.copy(deviceState = device) }

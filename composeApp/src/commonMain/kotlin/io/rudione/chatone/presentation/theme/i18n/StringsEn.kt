@@ -5,6 +5,8 @@ import io.rudione.chatone.util.chat.SlashCommand
 import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
 import io.rudione.chatone.presentation.theme.i18n.ChatTimelineStrings
 import io.rudione.chatone.presentation.theme.i18n.ChatTimelineStringsEn
+import io.rudione.chatone.presentation.theme.i18n.LaunchStrings
+import io.rudione.chatone.presentation.theme.i18n.LaunchStringsEn
 import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStrings
 import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStringsEn
 import io.rudione.chatone.presentation.theme.i18n.BrowseStringsEn
@@ -101,6 +103,23 @@ object StringsEn : AppStrings {
     override val settingsLanguageDesc = "App UI language"
     override val settingsWindow = "Window"
     override val settingsAlwaysOnTopDesc = "Keep window above other windows"
+    override val settingsHideSidebar = "Hide sidebar"
+    override val settingsHideSidebarDesc = "Always use the compact layout at any window width, channels open from the menu"
+    override val settingsSizeSmall = "Small"
+    override val settingsSizeMedium = "Medium"
+    override val settingsSizeLarge = "Large"
+    override val settingsSpacingNone = "None"
+    override val settingsSpacingLow = "Small"
+    override val settingsSpacingMedium = "Medium"
+    override val settingsSpacingHigh = "Large"
+    override val settingsTypography = "Chat font"
+    override val settingsFontFamily = "Font"
+    override val settingsFontItalic = "Italic"
+    override val settingsFontUnderline = "Underline"
+    override val settingsFontStrikethrough = "Strikethrough"
+    override val settingsFontPreview = "Preview"
+    override val settingsFontReset = "Reset"
+    override val settingsFontRemove = "Remove font"
     override val chatShowBadges = "Show Badges"
     override val chatShowBadgesDesc = "Display user badges in chat"
     override val sectionChat = "Chat"
@@ -461,7 +480,7 @@ object StringsEn : AppStrings {
     override val modModActionButtons = "Mod Action Buttons"
     override val modDragReorderHint = "Drag to reorder. Toggle to show/hide. Add custom timeout durations."
     override val modPreviewLabel = "Preview:"
-    override val modPressDragReorder = "Press and drag to reorder:"
+    override val modPressDragReorder = "Order and visibility"
     override val modAddTimeoutButtonCount = "Add timeout button ({0}/{1})"
     override val modAddTimeoutButton = "Add Timeout Button"
     override val modEditTimeoutButton = "Edit Timeout Button"
@@ -470,7 +489,7 @@ object StringsEn : AppStrings {
     override val modCustomLabelOptional = "Custom label (optional)"
     override val modAuto = "auto"
     override val modMacros = "Macros"
-    override val modMacrosDesc = "Create macros that execute multiple chat actions in sequence. Pin up to 5 macros to the quick-access bar"
+    override val modMacrosDesc = "A macro runs several chat actions in a row. Pin up to 5 macros to the quick-access bar."
     override val modQuickBar = "Quick bar:"
     override val modNoMacros = "No macros yet. Create your first macro below."
     override val modCreateMacro = "Create macro"
@@ -1194,7 +1213,8 @@ object StringsEn : AppStrings {
     override val modIconTabEmoji = "Emoji"
     override val modIconTabMaterial = "Icons"
     override val modRepeatDuplicateHint = "Twitch drops identical messages sent within 30 s - vary the text or add a delay step."
-    override val modButtonColorHint = "Button colours are shared with the matching action row - open colour settings"
+    override val modButtonColorHint = "A button shares its colour with the matching action row in chat"
+    override val modButtonColors = "Button colours"
     override val modButtonsOnHover = "Show on hover"
     override val modButtonsOnHoverDesc = "Buttons appear only on the message under the cursor, and mod mode turns on by itself"
     override val colorModDelete = "Delete"
@@ -1302,6 +1322,35 @@ object StringsEn : AppStrings {
     override val loginOpenActivation = "Open Twitch"
     override val loginRightsOnSite = "One step left on the login page: press \"Activate\" in the Twitch window. Waiting for confirmation…"
     override val loginSupport = "Help and support"
+    override val authStepSignIn = "Sign in"
+    override val authStepPaste = "Line"
+    override val authStepBrowser = "Browser"
+    override val authStepRights = "Rights"
+    override val authSignInTitle = "Sign in with Twitch"
+    override val authSignInBody = "Your browser opens. Confirm the Twitch login"
+    override val authSignInBodyManual = "The Chatone site opens: log in with Twitch and copy the line"
+    override val authSignInAction = "Log in with Twitch"
+    override val authPasteTitle = "Copy the line"
+    override val authPasteBody = "Sign-in continues on its own once it's on the clipboard"
+    override val authPasteAction = "Paste"
+    override val authBrowserTitle = "Confirm in your browser"
+    override val authBrowserBody = "Chatone continues on its own once Twitch grants access"
+    override val authPasteManual = "Paste the line manually"
+    override val authManualEntry = "Enter manually"
+    override val authMirror = "Mirror"
+    override val authReopen = "Open again"
+    override val authRightsTitle = "One more step: rights"
+    override val authRightsBody = "Open Twitch and confirm the access - the code is already filled in"
+    override val authRightsFailed = "Rights were not confirmed"
+    override val authRightsOnSite = "Confirm rights in the Twitch window"
+    override val authRightsInBrowser = "Confirm the access in the Twitch tab - the code is already filled in"
+    override val authWaiting = "Waiting for confirmation…"
+    override val authPreparingLink = "Preparing the link…"
+    override val authSkip = "Skip"
+    override val authGuest = "Guest"
+    override val authSupport = "Support on Telegram"
+    override val authLanguage = "Language"
+    override val mainSwipeForChannels = "Swipe right for channels"
     override val settingsPinWindow = "Keep on top of other windows"
     override val settingsUnpinWindow = "Unpin the window"
     override val extRightsTitle = "Twitch extended rights"
@@ -1360,5 +1409,6 @@ object StringsEn : AppStrings {
     override val player: StreamPlayerStrings = StreamPlayerStringsEn
     override val explore: BrowseStrings = BrowseStringsEn
     override val timeline: ChatTimelineStrings = ChatTimelineStringsEn
+    override val launch: LaunchStrings = LaunchStringsEn
     override val insights: ProfileInsightStrings = ProfileInsightStringsEn
 }

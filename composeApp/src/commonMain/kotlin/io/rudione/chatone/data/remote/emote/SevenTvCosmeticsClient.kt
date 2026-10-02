@@ -17,7 +17,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 class SevenTvCosmeticsClient(
     private val httpClient: HttpClient,
@@ -41,6 +45,8 @@ class SevenTvCosmeticsClient(
 
     companion object {
         private const val TAG = "7TV-Cosmetics"
+        private const val MAX_PARALLEL_FETCHES = 6
+        private const val PUBLISH_WINDOW_MS = 250L
         private const val BASE_URL = "https://7tv.io/v3"
 
         private val GQL_USER_COSMETICS = """
@@ -74,6 +80,10 @@ class SevenTvCosmeticsClient(
 
     private val userCosmeticsCache = mutableMapOf<String, SevenTvUserCosmetic>()
     private val inflight = mutableMapOf<String, Deferred<SevenTvUserCosmetic?>>()
+    private val fetchPermits = Semaphore(MAX_PARALLEL_FETCHES)
+    private val pendingCosmetics = mutableMapOf<String, SevenTvUserCosmetic>()
+    private val pendingPaints = mutableMapOf<String, SevenTvCosmetics.Paint>()
+    private var publishScheduled = false
 
     @OptIn(InternalCoroutinesApi::class)
     private val cacheLock = SynchronizedObject()
@@ -84,15 +94,33 @@ class SevenTvCosmeticsClient(
 
     @OptIn(InternalCoroutinesApi::class)
     private fun writeCached(twitchUserId: String, value: SevenTvUserCosmetic) {
-        synchronized(cacheLock) { userCosmeticsCache[twitchUserId] = value }
-        if (value.sevenTvId.isNotEmpty()) {
-            _cosmetics.value = _cosmetics.value + (twitchUserId to value)
-            value.paint?.let { paint ->
-                if (_paints.value[twitchUserId] != paint) {
-                    _paints.value = _paints.value + (twitchUserId to paint)
-                }
-            }
+        val schedule = synchronized(cacheLock) {
+            userCosmeticsCache[twitchUserId] = value
+            if (value.sevenTvId.isEmpty()) return
+            pendingCosmetics[twitchUserId] = value
+            value.paint?.let { pendingPaints[twitchUserId] = it }
+            val idle = !publishScheduled
+            publishScheduled = true
+            idle
         }
+        if (schedule) scope.launch {
+            delay(PUBLISH_WINDOW_MS)
+            publishPending()
+        }
+    }
+
+    @OptIn(InternalCoroutinesApi::class)
+    private fun publishPending() {
+        val (cosmetics, paints) = synchronized(cacheLock) {
+            publishScheduled = false
+            val batch = pendingCosmetics.toMap() to pendingPaints.toMap()
+            pendingCosmetics.clear()
+            pendingPaints.clear()
+            batch
+        }
+        if (cosmetics.isNotEmpty()) _cosmetics.update { it + cosmetics }
+        val changedPaints = paints.filter { (userId, paint) -> _paints.value[userId] != paint }
+        if (changedPaints.isNotEmpty()) _paints.update { it + changedPaints }
     }
 
     @OptIn(InternalCoroutinesApi::class)
@@ -101,7 +129,9 @@ class SevenTvCosmeticsClient(
             userCosmeticsCache[twitchUserId]?.let { cached ->
                 return if (cached.sevenTvId.isEmpty()) null else cached
             }
-            inflight[twitchUserId] ?: scope.async { fetchUserCosmetics(twitchUserId) }.also { started ->
+            inflight[twitchUserId] ?: scope.async {
+                fetchPermits.withPermit { fetchUserCosmetics(twitchUserId) }
+            }.also { started ->
                 inflight[twitchUserId] = started
                 started.invokeOnCompletion {
                     synchronized(cacheLock) {
@@ -230,7 +260,11 @@ class SevenTvCosmeticsClient(
 
     @OptIn(InternalCoroutinesApi::class)
     fun clearCache() {
-        synchronized(cacheLock) { userCosmeticsCache.clear() }
+        synchronized(cacheLock) {
+            userCosmeticsCache.clear()
+            pendingCosmetics.clear()
+            pendingPaints.clear()
+        }
         _cosmetics.value = emptyMap()
         _paints.value = emptyMap()
     }

@@ -10,11 +10,10 @@ import java.util.zip.ZipOutputStream
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.plugin.KotlinSourceSetTree
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidApplication)
+    alias(libs.plugins.androidKmpLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
@@ -55,11 +54,13 @@ kotlin {
 
     applyDefaultHierarchyTemplate()
 
-    androidTarget {
-        @OptIn(ExperimentalKotlinGradlePluginApi::class)
+    android {
+        namespace = "io.rudione.chatone.shared"
+        compileSdk = 36
+        minSdk = 24
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
-        @OptIn(ExperimentalKotlinGradlePluginApi::class)
-        instrumentedTestVariant.sourceSetTree.set(KotlinSourceSetTree.test)
+        androidResources { enable = true }
+        withHostTest {}
     }
 
     jvm("desktop") {
@@ -131,7 +132,7 @@ kotlin {
             implementation(libs.ktor.client.mock)
         }
 
-        val androidUnitTest by getting {
+        val androidHostTest by getting {
             dependencies {
                 implementation(libs.androidx.paging.testing)
             }
@@ -179,70 +180,6 @@ kotlin {
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
     dependsOn(generateBuildConfig)
-}
-
-android {
-    namespace = "io.rudione.chatone"
-    compileSdk = 36
-    ndkVersion = "29.0.14206865"
-    defaultConfig {
-        applicationId = "io.rudione.chatone"
-        minSdk = 24
-        targetSdk = 36
-        versionCode = appVersionCode
-        versionName = appVersion
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
-    packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-    }
-    androidResources {
-        localeFilters += setOf("en", "ru")
-    }
-
-    val keystoreFile = project.findProperty("signing.storeFile")?.toString()?.let { file(it) }
-    val keystorePassword = project.findProperty("signing.storePassword")?.toString()
-    val keyAlias = project.findProperty("signing.keyAlias")?.toString()
-    val keyPassword = project.findProperty("signing.keyPassword")?.toString()
-
-    val isSigningConfigured = keystoreFile?.exists() == true &&
-            !keystorePassword.isNullOrBlank() &&
-            !keyAlias.isNullOrBlank() &&
-            !keyPassword.isNullOrBlank()
-
-    signingConfigs {
-        if (isSigningConfigured) {
-            create("release") {
-                storeFile = keystoreFile
-                storePassword = keystorePassword
-                this.keyAlias = keyAlias
-                this.keyPassword = keyPassword
-            }
-        }
-    }
-
-    buildTypes {
-        getByName("release") {
-            if (isSigningConfigured) {
-                signingConfig = signingConfigs.getByName("release")
-            }
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-android.pro")
-            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
-        }
-        create("benchmark") {
-            initWith(getByName("release"))
-            isDebuggable = false
-            signingConfig = signingConfigs.getByName("debug")
-            matchingFallbacks += listOf("release")
-        }
-    }
-    sourceSets.getByName("main").baselineProfiles.srcDir("src/androidMain/baselineProfiles")
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
 }
 
 compose.desktop {

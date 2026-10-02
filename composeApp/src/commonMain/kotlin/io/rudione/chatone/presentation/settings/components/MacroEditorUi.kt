@@ -86,13 +86,7 @@ fun MacrosSection(
         settingsNavigator.consume(destination)
     }
 
-    SettingsCard(title = s.modMacros) {
-        Text(
-            s.modMacrosDesc,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
+    SettingsCard(title = s.modMacros, help = s.modMacrosDesc) {
         if (state.macros.any { it.pinnedIndex in 0 until Macro.MAX_MACRO_SLOTS }) {
             ChatoneFieldLabel(s.modQuickBar)
             MacroQuickBarPreview(macros = state.macros, onEdit = { editingMacro = it })

@@ -58,7 +58,6 @@ import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.GradientButton
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
-import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsScreen
@@ -106,88 +105,8 @@ import io.rudione.chatone.presentation.main.components.sidebar.FolderColors
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.rudione.chatone.icons.lucide.Check
-import io.rudione.chatone.icons.lucide.Compass
 import io.rudione.chatone.icons.lucide.Folder
 import io.rudione.chatone.icons.lucide.Lucide
-import io.rudione.chatone.icons.lucide.MessagesSquare
-import io.rudione.chatone.icons.lucide.Plus
-import io.rudione.chatone.icons.lucide.User
-
-@Composable
-internal fun EmptyState(
-    isGuest: Boolean,
-    onAddChannel: () -> Unit,
-    onLogin: () -> Unit,
-    onBrowse: (() -> Unit)? = null
-) {
-    val s = LocalStrings.current
-
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        LiquidGlassSurface(
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .padding(16.dp),
-            shape = RoundedCornerShape(20.dp),
-            contentPadding = PaddingValues(24.dp),
-            backgroundAlphaHigh = 0.92f,
-            backgroundAlphaLow = 0.80f
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Icon(
-                    Lucide.MessagesSquare,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                )
-                Text(
-                    text = s.noChannelsOpen,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = LocalStrings.current.mainNoChannelsHint,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-                FilledTonalButton(onClick = onAddChannel) {
-                    Icon(
-                        Lucide.Plus,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(LocalStrings.current.mainAddChannelTitle)
-                }
-                if (onBrowse != null) {
-                    OutlinedButton(onClick = onBrowse) {
-                        Icon(
-                            Lucide.Compass,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(s.explore.entryTitle)
-                    }
-                }
-                if (isGuest) {
-                    OutlinedButton(onClick = onLogin) {
-                        Icon(
-                            Lucide.User,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(LocalStrings.current.mainLoginToTwitch)
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 internal fun CreateFolderDialog(

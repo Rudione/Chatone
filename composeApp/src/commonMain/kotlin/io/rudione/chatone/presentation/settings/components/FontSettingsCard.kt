@@ -142,7 +142,7 @@ fun FontSettingsCard(
     var fontDropdownExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    SettingsGroup("Typography") {
+    SettingsGroup(LocalStrings.current.settingsTypography) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -153,7 +153,7 @@ fun FontSettingsCard(
             ) {
 
                 Text(
-                    "Font Family",
+                    LocalStrings.current.settingsFontFamily,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -198,7 +198,10 @@ fun FontSettingsCard(
                                 text = {
                                     Text(
                                         name,
-                                        fontFamily = resolveFontFamilyWithBundled(name, state.customFontPaths),
+                                        fontFamily = resolveFontFamilyWithBundled(
+                                            name,
+                                            state.customFontPaths
+                                        ),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = if (idx == currentFontIndex)
                                             MaterialTheme.colorScheme.primary
@@ -226,7 +229,11 @@ fun FontSettingsCard(
                                                     )
                                                 }
                                                 if (state.fontFamilyName == name) {
-                                                    vm.sendEvent(SettingsEvent.OnFontFamilyChanged(BUNDLED_FONT_INTER))
+                                                    vm.sendEvent(
+                                                        SettingsEvent.OnFontFamilyChanged(
+                                                            BUNDLED_FONT_INTER
+                                                        )
+                                                    )
                                                 }
                                                 fontDropdownExpanded = false
                                             },
@@ -234,7 +241,7 @@ fun FontSettingsCard(
                                         ) {
                                             Icon(
                                                 Icons.Default.Close,
-                                                contentDescription = "Remove custom font",
+                                                contentDescription = LocalStrings.current.settingsFontRemove,
                                                 modifier = Modifier.size(12.dp),
                                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                                             )
@@ -288,21 +295,21 @@ fun FontSettingsCard(
                         label = "I",
                         active = state.fontStyleItalic,
                         fontStyle = FontStyle.Italic,
-                        tooltip = "Italic",
+                        tooltip = LocalStrings.current.settingsFontItalic,
                         onClick = { vm.sendEvent(SettingsEvent.OnFontItalicChanged(!state.fontStyleItalic)) }
                     )
                     FontStyleChip(
                         label = "U",
                         active = state.fontUnderline,
                         textDecoration = TextDecoration.Underline,
-                        tooltip = "Underline",
+                        tooltip = LocalStrings.current.settingsFontUnderline,
                         onClick = { vm.sendEvent(SettingsEvent.OnFontUnderlineChanged(!state.fontUnderline)) }
                     )
                     FontStyleChip(
                         label = "S",
                         active = state.fontStrikethrough,
                         textDecoration = TextDecoration.LineThrough,
-                        tooltip = "Strikethrough",
+                        tooltip = LocalStrings.current.settingsFontStrikethrough,
                         onClick = { vm.sendEvent(SettingsEvent.OnFontStrikethroughChanged(!state.fontStrikethrough)) }
                     )
                 }
@@ -313,7 +320,7 @@ fun FontSettingsCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    "Preview",
+                    LocalStrings.current.settingsFontPreview,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -365,7 +372,7 @@ fun FontSettingsCard(
                     modifier = Modifier.height(20.dp)
                 ) {
                     Text(
-                        "Reset to default",
+                        LocalStrings.current.settingsFontReset,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )

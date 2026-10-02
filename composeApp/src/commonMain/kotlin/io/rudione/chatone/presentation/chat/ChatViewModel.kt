@@ -91,6 +91,7 @@ import io.rudione.chatone.util.media.readLocalFileBytes
 import kotlinx.atomicfu.atomic
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -98,6 +99,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
@@ -190,7 +194,8 @@ data class ChatState(
     val uploadError: String? = null,
     val pendingUploadPath: String? = null,
     val pendingUploadHost: String? = null,
-    val pendingUploadHostIsNew: Boolean = false
+    val pendingUploadHostIsNew: Boolean = false,
+    val warmup: ChatWarmup = ChatWarmup()
 ) : UiState {
     val canModerate: Boolean get() = isMod || isBroadcaster
 }
@@ -817,6 +822,7 @@ class ChatViewModel(
     private val channelSubEmoteCache = mutableMapOf<String, List<GenericEmote>>()
     private var currentUserBadgeRaw: String = ""
 
+    private val tokenizeLock = Mutex()
     private var retokenizeDebounceJob: Job? = null
     private fun scheduleRetokenize(delayMs: Long = 150L) {
         retokenizeDebounceJob?.cancel()
@@ -1113,11 +1119,14 @@ class ChatViewModel(
             is ChatEvent.OnUpdateChatSettings -> updateChatSettings(event.settings)
             ChatEvent.OnClearChat -> clearChat()
             is ChatEvent.OnScrollbackPinned -> setScrollbackPinned(event.pinned)
-            is ChatEvent.OnReplyToMessage -> update {
-                it.copy(
-                    replyingTo = event.message,
-                    messageInput = ""
-                )
+            is ChatEvent.OnReplyToMessage -> {
+                update {
+                    it.copy(
+                        replyingTo = event.message,
+                        messageInput = ""
+                    )
+                }
+                sendEffect(ChatEffect.FocusChatInput)
             }
 
             ChatEvent.OnCancelReply -> update { it.copy(replyingTo = null) }
@@ -1498,6 +1507,7 @@ class ChatViewModel(
                 isMod = cachedIsMod,
                 isBroadcaster = isBroadcaster,
                 isLoading = cachedMessages.isEmpty(),
+                warmup = if (cachedMessages.isEmpty()) ChatWarmup() else ChatWarmup.Complete,
                 modModeEnabled = modModeByDefault,
                 emoteCompletions = emptyList(),
                 showEmoteCompletions = false,
@@ -1540,8 +1550,16 @@ class ChatViewModel(
                 if (joinError is CancellationException) throw joinError
                 val resolvedChannelId = cachedChannelId.ifEmpty { resolveChannelId(channelLogin).orEmpty() }
                 if (joinError != null) throw joinError
-                launch { emoteRepository.loadGlobalEmotes(); retokenizeMessages() }
-                launch { loadBadgesWithToken(); retokenizeMessages() }
+                launch {
+                    emoteRepository.loadGlobalEmotes()
+                    retokenizeMessages()
+                    markWarm(channelLogin) { it.copy(globalEmotes = true) }
+                }
+                launch {
+                    loadBadgesWithToken()
+                    retokenizeMessages()
+                    markWarm(channelLogin) { it.copy(globalBadges = true) }
+                }
                 launch {
                     val s2 = state.value
                     if (s2.currentUserColor.isBlank() && s2.currentAccessToken.isNotEmpty() && s2.currentUserId.isNotEmpty()) {
@@ -1556,7 +1574,9 @@ class ChatViewModel(
                         }
                     }
                 }
-                if (resolvedChannelId.isNotEmpty()) {
+                if (resolvedChannelId.isEmpty()) {
+                    markWarm(channelLogin) { it.copy(channelAssets = true) }
+                } else {
                     launch { loadChannelEmotesAndBadges(resolvedChannelId) }
 
                     launch { checkAndSetModStatus(resolvedChannelId) }
@@ -1692,7 +1712,10 @@ class ChatViewModel(
                 update { it.copy(isLoading = false) }
             } catch (e: Exception) {
                 Napier.e("Failed to initialize channel: ${e.message}", e, tag = TAG)
-                update { it.copy(isLoading = false) }
+                update {
+                    if (it.channelLogin == channelLogin) it.copy(isLoading = false, warmup = ChatWarmup.Complete)
+                    else it.copy(isLoading = false)
+                }
                 sendEffect(ChatEffect.ShowError("Failed to join channel: ${e.message}"))
             }
         }
@@ -1886,8 +1909,19 @@ class ChatViewModel(
     private val historyUnavailableChannels = mutableSetOf<String>()
 
     private suspend fun loadRecentMessages(channelLogin: String) {
-        loadRobottyHistory(channelLogin)
+        try {
+            loadRobottyHistory(channelLogin)
+        } finally {
+            markWarm(channelLogin) { it.copy(history = true) }
+        }
         backfillQuietChat(channelLogin)
+    }
+
+    private fun markWarm(channelLogin: String, change: (ChatWarmup) -> ChatWarmup) {
+        update { state ->
+            if (state.channelLogin != channelLogin) state
+            else state.copy(warmup = change(state.warmup))
+        }
     }
 
     private suspend fun loadRobottyHistory(channelLogin: String) {
@@ -1944,26 +1978,28 @@ class ChatViewModel(
         if (history.messages.isEmpty() && history.events.isEmpty()) return
         val currentLogin = state.value.currentUserLogin
         val currentUserId = state.value.currentUserId
-        val displayMessages = history.messages.map { msg ->
-            val dm = chatMessageToDisplay(msg)
-                .let { if (msg.id in history.deletedMessageIds) it.copy(isDeleted = true) else it }
-            if (msg.userId.isNotEmpty() && msg.userId == currentUserId) {
-                dm
-            } else {
-                val match = checkHighlightRules(msg, currentLogin)
-                if (match != null) dm.copy(
-                    isMention = true,
-                    highlightColor = match.color
-                ) else dm
+        tokenizeLock.withLock {
+            val merged = withContext(Dispatchers.Default) {
+                val displayMessages = history.messages.map { msg ->
+                    val dm = chatMessageToDisplay(msg)
+                        .let { if (msg.id in history.deletedMessageIds) it.copy(isDeleted = true) else it }
+                    if (msg.userId.isNotEmpty() && msg.userId == currentUserId) {
+                        dm
+                    } else {
+                        val match = checkHighlightRules(msg, currentLogin)
+                        if (match != null) dm.copy(
+                            isMention = true,
+                            highlightColor = match.color
+                        ) else dm
+                    }
+                }
+                val eventMessages = history.events.mapNotNull { entry ->
+                    ChatHistoryEvents.toDisplay(entry, ::chatMessageToDisplay)
+                }
+                (displayMessages + eventMessages).sortedBy { it.timestamp }
             }
+            mergeHistoryMessages(channelLogin, merged)
         }
-        val eventMessages = history.events.mapNotNull { entry ->
-            ChatHistoryEvents.toDisplay(entry, ::chatMessageToDisplay)
-        }
-        mergeHistoryMessages(
-            channelLogin,
-            (displayMessages + eventMessages).sortedBy { it.timestamp }
-        )
         history.messages.map { it.userId }.distinct().take(300).forEach { userId ->
             sevenTvCosmeticsClient.requestCosmetics(userId)
         }
@@ -2080,8 +2116,10 @@ class ChatViewModel(
             return false
         }
 
-        val displayMessages = fresh.map { chatMessageToDisplay(it) }
-        mergeHistoryMessages(channelLogin, displayMessages)
+        val displayMessages = tokenizeLock.withLock {
+            withContext(Dispatchers.Default) { fresh.map { chatMessageToDisplay(it) } }
+                .also { mergeHistoryMessages(channelLogin, it) }
+        }
         Napier.d("Seeded ${displayMessages.size} messages from local cache for $channelLogin", tag = TAG)
         return true
     }
@@ -2127,6 +2165,7 @@ class ChatViewModel(
             if ((emotesLoaded || badgesLoaded) && state.value.channelLogin == channelLogin) {
                 retokenizeMessages()
             }
+            markWarm(channelLogin) { it.copy(channelAssets = true) }
 
             launch {
                 try {
@@ -2147,28 +2186,38 @@ class ChatViewModel(
         }
     }
 
-    private fun retokenizeMessages() {
-        update { state ->
-            val channelLogin = state.channelLogin
-            if (channelLogin.isEmpty()) return@update state
-            val channelEmotes = emoteRepository.getResolvedEmotes(channelLogin)
-            state.copy(messages = state.messages.map { msg ->
-                if (msg is DisplayMessage.PrivMsg && msg.rawMessage != null) {
-                    val personalEmotes = emoteRepository.getCachedPersonalEmotes(msg.userId)
-                    val newTokens = MessageTokenizer.tokenize(
-                        msg.rawMessage,
-                        channelEmotes,
-                        personalEmotes = personalEmotes
-                    )
-                    val newBadges = badgeRepository.resolveBadges(
-                        msg.rawMessage.badges,
-                        msg.rawMessage.channelId
-                    )
-                    msg.copy(tokens = newTokens, badges = newBadges)
-                } else msg
-            })
+    private suspend fun retokenizeMessages() {
+        tokenizeLock.withLock {
+            val snapshot = state.value
+            val channelLogin = snapshot.channelLogin
+            if (channelLogin.isEmpty() || snapshot.messages.isEmpty()) return
+            val refreshed = withContext(Dispatchers.Default) {
+                val channelEmotes = emoteRepository.getResolvedEmotes(channelLogin)
+                buildMap {
+                    for (msg in snapshot.messages) {
+                        if (msg !is DisplayMessage.PrivMsg) continue
+                        val raw = msg.rawMessage ?: continue
+                        val tokens = MessageTokenizer.tokenize(
+                            raw,
+                            channelEmotes,
+                            personalEmotes = emoteRepository.getCachedPersonalEmotes(msg.userId)
+                        )
+                        put(msg.id, RetokenizedMessage(tokens, badgeRepository.resolveBadges(raw.badges, raw.channelId)))
+                    }
+                }
+            }
+            if (refreshed.isEmpty()) return
+            update { state ->
+                if (state.channelLogin != channelLogin) return@update state
+                state.copy(messages = state.messages.map { msg ->
+                    val fresh = (msg as? DisplayMessage.PrivMsg)?.let { refreshed[it.id] } ?: return@map msg
+                    msg.copy(tokens = fresh.tokens, badges = fresh.badges)
+                })
+            }
         }
     }
+
+    private class RetokenizedMessage(val tokens: List<MessageToken>, val badges: List<Badge>)
 
     private fun chatMessageToDisplay(message: ChatMessage): DisplayMessage.PrivMsg {
         val channelEmotes = emoteRepository.getResolvedEmotes(message.channelName)

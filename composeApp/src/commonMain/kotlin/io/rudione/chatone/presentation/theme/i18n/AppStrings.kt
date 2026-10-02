@@ -101,6 +101,23 @@ interface AppStrings {
     val settingsLanguageDesc: String
     val settingsWindow: String
     val settingsAlwaysOnTopDesc: String
+    val settingsHideSidebar: String
+    val settingsHideSidebarDesc: String
+    val settingsSizeSmall: String
+    val settingsSizeMedium: String
+    val settingsSizeLarge: String
+    val settingsSpacingNone: String
+    val settingsSpacingLow: String
+    val settingsSpacingMedium: String
+    val settingsSpacingHigh: String
+    val settingsTypography: String
+    val settingsFontFamily: String
+    val settingsFontItalic: String
+    val settingsFontUnderline: String
+    val settingsFontStrikethrough: String
+    val settingsFontPreview: String
+    val settingsFontReset: String
+    val settingsFontRemove: String
     val chatShowBadges: String
     val chatShowBadgesDesc: String
 
@@ -1209,6 +1226,7 @@ interface AppStrings {
     val modIconTabMaterial: String
     val modRepeatDuplicateHint: String
     val modButtonColorHint: String
+    val modButtonColors: String
     val modButtonsOnHover: String
     val modButtonsOnHoverDesc: String
     val colorModDelete: String
@@ -1314,6 +1332,35 @@ interface AppStrings {
     val loginOpenActivation: String
     val loginRightsOnSite: String
     val loginSupport: String
+    val authStepSignIn: String
+    val authStepPaste: String
+    val authStepBrowser: String
+    val authStepRights: String
+    val authSignInTitle: String
+    val authSignInBody: String
+    val authSignInBodyManual: String
+    val authSignInAction: String
+    val authPasteTitle: String
+    val authPasteBody: String
+    val authPasteAction: String
+    val authBrowserTitle: String
+    val authBrowserBody: String
+    val authPasteManual: String
+    val authManualEntry: String
+    val authMirror: String
+    val authReopen: String
+    val authRightsTitle: String
+    val authRightsBody: String
+    val authRightsFailed: String
+    val authRightsOnSite: String
+    val authRightsInBrowser: String
+    val authWaiting: String
+    val authPreparingLink: String
+    val authSkip: String
+    val authGuest: String
+    val authSupport: String
+    val authLanguage: String
+    val mainSwipeForChannels: String
     val settingsPinWindow: String
     val settingsUnpinWindow: String
     val extRightsTitle: String
@@ -1371,6 +1418,7 @@ interface AppStrings {
     val player: StreamPlayerStrings
     val explore: BrowseStrings
     val timeline: ChatTimelineStrings
+    val launch: LaunchStrings
     val insights: ProfileInsightStrings
 
     companion object {

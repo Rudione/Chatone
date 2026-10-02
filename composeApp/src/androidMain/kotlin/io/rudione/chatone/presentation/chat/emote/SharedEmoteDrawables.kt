@@ -52,6 +52,8 @@ internal object SharedEmoteDrawables {
 
     fun peek(key: String): Drawable? = cache.get(key)
 
+    fun evictAll() = cache.evictAll()
+
     suspend fun load(context: Context, url: String, maxDimension: Int): Drawable? {
         val key = keyOf(url, maxDimension)
         cache.get(key)?.let { return it }

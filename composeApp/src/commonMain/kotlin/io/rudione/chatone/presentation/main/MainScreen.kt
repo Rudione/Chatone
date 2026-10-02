@@ -70,6 +70,8 @@ import io.rudione.chatone.presentation.automod.AutomodScreen
 import io.rudione.chatone.presentation.components.ChatoneSplitHandle
 import io.rudione.chatone.presentation.window.DetachedDockWindow
 import io.rudione.chatone.util.system.isDesktopPlatform
+import io.rudione.chatone.presentation.startup.LaunchStage
+import io.rudione.chatone.presentation.startup.ReportLaunchStage
 import io.rudione.chatone.presentation.components.ChatoneBreakpoints
 import io.rudione.chatone.presentation.components.ChatoneWindowSize
 import io.rudione.chatone.presentation.components.SwipeDirection
@@ -173,6 +175,10 @@ fun MainScreen(
         channelLogin = streamChannel,
         landscapeWindow = windowContainer.width > windowContainer.height
     )
+
+    val chatOnScreen = state.activeChannelLogin
+        ?.let { !state.mentionsChannelActive && !isMonitorLogin(it) } == true
+    if (!chatOnScreen) ReportLaunchStage(LaunchStage.Ready)
 
     MultiChatRootSetup()
     if (isDesktopPlatform) ChatZoomShortcuts()
@@ -379,7 +385,8 @@ fun MainScreen(
                         }
                     }
                 }
-                val windowSize = ChatoneBreakpoints.of(availableWidth)
+                val windowSize = if (isDesktopPlatform && settingsState.hideSidebar) ChatoneWindowSize.Compact
+                else ChatoneBreakpoints.of(availableWidth)
                 val isLarge = windowSize == ChatoneWindowSize.Large
                 val isWideScreen = windowSize != ChatoneWindowSize.Compact
                 LaunchedEffect(isWideScreen, isLarge) {
@@ -968,7 +975,10 @@ fun MainScreen(
                                         isGuest = state.isGuest,
                                         onAddChannel = { viewModel.sendEvent(MainEvent.ShowAddChannelDialog) },
                                         onLogin = { viewModel.sendEvent(MainEvent.NavigateToAuth) },
-                                        onBrowse = openBrowse
+                                        onBrowse = openBrowse,
+                                        onOpenChannels = if (isPhone) {
+                                            { if (!state.sidebarExpanded) viewModel.sendEvent(MainEvent.ToggleSidebar) }
+                                        } else null
                                     )
                                 }
                             }

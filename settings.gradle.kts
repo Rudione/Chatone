@@ -32,7 +32,7 @@ dependencyResolutionManagement {
            
             version("kotlin", "2.2.20")
             version("compose", "1.10.3")
-            version("agp", "8.9.1")
+            version("agp", "9.3.3")
 
            
             version("ktor", "3.1.1")
@@ -82,7 +82,7 @@ dependencyResolutionManagement {
 
             plugin("kotlinMultiplatform", "org.jetbrains.kotlin.multiplatform").versionRef("kotlin")
             plugin("androidApplication", "com.android.application").versionRef("agp")
-            plugin("androidLibrary", "com.android.library").versionRef("agp")
+            plugin("androidKmpLibrary", "com.android.kotlin.multiplatform.library").versionRef("agp")
             plugin("composeMultiplatform", "org.jetbrains.compose").versionRef("compose")
             plugin("composeCompiler", "org.jetbrains.kotlin.plugin.compose").versionRef("kotlin")
             plugin("kotlinSerialization", "org.jetbrains.kotlin.plugin.serialization").versionRef("kotlin")
@@ -173,4 +173,5 @@ dependencyResolutionManagement {
 }
 
 include(":composeApp")
+include(":androidApp")
 include(":core:icons")

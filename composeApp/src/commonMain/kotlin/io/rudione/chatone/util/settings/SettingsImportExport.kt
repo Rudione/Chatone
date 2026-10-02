@@ -49,6 +49,7 @@ object SettingsImportExport {
         "mention_volume",
         "custom_sound_path",
         "always_on_top",
+        "hide_sidebar",
         "ui_scale",
         "language",
         "pause_on_hover",

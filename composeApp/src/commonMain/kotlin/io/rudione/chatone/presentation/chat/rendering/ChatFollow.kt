@@ -30,6 +30,22 @@ internal fun shouldPauseFollowing(overflowPx: Float?, itemCount: Int, thresholdP
     return overflowPx == null || overflowPx > thresholdPx
 }
 
+internal data class BottomEdge(
+    val itemCount: Int,
+    val lastKey: Any?,
+    val overflowPx: Float?,
+    val scrolling: Boolean
+)
+
+internal fun growthToAbsorb(previous: BottomEdge?, current: BottomEdge, tolerancePx: Float): Float {
+    if (previous == null || current.scrolling) return 0f
+    if (previous.itemCount != current.itemCount || previous.lastKey != current.lastKey) return 0f
+    val before = previous.overflowPx ?: return 0f
+    val after = current.overflowPx ?: return 0f
+    if (before > tolerancePx || after <= tolerancePx) return 0f
+    return after
+}
+
 @Stable
 class ChatFollowState internal constructor(
     private val listState: LazyListState,
@@ -76,9 +92,11 @@ fun ChatFollowEffects(
     listState: LazyListState,
     newestItemKey: Any?,
     paused: Boolean,
-    onPinnedToBottom: () -> Unit
+    onPinnedToBottom: () -> Unit,
+    holdBottomWhilePaused: Boolean = false
 ) {
     val pausedLatest by rememberUpdatedState(paused)
+    val holdBottomLatest by rememberUpdatedState(holdBottomWhilePaused)
     val onPinnedLatest by rememberUpdatedState(onPinnedToBottom)
 
     LaunchedEffect(listState) {
@@ -105,7 +123,26 @@ fun ChatFollowEffects(
                 if (overflow > 0f && !scrolling && !pausedLatest) listState.scrollByUnlessInterrupted(overflow)
             }
     }
+
+    LaunchedEffect(listState) {
+        var previous: BottomEdge? = null
+        snapshotFlow {
+            val info = listState.layoutInfo
+            BottomEdge(
+                itemCount = info.totalItemsCount,
+                lastKey = info.visibleItemsInfo.lastOrNull()?.key,
+                overflowPx = listState.bottomOverflow(),
+                scrolling = listState.isScrollInProgress
+            )
+        }.collect { edge ->
+            val delta = if (pausedLatest && holdBottomLatest) growthToAbsorb(previous, edge, BOTTOM_TOLERANCE_PX) else 0f
+            previous = edge
+            if (delta > 0f) listState.scrollByUnlessInterrupted(delta)
+        }
+    }
 }
+
+private const val BOTTOM_TOLERANCE_PX = 1f
 
 private suspend fun LazyListState.scrollByUnlessInterrupted(delta: Float) {
     try {

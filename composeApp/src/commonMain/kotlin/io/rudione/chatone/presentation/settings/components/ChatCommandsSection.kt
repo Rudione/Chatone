@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.components
 
+import io.rudione.chatone.presentation.components.expressive.HelpHint
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -153,21 +154,19 @@ private fun DividerThin() {
 private fun HeaderBlock() {
     val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         BasicText(
             s.settingsCommandsTitle,
+            modifier = Modifier.weight(1f, fill = false),
             style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.SemiBold,
                 color = scheme.onSurface
             )
         )
-        BasicText(
-            s.settingsCommandsDesc,
-            style = MaterialTheme.typography.bodySmall.copy(color = scheme.onSurfaceVariant)
-        )
+        HelpHint(title = s.settingsCommandsTitle, text = s.settingsCommandsDesc, size = 28.dp)
     }
 }
 
@@ -681,15 +680,13 @@ private fun ToggleRow(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             BasicText(
                 label,
+                modifier = Modifier.weight(1f, fill = false),
                 style = MaterialTheme.typography.bodySmall.copy(color = scheme.onSurface, fontWeight = FontWeight.Medium)
             )
-            BasicText(
-                description,
-                style = MaterialTheme.typography.labelSmall.copy(color = scheme.onSurfaceVariant)
-            )
+            HelpHint(title = label, text = description, size = 28.dp)
         }
         ChatoneSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }

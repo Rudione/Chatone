@@ -1,6 +1,12 @@
 package io.rudione.chatone
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -11,57 +17,50 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Density
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
 import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
 import com.russhwolf.settings.Settings
-import io.rudione.chatone.data.repository.AccountManager
 import io.github.aakira.napier.Antilog
 import io.github.aakira.napier.LogLevel
 import io.github.aakira.napier.Napier
+import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import io.rudione.chatone.presentation.auth.AuthScreen
-import io.rudione.chatone.presentation.loading.LoadingScreen
 import io.rudione.chatone.presentation.chat.ChatMediaSettings
 import io.rudione.chatone.presentation.chat.LocalChatMediaSettings
 import io.rudione.chatone.presentation.main.MainScreen
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.settings.TitleBarMode
-import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.startup.LaunchReadiness
+import io.rudione.chatone.presentation.startup.LaunchSplashOverlay
+import io.rudione.chatone.presentation.startup.LaunchStage
 import io.rudione.chatone.presentation.theme.ChatFontSettings
+import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperController
-import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.util.media.createAnimatedImageLoader
-import io.rudione.chatone.util.system.LaunchGate
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.util.concurrent.IoDispatcher
 import io.rudione.chatone.util.font.resolveFontFamilyWithBundled
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.style.TextDecoration
+import io.rudione.chatone.util.media.WallpaperLoader
+import io.rudione.chatone.util.media.createAnimatedImageLoader
+import kotlinx.coroutines.withContext
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import io.rudione.chatone.util.concurrent.IoDispatcher
-import kotlinx.coroutines.withContext
-
-private const val LAUNCH_SETTLE_FRAMES = 2
 
 private sealed interface RootRoute {
     data object Loading : RootRoute
@@ -158,8 +157,8 @@ fun App(
 
         val sevenTvCosmeticsClient: io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient =
             koinInject()
-        val sevenTvCosmetics by sevenTvCosmeticsClient.cosmetics.collectAsState()
-        val sevenTvPaints by sevenTvCosmeticsClient.paints.collectAsState()
+        val sevenTvCosmetics = sevenTvCosmeticsClient.cosmetics.collectAsState()
+        val sevenTvPaints = sevenTvCosmeticsClient.paints.collectAsState()
 
         LaunchedEffect(settingsState.alwaysOnTop) {
             onAlwaysOnTopChanged(settingsState.alwaysOnTop)
@@ -214,17 +213,17 @@ fun App(
             }
         }
 
-        val launchGate: LaunchGate = koinInject()
+        val launchReadiness: LaunchReadiness = koinInject()
         LaunchedEffect(Unit) {
-            try {
-                val account = getFirstValidAccount()
-                backStack.replaceWith(if (account != null) RootRoute.Main else RootRoute.Auth)
+            val route = try {
+                if (getFirstValidAccount() != null) RootRoute.Main else RootRoute.Auth
             } catch (e: Exception) {
                 Napier.w("Auto-login check failed: ${e.message}", tag = "App")
-                backStack.replaceWith(RootRoute.Auth)
+                RootRoute.Auth
             }
-            repeat(LAUNCH_SETTLE_FRAMES) { withFrameNanos { } }
-            launchGate.open()
+            backStack.replaceWith(route)
+            if (route == RootRoute.Main) launchReadiness.advance(LaunchStage.Connecting)
+            else launchReadiness.finish()
         }
 
         LaunchedEffect(Unit) {
@@ -331,9 +330,14 @@ fun App(
                         label = "root-route"
                     ) { route ->
                         when (route) {
-                            RootRoute.Loading -> LoadingScreen()
-                            RootRoute.Auth ->
-                                AuthScreen(onAuthSuccess = { backStack.replaceWith(RootRoute.Main) })
+                            RootRoute.Loading -> Box(androidx.compose.ui.Modifier.fillMaxSize())
+                            RootRoute.Auth -> AuthScreen(
+                                onAuthSuccess = { backStack.replaceWith(RootRoute.Main) },
+                                language = settingsState.language,
+                                onLanguageChange = { code ->
+                                    settingsViewModel.sendEvent(SettingsEvent.OnLanguageChanged(code))
+                                }
+                            )
 
                             RootRoute.Main -> MainScreen(
                                 onNavigateToAuth = { backStack.replaceWith(RootRoute.Auth) },
@@ -347,6 +351,7 @@ fun App(
                     if (currentRoute == RootRoute.Main) {
                         io.rudione.chatone.presentation.ai.AiAssistantOverlay()
                     }
+                    LaunchSplashOverlay()
                 }
             }
         }

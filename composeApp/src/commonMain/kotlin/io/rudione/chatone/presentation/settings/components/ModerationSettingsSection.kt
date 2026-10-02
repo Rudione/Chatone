@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.components
 
+import io.rudione.chatone.presentation.components.expressive.HelpHint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -114,12 +115,7 @@ fun ModerationSettingsSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
-        SettingsCard(title = s.modLocalAutomod) {
-            Text(
-                s.modLocalAutomodDesc,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        SettingsCard(title = s.modLocalAutomod, help = s.modLocalAutomodDesc) {
             ChatoneButton(
                 text = s.modOpenLocalAutomodEditor,
                 onClick = { showAutomod = true },
@@ -147,12 +143,7 @@ fun ModerationSettingsSection(
             }
         }
 
-        SettingsCard(title = s.modSavedReasonsTitle) {
-            Text(
-                s.modSavedReasonsDesc,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        SettingsCard(title = s.modSavedReasonsTitle, help = s.modSavedReasonsDesc) {
             ChatoneTextField(
                 value = state.savedTimeoutReason,
                 onValueChange = { onEvent(SettingsEvent.OnSavedTimeoutReasonChanged(it)) },
@@ -195,13 +186,7 @@ private fun ModActionButtonsSection(
     val s = LocalStrings.current
     val rowSpacingPx = with(LocalDensity.current) { ROW_SPACING.roundToPx() }
 
-    SettingsCard(title = s.modModActionButtons) {
-        Text(
-            s.modDragReorderHint,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
+    SettingsCard(title = s.modModActionButtons, help = s.modDragReorderHint) {
         ChatoneListItem(
             onClick = {
                 onEvent(SettingsEvent.OnOpenThemeCreator(null, ThemeCreatorSection.MODERATION_COLORS))
@@ -215,6 +200,7 @@ private fun ModActionButtonsSection(
                 )
             },
             trailing = {
+                HelpHint(title = s.modButtonColors, text = s.modButtonColorHint, size = 28.dp)
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
@@ -224,9 +210,9 @@ private fun ModActionButtonsSection(
             }
         ) {
             Text(
-                s.modButtonColorHint,
+                s.modButtonColors,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
 
@@ -241,17 +227,16 @@ private fun ModActionButtonsSection(
                     )
                 }
             ) {
-                Text(
-                    s.modButtonsOnHover,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    s.modButtonsOnHoverDesc,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        s.modButtonsOnHover,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    HelpHint(title = s.modButtonsOnHover, text = s.modButtonsOnHoverDesc, size = 28.dp)
+                }
             }
         }
 

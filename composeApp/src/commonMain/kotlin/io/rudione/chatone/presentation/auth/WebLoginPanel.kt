@@ -34,7 +34,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,14 +42,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.data.auth.LoginPayloadCodec
 import io.rudione.chatone.data.repository.DeviceAuthState
 import io.rudione.chatone.data.repository.LoginFailure
 import io.rudione.chatone.data.repository.WebLoginController
@@ -58,10 +53,6 @@ import io.rudione.chatone.presentation.components.ChatoneButtonText
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.theme.i18n.format
-import io.rudione.chatone.util.platform.DeviceFormFactor
-import io.rudione.chatone.util.platform.currentFormFactor
-import kotlinx.coroutines.delay
-import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun AppStrings.loginFailureText(failure: LoginFailure): String = when (failure) {
@@ -100,43 +91,9 @@ fun WebLoginPanel(
     onOpenActivation: (() -> Unit)? = null
 ) {
     val s = LocalStrings.current
-    val clipboard = LocalClipboardManager.current
-    val windowFocused = LocalWindowInfo.current.isWindowFocused
-    val pollsClipboard = remember { currentFormFactor() == DeviceFormFactor.DESKTOP }
-    var manualPayload by remember { mutableStateOf("") }
-    var acceptedPayload by remember { mutableStateOf("") }
-    var codeAccepted by remember { mutableStateOf(false) }
-
     val busy = isPreparing || isVerifying
-
-    val accept: (String) -> Boolean = accept@{ raw ->
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty() || trimmed == acceptedPayload) return@accept false
-        if (!LoginPayloadCodec.canAutoSubmit(trimmed)) return@accept false
-        acceptedPayload = trimmed
-        codeAccepted = true
-        manualPayload = ""
-        onSubmitPayload(trimmed, true)
-        runCatching { clipboard.setText(AnnotatedString("")) }
-        true
-    }
-
-    LaunchedEffect(awaitingPaste, windowFocused, busy) {
-        if (!awaitingPaste || !windowFocused || busy) return@LaunchedEffect
-        var reads = 0
-        while (true) {
-            val fromClipboard = runCatching { clipboard.getText()?.text }.getOrNull().orEmpty()
-            if (accept(fromClipboard)) break
-            reads++
-            val limit = if (pollsClipboard) DESKTOP_CLIPBOARD_READS else FOCUS_CLIPBOARD_READS
-            if (reads >= limit) break
-            delay((if (pollsClipboard) DESKTOP_POLL_MS else FOCUS_POLL_MS).milliseconds)
-        }
-    }
-
-    LaunchedEffect(failure) {
-        if (failure != null && failure != LoginFailure.Network) codeAccepted = false
-    }
+    val paste = rememberLoginPasteWatcher(awaitingPaste, busy, failure, onSubmitPayload)
+    val codeAccepted = paste.codeAccepted
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -171,13 +128,7 @@ fun WebLoginPanel(
             }
 
             OutlinedButton(
-                onClick = {
-                    val text = clipboard.getText()?.text.orEmpty()
-                    if (!accept(text)) {
-                        onSubmitPayload(text, false)
-                        if (text.isNotBlank()) clipboard.setText(AnnotatedString(""))
-                    }
-                },
+                onClick = paste::pasteFromClipboard,
                 enabled = !busy,
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -224,19 +175,16 @@ fun WebLoginPanel(
             ) {
                 Spacer(Modifier.height(12.dp))
                 io.rudione.chatone.presentation.components.ChatoneSecretField(
-                    value = manualPayload,
-                    onValueChange = { typed -> if (!accept(typed)) manualPayload = typed },
+                    value = paste.manualPayload,
+                    onValueChange = paste::type,
                     modifier = Modifier.fillMaxWidth(),
                     label = s.loginPasteManualLabel,
                     hint = s.loginPasteManualHint,
                     enabled = !busy,
                     trailing = {
-                        if (manualPayload.isNotBlank()) {
+                        if (paste.manualPayload.isNotBlank()) {
                             OutlinedButton(
-                                onClick = {
-                                    onSubmitPayload(manualPayload, false)
-                                    manualPayload = ""
-                                },
+                                onClick = paste::submitManual,
                                 enabled = !busy,
                                 shape = RoundedCornerShape(10.dp)
                             ) {
@@ -486,8 +434,3 @@ private fun LoginErrorBanner(message: String) {
         )
     }
 }
-
-private const val DESKTOP_POLL_MS = 700L
-private const val FOCUS_POLL_MS = 350L
-private const val FOCUS_CLIPBOARD_READS = 4
-private const val DESKTOP_CLIPBOARD_READS = 430

@@ -1,7 +1,9 @@
 package io.rudione.chatone.presentation.chat
 
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import io.rudione.chatone.data.repository.ThirdPartyBadge
 import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.domain.model.SevenTvUserCosmetic
@@ -35,12 +37,12 @@ data class ChatMediaSettings(
 
 val LocalChatMediaSettings = compositionLocalOf { ChatMediaSettings() }
 
+private class EmptyMapState<V> : State<Map<String, V>> {
+    override val value: Map<String, V> = emptyMap()
+}
+
 val LocalSevenTvCosmetics =
-    compositionLocalOf<Map<String, SevenTvUserCosmetic>> {
-        emptyMap()
-    }
+    staticCompositionLocalOf<State<Map<String, SevenTvUserCosmetic>>> { EmptyMapState() }
 
 val LocalSevenTvPaints =
-    compositionLocalOf<Map<String, SevenTvCosmetics.Paint>> {
-        emptyMap()
-    }
+    staticCompositionLocalOf<State<Map<String, SevenTvCosmetics.Paint>>> { EmptyMapState() }

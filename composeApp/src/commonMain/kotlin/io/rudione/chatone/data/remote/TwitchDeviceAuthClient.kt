@@ -31,15 +31,6 @@ data class DeviceCodeInfo(
             val separator = if (verificationUri.contains('?')) '&' else '?'
             "$verificationUri${separator}device-code=${userCode.encodeURLParameter()}"
         }
-
-    val triggerUri: String
-        get() = "https://auth.twitch.tv/authorize" +
-            "?client_id=ue6781qo233tsx6so1t0jnuwi233fi" +
-            "&device_code=" + deviceCode.encodeURLParameter() +
-            "&user_code=" + userCode.encodeURLParameter() +
-            "&response_type=device_grant_trigger" +
-            "&scope=" + "channel:moderate chat:edit chat:read whispers:edit whispers:read".encodeURLParameter() +
-            "&redirect_uri=" + "https://www.twitch.tv/settings/connections".encodeURLParameter()
 }
 
 sealed interface DeviceCodeResult {

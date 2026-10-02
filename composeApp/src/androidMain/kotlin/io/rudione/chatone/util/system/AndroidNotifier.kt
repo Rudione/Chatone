@@ -12,10 +12,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import io.github.aakira.napier.Napier
-import io.rudione.chatone.MainActivity
-import io.rudione.chatone.R
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
+import io.rudione.chatone.shared.R
 import kotlin.random.Random
 
 object AndroidNotifier {
@@ -144,7 +143,7 @@ object AndroidNotifier {
     }
 
     private fun contentIntent(context: Context, target: NotificationTarget?): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val intent = launcherIntent(context).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             if (target != null) {
                 action = ACTION_OPEN_TARGET
@@ -158,6 +157,15 @@ object AndroidNotifier {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    private fun launcherIntent(context: Context): Intent {
+        val packageManager = context.packageManager
+        val packageName = context.packageName
+        val component = (packageManager.getLaunchIntentForPackage(packageName)
+            ?: packageManager.getLeanbackLaunchIntentForPackage(packageName))?.component
+        return if (component != null) Intent().setComponent(component)
+        else Intent(Intent.ACTION_MAIN).setPackage(packageName)
     }
 
     private fun strings(): AppStrings = AppStrings.forLocale(SettingsViewModel.currentLanguage())

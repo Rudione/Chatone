@@ -8,6 +8,10 @@ object AppConfig {
 
     const val SITE_LOGIN_MIRROR_URL = "https://ru-app.chatone.im/auth/"
 
+    val LOGIN_SITE_ORIGINS: Set<String> = setOf(SITE_LOGIN_URL, SITE_LOGIN_MIRROR_URL)
+        .map { it.substringBefore("/auth/") }
+        .toSet()
+
     const val LOGIN_PAYLOAD_VERSION = 1
 
     val REQUIRED_SCOPES = listOf(

@@ -11,21 +11,32 @@ import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
+import io.rudione.chatone.data.auth.LoginSiteResolver
 import io.rudione.chatone.data.local.DatabaseDriverFactory
 import io.rudione.chatone.data.local.createDatabase
+import io.rudione.chatone.data.remote.AiAssistantClient
 import io.rudione.chatone.data.remote.BestLogsClient
+import io.rudione.chatone.data.remote.ImageUploaderClient
+import io.rudione.chatone.data.remote.IvrApiClient
+import io.rudione.chatone.data.remote.OllamaClient
 import io.rudione.chatone.data.remote.TwitchChatterFameClient
 import io.rudione.chatone.data.remote.RecentMessagesClient
 import io.rudione.chatone.data.remote.RolesTvClient
+import io.rudione.chatone.data.remote.TranslationClient
 import io.rudione.chatone.data.remote.TwitchApiClient
+import io.rudione.chatone.data.remote.TwitchBadgeGqlClient
+import io.rudione.chatone.data.remote.TwitchDeviceAuthClient
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.remote.TwitchPubSubClient
 import io.rudione.chatone.data.remote.TwitchEventSubClient
+import io.rudione.chatone.data.remote.TwitchGqlClient
 import io.rudione.chatone.data.remote.emote.BttvApiClient
 import io.rudione.chatone.data.remote.emote.FfzApiClient
+import io.rudione.chatone.data.remote.emote.PersonalSetExtractor
 import io.rudione.chatone.data.remote.emote.SevenTvApiClient
 import io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient
 import io.rudione.chatone.data.remote.emote.SevenTvEventApi
+import io.rudione.chatone.data.remote.gif.GiphyApiClient
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.data.repository.AuthRepositoryImpl
 import io.rudione.chatone.data.repository.BadgeRepository
@@ -45,6 +56,7 @@ import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.presentation.account.AccountListLoader
 import io.rudione.chatone.presentation.account.AccountSwitchCoordinator
 import io.rudione.chatone.data.remote.proxy.HttpClientFactory
+import io.rudione.chatone.data.remote.proxy.IrcConnectionFactory
 import io.rudione.chatone.data.remote.proxy.buildHttpClientWithProxy
 import io.rudione.chatone.presentation.main.MainViewModel
 import io.rudione.chatone.presentation.settings.SettingsViewModel
@@ -53,15 +65,49 @@ import io.rudione.chatone.data.repository.SidebarLayoutRepository
 import io.rudione.chatone.data.repository.StreamPlayerPreferencesRepository
 import io.rudione.chatone.data.remote.stream.TwitchAdBreakResolver
 import io.rudione.chatone.data.remote.stream.TwitchPlaybackClient
+import io.rudione.chatone.data.repository.AccountAgeRepository
+import io.rudione.chatone.data.repository.AiAssistantController
+import io.rudione.chatone.data.repository.ChatMessageScaleRepository
+import io.rudione.chatone.data.repository.EnrichedPersonalEmoteBackfiller
+import io.rudione.chatone.data.repository.FirstPartyDeviceAuthController
+import io.rudione.chatone.data.repository.GifRepository
+import io.rudione.chatone.data.repository.MentionMuteRepository
+import io.rudione.chatone.data.repository.MessagePersistenceQueue
+import io.rudione.chatone.data.repository.ModelDownloadRepository
+import io.rudione.chatone.data.repository.ModerationAuthStore
+import io.rudione.chatone.data.repository.ModerationHistoryRepository
+import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
+import io.rudione.chatone.data.repository.NicknameRepository
+import io.rudione.chatone.data.repository.RecentChannelsRepository
+import io.rudione.chatone.data.repository.RemoteEntitlementsRepository
+import io.rudione.chatone.data.repository.StreamerModeController
+import io.rudione.chatone.data.repository.ThirdPartyBadgeRepository
+import io.rudione.chatone.data.repository.WebLoginController
+import io.rudione.chatone.domain.entitlements.EntitlementsRepository
+import io.rudione.chatone.domain.entitlements.HasFeatureUseCase
+import io.rudione.chatone.domain.entitlements.RefreshEntitlementsUseCase
+import io.rudione.chatone.domain.entitlements.ResolveUserPerksUseCase
 import io.rudione.chatone.domain.stream.StreamAdBreakSource
 import io.rudione.chatone.domain.stream.StreamManifestSource
+import io.rudione.chatone.presentation.account.AccountActions
+import io.rudione.chatone.presentation.account.AccountFlowGlue
+import io.rudione.chatone.presentation.account.AccountInitializer
+import io.rudione.chatone.presentation.account.AccountMigration
 import io.rudione.chatone.presentation.stream.StreamPlayerViewModel
 import io.rudione.chatone.presentation.account.AccountSettingsExporter
+import io.rudione.chatone.presentation.account.AccountStateRefresher
+import io.rudione.chatone.presentation.account.PerAccountSettingsLoader
+import io.rudione.chatone.presentation.chat.TranslationStore
 import io.rudione.chatone.presentation.chat.multichat.ChatViewModelPerPanelFactory
+import io.rudione.chatone.presentation.chat.multichat.PanelEventBus
 import io.rudione.chatone.presentation.chat.multichat.PanelMessageDispatcher
+import io.rudione.chatone.presentation.chat.multichat.PanelMessageInputBus
+import io.rudione.chatone.presentation.chat.multichat.PanelViewModelStoreRegistry
 import io.rudione.chatone.presentation.settings.SettingsNavigator
+import io.rudione.chatone.presentation.startup.LaunchReadiness
 import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.util.settings.AppConfig
+import io.rudione.chatone.util.system.LaunchGate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -129,10 +175,18 @@ val networkModule = module {
         )
     }
 
-    single { TwitchPubSubClient(httpClient = get(), scope = get(IoScopeQualifier)) }
-    single { TwitchEventSubClient(httpClient = get(), apiClient = get(), scope = get(IoScopeQualifier)) }
-    single { io.rudione.chatone.data.remote.ImageUploaderClient(httpClient = get()) }
-    single { io.rudione.chatone.data.repository.MentionMuteRepository() }
+    single {
+        TwitchPubSubClient(httpClient = get(), scope = get(IoScopeQualifier))
+    }
+    single {
+        TwitchEventSubClient(
+            httpClient = get(),
+            apiClient = get(),
+            scope = get(IoScopeQualifier)
+        )
+    }
+    single { ImageUploaderClient(httpClient = get()) }
+    single { MentionMuteRepository() }
 
     single { RecentMessagesClient(httpClient = get()) }
     single { BestLogsClient(httpClient = get()) }
@@ -143,46 +197,47 @@ val networkModule = module {
     single { SevenTvApiClient(httpClient = get()) }
     single { BttvApiClient(httpClient = get()) }
     single { FfzApiClient(httpClient = get()) }
-    single { io.rudione.chatone.data.remote.gif.GiphyApiClient(httpClient = get()) }
+    single { GiphyApiClient(httpClient = get()) }
 
     single { SevenTvCosmeticsClient(httpClient = get(), scope = get(IoScopeQualifier)) }
     single { SevenTvEventApi(httpClient = get(), scope = get(IoScopeQualifier)) }
 
-    single { io.rudione.chatone.data.remote.TranslationClient(httpClient = get()) }
-    single { io.rudione.chatone.presentation.chat.TranslationStore(client = get()) }
-    single { io.rudione.chatone.data.remote.TwitchGqlClient(httpClient = get()) }
+    single { TranslationClient(httpClient = get()) }
+    single { TranslationStore(client = get()) }
+    single { TwitchGqlClient(httpClient = get()) }
     single {
-        io.rudione.chatone.data.repository.ModerationAuthStore(
+        ModerationAuthStore(
             settings = get(),
             gqlClient = get(),
             accountManager = get(),
             scope = get()
         )
     }
-    single { io.rudione.chatone.data.remote.TwitchDeviceAuthClient(httpClient = get()) }
+    single { TwitchDeviceAuthClient(httpClient = get()) }
     single {
-        io.rudione.chatone.data.repository.FirstPartyDeviceAuthController(
+        FirstPartyDeviceAuthController(
             deviceAuthClient = get(),
             moderationAuthStore = get(),
             scope = get()
         )
     }
-    single { io.rudione.chatone.data.auth.LoginSiteResolver(httpClient = get()) }
+    single { LoginSiteResolver(httpClient = get()) }
     single {
-        io.rudione.chatone.data.repository.WebLoginController(
+        WebLoginController(
             authRepository = get(),
             deviceAuthController = get(),
             moderationAuthStore = get(),
             siteResolver = get(),
+            returnChannel = get(),
             scope = get()
         )
     }
-    single { io.rudione.chatone.data.repository.StreamerModeController(settings = get()) }
-    single { io.rudione.chatone.data.remote.AiAssistantClient(httpClient = get()) }
-    single { io.rudione.chatone.data.remote.OllamaClient(httpClient = get()) }
-    single { io.rudione.chatone.data.repository.AiAssistantController(settings = get()) }
+    single { StreamerModeController(settings = get()) }
+    single { AiAssistantClient(httpClient = get()) }
+    single { OllamaClient(httpClient = get()) }
+    single { AiAssistantController(settings = get()) }
     single(createdAtStart = true) {
-        io.rudione.chatone.data.repository.ModelDownloadRepository(
+        ModelDownloadRepository(
             ollama = get(),
             settings = get(),
             scope = get(IoScopeQualifier)
@@ -220,12 +275,12 @@ val repositoryModule = module {
     single {
         BadgeRepository(
             apiClient = get(),
-            gqlBadges = io.rudione.chatone.data.remote.TwitchBadgeGqlClient(httpClient = get())
+            gqlBadges = TwitchBadgeGqlClient(httpClient = get())
         )
     }
 
     single {
-        io.rudione.chatone.data.repository.GifRepository(
+        GifRepository(
             giphyApi = get(),
             settings = get()
         )
@@ -244,7 +299,7 @@ val repositoryModule = module {
     }
 
     single {
-        io.rudione.chatone.data.repository.ModerationHistoryRepository(
+        ModerationHistoryRepository(
             database = get(),
             scope = get(IoScopeQualifier),
             gqlClient = get()
@@ -252,40 +307,38 @@ val repositoryModule = module {
     }
 
     single {
-        io.rudione.chatone.data.repository.MessagePersistenceQueue(
+        MessagePersistenceQueue(
             chatRepository = get(),
             scope = get(IoScopeQualifier)
         )
     }
 
     single {
-        io.rudione.chatone.data.repository.NicknameRepository(
+        NicknameRepository(
             database = get()
         )
     }
 
     single {
-        io.rudione.chatone.data.repository.ThirdPartyBadgeRepository(
+        ThirdPartyBadgeRepository(
             httpClient = get()
         )
     }
 
     single {
-        io.rudione.chatone.data.remote.IvrApiClient(
+        IvrApiClient(
             httpClient = get()
         )
     }
 
-    single<io.rudione.chatone.domain.entitlements.EntitlementsRepository> {
-        io.rudione.chatone.data.repository.RemoteEntitlementsRepository(
+    single<EntitlementsRepository> {
+        RemoteEntitlementsRepository(
             httpClient = get()
         )
     }
-    single { io.rudione.chatone.domain.entitlements.RefreshEntitlementsUseCase(repository = get()) }
-    single { io.rudione.chatone.domain.entitlements.ResolveUserPerksUseCase(repository = get()) }
-    single {
-        io.rudione.chatone.domain.entitlements.HasFeatureUseCase(resolvePerks = get())
-    }
+    single { RefreshEntitlementsUseCase(repository = get()) }
+    single { ResolveUserPerksUseCase(repository = get()) }
+    single { HasFeatureUseCase(resolvePerks = get()) }
 
     single {
         AutomodRepository(
@@ -294,7 +347,7 @@ val repositoryModule = module {
     }
 
     single {
-        io.rudione.chatone.data.repository.AccountAgeRepository(
+        AccountAgeRepository(
             apiClient = get(),
             scope = get(IoScopeQualifier)
         )
@@ -324,16 +377,17 @@ val useCaseModule = module {
 
 val appModule = module {
     single { CustomThemeManager() }
-    single { io.rudione.chatone.util.system.LaunchGate() }
+    single { LaunchGate() }
+    single { LaunchReadiness() }
     single { ChatPanelManager() }
     single { AccountManager(settings = get()) }
     single { PanelPersistence(settings = get()) }
     single { AccountListLoader(authRepository = get()) }
     single { HttpClientFactory(accountManager = get()) }
     single { PanelLifecycleSync(ircClient = get(), scope = get()) }
-    single { io.rudione.chatone.presentation.chat.multichat.PanelViewModelStoreRegistry() }
+    single { PanelViewModelStoreRegistry() }
     single {
-        io.rudione.chatone.presentation.account.AccountActions(
+        AccountActions(
             authRepository = get(),
             accountManager = get(),
             moderationAuthStore = get(),
@@ -341,57 +395,57 @@ val appModule = module {
             scope = get()
         )
     }
-    single { io.rudione.chatone.presentation.chat.multichat.PanelEventBus() }
+    single { PanelEventBus() }
     single {
-        io.rudione.chatone.data.remote.emote.PersonalSetExtractor(
+        PersonalSetExtractor(
             httpClient = get()
         )
     }
     single {
-        io.rudione.chatone.data.repository.EnrichedPersonalEmoteBackfiller(
+        EnrichedPersonalEmoteBackfiller(
             emoteRepository = get(),
             extractor = get(),
             scope = get(IoScopeQualifier)
         )
     }
-    single { io.rudione.chatone.presentation.account.PerAccountSettingsLoader(accountManager = get()) }
+    single { PerAccountSettingsLoader(accountManager = get()) }
     single {
-        io.rudione.chatone.presentation.account.AccountStateRefresher(
+        AccountStateRefresher(
             authRepository = get(),
             accountManager = get(),
             scope = get()
         )
     }
     single {
-        io.rudione.chatone.presentation.account.AccountInitializer(
+        AccountInitializer(
             authRepository = get(),
             accountManager = get(),
             scope = get()
         )
     }
     single {
-        io.rudione.chatone.presentation.account.AccountFlowGlue(
+        AccountFlowGlue(
             authRepository = get(),
             accountManager = get()
         )
     }
-    single { io.rudione.chatone.presentation.chat.multichat.PanelMessageInputBus() }
+    single { PanelMessageInputBus() }
     single {
-        io.rudione.chatone.presentation.account.AccountMigration(
+        AccountMigration(
             authRepository = get(),
             accountManager = get(),
             scope = get()
         )
     }
     single {
-        io.rudione.chatone.data.remote.proxy.IrcConnectionFactory(
+        IrcConnectionFactory(
             httpClientFactory = get(),
             accountManager = get(),
             scope = get(IoScopeQualifier)
         )
     }
     single {
-        io.rudione.chatone.data.repository.MultiAccountConnectionRegistry(
+        MultiAccountConnectionRegistry(
             ircFactory = get(),
             accountManager = get(),
             scope = get()
@@ -420,8 +474,8 @@ val appModule = module {
 val settingsModule = module {
     single { Settings() }
     single { SidebarLayoutRepository(settings = get()) }
-    single { io.rudione.chatone.data.repository.ChatMessageScaleRepository(settings = get()) }
-    single { io.rudione.chatone.data.repository.RecentChannelsRepository(settings = get()) }
+    single { ChatMessageScaleRepository(settings = get()) }
+    single { RecentChannelsRepository(settings = get()) }
     single { SettingsNavigator() }
 }
 
@@ -439,7 +493,11 @@ val streamModule = module {
     single {
         val httpClientFactory = get<HttpClientFactory>()
         val accountManager = get<AccountManager>()
-        TwitchPlaybackClient(httpClient = { httpClientFactory.forAccount(accountManager.activeAccountId.value) })
+        TwitchPlaybackClient(
+            httpClient = {
+                httpClientFactory.forAccount(accountManager.activeAccountId.value)
+            }
+        )
     }
     single<StreamManifestSource> { get<TwitchPlaybackClient>() }
     single<StreamAdBreakSource> { TwitchAdBreakResolver(client = get()) }
@@ -463,5 +521,6 @@ fun appModules(): List<Module> = listOf(
     streamModule,
     platformStreamModule,
     notificationModule,
-    platformBrowseModule
+    platformBrowseModule,
+    platformLoginReturnModule
 )

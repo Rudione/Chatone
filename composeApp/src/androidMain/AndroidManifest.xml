@@ -7,28 +7,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
-    <uses-feature
-        android:name="android.software.leanback"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.touchscreen"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.telephony"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.microphone"
-        android:required="false" />
-    <uses-feature
-        android:name="android.software.xr.immersive"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.vr.headtracking"
-        android:required="false" />
-
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -38,35 +16,14 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="twitch" />
         </intent>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
     </queries>
 
-    <application
-        android:name=".ChatoneApplication"
-        android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
-        android:banner="@drawable/tv_banner"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.Chatone">
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
-            android:supportsPictureInPicture="true"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.Chatone.Starting">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-            </intent-filter>
-        </activity>
-
+    <application>
         <service
-            android:name=".presentation.notifications.ChatBackgroundService"
+            android:name="io.rudione.chatone.presentation.notifications.ChatBackgroundService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property

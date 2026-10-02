@@ -19,6 +19,7 @@ import io.rudione.chatone.util.link.openAuthTab
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.repository.LoginFailure
 import io.rudione.chatone.data.repository.WebLoginController
+import io.rudione.chatone.data.repository.RightsHandoff
 import io.rudione.chatone.data.repository.WebLoginStage
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.presentation.auth.WebLoginPanel
@@ -46,6 +47,12 @@ fun AccountAddDialog(
             onAccountAdded(current.account)
             controller.reset()
             onDismiss()
+        }
+        if (current is WebLoginStage.AwaitingRights && current.handoff == RightsHandoff.OpenNow) {
+            current.activationUrl?.let { url ->
+                openAuthTab(url)
+                controller.markActivationOpened()
+            }
         }
     }
 

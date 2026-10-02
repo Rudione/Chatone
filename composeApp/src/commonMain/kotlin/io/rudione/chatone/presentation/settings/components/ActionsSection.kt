@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.components
 
+import io.rudione.chatone.presentation.components.expressive.HelpHint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,14 +91,16 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun CardTitle(text: String, subtitle: String? = null) {
-    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-    if (subtitle != null) {
+private fun CardTitle(text: String, help: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            subtitle,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            text,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f, fill = false)
         )
+        HelpHint(title = text, text = help, size = 28.dp)
     }
 }
 
@@ -108,21 +111,11 @@ fun ActionsSection(
 ) {
     val s = LocalStrings.current
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-        Text(
-            s.sectionActions,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 2.dp)
-        )
-        Text(
-            s.actionsHint,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
-
         SectionCard {
-            CardTitle(s.actionsAutomations, s.actionsAutomationsHint)
+            CardTitle(
+                s.actionsAutomations,
+                listOf(s.actionsHint, s.actionsAutomationsHint, s.actionsSafetyNote).joinToString(" ")
+            )
 
             var editingId by remember { mutableStateOf<String?>(null) }
             var kind by remember { mutableStateOf(AutomationKind.TIMED_MESSAGE) }
@@ -396,11 +389,6 @@ fun ActionsSection(
                     }
                 }
             }
-            Text(
-                s.actionsSafetyNote,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-            )
         }
 
         SectionCard {

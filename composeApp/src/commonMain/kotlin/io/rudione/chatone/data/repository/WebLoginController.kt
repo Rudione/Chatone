@@ -3,6 +3,9 @@ package io.rudione.chatone.data.repository
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.data.auth.LoginPayloadCodec
 import io.rudione.chatone.data.auth.LoginPayloadResult
+import io.rudione.chatone.data.auth.LoginReturnChannel
+import io.rudione.chatone.data.auth.LoginReturnOutcome
+import io.rudione.chatone.data.auth.LoginReturnTarget
 import io.rudione.chatone.data.auth.LoginSiteResolver
 import io.rudione.chatone.data.auth.WebLoginSession
 import io.rudione.chatone.data.remote.TwitchFirstPartyClient
@@ -15,6 +18,7 @@ import io.rudione.chatone.util.settings.AppConfig
 import io.rudione.chatone.util.system.isDesktopPlatform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,16 +44,23 @@ sealed class WebLoginStage {
     data class Preparing(val attempt: Int = 1) : WebLoginStage()
     data object AwaitingPaste : WebLoginStage()
     data class Verifying(val attempt: Int = 1) : WebLoginStage()
-    data class AwaitingRights(val account: TwitchAccount, val activationUrl: String? = null) : WebLoginStage()
+    data class AwaitingRights(
+        val account: TwitchAccount,
+        val activationUrl: String? = null,
+        val handoff: RightsHandoff = RightsHandoff.Manual
+    ) : WebLoginStage()
     data class Success(val account: TwitchAccount) : WebLoginStage()
     data class Failure(val reason: LoginFailure, val detail: String? = null) : WebLoginStage()
 }
+
+enum class RightsHandoff { Manual, InBrowser, OpenNow }
 
 class WebLoginController(
     private val authRepository: AuthRepository,
     private val deviceAuthController: FirstPartyDeviceAuthController,
     private val moderationAuthStore: ModerationAuthStore,
     private val siteResolver: LoginSiteResolver,
+    private val returnChannel: LoginReturnChannel,
     private val scope: CoroutineScope
 ) {
     private val session = WebLoginSession()
@@ -59,6 +70,8 @@ class WebLoginController(
 
     private val _loginUrl = MutableStateFlow<String?>(null)
     val loginUrl: StateFlow<String?> = _loginUrl.asStateFlow()
+
+    val supportsAutomaticReturn: Boolean get() = returnChannel.isAutomatic
 
     fun mirrorLoginUrl(): String? = _loginUrl.value?.let(siteResolver::alternateOf)
 
@@ -82,6 +95,10 @@ class WebLoginController(
 
     private var rightsPendingInBackground = false
 
+    private var returnTarget: LoginReturnTarget? = null
+
+    private var pendingHandoff: RightsHandoff = RightsHandoff.Manual
+
     fun begin(onUrlReady: (String) -> Unit) {
         val previous = prepareJob
         prepareJob = scope.launch {
@@ -90,7 +107,11 @@ class WebLoginController(
             pendingPayload = null
             _stage.value = WebLoginStage.Preparing()
 
-            val url = session.begin(loginUrl = siteResolver.resolve())
+            returnChannel.close()
+            returnTarget = runCatching { returnChannel.open { line -> acceptReturn(line) } }
+                .onFailure { Napier.w("Login return channel unavailable: ${it.message}", tag = TAG) }
+                .getOrNull()
+            val url = session.begin(loginUrl = siteResolver.resolve(), returnTarget = returnTarget)
             if (!isSafeHttpUrl(url)) {
                 Napier.e("Refusing to open unsafe login URL", tag = TAG)
                 _stage.value = WebLoginStage.Failure(LoginFailure.UnsafeLoginUrl)
@@ -129,49 +150,94 @@ class WebLoginController(
         val previous = submitJob
         submitJob = scope.launch {
             previous?.cancel()
-            pendingPayload = trimmed
-            _stage.value = WebLoginStage.Verifying()
+            pendingHandoff = RightsHandoff.Manual
+            verify(trimmed)
+        }
+    }
 
-            val credentials = when (val decoded = session.decode(trimmed)) {
-                is LoginPayloadResult.Success -> decoded.credentials
-                LoginPayloadResult.Empty -> return@launch fail(LoginFailure.ClipboardEmpty)
-                LoginPayloadResult.Malformed -> return@launch fail(LoginFailure.Malformed)
-                LoginPayloadResult.DecryptionFailed -> return@launch fail(LoginFailure.DecryptionFailed)
-                LoginPayloadResult.Incomplete -> return@launch fail(LoginFailure.Incomplete)
-                LoginPayloadResult.EncryptionUnsupported ->
-                    return@launch fail(LoginFailure.EncryptionUnsupported)
+    private suspend fun acceptReturn(line: String): LoginReturnOutcome {
+        val trimmed = line.trim()
+        if (!LoginPayloadCodec.looksEncrypted(trimmed) || !LoginPayloadCodec.canAutoSubmit(trimmed)) {
+            return LoginReturnOutcome.Rejected
+        }
+        if (trimmed == acceptedPayload) return LoginReturnOutcome.Rejected
+        if (session.decode(trimmed) !is LoginPayloadResult.Success) return LoginReturnOutcome.Rejected
+        acceptedPayload = trimmed
+        val handoff = when (returnTarget) {
+            is LoginReturnTarget.Loopback -> RightsHandoff.InBrowser
+            LoginReturnTarget.AppLink -> RightsHandoff.OpenNow
+            null -> return LoginReturnOutcome.Rejected
+        }
+        val previous = submitJob
+        val job = scope.launch {
+            previous?.cancelAndJoin()
+            pendingHandoff = handoff
+            verify(trimmed)
+        }
+        submitJob = job
+        job.join()
+        return when (val stage = _stage.value) {
+            is WebLoginStage.Success -> LoginReturnOutcome.Done
+            is WebLoginStage.AwaitingRights -> stage.activationUrl
+                ?.let { LoginReturnOutcome.Continue(it) }
+                ?: LoginReturnOutcome.Rejected
+            else -> {
+                acceptedPayload = null
+                LoginReturnOutcome.Rejected
             }
+        }
+    }
 
-            if (credentials.clientId.isNotEmpty() && credentials.clientId != AppConfig.TWITCH_CLIENT_ID) {
-                Napier.w("Pasted credentials belong to another application", tag = TAG)
-                return@launch fail(LoginFailure.ForeignClientId)
-            }
+    fun markActivationOpened() {
+        val current = _stage.value as? WebLoginStage.AwaitingRights ?: return
+        if (current.handoff == RightsHandoff.OpenNow) {
+            _stage.value = current.copy(handoff = RightsHandoff.InBrowser)
+        }
+    }
 
-            when (val result = authenticate(credentials.oauthToken)) {
-                is Result.Success -> {
-                    if (credentials.userId.isNotEmpty() && result.data.userId != credentials.userId) {
-                        Napier.e("Token identity does not match the pasted user id", tag = TAG)
-                        authRepository.deleteAccount(result.data.userId, revoke = false)
-                        return@launch fail(LoginFailure.IdentityMismatch)
-                    }
-                    pendingPayload = null
-                    acceptedPayload = null
-                    session.end()
-                    _loginUrl.value = null
-                    finishOrWaitForRights(result.data, credentials)
+    private suspend fun verify(trimmed: String) {
+        pendingPayload = trimmed
+        _stage.value = WebLoginStage.Verifying()
+
+        val credentials = when (val decoded = session.decode(trimmed)) {
+            is LoginPayloadResult.Success -> decoded.credentials
+            LoginPayloadResult.Empty -> return fail(LoginFailure.ClipboardEmpty)
+            LoginPayloadResult.Malformed -> return fail(LoginFailure.Malformed)
+            LoginPayloadResult.DecryptionFailed -> return fail(LoginFailure.DecryptionFailed)
+            LoginPayloadResult.Incomplete -> return fail(LoginFailure.Incomplete)
+            LoginPayloadResult.EncryptionUnsupported ->
+                return fail(LoginFailure.EncryptionUnsupported)
+        }
+
+        if (credentials.clientId.isNotEmpty() && credentials.clientId != AppConfig.TWITCH_CLIENT_ID) {
+            Napier.w("Pasted credentials belong to another application", tag = TAG)
+            return fail(LoginFailure.ForeignClientId)
+        }
+
+        when (val result = authenticate(credentials.oauthToken)) {
+            is Result.Success -> {
+                if (credentials.userId.isNotEmpty() && result.data.userId != credentials.userId) {
+                    Napier.e("Token identity does not match the pasted user id", tag = TAG)
+                    authRepository.deleteAccount(result.data.userId, revoke = false)
+                    return fail(LoginFailure.IdentityMismatch)
                 }
-
-                is Result.Error -> {
-                    if (isRetryableFailure(result.exception)) {
-                        Napier.w("Login blocked by connectivity: ${result.exception.message}", tag = TAG)
-                        fail(LoginFailure.Network, result.exception.message)
-                    } else {
-                        fail(LoginFailure.TokenRejected, result.exception.message)
-                    }
-                }
-
-                Result.Loading -> Unit
+                pendingPayload = null
+                acceptedPayload = null
+                session.end()
+                _loginUrl.value = null
+                finishOrWaitForRights(result.data, credentials)
             }
+
+            is Result.Error -> {
+                if (isRetryableFailure(result.exception)) {
+                    Napier.w("Login blocked by connectivity: ${result.exception.message}", tag = TAG)
+                    fail(LoginFailure.Network, result.exception.message)
+                } else {
+                    fail(LoginFailure.TokenRejected, result.exception.message)
+                }
+            }
+
+            Result.Loading -> Unit
         }
     }
 
@@ -231,7 +297,7 @@ class WebLoginController(
             _stage.value = WebLoginStage.Failure(LoginFailure.RightsNotGranted, detail)
             return
         }
-        _stage.value = WebLoginStage.AwaitingRights(account, activation)
+        _stage.value = WebLoginStage.AwaitingRights(account, activation, pendingHandoff)
         watchRights(account)
     }
 
@@ -243,6 +309,7 @@ class WebLoginController(
         prepareJob = scope.launch {
             previous?.cancel()
             rightsJob?.cancel()
+            pendingHandoff = RightsHandoff.OpenNow
             awaitOwnDeviceApproval(account)
         }
     }
@@ -289,6 +356,9 @@ class WebLoginController(
         lastAccount = null
         acceptedPayload = null
         pendingPayload = null
+        pendingHandoff = RightsHandoff.Manual
+        returnTarget = null
+        returnChannel.close()
         session.end()
         if (!rightsPendingInBackground) deviceAuthController.cancel()
         rightsPendingInBackground = false

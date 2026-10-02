@@ -265,8 +265,9 @@ composeApp/src/
 # Portable zip for the current OS → build/distributions/
 ./gradlew :composeApp:createPortableZip
 
-# Android
-./gradlew :composeApp:assembleRelease
+# Android (app module) → androidApp/build/outputs/
+./gradlew :androidApp:assembleRelease
+./gradlew :androidApp:bundleRelease
 ```
 
 Version and version code live in `gradle.properties` (`app.version`, `app.versionCode`).

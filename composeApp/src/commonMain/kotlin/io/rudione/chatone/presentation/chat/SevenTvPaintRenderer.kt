@@ -257,6 +257,7 @@ private class SevenTvImageBrush(
 }
 
 private const val PAINT_MAX_DIMENSION = 192
+private const val PAINT_IMAGE_CACHE_LIMIT = 48
 
 private fun SevenTvCosmetics.Paint.renderableImageUrl(): String {
     if (imageUrl.isBlank()) return ""
@@ -281,6 +282,7 @@ private fun rememberPaintImage(url: String): ImageBitmap? {
             decodeImageBitmap(httpClient.get(url).readRawBytes())
         }.getOrNull()
         paintImageCache[url] = decoded
+        if (paintImageCache.size > PAINT_IMAGE_CACHE_LIMIT) paintImageCache.remove(paintImageCache.keys.first())
         bitmap = decoded
     }
     return bitmap

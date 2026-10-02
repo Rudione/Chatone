@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,17 +8,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,18 +24,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import io.rudione.chatone.icons.material.Icons
-import io.rudione.chatone.icons.material.filled.CheckCircle
-import io.rudione.chatone.icons.material.outlined.Info
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.data.repository.DeviceAuthState
 import io.rudione.chatone.data.repository.FirstPartyDeviceAuthController
 import io.rudione.chatone.data.repository.ModerationAuthStore
 import io.rudione.chatone.data.repository.StreamerModeController
-import io.rudione.chatone.data.repository.AccountManager
+import io.rudione.chatone.icons.material.Icons
+import io.rudione.chatone.icons.material.filled.CheckCircle
+import io.rudione.chatone.icons.material.outlined.Info
 import io.rudione.chatone.presentation.account.AccountListLoader
 import io.rudione.chatone.presentation.account.rememberAccountListState
 import io.rudione.chatone.presentation.components.ChatoneActionRow
@@ -46,6 +45,7 @@ import io.rudione.chatone.presentation.components.ChatoneSecretField
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.SecretRevealButton
 import io.rudione.chatone.presentation.components.SettingsCard
+import io.rudione.chatone.presentation.components.expressive.HelpHint
 import io.rudione.chatone.presentation.components.rememberSecretVisibility
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
@@ -301,16 +301,17 @@ fun StreamerModeCard(controller: StreamerModeController = koinInject()) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     s.streamerModeHideData,
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
-                Text(
-                    s.streamerModeObs,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                HelpHint(
+                    title = s.streamerModeHideData,
+                    text = "${s.streamerModeObs} ${s.streamerStaysOn}",
+                    size = 28.dp
                 )
             }
             ChatoneSwitch(
@@ -335,22 +336,6 @@ fun StreamerModeCard(controller: StreamerModeController = koinInject()) {
             }
             StreamerToggle(s.streamerSuppressNotif, state.options.suppressNotifications) { v ->
                 controller.setOptions { it.copy(suppressNotifications = v) }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(top = 2.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.Info, null,
-                    modifier = Modifier.width(14.dp).height(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    s.streamerStaysOn,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
