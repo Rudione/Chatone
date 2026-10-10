@@ -127,46 +127,6 @@ import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.icons.lucide.User
 import io.rudione.chatone.icons.lucide.X
 
-internal sealed interface SidebarDropTarget {
-    data class Folder(val folderId: String) : SidebarDropTarget
-    data class Channel(val login: String, val folderId: String?) : SidebarDropTarget
-    data object Unfoldered : SidebarDropTarget
-}
-
-internal class SidebarDropIndex {
-    val folderRects = mutableStateMapOf<String, Rect>()
-    val channelRects = mutableStateMapOf<String, Rect>()
-    val channelFolderIds = mutableStateMapOf<String, String?>()
-    var unfolderedSection by mutableStateOf<Rect?>(null)
-
-    fun putChannel(login: String, folderId: String?, rect: Rect) {
-        channelRects[login] = rect
-        channelFolderIds[login] = folderId
-    }
-
-    fun forget(login: String) {
-        channelRects.remove(login)
-        channelFolderIds.remove(login)
-    }
-
-    fun resolve(pointInRoot: Offset): SidebarDropTarget? {
-        folderRects.entries.firstOrNull { it.value.contains(pointInRoot) }?.let {
-            return SidebarDropTarget.Folder(it.key)
-        }
-        channelRects.entries.firstOrNull { it.value.contains(pointInRoot) }?.let {
-            return SidebarDropTarget.Channel(it.key, channelFolderIds[it.key])
-        }
-        if (unfolderedSection?.contains(pointInRoot) == true) return SidebarDropTarget.Unfoldered
-        return null
-    }
-
-    fun hoveredFolderId(pointInRoot: Offset): String? = when (val t = resolve(pointInRoot)) {
-        is SidebarDropTarget.Folder -> t.folderId
-        is SidebarDropTarget.Channel -> t.folderId
-        else -> null
-    }
-}
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun ChannelSidebar(
@@ -178,16 +138,18 @@ internal fun ChannelSidebar(
 ) {
     val extra = ChatoneTheme.extraColors
 
-    var draggedChannelLogin by remember { mutableStateOf<String?>(null) }
-    var draggedChannelSourceFolderId by remember { mutableStateOf<String?>(null) }
-    var dragOffsetPx by remember { mutableStateOf(Offset.Zero) }
-    var dragStartRootPx by remember { mutableStateOf(Offset.Zero) }
-    var isDragging by remember { mutableStateOf(false) }
-    var dropTargetFolderId by remember { mutableStateOf<String?>(null) }
     var sidebarTopLeftInRoot by remember { mutableStateOf(Offset.Zero) }
 
     val dropIndex = remember { SidebarDropIndex() }
-    val dragPointInRoot = dragStartRootPx + dragOffsetPx
+    val dragState = remember { SidebarDragState() }
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current
+    val dropTargetFolderId by remember(dropIndex, dragState) {
+        derivedStateOf { if (dragState.isDragging) dropIndex.hoveredFolderId(dragState.pointInRoot) else null }
+    }
+    LaunchedEffect(dragState.isDragging) {
+        if (dragState.isDragging) dragState.autoScroll(listState, density)
+    }
 
     LaunchedEffect(state.folders, state.unfolderedChannels) {
         val alive = buildSet {
@@ -250,7 +212,10 @@ internal fun ChannelSidebar(
                     }
                 }
             )
-            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
+                    .union(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+            )
             .onGloballyPositioned { sidebarTopLeftInRoot = it.positionInRoot() }
     ) {
         Row(
@@ -461,17 +426,18 @@ internal fun ChannelSidebar(
         )
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .weight(1f)
-                .pointerInput(isDragging) {
-                    if (isDragging) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                event.changes.forEach { it.consume() }
-                            }
-                        }
-                    }
+                .sidebarDragTracking(dragState, listState) { dropped, point ->
+                    applySidebarDrop(
+                        target = dropIndex.resolve(point),
+                        draggedLogin = dropped.login,
+                        sourceFolderId = dropped.folderId,
+                        folders = state.folders,
+                        unfoldered = filteredUnfoldered,
+                        onEvent = onEvent
+                    )
                 },
             contentPadding = PaddingValues(vertical = 4.dp),
             verticalArrangement = Arrangement.Top
@@ -500,14 +466,12 @@ internal fun ChannelSidebar(
                     onEdit = { onEvent(MainEvent.ShowEditFolderDialog(folder.id)) },
                     modifier = Modifier
                         .padding(horizontal = 4.dp)
-                        .onGloballyPositioned { coords ->
-                            dropIndex.folderRects[folder.id] = coords.boundsInRoot()
-                        },
-                    isDropTarget = dropTargetFolderId == folder.id && draggedChannelLogin != null
+                        .folderDropZone(dropIndex, folder.id),
+                    isDropTarget = dropTargetFolderId == folder.id
                 )
 
                 if (folder.isExpanded) {
-                    folder.channels.forEachIndexed { channelIndex, channel ->
+                    folder.channels.forEach { channel ->
                         ChannelItemWithDrag(
                             channel = channel,
                             isActive = channel.login == state.activeChannelLogin,
@@ -521,49 +485,18 @@ internal fun ChannelSidebar(
                             onCreateFolder = { onEvent(MainEvent.ShowCreateFolderDialog(channel.login)) },
                             liveNotifyEnabled = channel.login.lowercase() in state.liveNotifyChannels,
                             onToggleLiveNotify = { onEvent(MainEvent.ToggleLiveNotify(channel.login)) },
-                            index = channelIndex,
-                            onDragStart = { rootPos ->
-                                draggedChannelLogin = channel.login
-                                draggedChannelSourceFolderId = folder.id
-                                dragStartRootPx = rootPos
-                                dragOffsetPx = Offset.Zero
-                                isDragging = true
-                            },
-                            onDrag = { delta ->
-                                dragOffsetPx += delta
-                                dropTargetFolderId =
-                                    dropIndex.hoveredFolderId(dragStartRootPx + dragOffsetPx)
-                            },
-                            onDragEnd = {
-                                applySidebarDrop(
-                                    target = dropIndex.resolve(dragStartRootPx + dragOffsetPx),
-                                    draggedLogin = channel.login,
-                                    sourceFolderId = folder.id,
-                                    folders = state.folders,
-                                    unfoldered = filteredUnfoldered,
-                                    onEvent = onEvent
-                                )
-                                draggedChannelLogin = null
-                                draggedChannelSourceFolderId = null
-                                dropTargetFolderId = null
-                                dragOffsetPx = Offset.Zero
-                                isDragging = false
-                            },
+                            dragState = dragState,
                             modifier = Modifier
                                 .padding(horizontal = 4.dp)
-                                .onGloballyPositioned { coords ->
-                                    dropIndex.putChannel(
-                                        channel.login, folder.id, coords.boundsInRoot()
-                                    )
-                                }
+                                .channelDropZone(dropIndex, channel.login, folder.id)
                         )
                     }
                 }
             }
 
             item(key = "unfoldered_header") {
-                val isEjectTarget = isDragging && draggedChannelSourceFolderId != null &&
-                        dropIndex.resolve(dragPointInRoot) == SidebarDropTarget.Unfoldered
+                val isEjectTarget = dragState.isDragging && dragState.source?.folderId != null &&
+                        dropIndex.resolve(dragState.pointInRoot) == SidebarDropTarget.Unfoldered
                 Text(
                     LocalStrings.current.mainChannelsHeader,
                     style = MaterialTheme.typography.labelSmall,
@@ -578,9 +511,7 @@ internal fun ChannelSidebar(
                             if (isEjectTarget) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
                             else Color.Transparent
                         )
-                        .onGloballyPositioned { coords ->
-                            dropIndex.unfolderedSection = coords.boundsInRoot()
-                        }
+                        .unfolderedDropZone(dropIndex)
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                 )
             }
@@ -602,39 +533,10 @@ internal fun ChannelSidebar(
                     onCreateFolder = { onEvent(MainEvent.ShowCreateFolderDialog(channel.login)) },
                     liveNotifyEnabled = channel.login.lowercase() in state.liveNotifyChannels,
                     onToggleLiveNotify = { onEvent(MainEvent.ToggleLiveNotify(channel.login)) },
-                    index = index,
-                    onDragStart = { rootPos ->
-                        draggedChannelLogin = channel.login
-                        draggedChannelSourceFolderId = null
-                        dragStartRootPx = rootPos
-                        dragOffsetPx = Offset.Zero
-                        isDragging = true
-                    },
-                    onDrag = { delta ->
-                        dragOffsetPx += delta
-                        dropTargetFolderId =
-                            dropIndex.hoveredFolderId(dragStartRootPx + dragOffsetPx)
-                    },
-                    onDragEnd = {
-                        applySidebarDrop(
-                            target = dropIndex.resolve(dragStartRootPx + dragOffsetPx),
-                            draggedLogin = channel.login,
-                            sourceFolderId = null,
-                            folders = state.folders,
-                            unfoldered = filteredUnfoldered,
-                            onEvent = onEvent
-                        )
-                        draggedChannelLogin = null
-                        draggedChannelSourceFolderId = null
-                        dropTargetFolderId = null
-                        dragOffsetPx = Offset.Zero
-                        isDragging = false
-                    },
+                    dragState = dragState,
                     modifier = Modifier
                         .padding(horizontal = 4.dp)
-                        .onGloballyPositioned { coords ->
-                            dropIndex.putChannel(channel.login, null, coords.boundsInRoot())
-                        }
+                        .channelDropZone(dropIndex, channel.login, null)
                 )
             }
 
@@ -736,11 +638,12 @@ internal fun ChannelSidebar(
         Spacer(Modifier.height(4.dp))
     }
 
-    if (isDragging && draggedChannelLogin != null) {
+    val draggedLogin = dragState.source?.login
+    if (dragState.isDragging && draggedLogin != null) {
         Box(
             modifier = Modifier
                 .offset {
-                    val local = dragPointInRoot - sidebarTopLeftInRoot
+                    val local = dragState.pointInRoot - sidebarTopLeftInRoot
                     IntOffset(local.x.toInt(), local.y.toInt())
                 }
                 .zIndex(1000f)
@@ -750,8 +653,8 @@ internal fun ChannelSidebar(
                 .padding(horizontal = 12.dp, vertical = 8.dp)
                 .shadow(16.dp, RoundedCornerShape(8.dp))
         ) {
-            val ch = filteredUnfoldered.find { it.login == draggedChannelLogin }
-                ?: state.folders.flatMap { it.channels }.find { it.login == draggedChannelLogin }
+            val ch = filteredUnfoldered.find { it.login == draggedLogin }
+                ?: state.folders.flatMap { it.channels }.find { it.login == draggedLogin }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (ch?.profileImageUrl?.isNotEmpty() == true) {
                     AsyncImage(
@@ -762,54 +665,11 @@ internal fun ChannelSidebar(
                     Spacer(Modifier.width(6.dp))
                 }
                 Text(
-                    text = ch?.displayName ?: draggedChannelLogin!!,
+                    text = ch?.displayName ?: draggedLogin,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontWeight = FontWeight.SemiBold
                 )
-            }
-        }
-    }
-}
-
-internal fun applySidebarDrop(
-    target: SidebarDropTarget?,
-    draggedLogin: String,
-    sourceFolderId: String?,
-    folders: List<ChannelFolder>,
-    unfoldered: List<ChannelTab>,
-    onEvent: (MainEvent) -> Unit
-) {
-    when (target) {
-        null -> return
-
-        is SidebarDropTarget.Folder -> {
-            if (target.folderId != sourceFolderId) {
-                onEvent(MainEvent.MoveChannelToFolder(draggedLogin, target.folderId))
-            }
-        }
-
-        SidebarDropTarget.Unfoldered -> {
-            if (sourceFolderId != null) {
-                onEvent(MainEvent.MoveChannelToFolder(draggedLogin, null))
-            }
-        }
-
-        is SidebarDropTarget.Channel -> {
-            if (target.login.equals(draggedLogin, ignoreCase = true)) return
-            if (target.folderId != sourceFolderId) {
-                onEvent(MainEvent.MoveChannelToFolder(draggedLogin, target.folderId))
-                return
-            }
-            val siblings = if (sourceFolderId == null) unfoldered
-            else folders.firstOrNull { it.id == sourceFolderId }?.channels ?: return
-            val from = siblings.indexOfFirst { it.login.equals(draggedLogin, ignoreCase = true) }
-            val to = siblings.indexOfFirst { it.login.equals(target.login, ignoreCase = true) }
-            if (from < 0 || to < 0 || from == to) return
-            if (sourceFolderId == null) {
-                onEvent(MainEvent.ReorderUnfolderedChannels(from, to))
-            } else {
-                onEvent(MainEvent.ReorderFolderChannels(sourceFolderId, from, to))
             }
         }
     }

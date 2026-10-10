@@ -14,10 +14,12 @@ import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 import io.rudione.chatone.domain.stream.StreamPlaybackEngineFactory
 import okhttp3.OkHttpClient
 
+@UnstableApi
 internal class AndroidStreamPlaybackEngineFactory(
     private val context: Context,
     private val accountManager: AccountManager,
-    private val adBreakSource: StreamAdBreakSource
+    private val adBreakSource: StreamAdBreakSource,
+    private val sessions: StreamMediaSessions
 ) : StreamPlaybackEngineFactory {
 
     override val isSupported: Boolean = true
@@ -25,6 +27,7 @@ internal class AndroidStreamPlaybackEngineFactory(
     override val supportedCodecs: String by lazy(::detectCodecs)
 
     private var cachedClient: Pair<AccountProxyConfig?, OkHttpClient>? = null
+    private val capacityMemory = NetworkCapacityMemory()
 
     @UnstableApi
     override fun create(): StreamPlaybackEngine =
@@ -32,7 +35,9 @@ internal class AndroidStreamPlaybackEngineFactory(
             context = context,
             httpClient = clientFor(accountManager.activeProxy.value),
             adBreakSource = adBreakSource,
-            supportedCodecs = supportedCodecs
+            supportedCodecs = supportedCodecs,
+            capacityMemory = capacityMemory,
+            sessions = sessions
         )
 
     private fun clientFor(proxy: AccountProxyConfig?): OkHttpClient {

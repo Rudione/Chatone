@@ -4,7 +4,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
@@ -26,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -35,11 +33,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -247,36 +243,18 @@ internal fun ChannelItemWithDrag(
     onCreateFolder: () -> Unit = {},
     liveNotifyEnabled: Boolean = false,
     onToggleLiveNotify: () -> Unit = {},
-    onDragStart: (Offset) -> Unit,
-    onDrag: (Offset) -> Unit,
-    onDragEnd: () -> Unit,
-    onReorder: (Int, Int) -> Unit = { _, _ -> },
-    index: Int = -1
+    dragState: SidebarDragState
 ) {
     val uriHandler = LocalUriHandler.current
     val streamLauncher = rememberStreamLauncher()
     var showContextMenu by remember { mutableStateOf(false) }
-    var itemBounds by remember { mutableStateOf<Rect?>(null) }
 
     Box(
-        modifier = modifier
-            .pointerInput(channel.login) {
-                detectDragGestures(
-                    onDragStart = { localOffset ->
-                        val itemTopLeft = itemBounds?.topLeft ?: Offset.Zero
-                        onDragStart(itemTopLeft + localOffset)
-                    },
-                    onDrag = { change, amount ->
-                        change.consumeAllChanges()
-                        onDrag(amount)
-                    },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() }
-                )
-            }
-            .onGloballyPositioned { coords ->
-                itemBounds = coords.boundsInRoot()
-            }
+        modifier = modifier.sidebarDragSource(
+            state = dragState,
+            source = SidebarDragSource(channel.login, currentFolderId),
+            onHold = { showContextMenu = true }
+        )
     ) {
         Row(
             modifier = Modifier
@@ -286,10 +264,7 @@ internal fun ChannelItemWithDrag(
                 .background(
                     if (isActive) ChatoneTheme.extraColors.sidebarSelected else Color.Transparent
                 )
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = { showContextMenu = true }
-                )
+                .clickable(onClick = onClick)
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
                         while (true) {

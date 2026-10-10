@@ -6,7 +6,13 @@ import androidx.compose.ui.Modifier
 import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 
 @Composable
-actual fun PlatformVideoView(engine: StreamPlaybackEngine?, keepScreenOn: Boolean, modifier: Modifier) {
+actual fun PlatformVideoView(
+    engine: StreamPlaybackEngine?,
+    keepScreenOn: Boolean,
+    modifier: Modifier,
+    surfaceKind: VideoSurfaceKind,
+    frameSink: VideoFrameSink?
+) {
     Box(modifier)
 }
 
@@ -30,7 +36,10 @@ actual fun rememberPictureInPictureController(): PictureInPictureController = Un
 actual fun PictureInPictureAutoEnterEffect(
     controller: PictureInPictureController,
     enabled: Boolean,
-    aspectRatio: Float
+    aspectRatio: Float,
+    playback: PictureInPicturePlayback,
+    onTogglePlayback: () -> Unit,
+    onToggleMute: () -> Unit
 ) = Unit
 
 private object NoOpStreamOrientationController : StreamOrientationController {

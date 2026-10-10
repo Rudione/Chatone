@@ -3,6 +3,8 @@ package io.rudione.chatone.presentation.theme.i18n
 interface StreamPlayerStrings {
     val watch: String
     val close: String
+    val back: String
+    val expandPlayer: String
     val play: String
     val pause: String
     val mute: String
@@ -25,6 +27,7 @@ interface StreamPlayerStrings {
     val scaleFit: String
     val scaleFill: String
     val landscapeChat: String
+    val chat: String
     val chatSide: String
     val chatOverlay: String
     val chatHidden: String
@@ -34,6 +37,8 @@ interface StreamPlayerStrings {
     val chatMessagesOpacity: String
     val autoPictureInPicture: String
     val autoPictureInPictureDescription: String
+    val backgroundAudio: String
+    val backgroundAudioDescription: String
     val videoStats: String
     val offline: String
     val otherChannelNotice: String
@@ -71,6 +76,8 @@ interface StreamPlayerStrings {
 object StreamPlayerStringsEn : StreamPlayerStrings {
     override val watch = "Watch stream"
     override val close = "Close player"
+    override val back = "Back"
+    override val expandPlayer = "Back to stream"
     override val play = "Play"
     override val pause = "Pause"
     override val mute = "Mute"
@@ -93,6 +100,7 @@ object StreamPlayerStringsEn : StreamPlayerStrings {
     override val scaleFit = "Fit"
     override val scaleFill = "Fill"
     override val landscapeChat = "Chat in landscape"
+    override val chat = "Chat"
     override val chatSide = "Side"
     override val chatOverlay = "Overlay"
     override val chatHidden = "Off"
@@ -102,6 +110,8 @@ object StreamPlayerStringsEn : StreamPlayerStrings {
     override val chatMessagesOpacity = "Message opacity"
     override val autoPictureInPicture = "Picture-in-picture"
     override val autoPictureInPictureDescription = "Keep watching in a small window when you leave the app"
+    override val backgroundAudio = "Sound in the background"
+    override val backgroundAudioDescription = "The stream keeps playing with the screen off or the app minimized. Controls are in the notification"
     override val videoStats = "Video stats"
     override val offline = "{0} is offline"
     override val otherChannelNotice = "Chat: #{0} · Stream: #{1}"
@@ -139,6 +149,8 @@ object StreamPlayerStringsEn : StreamPlayerStrings {
 object StreamPlayerStringsRu : StreamPlayerStrings {
     override val watch = "Смотреть стрим"
     override val close = "Закрыть плеер"
+    override val back = "Назад"
+    override val expandPlayer = "Вернуться к стриму"
     override val play = "Смотреть"
     override val pause = "Пауза"
     override val mute = "Выключить звук"
@@ -161,6 +173,7 @@ object StreamPlayerStringsRu : StreamPlayerStrings {
     override val scaleFit = "Вписать"
     override val scaleFill = "Заполнить"
     override val landscapeChat = "Чат в горизонтали"
+    override val chat = "Чат"
     override val chatSide = "Сбоку"
     override val chatOverlay = "Поверх"
     override val chatHidden = "Выкл"
@@ -170,6 +183,8 @@ object StreamPlayerStringsRu : StreamPlayerStrings {
     override val chatMessagesOpacity = "Видимость сообщений"
     override val autoPictureInPicture = "Картинка в картинке"
     override val autoPictureInPictureDescription = "Продолжать просмотр в мини-окне, когда выходишь из приложения"
+    override val backgroundAudio = "Звук в фоне"
+    override val backgroundAudioDescription = "Стрим продолжает играть с выключенным экраном или свёрнутым приложением. Управление — в уведомлении"
     override val videoStats = "Статистика видео"
     override val offline = "{0} сейчас не в эфире"
     override val otherChannelNotice = "Чат: #{0} · Стрим: #{1}"

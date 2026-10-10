@@ -1,9 +1,15 @@
 package io.rudione.chatone.presentation.stream
 
 import android.app.Activity
+import android.app.PendingIntent
 import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.drawable.Icon
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -22,6 +28,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.PictureInPictureModeChangedInfo
+import androidx.core.content.ContextCompat
 import androidx.core.util.Consumer
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -29,6 +36,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.shared.R
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -102,22 +111,68 @@ actual fun rememberPictureInPictureController(): PictureInPictureController {
 actual fun PictureInPictureAutoEnterEffect(
     controller: PictureInPictureController,
     enabled: Boolean,
-    aspectRatio: Float
+    aspectRatio: Float,
+    playback: PictureInPicturePlayback,
+    onTogglePlayback: () -> Unit,
+    onToggleMute: () -> Unit
 ) {
     val androidController = controller as? AndroidPictureInPictureController ?: return
     val shouldAutoEnter = androidController.isSupported && enabled
-    LaunchedEffect(androidController, shouldAutoEnter, aspectRatio) {
-        androidController.updateParams(autoEnter = shouldAutoEnter, aspectRatio = aspectRatio)
+    val strings = LocalStrings.current.player
+    val buttons = PictureInPictureButtons(
+        playing = playback.playing,
+        muted = playback.muted,
+        playbackLabel = if (playback.playing) strings.pause else strings.play,
+        soundLabel = if (playback.muted) strings.unmute else strings.mute
+    )
+    LaunchedEffect(androidController, shouldAutoEnter, aspectRatio, buttons) {
+        androidController.updateParams(autoEnter = shouldAutoEnter, aspectRatio = aspectRatio, buttons = buttons)
     }
     DisposableEffect(androidController) {
-        onDispose { androidController.updateParams(autoEnter = false, aspectRatio = aspectRatio) }
+        onDispose { androidController.updateParams(autoEnter = false, aspectRatio = aspectRatio, buttons = null) }
     }
+    PictureInPictureButtonReceiver(androidController.activity, onTogglePlayback, onToggleMute)
     DisposableEffect(androidController, shouldAutoEnter) {
         val hint = Runnable {
             if (shouldAutoEnter && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) androidController.enter()
         }
         androidController.activity?.addOnUserLeaveHintListener(hint)
         onDispose { androidController.activity?.removeOnUserLeaveHintListener(hint) }
+    }
+}
+
+private data class PictureInPictureButtons(
+    val playing: Boolean,
+    val muted: Boolean,
+    val playbackLabel: String,
+    val soundLabel: String
+)
+
+@Composable
+private fun PictureInPictureButtonReceiver(
+    activity: ComponentActivity?,
+    onTogglePlayback: () -> Unit,
+    onToggleMute: () -> Unit
+) {
+    val togglePlayback by rememberUpdatedState(onTogglePlayback)
+    val toggleMute by rememberUpdatedState(onToggleMute)
+    DisposableEffect(activity) {
+        if (activity == null) return@DisposableEffect onDispose {}
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.getIntExtra(EXTRA_PIP_CONTROL, -1)) {
+                    PIP_CONTROL_PLAYBACK -> togglePlayback()
+                    PIP_CONTROL_SOUND -> toggleMute()
+                }
+            }
+        }
+        ContextCompat.registerReceiver(
+            activity,
+            receiver,
+            IntentFilter(ACTION_PIP_CONTROL),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+        onDispose { runCatching { activity.unregisterReceiver(receiver) } }
     }
 }
 
@@ -133,8 +188,10 @@ private class AndroidPictureInPictureController(
     override var isActive: Boolean by mutableStateOf(false)
 
     private var ratio: Rational = DEFAULT_RATIONAL
+    private var buttons: PictureInPictureButtons? = null
     private var appliedRatio: Rational? = null
     private var appliedAutoEnter: Boolean? = null
+    private var appliedButtons: PictureInPictureButtons? = null
 
     override fun enter() {
         val host = activity ?: return
@@ -143,28 +200,62 @@ private class AndroidPictureInPictureController(
             host.enterPictureInPictureMode(params(autoEnter = false))
             appliedRatio = ratio
             appliedAutoEnter = false
+            appliedButtons = buttons
         }
     }
 
-    fun updateParams(autoEnter: Boolean, aspectRatio: Float) {
+    fun updateParams(autoEnter: Boolean, aspectRatio: Float, buttons: PictureInPictureButtons?) {
         ratio = stableRatio(aspectRatio, ratio)
+        this.buttons = buttons
         val host = activity ?: return
         if (!isSupported || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        if (ratio == appliedRatio && autoEnter == appliedAutoEnter) return
+        if (ratio == appliedRatio && autoEnter == appliedAutoEnter && buttons == appliedButtons) return
         runCatching {
             host.setPictureInPictureParams(params(autoEnter))
             appliedRatio = ratio
             appliedAutoEnter = autoEnter
+            appliedButtons = buttons
         }
     }
 
     private fun params(autoEnter: Boolean): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder().setAspectRatio(ratio)
+        val host = activity
+        val current = buttons
+        builder.setActions(if (host != null && current != null) remoteActions(host, current) else emptyList())
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setAutoEnterEnabled(autoEnter)
             builder.setSeamlessResizeEnabled(true)
         }
         return builder.build()
+    }
+
+    private fun remoteActions(host: Context, current: PictureInPictureButtons): List<RemoteAction> = listOf(
+        remoteAction(
+            host,
+            if (current.playing) R.drawable.ic_pip_pause else R.drawable.ic_pip_play,
+            current.playbackLabel,
+            PIP_CONTROL_PLAYBACK
+        ),
+        remoteAction(
+            host,
+            if (current.muted) R.drawable.ic_pip_volume_off else R.drawable.ic_pip_volume_on,
+            current.soundLabel,
+            PIP_CONTROL_SOUND
+        )
+    )
+
+    private fun remoteAction(host: Context, icon: Int, label: String, control: Int): RemoteAction {
+        val intent = Intent(ACTION_PIP_CONTROL)
+            .setPackage(host.packageName)
+            .putExtra(EXTRA_PIP_CONTROL, control)
+        val pendingIntent = PendingIntent.getBroadcast(
+            host,
+            control,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        return RemoteAction(Icon.createWithResource(host, icon), label, label, pendingIntent)
     }
 
     private fun stableRatio(requested: Float, current: Rational): Rational {
@@ -235,12 +326,17 @@ private class AndroidStreamOrientationController(
         }.getOrDefault(false)
 }
 
+private const val ACTION_PIP_CONTROL = "io.rudione.chatone.action.PIP_CONTROL"
+private const val EXTRA_PIP_CONTROL = "control"
+private const val PIP_CONTROL_PLAYBACK = 1
+private const val PIP_CONTROL_SOUND = 2
+
 private object NoOpOrientationController : StreamOrientationController {
     override fun enterLandscape() = Unit
     override fun exitLandscape() = Unit
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null

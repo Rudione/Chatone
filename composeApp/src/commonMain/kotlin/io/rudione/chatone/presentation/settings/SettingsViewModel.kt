@@ -142,6 +142,7 @@ data class SettingsState(
     val colorTokens: ChatoneColorTokens = ChatoneColorTokens(),
     val translationTargetLang: String = "en",
     val autoTranslateInput: Boolean = false,
+    val outgoingTranslationLang: String = "en",
     val mentionTabsEnabled: Boolean = false,
     val navigationHidden: Boolean = false,
     val hotkeys: Map<String, String> = defaultHotkeys(),
@@ -274,6 +275,7 @@ sealed class SettingsEvent : UiEvent {
     data class OnColorTokensChanged(val tokens: ChatoneColorTokens) : SettingsEvent()
     data class OnTranslationLangChanged(val code: String) : SettingsEvent()
     data class OnAutoTranslateInputChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnOutgoingTranslationLangChanged(val code: String) : SettingsEvent()
     data class OnMentionTabsChanged(val enabled: Boolean) : SettingsEvent()
     data class OnNavigationHiddenChanged(val hidden: Boolean) : SettingsEvent()
     data class OnHotkeyChanged(val actionId: String, val combo: String) : SettingsEvent()
@@ -363,6 +365,7 @@ class SettingsViewModel(
         private const val KEY_COLOR_TOKENS = "color_tokens"
         private const val KEY_TRANSLATION_LANG = "translation_target_lang"
         private const val KEY_AUTO_TRANSLATE_INPUT = "auto_translate_input"
+        private const val KEY_OUTGOING_TRANSLATION_LANG = "outgoing_translation_lang"
         private const val KEY_MENTION_TABS = "mention_tabs_enabled"
         private const val KEY_NAVIGATION_HIDDEN = "navigation_hidden"
         private const val KEY_MOBILE_NAVIGATION_DEFAULT = "mobile_navigation_hidden_default_v1"
@@ -634,6 +637,8 @@ class SettingsViewModel(
                 colorTokens = colorTokens,
                 translationTargetLang = settings.getString(KEY_TRANSLATION_LANG, "en"),
                 autoTranslateInput = settings.getBoolean(KEY_AUTO_TRANSLATE_INPUT, false),
+                outgoingTranslationLang = settings.getStringOrNull(KEY_OUTGOING_TRANSLATION_LANG)
+                    ?: settings.getString(KEY_TRANSLATION_LANG, "en"),
                 mentionTabsEnabled = settings.getBoolean(KEY_MENTION_TABS, false),
                 navigationHidden = settings.getBoolean(KEY_NAVIGATION_HIDDEN, false),
                 hotkeys = try {
@@ -1339,7 +1344,6 @@ class SettingsViewModel(
                 val custom = reordered.filter { !it.isDefault }
                 saveModButtons(custom)
                 val newVer = s.modButtonsVersion + 1
-                println("ModReorder[OnReorderAllModButtons] order=${reordered.map { it.id + "(" + it.sortOrder + ")" }} ver=$newVer")
                 s.copy(allModButtons = reordered, customModButtons = custom, modButtonsVersion = newVer)
             }
 
@@ -1468,6 +1472,11 @@ class SettingsViewModel(
                 update { it.copy(autoTranslateInput = event.enabled) }
             }
 
+            is SettingsEvent.OnOutgoingTranslationLangChanged -> {
+                settings.putString(KEY_OUTGOING_TRANSLATION_LANG, event.code)
+                update { it.copy(outgoingTranslationLang = event.code) }
+            }
+
             is SettingsEvent.OnMentionTabsChanged -> {
                 settings.putBoolean(KEY_MENTION_TABS, event.enabled)
                 update { it.copy(mentionTabsEnabled = event.enabled) }
@@ -1500,17 +1509,7 @@ class SettingsViewModel(
     private fun saveAllModButtons(buttons: List<ModActionButton>) {
         settings.putString(KEY_ALL_MOD_BUTTONS, json.encodeToString(buttons))
         _modButtonsLive.value = buttons
-        println("ModReorder[publish->modButtonsLive] ${buttons.map { "${it.id}(${it.sortOrder})" }}")
         notifyExternalChange()
-        val readBack = try {
-            settings.getStringOrNull(KEY_ALL_MOD_BUTTONS)
-                ?.let { json.decodeFromString<List<ModActionButton>>(it) }
-        } catch (_: Exception) { null }
-        val ok = readBack?.map { it.id to it.sortOrder } == buttons.map { it.id to it.sortOrder }
-        Napier.d(
-            tag = "ModReorder",
-            message = "[saveAllModButtons] wrote=${buttons.map { "${it.id}(${it.sortOrder})" }} readBackOk=$ok"
-        )
     }
 
     private fun saveModButtons(buttons: List<ModActionButton>) =

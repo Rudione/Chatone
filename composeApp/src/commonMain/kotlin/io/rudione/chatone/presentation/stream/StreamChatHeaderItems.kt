@@ -22,10 +22,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 @Immutable
 data class StreamHeaderHint(
     val latencySeconds: Float?,
-    val playerShowsLive: Boolean
+    val playerShowsLive: Boolean,
+    val watched: Boolean
 )
 
-private val NoHint = StreamHeaderHint(latencySeconds = null, playerShowsLive = false)
+private val NoHint = StreamHeaderHint(latencySeconds = null, playerShowsLive = false, watched = false)
 private val LivePhases = setOf(StreamPhase.PLAYING, StreamPhase.BUFFERING, StreamPhase.PAUSED)
 
 @Composable
@@ -36,7 +37,8 @@ fun rememberStreamHeaderHint(channelLogin: String): StreamHeaderHint? {
             val watched = state.channelLogin.equals(channelLogin, ignoreCase = true)
             StreamHeaderHint(
                 latencySeconds = latency.takeIf { watched && state.phase == StreamPhase.PLAYING },
-                playerShowsLive = watched && state.phase in LivePhases
+                playerShowsLive = watched && state.phase in LivePhases,
+                watched = watched
             )
         }.distinctUntilChanged()
     }

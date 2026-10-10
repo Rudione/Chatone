@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings
 
+import io.rudione.chatone.util.platform.InputCapabilities
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.rudione.chatone.icons.lucide.Bell
 import io.rudione.chatone.icons.lucide.CircleUser
@@ -289,6 +290,11 @@ private val SECTION_KEYWORDS: Map<SettingsSection, List<String>> = mapOf(
         "бекап настроек", "экспорт настроек", "импорт настроек"
     )
 )
+
+internal fun SettingsSection.isAvailable(input: InputCapabilities): Boolean = when (this) {
+    SettingsSection.HOTKEYS -> input.hardwareKeyboard
+    else -> true
+}
 
 internal fun settingsSectionsMatching(query: String, strings: AppStrings): List<SettingsSection> {
     val q = query.trim().lowercase()

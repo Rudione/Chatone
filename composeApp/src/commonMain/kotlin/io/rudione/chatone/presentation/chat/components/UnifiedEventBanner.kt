@@ -7,7 +7,9 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +23,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -42,6 +47,14 @@ import io.rudione.chatone.icons.lucide.EyeOff
 import io.rudione.chatone.icons.lucide.Lucide
 
 private val StripShape = RoundedCornerShape(50)
+private val CompactBannerWidth = 300.dp
+private val CompactBannerInset = 4.dp
+
+internal val LocalEventBannerCompact = compositionLocalOf { false }
+
+internal fun eventBannerPadding(compact: Boolean): PaddingValues =
+    if (compact) PaddingValues(horizontal = 2.dp, vertical = 3.dp)
+    else PaddingValues(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 4.dp)
 
 data class EventBannerItem(
     val key: String,
@@ -58,13 +71,26 @@ fun UnifiedEventBanner(
     modifier: Modifier = Modifier
 ) {
     if (items.isEmpty()) return
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val compact = maxWidth < CompactBannerWidth
+        CompositionLocalProvider(LocalEventBannerCompact provides compact) {
+            EventBannerStack(
+                items = items,
+                compact = compact,
+                horizontalInset = if (compact) CompactBannerInset else horizontalInset
+            )
+        }
+    }
+}
+
+@Composable
+private fun EventBannerStack(items: List<EventBannerItem>, compact: Boolean, horizontalInset: Dp) {
     var index by remember(items.size) { mutableStateOf(0) }
     val safeIndex = index.coerceIn(0, items.lastIndex)
     val current = items[safeIndex]
-
     val showStrip = items.size > 1 || current.endsAtMs != null
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = horizontalInset)
             .pointerInput(items.size) {
@@ -83,7 +109,12 @@ fun UnifiedEventBanner(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 8.dp, end = 18.dp, top = 2.dp, bottom = 2.dp),
+                    .padding(
+                        start = if (compact) 2.dp else 8.dp,
+                        end = if (compact) 2.dp else 18.dp,
+                        top = 2.dp,
+                        bottom = 2.dp
+                    ),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
@@ -100,7 +131,9 @@ fun UnifiedEventBanner(
                         current.label,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Spacer(Modifier.weight(1f))

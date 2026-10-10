@@ -9,23 +9,29 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import io.rudione.chatone.data.repository.AiAssistantController
+import io.rudione.chatone.presentation.stream.FloatingStreamPlayer
 import org.koin.compose.koinInject
 
 private val OverlayExitEasing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 private const val OVERLAY_Z_INDEX = 60f
+private const val BROWSE_STATE_KEY = "browse"
 
 @Composable
 actual fun BrowseOverlay(
     visible: Boolean,
     onClose: () -> Unit,
-    onOpen: (BrowseOpenRequest) -> Unit
+    onOpen: (BrowseOpenRequest) -> Unit,
+    onReturnToStream: () -> Unit
 ) {
     val assistant: AiAssistantController = koinInject()
+    val savedState = rememberSaveableStateHolder()
     AnimatedVisibility(
         visible = visible,
         enter = slideInVertically(
@@ -38,29 +44,34 @@ actual fun BrowseOverlay(
                 fadeOut(tween(160, easing = OverlayExitEasing)),
         modifier = Modifier.fillMaxSize().zIndex(OVERLAY_Z_INDEX)
     ) {
-        BrowseScreen(
-            onClose = onClose,
-            onOpenStream = { stream ->
-                onOpen(
-                    BrowseOpenRequest(
-                        stream.login,
-                        stream.displayName,
-                        stream.avatarUrl,
-                        live = true
-                    )
+        Box(Modifier.fillMaxSize()) {
+            savedState.SaveableStateProvider(BROWSE_STATE_KEY) {
+                BrowseScreen(
+                    onClose = onClose,
+                    onOpenStream = { stream ->
+                        onOpen(
+                            BrowseOpenRequest(
+                                stream.login,
+                                stream.displayName,
+                                stream.avatarUrl,
+                                live = true
+                            )
+                        )
+                    },
+                    onOpenChannel = { channel ->
+                        onOpen(
+                            BrowseOpenRequest(
+                                channel.login,
+                                channel.displayName,
+                                channel.avatarUrl,
+                                channel.isLive
+                            )
+                        )
+                    },
+                    onAskAi = assistant::openWithPrompt
                 )
-            },
-            onOpenChannel = { channel ->
-                onOpen(
-                    BrowseOpenRequest(
-                        channel.login,
-                        channel.displayName,
-                        channel.avatarUrl,
-                        channel.isLive
-                    )
-                )
-            },
-            onAskAi = assistant::openWithPrompt
-        )
+            }
+            FloatingStreamPlayer(onExpand = onReturnToStream)
+        }
     }
 }

@@ -33,6 +33,7 @@ interface BrowseStrings {
     val keepChannel: String
     val forgetChannel: String
     val back: String
+    val scrollToTop: String
     val thousandSuffix: String
     val millionSuffix: String
     val decimalSeparator: String
@@ -82,6 +83,7 @@ object BrowseStringsEn : BrowseStrings {
     override val keepChannel = "Add to my channels"
     override val forgetChannel = "Remove from recent"
     override val back = "Back"
+    override val scrollToTop = "Scroll to top"
     override val thousandSuffix = "K"
     override val millionSuffix = "M"
     override val decimalSeparator = "."
@@ -134,6 +136,7 @@ object BrowseStringsRu : BrowseStrings {
     override val keepChannel = "Добавить в мои каналы"
     override val forgetChannel = "Убрать из недавних"
     override val back = "Назад"
+    override val scrollToTop = "Наверх"
     override val thousandSuffix = " тыс."
     override val millionSuffix = " млн"
     override val decimalSeparator = ","

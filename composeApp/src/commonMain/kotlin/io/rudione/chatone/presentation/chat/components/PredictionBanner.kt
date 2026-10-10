@@ -19,7 +19,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.remote.dto.PredictionData
@@ -41,38 +44,42 @@ fun PredictionBanner(
     val totalPoints = prediction.outcomes.sumOf { it.channelPoints }
     val totalUsers = prediction.outcomes.sumOf { it.users }
     val hasPredicted = prediction.selfOutcomeId != null
+    val strings = LocalStrings.current
+    val events = strings.events
+    val compact = LocalEventBannerCompact.current
 
     val statusLabel: String
     val accent: Color
     val canPredict: Boolean
     when (prediction.status) {
         "LOCKED" -> {
-            statusLabel = "Locked"; accent = MaterialTheme.colorScheme.error; canPredict = false
+            statusLabel = if (compact) events.predictionLockedShort else events.predictionLocked; accent = MaterialTheme.colorScheme.error; canPredict = false
         }
 
         "RESOLVED" -> {
-            statusLabel = "Resolved"; accent = MaterialTheme.colorScheme.primary; canPredict = false
+            statusLabel = events.predictionResolved; accent = MaterialTheme.colorScheme.primary; canPredict = false
         }
 
         "CANCELED" -> {
-            statusLabel = "Canceled"; accent = MaterialTheme.colorScheme.outline; canPredict = false
+            statusLabel = events.predictionCanceled; accent = MaterialTheme.colorScheme.outline; canPredict = false
         }
 
         else -> {
-            statusLabel = "${prediction.predictionWindow}s window"
+            statusLabel = if (compact) events.predictionOpenShort else events.predictionOpen
             accent = MaterialTheme.colorScheme.tertiary
             canPredict = true
         }
     }
+    val summary = "${events.predictors(totalUsers)} · ${events.points(totalPoints, formatPoints(totalPoints))}"
 
     var pendingOutcomeId by remember(prediction.id) { mutableStateOf<String?>(null) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 4.dp)
+            .padding(eventBannerPadding(compact))
             .chatoneGlassPanel(RoundedCornerShape(12.dp))
-            .padding(10.dp)
+            .padding(if (compact) 8.dp else 10.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
@@ -87,23 +94,21 @@ fun PredictionBanner(
                         modifier = Modifier.size(13.dp)
                     )
                 }
+                val summaryColor = MaterialTheme.colorScheme.onSurfaceVariant
                 Text(
-                    "Prediction · $statusLabel",
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) {
+                            append(if (compact) statusLabel else "${strings.eventLabelPrediction} · $statusLabel")
+                        }
+                        if (!compact) withStyle(SpanStyle(color = summaryColor)) { append(" · $summary") }
+                    },
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = accent
-                )
-                Text(
-                    "· $totalUsers betters · ${formatPoints(totalPoints)} pts",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(Modifier.weight(1f))
                 if (onHide != null) {
-                    EventHideButton(tooltip = LocalStrings.current.chatHideEventBanner, onHide = onHide)
+                    EventHideButton(tooltip = strings.chatHideEventBanner, onHide = onHide)
                 }
             }
             Text(
@@ -114,6 +119,15 @@ fun PredictionBanner(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            if (compact) {
+                Text(
+                    summary,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             prediction.outcomes.forEach { o ->
                 val fraction = if (totalPoints > 0) o.channelPoints.toFloat() / totalPoints else 0f
                 val isWinner = o.id == prediction.winningOutcomeId
@@ -128,6 +142,7 @@ fun PredictionBanner(
                     isWinner = isWinner,
                     isMine = isMine,
                     clickable = canPredict && !hasPredicted,
+                    compact = compact,
                     onClick = { pendingOutcomeId = o.id }
                 )
             }
@@ -142,10 +157,12 @@ fun PredictionBanner(
                             .padding(horizontal = 8.dp, vertical = 5.dp)
                     ) {
                         Text(
-                            "Prediction resolved — “${winner.title}” won",
+                            events.predictionWon(winner.title),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = PredictionWinnerGreen
+                            color = PredictionWinnerGreen,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -180,6 +197,7 @@ private fun OutcomeRow(
     isWinner: Boolean,
     isMine: Boolean,
     clickable: Boolean,
+    compact: Boolean,
     onClick: () -> Unit
 ) {
     val anim by animateFloatAsState(targetValue = fraction.coerceIn(0f, 1f), label = "pred-fraction")
@@ -236,10 +254,13 @@ private fun OutcomeRow(
                 Text("✓", style = MaterialTheme.typography.labelSmall, color = accent, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(4.dp))
             }
+            Spacer(Modifier.width(6.dp))
             Text(
-                "${(anim * 100).toInt()}% · $users · ${formatPoints(points)}",
+                if (compact) "${(anim * 100).toInt()}%" else "${(anim * 100).toInt()}% · $users · ${formatPoints(points)}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

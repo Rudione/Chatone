@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.sections
 
+import io.rudione.chatone.util.platform.rememberInputCapabilities
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -181,30 +182,7 @@ internal fun LazyListScope.chatLazyItems(state: SettingsState, vm: SettingsViewM
             ) { vm.sendEvent(SettingsEvent.OnChatTopBarHeightChanged(it.toInt())) }
         }
     }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsAutoScroll) {
-            SwitchRow(
-                s.settingsPauseOnHover,
-                s.settingsPauseOnHoverDesc,
-                state.pauseOnHover
-            ) {
-                vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
-            }
-        }
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsEmotePicker) {
-            SwitchRow(
-                s.settingsCloseOnMouseLeave,
-                s.settingsCloseOnMouseLeaveDesc,
-                state.closeEmotePickerOnMouseLeave
-            ) {
-                vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
-            }
-        }
-    }
+    item { MouseSettingsGroups(state, vm) }
     item {
         val s = LocalStrings.current
         SettingsGroup(s.settingsHistoryGroup) {
@@ -373,24 +351,7 @@ internal fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
             valueLabel = "${state.chatTopBarHeight} dp"
         ) { vm.sendEvent(SettingsEvent.OnChatTopBarHeightChanged(it.toInt())) }
     }
-    SettingsGroup(s.settingsAutoScroll) {
-        SwitchRow(
-            s.settingsPauseOnHover,
-            s.settingsPauseOnHoverDesc,
-            state.pauseOnHover
-        ) {
-            vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
-        }
-    }
-    SettingsGroup(s.settingsEmotePicker) {
-        SwitchRow(
-            s.settingsCloseOnMouseLeave,
-            s.settingsCloseOnMouseLeaveDesc,
-            state.closeEmotePickerOnMouseLeave
-        ) {
-            vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
-        }
-    }
+    MouseSettingsGroups(state, vm)
     SettingsGroup(s.settingsHistoryGroup) {
         SliderRow(
             s.settingsMessageHistoryLimit, state.scrollbackLimit, 100f..2000f, 18,
@@ -401,6 +362,22 @@ internal fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
     }
     MentionTabsSettingsGroup(state, vm)
     TranslationSettingsGroup(state, vm)
+}
+
+@Composable
+private fun MouseSettingsGroups(state: SettingsState, vm: SettingsViewModel) {
+    if (!rememberInputCapabilities().pointer) return
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsAutoScroll) {
+        SwitchRow(s.settingsPauseOnHover, s.settingsPauseOnHoverDesc, state.pauseOnHover) {
+            vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
+        }
+    }
+    SettingsGroup(s.settingsEmotePicker) {
+        SwitchRow(s.settingsCloseOnMouseLeave, s.settingsCloseOnMouseLeaveDesc, state.closeEmotePickerOnMouseLeave) {
+            vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
+        }
+    }
 }
 
 @Composable

@@ -10,6 +10,8 @@ import io.rudione.chatone.presentation.theme.i18n.LaunchStringsEn
 import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStrings
 import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStringsEn
 import io.rudione.chatone.presentation.theme.i18n.BrowseStringsEn
+import io.rudione.chatone.presentation.theme.i18n.EventBannerStrings
+import io.rudione.chatone.presentation.theme.i18n.EventBannerStringsEn
 import io.rudione.chatone.presentation.theme.i18n.StreamPlayerStrings
 import io.rudione.chatone.presentation.theme.i18n.StreamPlayerStringsEn
 
@@ -1228,6 +1230,10 @@ object StringsEn : AppStrings {
     override val settingsAutoTranslateInputDesc = "Automatically translate what you type into the target language above before sending"
     override val inputTranslate = "Translate"
     override val inputAutoTranslate = "Auto-translate my messages"
+    override val settingsOutgoingTranslationLang = "Language of my messages"
+    override val settingsOutgoingTranslationLangDesc = "Your messages are translated into it before sending"
+    override val inputTranslationLanguage = "Message translation language"
+    override val inputTranslationOff = "Don't translate"
     override val settingsMentionTabs = "Mention tabs"
     override val settingsMentionTabsDesc = "In compact mode, show a bar with channels that mentioned you. In expanded and Large it always replaces the tabs"
     override val mentionTabsTitle = "Mentioned you"
@@ -1408,6 +1414,7 @@ object StringsEn : AppStrings {
         SlashCommand.ALL.firstOrNull { it.name == name }?.description ?: name
     override val player: StreamPlayerStrings = StreamPlayerStringsEn
     override val explore: BrowseStrings = BrowseStringsEn
+    override val events: EventBannerStrings = EventBannerStringsEn
     override val timeline: ChatTimelineStrings = ChatTimelineStringsEn
     override val launch: LaunchStrings = LaunchStringsEn
     override val insights: ProfileInsightStrings = ProfileInsightStringsEn

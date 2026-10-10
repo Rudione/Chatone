@@ -37,6 +37,7 @@ class StreamPlayerPreferencesRepository(private val settings: Settings) {
                 .clampMessageOpacity(),
             overlayLocked = settings.getBoolean(KEY_OVERLAY_LOCKED, defaults.overlayLocked),
             autoPictureInPicture = settings.getBoolean(KEY_AUTO_PIP, defaults.autoPictureInPicture),
+            backgroundAudio = settings.getBoolean(KEY_BACKGROUND_AUDIO, defaults.backgroundAudio),
             autoOpen = settings.getBoolean(KEY_AUTO_OPEN, defaults.autoOpen)
         )
     }
@@ -56,6 +57,7 @@ class StreamPlayerPreferencesRepository(private val settings: Settings) {
         settings.putFloat(KEY_OVERLAY_MESSAGE_OPACITY, preferences.overlayMessageOpacity.clampMessageOpacity())
         settings.putBoolean(KEY_OVERLAY_LOCKED, preferences.overlayLocked)
         settings.putBoolean(KEY_AUTO_PIP, preferences.autoPictureInPicture)
+        settings.putBoolean(KEY_BACKGROUND_AUDIO, preferences.backgroundAudio)
         settings.putBoolean(KEY_AUTO_OPEN, preferences.autoOpen)
     }
 
@@ -100,6 +102,7 @@ class StreamPlayerPreferencesRepository(private val settings: Settings) {
         const val KEY_OVERLAY_MESSAGE_OPACITY = "stream_player_overlay_message_opacity"
         const val KEY_OVERLAY_LOCKED = "stream_player_overlay_locked"
         const val KEY_AUTO_PIP = "stream_player_auto_pip"
+        const val KEY_BACKGROUND_AUDIO = "stream_player_background_audio"
         const val KEY_AUTO_OPEN = "stream_player_auto_open"
         const val MAX_QUALITY_LENGTH = 32
     }

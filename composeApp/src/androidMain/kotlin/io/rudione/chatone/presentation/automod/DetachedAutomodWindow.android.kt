@@ -10,9 +10,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.rudione.chatone.data.repository.AutomodRepository
+import io.rudione.chatone.presentation.components.SystemBarsAppearance
+import io.rudione.chatone.presentation.stream.FloatingStreamPlayer
+import io.rudione.chatone.presentation.stream.LocalFloatingStreamPlayer
 import io.rudione.chatone.util.automod.AutomodImportExport
 import io.rudione.chatone.util.automod.readAutomodText
 import io.rudione.chatone.util.automod.saveAutomodText
@@ -24,6 +28,7 @@ actual fun DetachedAutomodWindow(
     currentChannelLogin: String?,
     onClose: () -> Unit
 ) {
+    if (LocalFloatingStreamPlayer.current?.isPictureInPicture == true) return
     val repository: AutomodRepository = koinInject()
     val scope = rememberCoroutineScope()
     Dialog(
@@ -35,6 +40,7 @@ actual fun DetachedAutomodWindow(
             decorFitsSystemWindows = false
         )
     ) {
+        SystemBarsAppearance(lightBackground = MaterialTheme.colorScheme.background.luminance() > 0.5f)
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -57,6 +63,7 @@ actual fun DetachedAutomodWindow(
                 },
                 repository = repository
             )
+            FloatingStreamPlayer(onExpand = onClose)
         }
     }
 }

@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.foundation.layout.safeDrawing
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.presentation.stream.LocalStreamPlayerHost
 import androidx.compose.animation.AnimatedVisibility
@@ -41,6 +42,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import io.rudione.chatone.util.platform.DeviceFormFactor
+import io.rudione.chatone.util.platform.currentFormFactor
+import io.rudione.chatone.util.platform.rememberInputCapabilities
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -106,6 +111,8 @@ import io.rudione.chatone.presentation.chat.components.MessageInput
 import io.rudione.chatone.presentation.chat.components.MessageInputActions
 import io.rudione.chatone.presentation.chat.components.MessageInputChrome
 import io.rudione.chatone.presentation.chat.components.MessageInputTranslation
+import io.rudione.chatone.presentation.chat.components.SwipeReplyStyle
+import io.rudione.chatone.presentation.chat.components.swipeToReply
 import io.rudione.chatone.presentation.chat.components.MessageInputUploadState
 import io.rudione.chatone.presentation.chat.components.ReplyBar
 import io.rudione.chatone.presentation.chat.components.SlashCommandSuggestionsRow
@@ -155,7 +162,6 @@ import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.util.media.NotificationSoundPlayer
 import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
-import io.rudione.chatone.util.system.isDesktopPlatform
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.startup.ReportLaunchStage
 import io.rudione.chatone.presentation.startup.launchStage
@@ -171,6 +177,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import io.rudione.chatone.icons.lucide.ChevronDown
 import io.rudione.chatone.icons.lucide.Info
 import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.Reply
 import io.rudione.chatone.icons.lucide.X
 
 
@@ -216,15 +223,6 @@ fun ChatScreen(
     val liveMacros by SettingsViewModel.macrosLive.collectAsState()
     val effectivePinnedMacros = liveMacros?.let { Macro.pinnedFrom(it) } ?: settingsState.pinnedMacros
     val settingsNavigator: SettingsNavigator = koinInject()
-    LaunchedEffect(Unit) {
-        println("ModReorder[build-marker] direct-read mod-buttons fix ACTIVE — if you never see this line, you are running a STALE build")
-    }
-    LaunchedEffect(liveModButtons) {
-        println(
-            "ModReorder[chatRenderInput@${settingsViewModel.hashCode()}] LIVE=" +
-                    (liveModButtons?.joinToString { "${it.id}(${it.sortOrder},en=${it.enabled})" } ?: "null")
-        )
-    }
     LaunchedEffect(settingsState.allModButtons, settingsState.modButtonsVersion) {
         Napier.d(
             tag = "ModReorder",
@@ -242,6 +240,13 @@ fun ChatScreen(
     val surfaceStyle = LocalChatSurfaceStyle.current
     val messageAlphaModifier = remember(surfaceStyle.messageAlpha) {
         if (surfaceStyle.messageAlpha < 1f) Modifier.alpha(surfaceStyle.messageAlpha) else Modifier
+    }
+    val isPhone = remember { currentFormFactor() == DeviceFormFactor.PHONE }
+    val replyIcon = rememberVectorPainter(Lucide.Reply)
+    val replyContainer = MaterialTheme.colorScheme.primaryContainer
+    val replyTint = MaterialTheme.colorScheme.onPrimaryContainer
+    val swipeReplyStyle = remember(replyIcon, replyContainer, replyTint) {
+        SwipeReplyStyle(icon = replyIcon, iconTint = replyTint, container = replyContainer)
     }
     val clipboardManager = LocalClipboardManager.current
     val listState = remember(channelLogin) { LazyListState() }
@@ -305,7 +310,7 @@ fun ChatScreen(
     val chatBoxFocusRequester = remember { FocusRequester() }
     val coroutineScope = rememberCoroutineScope()
     val follow = rememberChatFollowState(listState)
-    val modButtonsOnHover = settingsState.modButtonsOnHover && isDesktopPlatform
+    val modButtonsOnHover = settingsState.modButtonsOnHover && rememberInputCapabilities().pointer
     LaunchedEffect(viewModel, modButtonsOnHover) {
         viewModel.sendEvent(ChatEvent.OnModModeDefaultChanged(modButtonsOnHover))
     }
@@ -690,14 +695,19 @@ fun ChatScreen(
             )
     ) {
 
+        val headerVisible = settingsState.showChatHeader && surfaceStyle.showHeader
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(if (surfaceStyle.transparentBackground) Color.Transparent else MaterialTheme.colorScheme.background)
+                .then(
+                    if (headerVisible) Modifier
+                    else Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
+                )
         ) {
 
             AnimatedVisibility(
-                visible = settingsState.showChatHeader && surfaceStyle.showHeader,
+                visible = headerVisible,
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
@@ -1042,7 +1052,12 @@ fun ChatScreen(
                                                 highlightRules = settingsState.highlightRules,
                                                 userColorByLogin = rowDecorations.userColorByLogin,
                                                 accessToken = state.currentAccessToken,
-                                                modifier = messageAlphaModifier
+                                                modifier = messageAlphaModifier.swipeToReply(
+                                                    enabled = isPhone && state.currentUserId.isNotEmpty(),
+                                                    style = swipeReplyStyle
+                                                ) {
+                                                    viewModel.sendEvent(ChatEvent.OnReplyToMessage(message))
+                                                }
                                             )
 
                                             is DisplayMessage.SystemMsg -> SystemMsgItem(message)
@@ -1518,9 +1533,10 @@ fun ChatScreen(
                         }
                     ),
                     translation = MessageInputTranslation(
-                        targetLang = settingsState.translationTargetLang,
+                        targetLang = settingsState.outgoingTranslationLang,
                         autoEnabled = settingsState.autoTranslateInput,
-                        onToggleAuto = { settingsViewModel.sendEvent(SettingsEvent.OnAutoTranslateInputChanged(it)) }
+                        onToggleAuto = { settingsViewModel.sendEvent(SettingsEvent.OnAutoTranslateInputChanged(it)) },
+                        onTargetLangChange = { settingsViewModel.sendEvent(SettingsEvent.OnOutgoingTranslationLangChanged(it)) }
                     ),
                     glass = chatInputGlass
                 )

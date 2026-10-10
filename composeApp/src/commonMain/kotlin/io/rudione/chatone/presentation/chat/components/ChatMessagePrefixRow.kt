@@ -489,6 +489,15 @@ internal fun MessageInput(
                                 )
                             }
 
+                            if (autoTranslateEnabled) {
+                                MessageInputTranslationChip(
+                                    targetLang = translationTargetLang,
+                                    enabled = enabled,
+                                    onSelectLanguage = translation.onTargetLangChange,
+                                    onTurnOff = { onToggleAutoTranslate(false) }
+                                )
+                            }
+
                             MessageInputUploadStatus(
                                 uploadProgress = uploadProgress,
                                 uploadedLink = uploadedLink,
@@ -583,7 +592,8 @@ internal data class MessageInputUploadState(
 internal data class MessageInputTranslation(
     val targetLang: String = "en",
     val autoEnabled: Boolean = false,
-    val onToggleAuto: (Boolean) -> Unit = {}
+    val onToggleAuto: (Boolean) -> Unit = {},
+    val onTargetLangChange: (String) -> Unit = {}
 )
 
 private fun handleCompletionTab(
@@ -651,8 +661,7 @@ private fun RowScope.MessageInputTextField(
 ) {
     val s = LocalStrings.current
     CompositionLocalProvider(
-        androidx.compose.foundation.text.contextmenu.provider.LocalTextContextMenuDropdownProvider provides NoOpTextContextMenuProvider,
-        androidx.compose.foundation.text.contextmenu.provider.LocalTextContextMenuToolbarProvider provides NoOpTextContextMenuProvider
+        androidx.compose.foundation.text.contextmenu.provider.LocalTextContextMenuDropdownProvider provides NoOpTextContextMenuProvider
     ) {
         BasicTextField(
             value = tfv,

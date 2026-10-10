@@ -20,13 +20,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
@@ -59,6 +62,7 @@ import io.rudione.chatone.presentation.components.expressive.touchHaze
 import io.rudione.chatone.presentation.components.rows.LocalSettingsSearch
 import io.rudione.chatone.presentation.settings.components.settingsCard
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.util.platform.rememberInputCapabilities
 import io.rudione.chatone.util.system.isDesktopPlatform
 import org.koin.compose.koinInject
 
@@ -74,16 +78,18 @@ internal fun SettingsCompactScreen(
 ) {
     val s = LocalStrings.current
     var query by rememberSaveable { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(setOf<SettingsSection>()) }
+    val expansion = remember { SettingsSectionExpansion() }
     val settingsNavigator: SettingsNavigator = koinInject()
     val pendingDestination by settingsNavigator.pending.collectAsState()
     LaunchedEffect(pendingDestination) {
         pendingDestination?.let { destination ->
+            expansion.onQueryChanged(query, "")
             query = ""
-            expanded = expanded + destination.section()
+            expansion.reveal(destination.section())
         }
     }
-    val matching = remember(query, s) { settingsSectionsMatching(query, s) }
+    val input = rememberInputCapabilities()
+    val matching = remember(query, s, input) { settingsSectionsMatching(query, s).filter { it.isAvailable(input) } }
     val searching = query.isNotBlank()
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     val scheme = MaterialTheme.colorScheme
@@ -96,11 +102,13 @@ internal fun SettingsCompactScreen(
     ) {
         CompositionLocalProvider(LocalSettingsSearch provides query) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
-                    top = insets.calculateTopPadding() + 8.dp,
+                    top = 8.dp,
                     bottom = insets.calculateBottomPadding() + 32.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -123,7 +131,10 @@ internal fun SettingsCompactScreen(
                 stickyHeader(key = "search") {
                     ExpressiveSearchField(
                         value = query,
-                        onValueChange = { query = it },
+                        onValueChange = { next ->
+                            expansion.onQueryChanged(query, next)
+                            query = next
+                        },
                         placeholder = s.settingsSearchPlaceholder,
                         clearLabel = s.clear,
                         modifier = Modifier.padding(vertical = 6.dp)
@@ -141,15 +152,13 @@ internal fun SettingsCompactScreen(
                     }
                 }
                 items(matching, key = { it.name }) { section ->
-                    val open = searching || section in expanded
+                    val open = expansion.isOpen(section, searching)
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SectionHeader(
                             section = section,
                             label = section.localizedLabel(s),
                             open = open,
-                            onToggle = {
-                                expanded = if (section in expanded) expanded - section else expanded + section
-                            }
+                            onToggle = { expansion.toggle(section, searching) }
                         )
                         AnimatedVisibility(
                             visible = open,

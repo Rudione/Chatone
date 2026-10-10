@@ -48,53 +48,58 @@ fun PollBanner(
     val winner = poll.choices.firstOrNull {
         (it.votes + it.channelPointsVotes) == maxChoiceVotes && maxChoiceVotes > 0
     }
+    val strings = LocalStrings.current
+    val compact = LocalEventBannerCompact.current
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 4.dp)
+            .padding(eventBannerPadding(compact))
             .chatoneGlassPanel(RoundedCornerShape(12.dp))
     ) {
         Column {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(PollAccent.copy(alpha = 0.18f))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    .padding(horizontal = if (compact) 8.dp else 10.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    Lucide.Vote,
-                    contentDescription = null,
-                    tint = PollAccent,
-                    modifier = Modifier.size(13.dp)
-                )
-                Text(
-                    poll.title,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                if (!isEnded) {
-                    PollCountdownChip(poll = poll)
-                } else {
-                    Text(
-                        "$totalVotes votes",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Lucide.Vote,
+                        contentDescription = null,
+                        tint = PollAccent,
+                        modifier = Modifier.size(13.dp)
                     )
+                    if (compact) {
+                        Spacer(Modifier.weight(1f))
+                    } else {
+                        PollTitle(poll.title, maxLines = 1, modifier = Modifier.weight(1f))
+                    }
+                    if (!isEnded) {
+                        PollCountdownChip(poll = poll)
+                    } else {
+                        Text(
+                            strings.events.pollVotes(totalVotes),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                    if (onHide != null) {
+                        EventHideButton(tooltip = strings.chatHideEventBanner, onHide = onHide)
+                    }
                 }
-                if (onHide != null) {
-                    EventHideButton(tooltip = LocalStrings.current.chatHideEventBanner, onHide = onHide)
-                }
+                if (compact) PollTitle(poll.title, maxLines = 2)
             }
 
             Column(
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = if (compact) 6.dp else 8.dp, vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 poll.choices.forEach { choice ->
@@ -109,6 +114,7 @@ fun PollBanner(
                         isWinner = isWinnerRow,
                         isMine = isMine,
                         clickable = !isEnded && !hasVoted,
+                        compact = compact,
                         onClick = { onVote(choice.id) }
                     )
                 }
@@ -123,15 +129,30 @@ fun PollBanner(
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        "Poll ended — “${winner.title}” won: $winPct%, $totalVotes votes",
+                        strings.events.pollWon(winner.title, winPct, totalVotes),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = PollWinnerGreen
+                        color = PollWinnerGreen,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun PollTitle(title: String, maxLines: Int, modifier: Modifier = Modifier) {
+    Text(
+        title,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -174,6 +195,7 @@ private fun PollChoiceRow(
     isWinner: Boolean,
     isMine: Boolean,
     clickable: Boolean,
+    compact: Boolean,
     onClick: () -> Unit
 ) {
     val animFraction by animateFloatAsState(targetValue = fraction.coerceIn(0f, 1f), label = "poll-fraction")
@@ -228,10 +250,13 @@ private fun PollChoiceRow(
                 )
                 Spacer(Modifier.width(4.dp))
             }
+            Spacer(Modifier.width(6.dp))
             Text(
-                "${(animFraction * 100).toInt()}% · $votes",
+                if (compact) "${(animFraction * 100).toInt()}%" else "${(animFraction * 100).toInt()}% · $votes",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

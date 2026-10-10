@@ -94,7 +94,8 @@ data class MainState(
     val liveNotifyChannels: Set<String> = emptySet(),
     val needsReauth: Boolean = false,
     val recentChannels: List<ChannelTab> = emptyList(),
-    val showBrowse: Boolean = false
+    val showBrowse: Boolean = false,
+    val returnToBrowse: Boolean = false
 ) : UiState
 
 sealed class MainEvent : UiEvent {
@@ -192,10 +193,13 @@ sealed class MainEvent : UiEvent {
     data class UnmuteMentionsUserInChannel(val userLogin: String, val channelLogin: String) : MainEvent()
     object ShowBrowse : MainEvent()
     object HideBrowse : MainEvent()
+    object ReturnToBrowse : MainEvent()
+    object ReturnToStream : MainEvent()
     data class OpenRecentChannel(
         val login: String,
         val displayName: String = "",
-        val avatarUrl: String = ""
+        val avatarUrl: String = "",
+        val fromBrowse: Boolean = false
     ) : MainEvent()
     data class ForgetRecentChannel(val login: String) : MainEvent()
     data class KeepRecentChannel(val login: String) : MainEvent()
@@ -282,10 +286,15 @@ class MainViewModel(
                 update { it.copy(miniRailCollapsed = event.collapsed) }
                 sidebarLayoutRepository.saveMiniRailCollapsed(event.collapsed)
             }
-            is MainEvent.SelectChannel -> selectChannel(event.login, event.scrollToMessageId)
+            is MainEvent.SelectChannel -> {
+                update { it.copy(returnToBrowse = false) }
+                selectChannel(event.login, event.scrollToMessageId)
+            }
             MainEvent.ShowBrowse -> update { it.copy(showBrowse = true, sidebarExpanded = false) }
+            MainEvent.ReturnToBrowse -> update { it.copy(showBrowse = true, returnToBrowse = false, sidebarExpanded = false) }
+            MainEvent.ReturnToStream -> update { it.copy(showBrowse = false, returnToBrowse = true) }
             MainEvent.HideBrowse -> update { it.copy(showBrowse = false) }
-            is MainEvent.OpenRecentChannel -> openRecentChannel(event.login, event.displayName, event.avatarUrl)
+            is MainEvent.OpenRecentChannel -> openRecentChannel(event.login, event.displayName, event.avatarUrl, event.fromBrowse)
             is MainEvent.ForgetRecentChannel -> forgetRecentChannel(event.login)
             is MainEvent.KeepRecentChannel -> keepRecentChannel(event.login)
             is MainEvent.ToggleLiveNotify -> liveAlertsRepository.toggle(event.login)
@@ -314,7 +323,10 @@ class MainViewModel(
                 else it.activeChannelLogin
                 it.copy(monitorTabs = remaining, activeChannelLogin = nextActive)
             }
-            is MainEvent.CloseChannel -> closeChannel(event.login)
+            is MainEvent.CloseChannel -> {
+                update { it.copy(returnToBrowse = false) }
+                closeChannel(event.login)
+            }
             is MainEvent.AddChannel -> addChannel(
                 event.login,
                 event.profileImageUrl,
@@ -981,11 +993,11 @@ class MainViewModel(
         }
     }
 
-    private fun openRecentChannel(login: String, displayName: String, avatarUrl: String) {
+    private fun openRecentChannel(login: String, displayName: String, avatarUrl: String, fromBrowse: Boolean = false) {
         val normalized = login.lowercase().removePrefix("#").trim()
         if (normalized.isEmpty()) return
         if (state.value.openChannels.any { it.login == normalized }) {
-            update { it.copy(showBrowse = false) }
+            update { it.copy(showBrowse = false, returnToBrowse = fromBrowse) }
             selectChannel(normalized)
             return
         }
@@ -1000,6 +1012,7 @@ class MainViewModel(
                 activeChatChannelId = state.channelIdMap[normalized] ?: "",
                 sidebarExpanded = false,
                 showBrowse = false,
+                returnToBrowse = fromBrowse,
                 showMentionsFeed = false,
                 mentionsChannelActive = false
             )

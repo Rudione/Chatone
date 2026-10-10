@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.sections
 
+import io.rudione.chatone.util.system.isDesktopPlatform
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -44,7 +45,7 @@ internal fun LazyListScope.hotkeyLazyItems(state: SettingsState, vm: SettingsVie
             }
         }
     }
-    item {
+    if (isDesktopPlatform) item {
         ImageUploaderSection(
             state = state,
             onEvent = { vm.sendEvent(it) }
@@ -74,10 +75,12 @@ internal fun HotkeyContent(state: SettingsState, vm: SettingsViewModel) {
             vm.sendEvent(SettingsEvent.OnPauseHotkeyModeChanged(PauseHotkeyMode.entries[idx]))
         }
     }
-    ImageUploaderSection(
-        state = state,
-        onEvent = { vm.sendEvent(it) }
-    )
+    if (isDesktopPlatform) {
+        ImageUploaderSection(
+            state = state,
+            onEvent = { vm.sendEvent(it) }
+        )
+    }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)

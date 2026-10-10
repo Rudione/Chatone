@@ -152,6 +152,7 @@ kotlin {
             implementation(libs.media3.exoplayer)
             implementation(libs.media3.exoplayer.hls)
             implementation(libs.media3.datasource.okhttp)
+            implementation(libs.media3.session)
             implementation(libs.androidx.work.runtime)
             implementation("androidx.browser:browser:1.8.0")
         }

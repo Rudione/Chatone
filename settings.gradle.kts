@@ -155,6 +155,7 @@ dependencyResolutionManagement {
             library("media3-exoplayer", "androidx.media3", "media3-exoplayer").versionRef("media3")
             library("media3-exoplayer-hls", "androidx.media3", "media3-exoplayer-hls").versionRef("media3")
             library("media3-datasource-okhttp", "androidx.media3", "media3-datasource-okhttp").versionRef("media3")
+            library("media3-session", "androidx.media3", "media3-session").versionRef("media3")
 
             library("androidx-work-runtime", "androidx.work", "work-runtime").versionRef("work")
 

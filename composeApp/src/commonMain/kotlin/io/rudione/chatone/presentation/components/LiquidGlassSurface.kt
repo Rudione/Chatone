@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
@@ -32,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.glassAlphasFromIntensity
+import io.rudione.chatone.presentation.theme.readableOn
 import io.rudione.chatone.presentation.theme.sidebarBackgroundColor
 
 @Composable
@@ -100,6 +103,9 @@ fun LiquidGlassSurface(
     val glowEnabled = liveWallpaper.glowEffectsEnabled || forceGlass
 
     val shimmerProgress = if (shimmer && glowEnabled) rememberShimmerProgress() else null
+    val scheme = MaterialTheme.colorScheme
+    val surfaceColor = if (glowEnabled) baseColor.copy(alpha = alphaHigh).compositeOver(scheme.background) else scheme.surfaceContainer
+    val contentColor = remember(surfaceColor, scheme.onSurface) { readableOn(scheme.onSurface, surfaceColor) }
 
     Box(
         modifier = modifier
@@ -160,7 +166,9 @@ fun LiquidGlassSurface(
                 }
             )
     ) {
-        Box(modifier = Modifier.padding(contentPadding)) { content() }
+        CompositionLocalProvider(LocalContentColor provides contentColor) {
+            Box(modifier = Modifier.padding(contentPadding)) { content() }
+        }
     }
 }
 
@@ -181,7 +189,7 @@ fun LiquidGlassDropdownItem(
     text: String,
     icon: ImageVector,
     onClick: () -> Unit,
-    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    iconTint: Color = LocalContentColor.current.copy(alpha = 0.72f),
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -190,6 +198,6 @@ fun LiquidGlassDropdownItem(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = iconTint)
-        Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(text, style = MaterialTheme.typography.labelMedium, color = LocalContentColor.current)
     }
 }

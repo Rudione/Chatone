@@ -1,15 +1,28 @@
 package io.rudione.chatone.presentation.stream
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import io.rudione.chatone.domain.stream.StreamPlaybackEngine
+
+enum class VideoSurfaceKind { Direct, Composited }
+
+@Stable
+interface VideoFrameSink {
+    val sampleWidth: Int
+    val sampleHeight: Int
+    val sampleIntervalMs: Long
+    fun accept(argb: IntArray)
+}
 
 @Composable
 expect fun PlatformVideoView(
     engine: StreamPlaybackEngine?,
     keepScreenOn: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    surfaceKind: VideoSurfaceKind = VideoSurfaceKind.Direct,
+    frameSink: VideoFrameSink? = null
 )
 
 @Composable
@@ -40,9 +53,15 @@ interface PictureInPictureController {
 @Composable
 expect fun rememberPictureInPictureController(): PictureInPictureController
 
+@Immutable
+data class PictureInPicturePlayback(val playing: Boolean, val muted: Boolean)
+
 @Composable
 expect fun PictureInPictureAutoEnterEffect(
     controller: PictureInPictureController,
     enabled: Boolean,
-    aspectRatio: Float
+    aspectRatio: Float,
+    playback: PictureInPicturePlayback,
+    onTogglePlayback: () -> Unit,
+    onToggleMute: () -> Unit
 )

@@ -110,6 +110,7 @@ data class StreamPlayerPreferences(
     val overlayMessageOpacity: Float = DEFAULT_OVERLAY_MESSAGE_OPACITY,
     val overlayLocked: Boolean = false,
     val autoPictureInPicture: Boolean = true,
+    val backgroundAudio: Boolean = true,
     val autoOpen: Boolean = true
 ) {
     companion object {
@@ -135,7 +136,8 @@ data class PlaybackStatus(
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
     val activeBandwidth: Long? = null,
-    val activeHeight: Int? = null
+    val activeHeight: Int? = null,
+    val audioOnly: Boolean = false
 )
 
 @Immutable

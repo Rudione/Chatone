@@ -75,7 +75,7 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.theme_settings.ThemeCreatorSection
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.util.system.isDesktopPlatform
+import io.rudione.chatone.util.platform.rememberInputCapabilities
 
 private val DEFAULT_TIMEOUT_OPTIONS = listOf(
     60 to "1m", 300 to "5m", 600 to "10m", 1800 to "30m", 3600 to "1h", 86400 to "1d"
@@ -216,7 +216,7 @@ private fun ModActionButtonsSection(
             )
         }
 
-        if (isDesktopPlatform) {
+        if (rememberInputCapabilities().pointer) {
             ChatoneListItem(
                 onClick = { onEvent(SettingsEvent.OnModButtonsOnHoverChanged(!state.modButtonsOnHover)) },
                 trailing = {

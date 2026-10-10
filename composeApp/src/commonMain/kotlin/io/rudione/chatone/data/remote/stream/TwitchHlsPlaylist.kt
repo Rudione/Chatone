@@ -2,6 +2,9 @@ package io.rudione.chatone.data.remote.stream
 
 import io.rudione.chatone.domain.stream.StreamVariant
 import io.rudione.chatone.domain.stream.TwitchServingInfo
+import kotlin.time.Instant
+
+internal class LiveStartHint(val serverNowMs: Long, val latencyMs: Long)
 
 internal class ParsedMasterPlaylist(
     val variants: List<StreamVariant>,
@@ -19,6 +22,9 @@ internal object TwitchHlsPlaylist {
     private const val TAG_PREFETCH = "#EXT-X-TWITCH-PREFETCH:"
     private const val TAG_EXTINF = "#EXTINF:"
     private const val TAG_TARGET_DURATION = "#EXT-X-TARGETDURATION:"
+    private const val TAG_PROGRAM_DATE_TIME = "#EXT-X-PROGRAM-DATE-TIME:"
+    private const val TAG_START = "#EXT-X-START"
+    private const val MIN_START_DISTANCE_MS = 100L
     private const val DEFAULT_PREFETCH_DURATION = "2.000"
     private const val MIN_PREFETCH_DURATION_SECONDS = 1.0
     private const val MAX_ATTRIBUTES = 64
@@ -66,18 +72,29 @@ internal object TwitchHlsPlaylist {
         return ParsedMasterPlaylist(variants, serving, sanitized.toString())
     }
 
-    fun rewriteMediaPlaylist(mediaPlaylist: String, expandPrefetch: Boolean): String? {
+    fun rewriteMediaPlaylist(
+        mediaPlaylist: String,
+        expandPrefetch: Boolean,
+        liveStart: LiveStartHint? = null
+    ): String? {
         val lines = mediaPlaylist.lineSequence().map { it.trimEnd('\r') }.toList()
         val hasPrefetch = expandPrefetch && lines.any { it.startsWith(TAG_PREFETCH) }
         val body = ArrayList<String>(lines.size + 8)
         var lastDuration = DEFAULT_PREFETCH_DURATION
         var longestRounded = 0L
+        var lastProgramDateTime: String? = null
+        var secondsSinceProgramDateTime = 0.0
+        var pendingSeconds = 0.0
+        var prefetchSeconds = 0.0
+        var declaresStart = false
         for (line in lines) {
             when {
                 line.startsWith(TAG_EXTINF) -> {
                     val duration = line.substring(TAG_EXTINF.length).substringBefore(',').trim()
                     val seconds = duration.toDoubleOrNull()
+                    pendingSeconds = 0.0
                     if (seconds != null && seconds.isFinite() && seconds >= 0.0) {
+                        pendingSeconds = seconds
                         longestRounded = maxOf(longestRounded, kotlin.math.round(seconds).toLong())
                         if (seconds >= MIN_PREFETCH_DURATION_SECONDS) lastDuration = duration
                     }
@@ -86,18 +103,41 @@ internal object TwitchHlsPlaylist {
                 line.startsWith(TAG_PREFETCH) && hasPrefetch -> {
                     val uri = line.substring(TAG_PREFETCH.length).trim()
                     if (uri.isNotEmpty() && !uri.startsWith("#")) {
-                        longestRounded = maxOf(longestRounded, lastDuration.toDoubleOrNull()?.let { kotlin.math.round(it).toLong() } ?: 0L)
+                        val seconds = lastDuration.toDoubleOrNull() ?: 0.0
+                        longestRounded = maxOf(longestRounded, kotlin.math.round(seconds).toLong())
+                        prefetchSeconds += seconds
                         body += "$TAG_EXTINF$lastDuration,live"
                         body += uri
                     }
                 }
+                line.startsWith(TAG_PROGRAM_DATE_TIME) -> {
+                    lastProgramDateTime = line.substring(TAG_PROGRAM_DATE_TIME.length).trim()
+                    secondsSinceProgramDateTime = 0.0
+                    body += line
+                }
+                line.startsWith(TAG_START) -> {
+                    declaresStart = true
+                    body += line
+                }
+                line.isNotEmpty() && !line.startsWith("#") -> {
+                    secondsSinceProgramDateTime += pendingSeconds
+                    pendingSeconds = 0.0
+                    body += line
+                }
                 else -> body += line
             }
         }
+        val startLine = liveStart
+            ?.takeUnless { declaresStart }
+            ?.let { hint ->
+                val anchorMs = lastProgramDateTime?.let(::epochMillisOrNull) ?: return@let null
+                val playlistEndMs = anchorMs + ((secondsSinceProgramDateTime + prefetchSeconds) * 1000.0).toLong()
+                startTagFor(hint.serverNowMs - hint.latencyMs - playlistEndMs)
+            }
         val tightTarget = longestRounded.coerceAtLeast(1L)
         var targetChanged = false
         val out = StringBuilder(mediaPlaylist.length + 256)
-        for (line in body) {
+        for ((index, line) in body.withIndex()) {
             if (line.startsWith(TAG_TARGET_DURATION)) {
                 val declared = line.substring(TAG_TARGET_DURATION.length).trim().toLongOrNull()
                 if (declared != null && longestRounded > 0L && declared > tightTarget) {
@@ -107,9 +147,20 @@ internal object TwitchHlsPlaylist {
                 }
             }
             out.append(line).append('\n')
+            if (index == 0 && startLine != null) out.append(startLine).append('\n')
         }
-        return if (hasPrefetch || targetChanged) out.toString() else null
+        return if (hasPrefetch || targetChanged || startLine != null) out.toString() else null
     }
+
+    private fun startTagFor(offsetMs: Long): String? {
+        if (offsetMs > -MIN_START_DISTANCE_MS) return null
+        val magnitude = -offsetMs
+        val fraction = (magnitude % 1000).toString().padStart(3, '0')
+        return "$TAG_START:TIME-OFFSET=-${magnitude / 1000}.$fraction,PRECISE=YES"
+    }
+
+    private fun epochMillisOrNull(value: String): Long? =
+        runCatching { Instant.parse(value).toEpochMilliseconds() }.getOrNull()
 
     fun attributes(list: String): Map<String, String> {
         val result = LinkedHashMap<String, String>()

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,23 +32,39 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import io.rudione.chatone.domain.stream.LandscapeChatMode
 import io.rudione.chatone.domain.stream.StreamPlayerPreferences
 import io.rudione.chatone.presentation.chat.ChatSurfaceStyle
 import io.rudione.chatone.presentation.chat.LocalChatSurfaceStyle
 import io.rudione.chatone.presentation.components.ChatoneWindowSize
 import io.rudione.chatone.presentation.components.LocalWindowSize
+import io.rudione.chatone.presentation.stream.ambient.AmbientGlow
 import kotlin.math.roundToInt
 
 @Composable
-fun PortraitStreamPlayer(ui: MobileStreamUi, modifier: Modifier = Modifier) {
-    ui.Player(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(StreamPlayerUiState.DEFAULT_ASPECT_RATIO),
-        fullscreen = false
-    )
+fun PortraitStreamPlayer(ui: MobileStreamUi, modifier: Modifier = Modifier, glowHeight: Dp = 0.dp) {
+    Box(modifier.zIndex(1f)) {
+        ui.Player(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(StreamPlayerUiState.DEFAULT_ASPECT_RATIO),
+            fullscreen = false
+        )
+        if (glowHeight > 0.dp) {
+            AmbientGlow(
+                ambience = ui.ambience,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(glowHeight)
+                    .offset { IntOffset(0, glowHeight.roundToPx()) }
+            )
+        }
+    }
 }
 
 @Composable

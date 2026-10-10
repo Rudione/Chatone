@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import io.rudione.chatone.domain.stream.LandscapeChatMode
 import io.rudione.chatone.domain.stream.OverlayChatBounds
 import io.rudione.chatone.domain.stream.StreamErrorKind
+import io.rudione.chatone.domain.stream.StreamMediaInfo
 import io.rudione.chatone.domain.stream.StreamPhase
 import io.rudione.chatone.domain.stream.StreamPlayerPreferences
 import io.rudione.chatone.domain.stream.StreamQualitySelection
@@ -20,6 +21,7 @@ data class StreamPlayerUiState(
     val selection: StreamQualitySelection = StreamQualitySelection.Auto,
     val activeVariant: StreamVariant? = null,
     val isMuted: Boolean = false,
+    val isAudioOnly: Boolean = false,
     val videoAspectRatio: Float = DEFAULT_ASPECT_RATIO,
     val streamStartedAtMs: Long? = null,
     val preferences: StreamPlayerPreferences = StreamPlayerPreferences(),
@@ -63,6 +65,8 @@ sealed interface StreamPlayerEvent {
     data class SetOverlayMessageOpacity(val opacity: Float) : StreamPlayerEvent
     data class SetOverlayLocked(val locked: Boolean) : StreamPlayerEvent
     data class SetAutoPictureInPicture(val enabled: Boolean) : StreamPlayerEvent
+    data class SetBackgroundAudio(val enabled: Boolean) : StreamPlayerEvent
+    data class SetMediaInfo(val info: StreamMediaInfo) : StreamPlayerEvent
     data class SetStatsVisible(val visible: Boolean) : StreamPlayerEvent
     data class SetSettingsVisible(val visible: Boolean) : StreamPlayerEvent
     data object Retry : StreamPlayerEvent

@@ -251,6 +251,12 @@ private fun PreferenceSections(
         )
     }
     ToggleRow(
+        title = strings.backgroundAudio,
+        description = strings.backgroundAudioDescription,
+        checked = preferences.backgroundAudio,
+        onCheckedChange = { onEvent(StreamPlayerEvent.SetBackgroundAudio(it)) }
+    )
+    ToggleRow(
         title = strings.videoStats,
         description = null,
         checked = statsVisible,

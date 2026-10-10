@@ -15,10 +15,19 @@ interface StreamPlaybackEngine {
 
     fun seekToLive()
 
+    fun setMediaInfo(info: StreamMediaInfo)
+
     fun metrics(): PlaybackMetrics?
 
     fun release()
 }
+
+data class StreamMediaInfo(
+    val channelLogin: String,
+    val title: String,
+    val channelName: String,
+    val artworkUrl: String?
+)
 
 sealed interface StreamManifestResult {
     class Ready(val manifest: StreamManifest) : StreamManifestResult

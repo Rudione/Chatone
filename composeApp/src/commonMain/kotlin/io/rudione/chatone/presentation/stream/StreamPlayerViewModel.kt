@@ -10,6 +10,7 @@ import io.rudione.chatone.domain.stream.StreamErrorKind
 import io.rudione.chatone.domain.stream.StreamManifest
 import io.rudione.chatone.domain.stream.StreamManifestResult
 import io.rudione.chatone.domain.stream.StreamManifestSource
+import io.rudione.chatone.domain.stream.StreamMediaInfo
 import io.rudione.chatone.domain.stream.StreamPhase
 import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 import io.rudione.chatone.domain.stream.StreamPlaybackEngineFactory
@@ -67,6 +68,10 @@ class StreamPlayerViewModel(
     private var retryAttempt = 0
     private var resumeWhenVisible = false
     private var appVisible = true
+    private var playingInBackground = false
+    private var backgroundAudioOnly = false
+    private var backgroundJob: Job? = null
+    private var mediaInfo: StreamMediaInfo? = null
     private var viewportWidth = 0
     private var viewportHeight = 0
 
@@ -94,6 +99,8 @@ class StreamPlayerViewModel(
             is StreamPlayerEvent.SetOverlayMessageOpacity -> updatePreferences { it.copy(overlayMessageOpacity = event.opacity) }
             is StreamPlayerEvent.SetOverlayLocked -> updatePreferences { it.copy(overlayLocked = event.locked) }
             is StreamPlayerEvent.SetAutoPictureInPicture -> updatePreferences { it.copy(autoPictureInPicture = event.enabled) }
+            is StreamPlayerEvent.SetBackgroundAudio -> updatePreferences { it.copy(backgroundAudio = event.enabled) }
+            is StreamPlayerEvent.SetMediaInfo -> applyMediaInfo(event.info)
             is StreamPlayerEvent.SetStatsVisible -> setStatsVisible(event.visible)
             is StreamPlayerEvent.SetSettingsVisible -> _state.update { it.copy(settingsVisible = event.visible && it.isOpen) }
             StreamPlayerEvent.Retry -> _state.value.channelLogin?.let { open(it, force = true) }
@@ -272,6 +279,8 @@ class StreamPlayerViewModel(
         releaseEngine()
         retryAttempt = 0
         resumeWhenVisible = false
+        leaveBackgroundMode()
+        mediaInfo = null
         _latencySeconds.value = null
         _stats.value = null
         _state.update {
@@ -298,11 +307,14 @@ class StreamPlayerViewModel(
         val playbackEngine = engine ?: engineFactory.create().also { created ->
             engine = created
             _playbackEngine.value = created
+            mediaInfo?.let(created::setMediaInfo)
             observe(created)
         }
+        val keepPlaying = !appVisible && playingInBackground
+        val loadSelection = if (keepPlaying && backgroundAudioOnly) StreamQualitySelection.AudioOnly else selection
         playbackEngine.setMuted(_state.value.isMuted)
-        playbackEngine.load(newManifest, selection, preferences.lowLatency)
-        if (!appVisible) {
+        playbackEngine.load(newManifest, loadSelection, preferences.lowLatency)
+        if (!appVisible && !keepPlaying) {
             resumeWhenVisible = true
             playbackEngine.setPlaying(false)
         }
@@ -358,6 +370,7 @@ class StreamPlayerViewModel(
                 phase = status.phase,
                 errorKind = null,
                 isMuted = status.isMuted,
+                isAudioOnly = status.audioOnly,
                 activeVariant = active ?: it.activeVariant,
                 videoAspectRatio = aspect
             )
@@ -443,13 +456,54 @@ class StreamPlayerViewModel(
         appVisible = visible
         val playbackEngine = engine ?: return
         if (!visible) {
-            resumeWhenVisible = _state.value.isPlaybackActive
+            val current = _state.value
+            if (current.preferences.backgroundAudio && current.isPlaybackActive) {
+                playingInBackground = true
+                scheduleBackgroundAudioOnly()
+                return
+            }
+            resumeWhenVisible = current.isPlaybackActive
             if (resumeWhenVisible) playbackEngine.setPlaying(false)
-        } else if (resumeWhenVisible) {
+            return
+        }
+        val restoreVideo = backgroundAudioOnly
+        leaveBackgroundMode()
+        if (restoreVideo) playbackEngine.selectQuality(_state.value.selection)
+        if (resumeWhenVisible) {
             resumeWhenVisible = false
             playbackEngine.seekToLive()
             playbackEngine.setPlaying(true)
         }
+    }
+
+    private fun scheduleBackgroundAudioOnly() {
+        backgroundJob?.cancel()
+        backgroundJob = viewModelScope.launch {
+            delay(BACKGROUND_AUDIO_ONLY_DELAY_MS)
+            val current = _state.value
+            val playbackEngine = engine ?: return@launch
+            val hasAudioVariant = manifest?.audioOnlyVariant != null
+            if (appVisible || !current.isPlaybackActive || !hasAudioVariant) return@launch
+            if (current.selection == StreamQualitySelection.AudioOnly) return@launch
+            backgroundAudioOnly = true
+            playbackEngine.selectQuality(StreamQualitySelection.AudioOnly)
+        }
+    }
+
+    private fun leaveBackgroundMode() {
+        backgroundJob?.cancel()
+        backgroundJob = null
+        playingInBackground = false
+        backgroundAudioOnly = false
+    }
+
+    private fun applyMediaInfo(info: StreamMediaInfo) {
+        val login = normalizedLogin(info.channelLogin) ?: return
+        if (login != _state.value.channelLogin) return
+        val normalized = info.copy(channelLogin = login)
+        if (normalized == mediaInfo) return
+        mediaInfo = normalized
+        engine?.setMediaInfo(normalized)
     }
 
     private inline fun updatePreferences(transform: (StreamPlayerPreferences) -> StreamPlayerPreferences) {
@@ -536,6 +590,7 @@ class StreamPlayerViewModel(
     private companion object {
         const val TAG = "StreamPlayer"
         const val METRICS_INTERVAL_MS = 1_000L
+        const val BACKGROUND_AUDIO_ONLY_DELAY_MS = 20_000L
         const val BASE_RETRY_DELAY_MS = 1_500L
         const val MAX_RETRY_DELAY_MS = 20_000L
         const val MAX_RETRIES = 5

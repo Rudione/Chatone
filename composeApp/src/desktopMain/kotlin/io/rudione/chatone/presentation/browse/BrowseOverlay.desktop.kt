@@ -6,5 +6,6 @@ import androidx.compose.runtime.Composable
 actual fun BrowseOverlay(
     visible: Boolean,
     onClose: () -> Unit,
-    onOpen: (BrowseOpenRequest) -> Unit
+    onOpen: (BrowseOpenRequest) -> Unit,
+    onReturnToStream: () -> Unit
 ) = Unit

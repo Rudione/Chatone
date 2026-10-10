@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.pointerInput
@@ -38,6 +39,7 @@ import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import io.rudione.chatone.presentation.auth.AuthScreen
 import io.rudione.chatone.presentation.chat.ChatMediaSettings
 import io.rudione.chatone.presentation.chat.LocalChatMediaSettings
+import io.rudione.chatone.presentation.components.SystemBarsAppearance
 import io.rudione.chatone.presentation.main.MainScreen
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
@@ -296,6 +298,9 @@ fun App(
                 fontSettings = chatFontSettings,
                 colorTokens = settingsState.colorTokens
             ) {
+                SystemBarsAppearance(
+                    lightBackground = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
+                )
                 val resolvedTopBarColor = io.rudione.chatone.presentation.theme.topBarBackgroundColor(
                     wallpaper,
                     androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer

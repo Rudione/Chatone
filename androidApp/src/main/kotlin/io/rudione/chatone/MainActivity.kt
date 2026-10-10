@@ -5,17 +5,21 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.InputDevice
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.rudione.chatone.data.auth.LoginReturnIntents
 import io.rudione.chatone.splash.playChatoneExit
 import io.rudione.chatone.util.media.AndroidFilePicker
 import io.rudione.chatone.util.system.AndroidNotifier
+import io.rudione.chatone.util.system.GlobalKeyDispatcher
 import io.rudione.chatone.util.system.LaunchGate
 import io.rudione.chatone.util.system.NotificationAccess
 import io.rudione.chatone.util.system.NotificationLaunches
@@ -59,6 +63,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             App()
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val device = event.device
+        val hardwareKeyboard = device != null && !device.isVirtual &&
+            device.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC
+        if (hardwareKeyboard && GlobalKeyDispatcher.dispatch(ComposeKeyEvent(event))) return true
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onNewIntent(intent: Intent) {

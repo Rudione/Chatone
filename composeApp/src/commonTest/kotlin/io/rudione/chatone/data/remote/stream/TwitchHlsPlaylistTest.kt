@@ -6,6 +6,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 class TwitchHlsPlaylistTest {
 
@@ -118,6 +119,55 @@ class TwitchHlsPlaylistTest {
         val rewritten = assertNotNull(TwitchHlsPlaylist.rewriteMediaPlaylist(media, expandPrefetch = false))
         assertTrue(rewritten.contains("#EXT-X-TARGETDURATION:2\n"))
         assertTrue(rewritten.contains("#EXT-X-TWITCH-PREFETCH:https://a/2.ts"))
+    }
+
+    private val liveMedia = """
+        #EXTM3U
+        #EXT-X-TARGETDURATION:6
+        #EXT-X-PROGRAM-DATE-TIME:2026-09-16T21:00:20.000Z
+        #EXTINF:2.000,live
+        https://edge.hls.ttvnw.net/v1/segment/1.ts
+        #EXT-X-PROGRAM-DATE-TIME:2026-09-16T21:00:22.000Z
+        #EXTINF:2.000,live
+        https://edge.hls.ttvnw.net/v1/segment/2.ts
+        #EXT-X-TWITCH-PREFETCH:https://edge.hls.ttvnw.net/v1/segment/3.ts
+        #EXT-X-TWITCH-PREFETCH:https://edge.hls.ttvnw.net/v1/segment/4.ts
+    """.trimIndent()
+
+    private val lastSegmentEndMs = Instant.parse("2026-09-16T21:00:24.000Z").toEpochMilliseconds()
+
+    @Test
+    fun liveStartLandsAtTheRequestedLatencyBehindTheExpandedEnd() {
+        val hint = LiveStartHint(serverNowMs = lastSegmentEndMs + 1_250, latencyMs = 1_600)
+        val rewritten = assertNotNull(TwitchHlsPlaylist.rewriteMediaPlaylist(liveMedia, expandPrefetch = true, liveStart = hint))
+        assertEquals("#EXT-X-START:TIME-OFFSET=-4.350,PRECISE=YES", rewritten.lines()[1])
+    }
+
+    @Test
+    fun liveStartIgnoresPrefetchThatIsNotExpanded() {
+        val hint = LiveStartHint(serverNowMs = lastSegmentEndMs + 1_250, latencyMs = 5_000)
+        val rewritten = assertNotNull(TwitchHlsPlaylist.rewriteMediaPlaylist(liveMedia, expandPrefetch = false, liveStart = hint))
+        assertEquals("#EXT-X-START:TIME-OFFSET=-3.750,PRECISE=YES", rewritten.lines()[1])
+    }
+
+    @Test
+    fun liveStartKeepsAStartTheServerAlreadyDeclared() {
+        val media = "#EXTM3U\n#EXT-X-START:TIME-OFFSET=-6\n#EXT-X-TARGETDURATION:2\n" +
+            "#EXT-X-PROGRAM-DATE-TIME:2026-09-16T21:00:22.000Z\n#EXTINF:2.000,live\nhttps://a/1.ts\n"
+        assertNull(TwitchHlsPlaylist.rewriteMediaPlaylist(media, expandPrefetch = true, liveStart = LiveStartHint(lastSegmentEndMs, 1_600)))
+    }
+
+    @Test
+    fun liveStartNeedsProgramDateTime() {
+        val media = "#EXTM3U\n#EXT-X-TARGETDURATION:2\n#EXTINF:2.000,live\nhttps://a/1.ts\n"
+        assertNull(TwitchHlsPlaylist.rewriteMediaPlaylist(media, expandPrefetch = true, liveStart = LiveStartHint(lastSegmentEndMs, 1_600)))
+    }
+
+    @Test
+    fun liveStartIsSkippedWhenTheClockIsAheadOfThePlaylist() {
+        val hint = LiveStartHint(serverNowMs = lastSegmentEndMs + 5_000, latencyMs = 1_000)
+        val rewritten = assertNotNull(TwitchHlsPlaylist.rewriteMediaPlaylist(liveMedia, expandPrefetch = true, liveStart = hint))
+        assertFalse(rewritten.contains("EXT-X-START"))
     }
 
     @Test

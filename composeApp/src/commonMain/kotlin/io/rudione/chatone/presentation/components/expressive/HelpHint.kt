@@ -139,7 +139,7 @@ private fun HintCard(title: String, text: String) {
     }
 }
 
-private class ClosingTap {
+internal class ClosingTap {
     private var closedAt: TimeMark? = null
     private var pressedAt: TimeMark? = null
 

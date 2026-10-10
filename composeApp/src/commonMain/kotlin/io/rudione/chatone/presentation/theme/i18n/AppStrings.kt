@@ -1240,6 +1240,10 @@ interface AppStrings {
     val settingsAutoTranslateInputDesc: String
     val inputTranslate: String
     val inputAutoTranslate: String
+    val settingsOutgoingTranslationLang: String
+    val settingsOutgoingTranslationLangDesc: String
+    val inputTranslationLanguage: String
+    val inputTranslationOff: String
     val settingsMentionTabs: String
     val settingsMentionTabsDesc: String
     val mentionTabsTitle: String
@@ -1417,6 +1421,7 @@ interface AppStrings {
     fun slashCommandDescription(name: String): String
     val player: StreamPlayerStrings
     val explore: BrowseStrings
+    val events: EventBannerStrings
     val timeline: ChatTimelineStrings
     val launch: LaunchStrings
     val insights: ProfileInsightStrings

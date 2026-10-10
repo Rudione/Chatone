@@ -131,6 +131,7 @@ import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
 import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
 import io.rudione.chatone.presentation.stream.LandscapeStreamLayout
+import io.rudione.chatone.presentation.stream.LocalFloatingStreamPlayer
 import io.rudione.chatone.presentation.stream.LocalStreamPlayerHost
 import io.rudione.chatone.presentation.stream.PortraitStreamPlayer
 import io.rudione.chatone.presentation.stream.StreamSettingsSheet
@@ -142,6 +143,7 @@ import io.rudione.chatone.presentation.chat.zoom.ChatZoomIndicator
 import io.rudione.chatone.presentation.chat.zoom.ChatZoomShortcuts
 import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
+import io.rudione.chatone.util.platform.rememberInputCapabilities
 import androidx.compose.ui.platform.LocalWindowInfo
 import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.presentation.components.DockState
@@ -170,18 +172,26 @@ fun MainScreen(
     val windowContainer = LocalWindowInfo.current.containerSize
     val streamChannel = state.activeChannelLogin
         ?.takeUnless { state.mentionsChannelActive || isMonitorLogin(it) }
+    val returnToBrowse: (() -> Unit)? = if (state.returnToBrowse && isHandheld) {
+        remember(viewModel) { { viewModel.sendEvent(MainEvent.ReturnToBrowse) } }
+    } else {
+        null
+    }
     val streamUi = rememberMobileStreamUi(
         host = streamHost,
         channelLogin = streamChannel,
-        landscapeWindow = windowContainer.width > windowContainer.height
+        landscapeWindow = windowContainer.width > windowContainer.height,
+        onNavigateBack = returnToBrowse
     )
+    val floatingPlayer = streamUi?.floating
 
     val chatOnScreen = state.activeChannelLogin
         ?.let { !state.mentionsChannelActive && !isMonitorLogin(it) } == true
     if (!chatOnScreen) ReportLaunchStage(LaunchStage.Ready)
 
     MultiChatRootSetup()
-    if (isDesktopPlatform) ChatZoomShortcuts()
+    val inputCapabilities = rememberInputCapabilities()
+    if (inputCapabilities.hardwareKeyboard) ChatZoomShortcuts()
     val accountManager: AccountManager = koinInject()
     val authRepository: AuthRepository = koinInject()
     val connectionRegistry: MultiAccountConnectionRegistry = koinInject()
@@ -307,14 +317,19 @@ fun MainScreen(
     }
 
     if (state.showSettings && !isWideScreenForSettings) {
-        DetachedSettingsWindow(
-            onClose = { viewModel.sendEvent(MainEvent.HideSettings) },
-            onThemeChanged = onThemeChanged
-        )
+        CompositionLocalProvider(LocalFloatingStreamPlayer provides floatingPlayer) {
+            DetachedSettingsWindow(
+                onClose = { viewModel.sendEvent(MainEvent.HideSettings) },
+                onThemeChanged = onThemeChanged
+            )
+        }
     }
 
     val statusBarTint = topBarBackgroundColor(wallpaper, MaterialTheme.colorScheme.surfaceContainer)
-    CompositionLocalProvider(LocalStreamPlayerHost provides streamHost) {
+    CompositionLocalProvider(
+        LocalStreamPlayerHost provides streamHost,
+        LocalFloatingStreamPlayer provides floatingPlayer
+    ) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
             containerColor = if (streamUi?.playerVisible == true && (isPhone || streamUi.showLandscapeLayout)) {
@@ -322,7 +337,9 @@ fun MainScreen(
             } else {
                 statusBarTint
             },
-            contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+            contentWindowInsets = WindowInsets.safeDrawing.only(
+                if (isPhone) WindowInsetsSides.Horizontal else WindowInsetsSides.Top + WindowInsetsSides.Horizontal
+            )
         ) { scaffoldPadding ->
             if (state.showSettings && isWideScreenForSettings &&
                 !DockState.large
@@ -339,6 +356,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(scaffoldPadding)
+                    .consumeWindowInsets(scaffoldPadding)
                     .background(MaterialTheme.colorScheme.background)
             ) {
                 val availableWidth = maxWidth
@@ -385,7 +403,7 @@ fun MainScreen(
                         }
                     }
                 }
-                val windowSize = if (isDesktopPlatform && settingsState.hideSidebar) ChatoneWindowSize.Compact
+                val windowSize = if ((isDesktopPlatform || isPhone) && settingsState.hideSidebar) ChatoneWindowSize.Compact
                 else ChatoneBreakpoints.of(availableWidth)
                 val isLarge = windowSize == ChatoneWindowSize.Large
                 val isWideScreen = windowSize != ChatoneWindowSize.Compact
@@ -521,6 +539,7 @@ fun MainScreen(
                     if (streamUi != null && streamUi.showLandscapeLayout && streamChannel != null) {
                         LandscapeStreamLayout(
                             ui = streamUi,
+                            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)),
                             chat = { chatModifier ->
                                 Box(chatModifier) {
                                     MainScreenChatRouter(
@@ -545,9 +564,8 @@ fun MainScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .windowInsetsPadding(
-                                    WindowInsets.navigationBars.only(
-                                        WindowInsetsSides.Bottom
-                                    )
+                                    WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
+                                        .union(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
                                 )
                                 .padding(ChatoneTileDefaults.outerPadding)
                         ) {
@@ -837,7 +855,34 @@ fun MainScreen(
                             }
                         }
                     } else {
-                        Column(modifier = Modifier.fillMaxSize()) {
+                        val activeChannel = state.activeChannelLogin
+                        val showTabBar = !isPhone &&
+                                !settingsState.navigationHidden && !mentionsPanelShowing &&
+                                settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
+                        val tabBarVisible = showTabBar && (state.openChannels.size + state.monitorTabs.size) > 1
+                        val portraitPlayerVisible = streamUi != null && streamUi.showPortraitPlayer
+                        val chatOwnsTop = activeChannel != null && !state.mentionsChannelActive &&
+                                !isMonitorLogin(activeChannel) && !portraitPlayerVisible && !tabBarVisible &&
+                                !(mentionsPanelShowing && !isPhone)
+                        val phoneTopInset = if (isPhone) {
+                            WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
+                        } else 0.dp
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(
+                                    if (chatOwnsTop) Modifier
+                                    else Modifier.consumeWindowInsets(PaddingValues(top = phoneTopInset))
+                                )
+                        ) {
+                            if (!chatOwnsTop && phoneTopInset > 0.dp) {
+                                Spacer(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(phoneTopInset)
+                                        .background(if (portraitPlayerVisible) Color.Black else Color.Transparent)
+                                )
+                            }
                             if (mentionsPanelShowing && !isPhone) {
                                 MentionTabsBar(
                                     mentions = state.mentions,
@@ -853,10 +898,7 @@ fun MainScreen(
                                     }
                                 )
                             }
-                            val showTabBar = !isPhone &&
-                                    !settingsState.navigationHidden && !mentionsPanelShowing &&
-                                    settingsState.channelNavigation != SettingsState.ChannelNavigation.MINI_RAIL
-                            if (showTabBar && (state.openChannels.size + state.monitorTabs.size) > 1) {
+                            if (tabBarVisible) {
                                 Box {
                                     ChannelTabBar(
                                         channels = state.openChannels + state.monitorTabs.map {
@@ -907,9 +949,8 @@ fun MainScreen(
                                     }
                                 }
                             }
-                            val activeChannel = state.activeChannelLogin
-                            if (streamUi != null && streamUi.showPortraitPlayer) {
-                                PortraitStreamPlayer(ui = streamUi)
+                            if (portraitPlayerVisible && streamUi != null) {
+                                PortraitStreamPlayer(ui = streamUi, glowHeight = settingsState.chatTopBarHeight.dp)
                             }
                             if (state.mentionsChannelActive) {
                                 Box(modifier = Modifier.weight(1f)) {
@@ -1111,7 +1152,7 @@ fun MainScreen(
         }
     }
 
-    if (isDesktopPlatform) {
+    if (inputCapabilities.hardwareKeyboard) {
         Box(modifier = Modifier.fillMaxSize().zIndex(100f), contentAlignment = Alignment.TopEnd) {
             ChatZoomIndicator(modifier = Modifier.padding(top = 10.dp, end = 14.dp))
         }
@@ -1247,20 +1288,24 @@ fun MainScreen(
     }
 
     if (isHandheld) {
-        BrowseOverlay(
-            visible = state.showBrowse,
-            onClose = { viewModel.sendEvent(MainEvent.HideBrowse) },
-            onOpen = { request ->
-                viewModel.sendEvent(
-                    MainEvent.OpenRecentChannel(
-                        request.login,
-                        request.displayName,
-                        request.avatarUrl
+        CompositionLocalProvider(LocalFloatingStreamPlayer provides floatingPlayer) {
+            BrowseOverlay(
+                visible = state.showBrowse,
+                onClose = { viewModel.sendEvent(MainEvent.HideBrowse) },
+                onOpen = { request ->
+                    viewModel.sendEvent(
+                        MainEvent.OpenRecentChannel(
+                            request.login,
+                            request.displayName,
+                            request.avatarUrl,
+                            fromBrowse = true
+                        )
                     )
-                )
-                if (request.live) streamHost?.onEvent(StreamPlayerEvent.Open(request.login))
-            }
-        )
+                    if (request.live) streamHost?.onEvent(StreamPlayerEvent.Open(request.login))
+                },
+                onReturnToStream = { viewModel.sendEvent(MainEvent.ReturnToStream) }
+            )
+        }
     }
 
     if (streamUi != null && streamUi.inPictureInPicture) {

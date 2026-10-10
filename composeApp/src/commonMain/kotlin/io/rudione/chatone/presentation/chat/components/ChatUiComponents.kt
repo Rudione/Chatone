@@ -69,12 +69,17 @@ internal fun PinnedMessageBar(
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
     val compact = LocalWindowSize.current == ChatoneWindowSize.Compact
+    val narrow = LocalEventBannerCompact.current
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-    val sidePadding = if (compact) null else pinSidePadding(maxWidth)
+    val sidePadding = when {
+        narrow -> 2.dp
+        compact -> 18.dp
+        else -> pinSidePadding(maxWidth)
+    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = sidePadding ?: 18.dp, vertical = 4.dp)
+            .padding(horizontal = sidePadding, vertical = if (narrow) 3.dp else 4.dp)
             .chatoneGlassPanel(RoundedCornerShape(12.dp))
     ) {
         Column(
@@ -87,12 +92,17 @@ internal fun PinnedMessageBar(
                         size = Size(3.dp.toPx(), size.height)
                     )
                 }
-                .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp)
+                .padding(
+                    start = if (narrow) 10.dp else 16.dp,
+                    end = if (narrow) 6.dp else 16.dp,
+                    top = if (narrow) 8.dp else 10.dp,
+                    bottom = if (narrow) 8.dp else 10.dp
+                )
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(if (narrow) 4.dp else 8.dp)
             ) {
                 if (canUnpin) {
                     LiquidGlassTooltipBox(tooltip = LocalStrings.current.chatUnpinMessage) {
@@ -108,7 +118,7 @@ internal fun PinnedMessageBar(
                 } else {
                     Icon(
                         Lucide.Pin,
-                        contentDescription = "Pinned",
+                        contentDescription = LocalStrings.current.eventLabelPinned,
                         modifier = Modifier.size(16.dp),
                         tint = primaryColor
                     )
@@ -127,7 +137,7 @@ internal fun PinnedMessageBar(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (!pinnedByName.isNullOrBlank()) {
+                        if (!narrow && !pinnedByName.isNullOrBlank()) {
                             Spacer(Modifier.width(8.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -174,7 +184,9 @@ internal fun PinnedMessageBar(
                     Text(
                         if (remainingSec > 0) formatRemaining(remainingSec) else "0:00",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
                 EventHideButton(tooltip = LocalStrings.current.chatHidePin, onHide = onHide)

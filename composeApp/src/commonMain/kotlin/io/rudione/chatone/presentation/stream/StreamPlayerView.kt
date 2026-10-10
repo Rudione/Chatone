@@ -9,15 +9,21 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,6 +41,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,9 +49,15 @@ import io.rudione.chatone.domain.stream.LandscapeChatMode
 import io.rudione.chatone.domain.stream.StreamPhase
 import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 import io.rudione.chatone.domain.stream.StreamVideoScale
+import io.rudione.chatone.icons.material.Icons
+import io.rudione.chatone.icons.material.rounded.Headphones
+import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.stream.ambient.StreamAmbience
+import io.rudione.chatone.presentation.stream.ambient.ambientBars
 import kotlinx.coroutines.delay
 
 private const val CONTROLS_AUTO_HIDE_MS = 3_500L
+private val BarThreshold = 1.dp
 private const val PINCH_IN_THRESHOLD = 1.12f
 private const val PINCH_OUT_THRESHOLD = 0.88f
 
@@ -55,13 +68,18 @@ fun StreamPlayerView(
     isFullscreen: Boolean,
     pictureInPicture: PictureInPictureController,
     onToggleFullscreen: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    ambience: StreamAmbience? = null,
     overlay: (@Composable BoxScope.() -> Unit)? = null
 ) {
     val state by host.state.collectAsState()
     val engine by host.engine.collectAsState()
+    val currentOnBack by rememberUpdatedState(onBack)
+    val fullscreenNow by rememberUpdatedState(isFullscreen)
     var controlsVisible by remember { mutableStateOf(true) }
     var interactionTick by remember { mutableIntStateOf(0) }
+    var chatModeChanges by remember { mutableIntStateOf(0) }
     val autoHide = state.phase == StreamPhase.PLAYING && !state.settingsVisible
 
     LaunchedEffect(controlsVisible, interactionTick, autoHide) {
@@ -77,6 +95,7 @@ fun StreamPlayerView(
                 interactionTick++
                 host.onEvent(event)
             },
+            onBack = { currentOnBack() },
             onToggleFullscreen = {
                 interactionTick++
                 onToggleFullscreen()
@@ -95,7 +114,14 @@ fun StreamPlayerView(
                         controlsVisible = !controlsVisible
                         interactionTick++
                     },
-                    onDoubleTap = { host.onEvent(StreamPlayerEvent.ToggleVideoScale) }
+                    onDoubleTap = {
+                        if (fullscreenNow) {
+                            host.onEvent(StreamPlayerEvent.CycleLandscapeChatMode)
+                            chatModeChanges++
+                        } else {
+                            host.onEvent(StreamPlayerEvent.ToggleVideoScale)
+                        }
+                    }
                 )
             }
             .pinchToScale(
@@ -110,7 +136,10 @@ fun StreamPlayerView(
             aspectRatio = state.videoAspectRatio,
             keepScreenOn = state.isPlaybackActive,
             onViewportChanged = { width, height -> host.onEvent(StreamPlayerEvent.ViewportChanged(width, height)) },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            audioOnly = state.isAudioOnly,
+            ambience = ambience,
+            ambientSampling = state.phase == StreamPhase.PLAYING && !state.isAudioOnly
         )
 
         if (overlay != null) {
@@ -150,6 +179,10 @@ fun StreamPlayerView(
             StreamStatusOverlay(state = state, onRetry = { host.onEvent(StreamPlayerEvent.Retry) })
         }
 
+        if (isFullscreen) {
+            ChatModeHint(changes = chatModeChanges, mode = state.preferences.landscapeChatMode)
+        }
+
         val chatChannel = state.chatChannelLogin
         val streamChannel = state.channelLogin
         if (state.showsOtherChannelNotice && chatChannel != null && streamChannel != null) {
@@ -172,7 +205,11 @@ fun StreamPlayerView(
 }
 
 @Composable
-fun StreamPictureInPictureView(host: StreamPlayerHost, modifier: Modifier = Modifier) {
+fun StreamPictureInPictureView(
+    host: StreamPlayerHost,
+    modifier: Modifier = Modifier,
+    surfaceKind: VideoSurfaceKind = VideoSurfaceKind.Direct
+) {
     val state by host.state.collectAsState()
     val engine by host.engine.collectAsState()
     val latency by host.latencySeconds.collectAsState()
@@ -183,7 +220,10 @@ fun StreamPictureInPictureView(host: StreamPlayerHost, modifier: Modifier = Modi
             aspectRatio = state.videoAspectRatio,
             keepScreenOn = state.isPlaybackActive,
             onViewportChanged = { width, height -> host.onEvent(StreamPlayerEvent.ViewportChanged(width, height)) },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            audioOnly = state.isAudioOnly,
+            compactCover = true,
+            surfaceKind = surfaceKind
         )
         if (state.isBusy) {
             CircularProgressIndicator(
@@ -219,7 +259,12 @@ internal fun StreamVideoFrame(
     aspectRatio: Float,
     keepScreenOn: Boolean,
     onViewportChanged: (Int, Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    audioOnly: Boolean = false,
+    compactCover: Boolean = false,
+    surfaceKind: VideoSurfaceKind = VideoSurfaceKind.Direct,
+    ambience: StreamAmbience? = null,
+    ambientSampling: Boolean = false
 ) {
     val latestViewport by rememberUpdatedState(onViewportChanged)
     BoxWithConstraints(modifier = modifier.clipToBounds(), contentAlignment = Alignment.Center) {
@@ -230,16 +275,55 @@ internal fun StreamVideoFrame(
         val fitByHeight = if (scale == StreamVideoScale.FIT) containerIsWider else !containerIsWider
         val targetWidth = if (fitByHeight) containerHeight * ratio else containerWidth
         val targetHeight = if (fitByHeight) containerHeight else containerWidth / ratio
+        val letterboxed = scale == StreamVideoScale.FIT &&
+            (containerWidth - targetWidth > BarThreshold || containerHeight - targetHeight > BarThreshold)
+        val bars = ambience?.takeIf { letterboxed }
+        if (bars != null) {
+            val density = LocalDensity.current
+            val videoWidthPx = with(density) { targetWidth.toPx() }
+            val videoHeightPx = with(density) { targetHeight.toPx() }
+            Spacer(Modifier.fillMaxSize().ambientBars(bars, videoWidthPx, videoHeightPx))
+        }
         PlatformVideoView(
             engine = engine,
             keepScreenOn = keepScreenOn,
-            modifier = Modifier.requiredSize(targetWidth, targetHeight)
+            modifier = Modifier.requiredSize(targetWidth, targetHeight),
+            surfaceKind = surfaceKind,
+            frameSink = ambience?.takeIf { ambientSampling && (letterboxed || it.glowAttached) }
         )
+        if (audioOnly) {
+            AudioOnlyCover(compact = compactCover, modifier = Modifier.fillMaxSize())
+        }
 
         val viewportWidth = constraints.maxWidth
         val viewportHeight = if (constraints.hasBoundedHeight) constraints.maxHeight else (constraints.maxWidth / ratio).toInt()
         LaunchedEffect(viewportWidth, viewportHeight) {
             latestViewport(viewportWidth, viewportHeight)
+        }
+    }
+}
+
+@Composable
+private fun AudioOnlyCover(compact: Boolean, modifier: Modifier = Modifier) {
+    val label = LocalStrings.current.player.audioOnly
+    Column(
+        modifier = modifier.background(Color.Black),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Headphones,
+            contentDescription = label,
+            tint = Color.White.copy(alpha = 0.82f),
+            modifier = Modifier.size(if (compact) 22.dp else 40.dp)
+        )
+        if (!compact) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = label,
+                color = Color.White.copy(alpha = 0.72f),
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }

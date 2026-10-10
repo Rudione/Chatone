@@ -15,6 +15,7 @@ import androidx.media3.exoplayer.hls.playlist.HlsPlaylist
 import androidx.media3.exoplayer.hls.playlist.HlsPlaylistParserFactory
 import androidx.media3.exoplayer.upstream.ParsingLoadable
 import androidx.media3.common.ParserException
+import io.rudione.chatone.data.remote.stream.LiveStartHint
 import io.rudione.chatone.data.remote.stream.TwitchHlsPlaylist
 import io.rudione.chatone.util.link.OutboundUrlPolicy
 import java.io.ByteArrayInputStream
@@ -79,6 +80,7 @@ private class RestrictedStreamDataSource(
 @UnstableApi
 internal class TwitchPlaylistParserFactory(
     private val lowLatency: Boolean,
+    private val liveStart: () -> LiveStartHint?,
     private val mediaPlaylistFilter: (url: String, playlist: String) -> String
 ) : HlsPlaylistParserFactory {
 
@@ -100,7 +102,7 @@ internal class TwitchPlaylistParserFactory(
         ParsingLoadable.Parser { uri, input ->
             val received = input.readLimited(TwitchHlsPlaylist.MAX_PLAYLIST_CHARS).decodeToString()
             val text = mediaPlaylistFilter(uri.toString(), received)
-            val rewritten = TwitchHlsPlaylist.rewriteMediaPlaylist(text, expandPrefetch = lowLatency)
+            val rewritten = TwitchHlsPlaylist.rewriteMediaPlaylist(text, expandPrefetch = lowLatency, liveStart = liveStart())
             if (lowLatency && rewritten != null && text.contains(PREFETCH_TAG)) prefetchSeen.set(true)
             parser.parse(uri, ByteArrayInputStream((rewritten ?: text).encodeToByteArray()))
         }

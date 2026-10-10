@@ -1217,6 +1217,10 @@ object StringsRu : AppStrings {
     override val settingsAutoTranslateInputDesc = "Переводить ваше сообщение на выбранный язык перед отправкой"
     override val inputTranslate = "Перевести"
     override val inputAutoTranslate = "Авто-перевод моих сообщений"
+    override val settingsOutgoingTranslationLang = "Язык моих сообщений"
+    override val settingsOutgoingTranslationLangDesc = "На него переводятся ваши сообщения перед отправкой"
+    override val inputTranslationLanguage = "Язык перевода сообщения"
+    override val inputTranslationOff = "Не переводить"
     override val settingsMentionTabs = "Вкладки упоминаний"
     override val settingsMentionTabsDesc = "В компактном режиме показывать каналы, где вас упомянули. В широком окне эта панель всегда заменяет вкладки"
     override val mentionTabsTitle = "Вас упомянули"
@@ -1447,6 +1451,7 @@ object StringsRu : AppStrings {
     }
     override val player: StreamPlayerStrings = StreamPlayerStringsRu
     override val explore: BrowseStrings = BrowseStringsRu
+    override val events: EventBannerStrings = EventBannerStringsRu
     override val timeline: ChatTimelineStrings = ChatTimelineStringsRu
     override val launch: LaunchStrings = LaunchStringsRu
     override val insights: ProfileInsightStrings = ProfileInsightStringsRu

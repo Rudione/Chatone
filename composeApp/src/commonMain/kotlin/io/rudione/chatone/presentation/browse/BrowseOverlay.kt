@@ -15,5 +15,6 @@ data class BrowseOpenRequest(
 expect fun BrowseOverlay(
     visible: Boolean,
     onClose: () -> Unit,
-    onOpen: (BrowseOpenRequest) -> Unit
+    onOpen: (BrowseOpenRequest) -> Unit,
+    onReturnToStream: () -> Unit
 )

@@ -21,6 +21,7 @@ import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
+import io.rudione.chatone.util.platform.rememberInputCapabilities
 import io.rudione.chatone.util.system.isDesktopPlatform
 
 internal fun LazyListScope.appearanceLazyItems(
@@ -102,61 +103,7 @@ internal fun LazyListScope.appearanceLazyItems(
             }
         )
     }
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsWindow) {
-            SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
-                vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
-            }
-            if (isDesktopPlatform) {
-                RowDivider()
-                SwitchRow(s.settingsHideSidebar, s.settingsHideSidebarDesc, state.hideSidebar) {
-                    vm.sendEvent(SettingsEvent.OnHideSidebarChanged(it))
-                }
-            }
-            RowDivider()
-            val titleBarOptions = listOf(
-                s.settingsTitleBarDark,
-                s.settingsTitleBarLight,
-                s.settingsTitleBarAdaptive,
-                s.settingsTitleBarSystem
-            )
-            val titleBarModes = listOf(
-                TitleBarMode.DARK,
-                TitleBarMode.LIGHT,
-                TitleBarMode.ADAPTIVE,
-                TitleBarMode.SYSTEM
-            )
-            DropdownRow(
-                label = s.settingsTitleBarMode,
-                description = s.settingsTitleBarModeDesc,
-                options = titleBarOptions,
-                selected = titleBarModes.indexOf(state.titleBarMode).coerceAtLeast(0),
-                onSelected = { vm.sendEvent(SettingsEvent.OnTitleBarModeChanged(titleBarModes[it])) }
-            )
-            RowDivider()
-            run {
-                val locales = AppLocale.all
-                val selectedIdx =
-                    locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0)
-                DropdownRow(
-                    label = s.settingsLanguage,
-                    description = s.settingsLanguageDesc,
-                    options = locales.map { it.displayName },
-                    selected = selectedIdx,
-                    onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
-                )
-            }
-            RowDivider()
-            SwitchRow(
-                s.settingsBlockScroll,
-                s.settingsBlockScrollDesc,
-                state.disableScrollOnAlt
-            ) {
-                vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
-            }
-        }
-    }
+    item { WindowSettingsGroup(state, vm) }
 }
 
 @Composable
@@ -217,55 +164,50 @@ internal fun AppearanceContent(
             listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
         ) { vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it])) }
     }
+    WindowSettingsGroup(state, vm)
+}
+
+@Composable
+private fun WindowSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
+    val s = LocalStrings.current
+    val input = rememberInputCapabilities()
     SettingsGroup(s.settingsWindow) {
-        SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
-            vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
-        }
         if (isDesktopPlatform) {
+            SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
+                vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
+            }
             RowDivider()
+        }
+        if (isDesktopPlatform || isPhoneFormFactor) {
             SwitchRow(s.settingsHideSidebar, s.settingsHideSidebarDesc, state.hideSidebar) {
                 vm.sendEvent(SettingsEvent.OnHideSidebarChanged(it))
             }
+            RowDivider()
         }
-        RowDivider()
-        val titleBarOptions = listOf(
-            s.settingsTitleBarDark,
-            s.settingsTitleBarLight,
-            s.settingsTitleBarAdaptive,
-            s.settingsTitleBarSystem
-        )
-        val titleBarModes = listOf(
-            TitleBarMode.DARK,
-            TitleBarMode.LIGHT,
-            TitleBarMode.ADAPTIVE,
-            TitleBarMode.SYSTEM
-        )
-        DropdownRow(
-            label = s.settingsTitleBarMode,
-            description = s.settingsTitleBarModeDesc,
-            options = titleBarOptions,
-            selected = titleBarModes.indexOf(state.titleBarMode).coerceAtLeast(0),
-            onSelected = { vm.sendEvent(SettingsEvent.OnTitleBarModeChanged(titleBarModes[it])) }
-        )
-        RowDivider()
-        run {
-            val locales = AppLocale.all
-            val selectedIdx = locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0)
+        if (isDesktopPlatform) {
+            val titleBarModes = listOf(TitleBarMode.DARK, TitleBarMode.LIGHT, TitleBarMode.ADAPTIVE, TitleBarMode.SYSTEM)
             DropdownRow(
-                label = s.settingsLanguage,
-                description = s.settingsLanguageDesc,
-                options = locales.map { it.displayName },
-                selected = selectedIdx,
-                onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
+                label = s.settingsTitleBarMode,
+                description = s.settingsTitleBarModeDesc,
+                options = listOf(s.settingsTitleBarDark, s.settingsTitleBarLight, s.settingsTitleBarAdaptive, s.settingsTitleBarSystem),
+                selected = titleBarModes.indexOf(state.titleBarMode).coerceAtLeast(0),
+                onSelected = { vm.sendEvent(SettingsEvent.OnTitleBarModeChanged(titleBarModes[it])) }
             )
+            RowDivider()
         }
-        RowDivider()
-        SwitchRow(
-            s.settingsBlockScroll,
-            s.settingsBlockScrollDesc,
-            state.disableScrollOnAlt
-        ) {
-            vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
+        val locales = AppLocale.all
+        DropdownRow(
+            label = s.settingsLanguage,
+            description = s.settingsLanguageDesc,
+            options = locales.map { it.displayName },
+            selected = locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0),
+            onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
+        )
+        if (input.hardwareKeyboard) {
+            RowDivider()
+            SwitchRow(s.settingsBlockScroll, s.settingsBlockScrollDesc, state.disableScrollOnAlt) {
+                vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
+            }
         }
     }
 }

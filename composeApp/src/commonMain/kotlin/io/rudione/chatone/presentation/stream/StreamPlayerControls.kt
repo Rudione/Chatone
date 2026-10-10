@@ -1,10 +1,14 @@
 package io.rudione.chatone.presentation.stream
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -24,6 +28,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import io.rudione.chatone.icons.material.Icons
+import io.rudione.chatone.icons.material.automirrored.rounded.ArrowBack
 import io.rudione.chatone.icons.material.automirrored.rounded.VolumeOff
 import io.rudione.chatone.icons.material.automirrored.rounded.VolumeUp
 import io.rudione.chatone.icons.material.rounded.Close
@@ -43,10 +48,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,11 +87,13 @@ data class StreamLiveInfo(
 )
 
 internal val LiveRed = Color(0xFFE91916)
+private const val CHAT_MODE_HINT_MS = 1_200L
 private val ScrimColor = Color.Black
 
 @Immutable
 internal data class StreamControlsCallbacks(
     val onEvent: (StreamPlayerEvent) -> Unit,
+    val onBack: () -> Unit,
     val onToggleFullscreen: () -> Unit,
     val onEnterPictureInPicture: () -> Unit
 )
@@ -125,9 +135,9 @@ internal fun BoxScope.StreamControlsOverlay(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         PlayerIconButton(
-            icon = Icons.Rounded.Close,
-            contentDescription = strings.close,
-            onClick = { callbacks.onEvent(StreamPlayerEvent.Close) },
+            icon = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = strings.back,
+            onClick = callbacks.onBack,
             size = buttonSize,
             iconSize = iconSize
         )
@@ -248,6 +258,44 @@ internal fun BoxScope.OtherChannelNotice(
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Rounded.Close, contentDescription = appStrings.player.close, tint = Color.White, modifier = Modifier.size(15.dp))
+        }
+    }
+}
+
+@Composable
+internal fun BoxScope.ChatModeHint(changes: Int, mode: LandscapeChatMode) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(changes) {
+        if (changes == 0) return@LaunchedEffect
+        visible = true
+        delay(CHAT_MODE_HINT_MS)
+        visible = false
+    }
+    val strings = LocalStrings.current.player
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(120)) + scaleIn(tween(160), initialScale = 0.9f),
+        exit = fadeOut(tween(220)),
+        modifier = Modifier
+            .align(Alignment.TopCenter)
+            .padding(top = 72.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Color.Black.copy(alpha = 0.62f))
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(chatModeIcon(mode), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "${strings.chat}: ${chatModeLabel(mode, strings)}",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
         }
     }
 }

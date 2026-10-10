@@ -1,13 +1,20 @@
 package io.rudione.chatone.presentation.stream
 
 import android.content.Context
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Base64
 import android.view.SurfaceView
+import android.view.TextureView
+import android.view.View
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaLibraryInfo
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -15,20 +22,25 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
-import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
-import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.session.MediaSession
 import io.github.aakira.napier.Napier
+import io.rudione.chatone.data.remote.stream.LiveStartHint
 import io.rudione.chatone.data.remote.stream.TwitchAdBreakFilter
+import io.rudione.chatone.domain.stream.LiveEdgeGuard
+import io.rudione.chatone.domain.stream.LiveSpeedPolicy
 import io.rudione.chatone.domain.stream.PlaybackMetrics
 import io.rudione.chatone.domain.stream.PlaybackStatus
 import io.rudione.chatone.domain.stream.StreamAdBreakSource
 import io.rudione.chatone.domain.stream.StreamErrorKind
 import io.rudione.chatone.domain.stream.StreamManifest
+import io.rudione.chatone.domain.stream.StreamMediaInfo
 import io.rudione.chatone.domain.stream.StreamPhase
 import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 import io.rudione.chatone.domain.stream.StreamQualitySelection
@@ -45,14 +57,22 @@ internal class AndroidStreamPlaybackEngine(
     context: Context,
     httpClient: OkHttpClient,
     private val adBreakSource: StreamAdBreakSource,
-    private val supportedCodecs: String
+    private val supportedCodecs: String,
+    capacityMemory: NetworkCapacityMemory,
+    private val sessions: StreamMediaSessions
 ) : StreamPlaybackEngine {
 
     private val appContext = context.applicationContext
-    private val bandwidthMeter = DefaultBandwidthMeter.getSingletonInstance(appContext)
+    private val autoQuality = AutoQualityController(appContext, capacityMemory)
+    private val bandwidthMeter = StreamBandwidthMeter(autoQuality)
     private val dataSourceFactory = RestrictedStreamDataSourceFactory(OkHttpDataSource.Factory(httpClient))
     private val metricsCollector = StreamMetricsCollector(onVideoFormatChanged = ::publish)
     private val window = Timeline.Window()
+    private val speedControl = TwitchLiveSpeedControl()
+    private val liveEdgeGuard = LiveEdgeGuard()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val liveEdgeCheck = Runnable(::checkLiveEdge)
+    private var liveEdgeCheckScheduled = false
 
     private val _status = MutableStateFlow(PlaybackStatus())
     override val status: StateFlow<PlaybackStatus> = _status.asStateFlow()
@@ -63,24 +83,19 @@ internal class AndroidStreamPlaybackEngine(
     private var playlistParser: TwitchPlaylistParserFactory? = null
     private var playerError: StreamErrorKind? = null
     private var released = false
-    private val surfaces = ArrayList<SurfaceView>(2)
+    private var mediaInfo: StreamMediaInfo? = null
+    private val outputs = ArrayList<View>(2)
 
-    val player: ExoPlayer = ExoPlayer.Builder(appContext)
+    val player: ExoPlayer = ExoPlayer.Builder(appContext, StreamRenderersFactory(appContext))
         .setBandwidthMeter(bandwidthMeter)
+        .setTrackSelector(DefaultTrackSelector(appContext, AutoQualityTrackSelectionFactory(autoQuality)))
         .setLoadControl(
             DefaultLoadControl.Builder()
                 .setBufferDurationsMs(MIN_BUFFER_MS, MAX_BUFFER_MS, START_BUFFER_MS, REBUFFER_MS)
                 .setPrioritizeTimeOverSizeThresholds(true)
                 .build()
         )
-        .setLivePlaybackSpeedControl(
-            DefaultLivePlaybackSpeedControl.Builder()
-                .setFallbackMinPlaybackSpeed(MIN_LIVE_SPEED)
-                .setFallbackMaxPlaybackSpeed(MAX_LIVE_SPEED)
-                .setProportionalControlFactor(LIVE_SPEED_CONTROL_FACTOR)
-                .setTargetLiveOffsetIncrementOnRebufferMs(REBUFFER_OFFSET_INCREMENT_MS)
-                .build()
-        )
+        .setLivePlaybackSpeedControl(speedControl)
         .setAudioAttributes(
             AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
@@ -89,12 +104,14 @@ internal class AndroidStreamPlaybackEngine(
             true
         )
         .setHandleAudioBecomingNoisy(true)
+        .setWakeMode(C.WAKE_MODE_NETWORK)
         .setUsePlatformDiagnostics(false)
         .build()
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.contains(Player.EVENT_TRACKS_CHANGED)) applyPendingOverride()
+            if (events.contains(Player.EVENT_IS_PLAYING_CHANGED)) updateLiveEdgeCheck()
             publish()
         }
 
@@ -108,6 +125,11 @@ internal class AndroidStreamPlaybackEngine(
         player.addAnalyticsListener(metricsCollector)
     }
 
+    private val mediaSession: MediaSession = sessions.open(
+        player = player,
+        artworkLoader = DataSourceBitmapLoader.Builder(appContext).setDataSourceFactory(dataSourceFactory).build()
+    )
+
     override fun load(manifest: StreamManifest, selection: StreamQualitySelection, lowLatency: Boolean) {
         if (released) return
         this.manifest = manifest
@@ -115,9 +137,17 @@ internal class AndroidStreamPlaybackEngine(
         this.lowLatency = lowLatency
         playerError = null
         metricsCollector.reset()
+        liveEdgeGuard.reset()
+        autoQuality.startSession()
+        val clockOffsetMs = manifest.clockOffsetMs
+        speedControl.clockOffsetUs = clockOffsetMs * 1_000L
+        val startLatencyMs = targetLatencyMs(lowLatency)
         val audioVariant = manifest.audioOnlyVariant.takeIf { selection == StreamQualitySelection.AudioOnly }
         val adBreakFilter = TwitchAdBreakFilter(manifest, supportedCodecs, adBreakSource)
-        val parserFactory = TwitchPlaylistParserFactory(lowLatency) { url, playlist ->
+        val parserFactory = TwitchPlaylistParserFactory(
+            lowLatency = lowLatency,
+            liveStart = { LiveStartHint(System.currentTimeMillis() + clockOffsetMs, startLatencyMs) }
+        ) { url, playlist ->
             if (adBreakFilter.needsFilter(url, playlist)) {
                 runBlocking { adBreakFilter.filter(url, playlist) }
             } else {
@@ -129,6 +159,7 @@ internal class AndroidStreamPlaybackEngine(
             .setUri(audioVariant?.url ?: inlinePlaylistUri(manifest.playlist))
             .setMimeType(MimeTypes.APPLICATION_M3U8)
             .setLiveConfiguration(liveConfiguration(lowLatency))
+            .setMediaMetadata(metadataFor(manifest.channelLogin))
             .build()
         val mediaSource = HlsMediaSource.Factory(dataSourceFactory)
             .setPlaylistParserFactory(parserFactory)
@@ -169,6 +200,14 @@ internal class AndroidStreamPlaybackEngine(
         if (player.isCurrentMediaItemLive) player.seekToDefaultPosition()
     }
 
+    override fun setMediaInfo(info: StreamMediaInfo) {
+        if (released || info == mediaInfo) return
+        mediaInfo = info
+        val login = manifest?.channelLogin ?: return
+        val item = player.currentMediaItem ?: return
+        player.replaceMediaItem(player.currentMediaItemIndex, item.buildUpon().setMediaMetadata(metadataFor(login)).build())
+    }
+
     override fun metrics(): PlaybackMetrics? {
         if (released || manifest == null) return null
         val videoFormat = player.videoFormat
@@ -196,7 +235,10 @@ internal class AndroidStreamPlaybackEngine(
     override fun release() {
         if (released) return
         released = true
-        surfaces.clear()
+        mainHandler.removeCallbacks(liveEdgeCheck)
+        liveEdgeCheckScheduled = false
+        sessions.close(mediaSession)
+        outputs.clear()
         player.removeListener(listener)
         player.removeAnalyticsListener(metricsCollector)
         player.release()
@@ -204,20 +246,57 @@ internal class AndroidStreamPlaybackEngine(
         _status.value = PlaybackStatus()
     }
 
-    fun attachSurface(view: SurfaceView) {
+    fun attachVideoOutput(view: View) {
         if (released) return
-        surfaces.remove(view)
-        surfaces.add(view)
-        player.setVideoSurfaceView(view)
+        outputs.remove(view)
+        outputs.add(view)
+        render(view)
     }
 
-    fun detachSurface(view: SurfaceView) {
+    fun detachVideoOutput(view: View) {
         if (released) return
-        val wasCurrent = surfaces.lastOrNull() === view
-        surfaces.remove(view)
+        val wasCurrent = outputs.lastOrNull() === view
+        outputs.remove(view)
         if (!wasCurrent) return
-        player.clearVideoSurfaceView(view)
-        surfaces.lastOrNull()?.let(player::setVideoSurfaceView)
+        when (view) {
+            is SurfaceView -> player.clearVideoSurfaceView(view)
+            is TextureView -> player.clearVideoTextureView(view)
+        }
+        outputs.lastOrNull()?.let(::render)
+    }
+
+    private fun render(view: View) {
+        when (view) {
+            is SurfaceView -> player.setVideoSurfaceView(view)
+            is TextureView -> player.setVideoTextureView(view)
+        }
+    }
+
+    private fun updateLiveEdgeCheck() {
+        if (released) return
+        val shouldRun = player.isPlaying
+        if (shouldRun == liveEdgeCheckScheduled) return
+        liveEdgeCheckScheduled = shouldRun
+        if (shouldRun) {
+            mainHandler.postDelayed(liveEdgeCheck, LIVE_EDGE_CHECK_INTERVAL_MS)
+        } else {
+            mainHandler.removeCallbacks(liveEdgeCheck)
+            liveEdgeGuard.reset()
+        }
+    }
+
+    private fun checkLiveEdge() {
+        if (released || !liveEdgeCheckScheduled) return
+        val offsetMs = player.currentLiveOffset
+        if (offsetMs != C.TIME_UNSET && player.isCurrentMediaItemLive) {
+            val liveOffsetUs = offsetMs * 1_000L + speedControl.clockOffsetUs
+            val targetUs = speedControl.targetUs
+            if (liveEdgeGuard.shouldJump(liveOffsetUs, targetUs, SystemClock.elapsedRealtime())) {
+                Napier.i("Jumping to live edge, lag ${liveOffsetUs / 1_000}ms over target ${targetUs.takeIf { it != LiveSpeedPolicy.UNSET }?.div(1_000)}ms", tag = TAG)
+                player.seekToDefaultPosition()
+            }
+        }
+        mainHandler.postDelayed(liveEdgeCheck, LIVE_EDGE_CHECK_INTERVAL_MS)
     }
 
     private fun playbackWallClockMs(): Long? {
@@ -335,7 +414,8 @@ internal class AndroidStreamPlaybackEngine(
             activeBandwidth = videoFormat?.let { format ->
                 listOf(format.peakBitrate, format.averageBitrate, format.bitrate).firstOrNull { it > 0 }?.toLong()
             },
-            activeHeight = videoFormat?.height?.takeIf { it > 0 }
+            activeHeight = videoFormat?.height?.takeIf { it > 0 },
+            audioOnly = selection == StreamQualitySelection.AudioOnly
         )
     }
 
@@ -345,12 +425,26 @@ internal class AndroidStreamPlaybackEngine(
 
     private fun liveConfiguration(lowLatency: Boolean): MediaItem.LiveConfiguration =
         MediaItem.LiveConfiguration.Builder()
-            .setTargetOffsetMs(if (lowLatency) LOW_LATENCY_TARGET_MS else NORMAL_LATENCY_TARGET_MS)
+            .setTargetOffsetMs(targetLatencyMs(lowLatency))
             .setMinOffsetMs(if (lowLatency) LOW_LATENCY_MIN_MS else NORMAL_LATENCY_MIN_MS)
-            .setMaxOffsetMs(MAX_LIVE_OFFSET_MS)
+            .setMaxOffsetMs(if (lowLatency) LOW_LATENCY_MAX_MS else NORMAL_LATENCY_MAX_MS)
             .setMinPlaybackSpeed(MIN_LIVE_SPEED)
             .setMaxPlaybackSpeed(MAX_LIVE_SPEED)
             .build()
+
+    private fun metadataFor(channelLogin: String): MediaMetadata {
+        val info = mediaInfo?.takeIf { it.channelLogin.equals(channelLogin, ignoreCase = true) }
+        val channel = info?.channelName?.takeIf { it.isNotBlank() } ?: channelLogin
+        return MediaMetadata.Builder()
+            .setTitle(info?.title?.takeIf { it.isNotBlank() } ?: channel)
+            .setArtist(channel)
+            .setArtworkUri(info?.artworkUrl?.let(Uri::parse))
+            .setMediaType(MediaMetadata.MEDIA_TYPE_VIDEO)
+            .build()
+    }
+
+    private fun targetLatencyMs(lowLatency: Boolean): Long =
+        if (lowLatency) LOW_LATENCY_TARGET_MS else NORMAL_LATENCY_TARGET_MS
 
     private companion object {
         const val TAG = "StreamEngine"
@@ -358,15 +452,15 @@ internal class AndroidStreamPlaybackEngine(
         const val MAX_BUFFER_MS = 12_000
         const val START_BUFFER_MS = 500
         const val REBUFFER_MS = 1_000
-        const val LOW_LATENCY_TARGET_MS = 1_800L
-        const val LOW_LATENCY_MIN_MS = 1_500L
+        const val LOW_LATENCY_TARGET_MS = 1_600L
+        const val LOW_LATENCY_MIN_MS = 1_000L
+        const val LOW_LATENCY_MAX_MS = 6_000L
         const val NORMAL_LATENCY_TARGET_MS = 5_000L
         const val NORMAL_LATENCY_MIN_MS = 3_000L
-        const val MAX_LIVE_OFFSET_MS = 30_000L
-        const val MIN_LIVE_SPEED = 0.96f
-        const val MAX_LIVE_SPEED = 1.06f
-        const val LIVE_SPEED_CONTROL_FACTOR = 0.15f
-        const val REBUFFER_OFFSET_INCREMENT_MS = 250L
+        const val NORMAL_LATENCY_MAX_MS = 12_000L
+        const val MIN_LIVE_SPEED = 0.95f
+        const val MAX_LIVE_SPEED = 1.1f
+        const val LIVE_EDGE_CHECK_INTERVAL_MS = 1_000L
         const val FRAME_RATE_WEIGHT = 10_000f
         const val HTTP_FORBIDDEN = 403
         const val HTTP_NOT_FOUND = 404

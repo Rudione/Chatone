@@ -48,6 +48,7 @@ import io.rudione.chatone.presentation.settings.components.CustomSoundCard
 import io.rudione.chatone.presentation.settings.components.MentionAlertsCard
 import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
+import io.rudione.chatone.util.platform.rememberInputCapabilities
 import io.rudione.chatone.presentation.settings.components.BackgroundCard
 import io.rudione.chatone.presentation.settings.components.AboutCard
 import io.rudione.chatone.presentation.settings.components.BackupCard
@@ -252,7 +253,10 @@ private fun SettingsDialogContent(
         }
     }
 
-    val filteredSections = remember(searchQuery, s) { settingsSectionsMatching(searchQuery, s) }
+    val input = rememberInputCapabilities()
+    val filteredSections = remember(searchQuery, s, input) {
+        settingsSectionsMatching(searchQuery, s).filter { it.isAvailable(input) }
+    }
 
     LaunchedEffect(filteredSections) {
         if (filteredSections.isNotEmpty() && selectedSection !in filteredSections) {
@@ -838,6 +842,20 @@ internal fun TranslationSettingsGroup(state: SettingsState, vm: SettingsViewMode
             state.autoTranslateInput
         ) {
             vm.sendEvent(SettingsEvent.OnAutoTranslateInputChanged(it))
+        }
+        AnimatedVisibility(
+            visible = state.autoTranslateInput,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            val outgoingName = langs.firstOrNull { it.first == state.outgoingTranslationLang }?.second
+                ?: state.outgoingTranslationLang
+            ListRow(
+                title = s.settingsOutgoingTranslationLang,
+                value = outgoingName,
+                options = langs.map { it.second },
+                help = s.settingsOutgoingTranslationLangDesc
+            ) { idx -> vm.sendEvent(SettingsEvent.OnOutgoingTranslationLangChanged(langs[idx].first)) }
         }
     }
 }

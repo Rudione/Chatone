@@ -26,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -75,9 +74,7 @@ internal fun CategoryStreamsPane(
             value = Clock.System.now().toEpochMilliseconds()
         }
     }
-    LaunchedEffect(filter) {
-        if (gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0)
-    }
+    ResetScrollOnChange(gridState, filter)
     PullToRefreshBox(
         isRefreshing = streams.isRefreshingContent,
         onRefresh = streams::refresh,
@@ -134,6 +131,7 @@ internal fun CategoryStreamsPane(
                 }
             }
         }
+        ScrollToTopButton(gridState, strings, bottomInset)
     }
 }
 
@@ -202,9 +200,7 @@ internal fun PopularStreamsPane(
             value = Clock.System.now().toEpochMilliseconds()
         }
     }
-    LaunchedEffect(filter) {
-        if (gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0)
-    }
+    ResetScrollOnChange(gridState, filter)
     PullToRefreshBox(
         isRefreshing = streams.isRefreshingContent,
         onRefresh = streams::refresh,
@@ -261,6 +257,7 @@ internal fun PopularStreamsPane(
                 }
             }
         }
+        ScrollToTopButton(gridState, strings, bottomInset)
     }
 }
 
