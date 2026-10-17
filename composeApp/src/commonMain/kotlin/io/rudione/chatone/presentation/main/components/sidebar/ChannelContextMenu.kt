@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.domain.model.ChannelFolder
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
@@ -41,6 +40,7 @@ import io.rudione.chatone.icons.lucide.FolderPlus
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Play
 import io.rudione.chatone.icons.lucide.X
+import io.rudione.chatone.presentation.components.PortalPopup
 
 internal class ChannelMenuActions(
     val onMoveToFolder: (String?) -> Unit,
@@ -70,7 +70,7 @@ internal fun ChannelContextMenu(
         action()
     }
 
-    Popup(
+    PortalPopup(
         alignment = Alignment.TopEnd,
         offset = anchorOffset,
         properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true),

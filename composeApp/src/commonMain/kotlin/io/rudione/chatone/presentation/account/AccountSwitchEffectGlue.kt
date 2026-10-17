@@ -1,10 +1,10 @@
 package io.rudione.chatone.presentation.account
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
 import io.rudione.chatone.data.repository.AccountManager
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import io.rudione.chatone.data.repository.EmoteRepository
 
 @Composable
@@ -13,7 +13,7 @@ fun AccountSwitchInvalidateEmotes(
     emoteRepository: EmoteRepository
 ) {
     val activeId by accountManager.activeAccountId.collectAsState()
-    LaunchedEffect(activeId) {
+    SideEffect(activeId) {
         if (activeId.isNotBlank()) {
 
             emoteRepository.invalidatePersonalEmotes()

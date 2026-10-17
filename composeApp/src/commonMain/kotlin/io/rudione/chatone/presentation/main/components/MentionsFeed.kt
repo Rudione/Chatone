@@ -25,7 +25,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.domain.model.MentionEntry
 import io.rudione.chatone.presentation.chat.rememberNickColors
@@ -34,7 +33,7 @@ import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -45,6 +44,7 @@ import io.rudione.chatone.icons.lucide.ListFilter
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Search
 import io.rudione.chatone.icons.lucide.X
+import io.rudione.chatone.presentation.components.PortalPopup
 
 enum class MentionFilter { ALL, UNREAD, TODAY, BY_USER, BY_CHANNEL }
 enum class MentionSort { NEWEST, OLDEST, BY_USER, BY_CHANNEL }
@@ -155,7 +155,7 @@ fun MentionsFeed(
                         )
                     }
                     if (showFilterMenu) {
-                        Popup(
+                        PortalPopup(
                             alignment = Alignment.TopEnd,
                             offset = IntOffset(0, 36),
                             onDismissRequest = { showFilterMenu = false },
@@ -267,7 +267,7 @@ fun MentionsFeed(
                     else Modifier.fillMaxWidth().heightIn(max = 440.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
-                    items(displayedMentions, key = { it.messageId }) { entry ->
+                    items(displayedMentions, key = { it.messageId }, contentType = { "mention" }) { entry ->
                         MentionRow(
                             entry = entry,
                             onClick = {

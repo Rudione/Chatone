@@ -47,7 +47,6 @@ import kotlin.time.Instant
 import io.rudione.chatone.icons.lucide.BadgeCheck
 import io.rudione.chatone.icons.lucide.CalendarDays
 import io.rudione.chatone.icons.lucide.Globe
-import io.rudione.chatone.icons.lucide.Heart
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Play
 import io.rudione.chatone.icons.lucide.Star
@@ -60,7 +59,6 @@ internal fun UserDossierTab(
     dossier: GqlUserDossier?,
     isLoading: Boolean,
     subAge: SubAgeInfo?,
-    followedAtFallback: String?,
     onOpenChannel: (String) -> Unit,
     modifier: Modifier = Modifier,
     sevenTv: SevenTvUserCosmetic? = null,
@@ -128,14 +126,6 @@ internal fun UserDossierTab(
                     value = compactCount(count)
                 )
             }
-            DossierChip(
-                icon = Lucide.Heart,
-                tint = ChatoneTheme.extraColors.live,
-                caption = s.profileDossierWithUs,
-                value = (dossier.followedChannelAtEpochMs?.let { relativeAge(it, s.insights.ageUnits) })
-                    ?: followedAtFallback
-                    ?: s.profileDossierNotFollowing
-            )
             if (dossier.isPartner) {
                 DossierChip(Lucide.BadgeCheck, Color(0xFF9146FF), value = s.profileDossierPartner)
             }

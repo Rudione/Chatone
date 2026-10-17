@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import io.rudione.chatone.presentation.components.layoutWidthFraction
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -11,10 +15,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -201,6 +204,7 @@ private fun OutcomeRow(
     onClick: () -> Unit
 ) {
     val anim by animateFloatAsState(targetValue = fraction.coerceIn(0f, 1f), label = "pred-fraction")
+    val percent by remember { derivedStateOf { (anim * 100).toInt() } }
     val bg by animateColorAsState(
         when {
             isWinner -> PredictionWinnerGreen.copy(alpha = 0.35f)
@@ -225,10 +229,10 @@ private fun OutcomeRow(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth(anim)
+                .layoutWidthFraction { anim }
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(6.dp))
-                .background(bg)
+                .drawBehind { drawRect(bg) }
         )
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -256,7 +260,7 @@ private fun OutcomeRow(
             }
             Spacer(Modifier.width(6.dp))
             Text(
-                if (compact) "${(anim * 100).toInt()}%" else "${(anim * 100).toInt()}% · $users · ${formatPoints(points)}",
+                if (compact) "$percent%" else "$percent% · $users · ${formatPoints(points)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

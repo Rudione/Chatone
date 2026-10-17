@@ -15,11 +15,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -194,20 +194,25 @@ fun AnimatedEmoteImageCore(
         animData = AnimatedEmoteLoader.load(url, maxDimension)
     }
 
-    val entranceProgress = if (emoteId != null) {
+    val entrance = if (emoteId != null) {
         val anim = remember(emoteId) {
             EmoteAnimationCache.getOrCreateAnimation(emoteId, animationSpec = entranceAnimationSpec)
         }
         LaunchedEffect(emoteId) {
             EmoteAnimationCache.startAnimation(emoteId)
         }
-        anim.value
+        anim
     } else {
         val localAnim = remember { Animatable(0f) }
         LaunchedEffect(Unit) {
             localAnim.animateTo(1f, animationSpec = entranceAnimationSpec)
         }
-        localAnim.value
+        localAnim
+    }
+    val entranceModifier = modifier.graphicsLayer {
+        val progress = entrance.value
+        alpha = progress
+        clip = progress < 1f
     }
 
     val data = animData
@@ -216,14 +221,14 @@ fun AnimatedEmoteImageCore(
         Image(
             painter = rememberSharedEmotePainter(data, paused = isScrolling || listScrolling),
             contentDescription = contentDescription,
-            modifier = modifier.alpha(entranceProgress)
+            modifier = entranceModifier
         )
     } else {
 
         AsyncImage(
             model = url,
             contentDescription = contentDescription,
-            modifier = modifier.alpha(entranceProgress),
+            modifier = entranceModifier,
             contentScale = ContentScale.Fit
         )
     }

@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.theme_settings
 
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -7,12 +8,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -25,8 +27,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,13 +37,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.palette_fill_16
 import io.rudione.chatone.domain.model.ChatoneColorTokens
 import io.rudione.chatone.presentation.components.ChatoneSlider
 import io.rudione.chatone.presentation.components.ChatoneSwitch
@@ -55,7 +52,6 @@ import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.*
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
-import org.jetbrains.compose.resources.painterResource
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneActionRow
 import io.rudione.chatone.presentation.components.ChatoneButtonText
@@ -116,23 +112,22 @@ fun ThemeSettingsScreen(
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding)) {
-            ScrollableTabRow(
-                selectedTabIndex = activeTab,
-                edgePadding = 16.dp,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-                divider = {}
-            ) {
-                listOf(s.themeTabThemes to Icons.Outlined.Palette, s.themeTabBackground to Icons.Outlined.Wallpaper,
-                    s.themeTabPanels to Icons.Outlined.Dashboard, s.themeTabChat to Icons.Outlined.Chat,
-                    s.themeTabGlobal to Icons.Outlined.Tune
-                ).forEachIndexed { i, (label, icon) ->
-                    Tab(selected = activeTab == i, onClick = { activeTab = i },
-                        text = { Text(label, fontWeight = if (activeTab == i) FontWeight.SemiBold else FontWeight.Normal) },
-                        icon = { Icon(icon, null, Modifier.size(18.dp)) }
-                    )
-                }
-            }
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            val themeTabs = listOf(
+                s.themeTabThemes to Icons.Outlined.Palette,
+                s.themeTabBackground to Icons.Outlined.Wallpaper,
+                s.themeTabPanels to Icons.Outlined.Dashboard,
+                s.themeTabChat to Icons.Outlined.Chat,
+                s.themeTabGlobal to Icons.Outlined.Tune
+            )
+            ExpressiveTabs(
+                tabs = themeTabs.indices.toList(),
+                selected = activeTab,
+                onSelect = { activeTab = it },
+                label = { themeTabs[it].first },
+                icon = { themeTabs[it].second },
+                fill = false,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            )
 
             when (activeTab) {
                 0 -> ThemesTab(themes, selectedTheme, showGenerator,
@@ -204,7 +199,7 @@ private fun ThemesTab(
     val preview = remember(seed, isDark, contrast) { ColorSchemeGenerator.generateFromSeed(seed.toArgb(), isDark, contrast) }
 
     ThemeTabList(spacing = 12.dp) {
-        item {
+        item(key = "generator_actions", contentType = "generator_actions") {
             ChatoneActionRow {
                 FilledTonalButton(
                     onClick = onToggleGenerator,
@@ -225,21 +220,21 @@ private fun ThemesTab(
                 }
             }
         }
-        item {
+        item(key = "generator_panel", contentType = "generator_panel") {
             AnimatedVisibility(showGenerator, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                 AutoGeneratorPanel(seed, { seed = it }, isDark, { isDark = it }, contrast, { contrast = it }, preview) {
                     onApplyTheme(CustomThemeConfig(id = genId(), name = "Auto", seedColor = seed.toArgb(), isDark = isDark, contrastLevel = contrast))
                 }
             }
         }
-        item {
+        item(key = "wallpaper_header", contentType = "wallpaper_header") {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(s.themeSavedThemes, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 FilledTonalIconButton(onClick = onCreateClick, modifier = Modifier.size(36.dp)) { Icon(Icons.Default.Add, null, Modifier.size(20.dp)) }
             }
         }
         if (themes.isEmpty()) item { EmptyThemesPlaceholder(onCreateClick) }
-        items(themes, key = { it.id }) { theme ->
+        items(themes, key = { it.id }, contentType = { "theme" }) { theme ->
             ThemeCard(theme, selectedTheme?.id == theme.id, onSelect = { onApplyTheme(it) }, onDelete = { onDeleteTheme(it.id) })
         }
     }
@@ -251,22 +246,22 @@ private fun BackgroundTab(
     onBlurType: (BlurType) -> Unit, onBlurRadius: (Float) -> Unit, onDimming: (Float) -> Unit
 ) {
     ThemeTabList(spacing = 16.dp) {
-        item {
+        item(key = "chat_blur_info", contentType = "chat_blur_info") {
             InfoBanner("This blur is for the CHAT area when a wallpaper image is active. To blur panels (sidebar, bars), use the Panels tab.")
         }
-        item {
+        item(key = "chat_blur_style", contentType = "chat_blur_style") {
             SectionCard("Chat Blur Style", icon = Icons.Outlined.BlurOn) {
                 BlurTypeSelector(wallpaper.blurType, onBlurType)
             }
         }
-        item {
+        item(key = "blur_intensity", contentType = "blur_intensity") {
             AnimatedVisibility(wallpaper.blurType != BlurType.NONE) {
                 SectionCard("Blur Intensity", icon = Icons.Outlined.Tune) {
                     LabeledSlider("Radius", wallpaper.blurRadius, onBlurRadius, 0f..40f, "${wallpaper.blurRadius.toInt()}dp")
                 }
             }
         }
-        item {
+        item(key = "overlay_dimming", contentType = "overlay_dimming") {
             SectionCard("Overlay Dimming", icon = Icons.Outlined.BrightnessLow) {
                 LabeledSlider("Dim", wallpaper.overlayDimming, onDimming, 0f..1f, "${(wallpaper.overlayDimming*100).toInt()}%")
                 Spacer(Modifier.height(10.dp))
@@ -297,11 +292,11 @@ private fun PanelsTab(
     val hasCustomValues = panelConfig != PanelColorConfig()
 
     ThemeTabList(spacing = 16.dp) {
-        item {
+        item(key = "panel_blur_info", contentType = "panel_blur_info") {
             InfoBanner("Panel blur blurs the wallpaper behind each panel independently. Glass intensity controls LiquidGlass transparency.")
         }
 
-        item {
+        item(key = "panel_reset", contentType = "panel_reset") {
             AnimatedVisibility(hasCustomValues) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -319,7 +314,7 @@ private fun PanelsTab(
             }
         }
 
-        item {
+        item(key = "panel_sidebar", contentType = "panel_sidebar") {
             PanelSection(
                 title = "Sidebar", subtitle = "Channel list • left rail", icon = Icons.Outlined.ViewSidebar,
                 useCustom = panelConfig.useSidebarCustomColor,
@@ -345,7 +340,7 @@ private fun PanelsTab(
             )
         }
 
-        item {
+        item(key = "panel_top_bar", contentType = "panel_top_bar") {
             PanelSection(
                 title = "Top Bar", subtitle = "Mod buttons • channel tabs", icon = Icons.Outlined.Crop75,
                 useCustom = panelConfig.useTopBarCustomColor,
@@ -371,7 +366,7 @@ private fun PanelsTab(
             )
         }
 
-        item {
+        item(key = "panel_bottom_bar", contentType = "panel_bottom_bar") {
             PanelSection(
                 title = "Bottom Bar", subtitle = "Input field • emoji • send", icon = Icons.Outlined.TextFields,
                 useCustom = panelConfig.useBottomBarCustomColor,
@@ -414,7 +409,7 @@ private fun ChatColorTab(
 
     ThemeTabList(spacing = 16.dp) {
 
-        item {
+        item(key = "color_tokens", contentType = "color_tokens") {
             SectionCard(s.colorsSectionTitle, subtitle = s.colorsSectionSubtitle, icon = Icons.Outlined.Palette) {
                 ColorTokensEditor(
                     tokens = colorTokens,
@@ -425,7 +420,7 @@ private fun ChatColorTab(
         }
 
         if (wallpaperActive) {
-            item {
+            item(key = "wallpaper_notice", contentType = "wallpaper_notice") {
                 Surface(
                     color = MaterialTheme.colorScheme.tertiaryContainer,
                     shape = RoundedCornerShape(12.dp),
@@ -442,10 +437,10 @@ private fun ChatColorTab(
                 }
             }
         } else {
-            item { InfoBanner("No wallpaper active — you can set a custom chat background colour below.") }
+            item(key = "no_wallpaper_info", contentType = "no_wallpaper_info") { InfoBanner("No wallpaper active — you can set a custom chat background colour below.") }
         }
 
-        item {
+        item(key = "chat_background", contentType = "chat_background") {
             SectionCard("Chat Background", icon = Icons.Outlined.Chat) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
@@ -478,7 +473,7 @@ private fun ChatColorTab(
             }
         }
 
-        item {
+        item(key = "fine_tuning", contentType = "fine_tuning") {
             SectionCard("Fine-tuning", icon = Icons.Outlined.Tune) {
 
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -501,7 +496,7 @@ private fun ChatColorTab(
             }
         }
 
-        item { ChatSimulationPreview(wallpaper) }
+        item(key = "chat_preview", contentType = "chat_preview") { ChatSimulationPreview(wallpaper) }
     }
 }
 
@@ -666,7 +661,7 @@ private fun GlobalTab(
 
     ThemeTabList(spacing = 16.dp) {
 
-        item {
+        item(key = "reset_colors", contentType = "reset_colors") {
 
             AnimatedVisibility(isNonDefault) {
                 FilledTonalButton(
@@ -681,7 +676,7 @@ private fun GlobalTab(
             }
         }
 
-        item {
+        item(key = "master_color", contentType = "master_color") {
             SectionCard("Apply One Color to Everything", icon = Icons.Outlined.Palette) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
@@ -707,13 +702,11 @@ private fun GlobalTab(
                         Spacer(Modifier.height(12.dp))
                         Text(s.themePresets, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(6.dp))
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(listOf(
-                                Color(0xFF0A0A0F) to "Black", Color(0xFF18182A) to "Navy",
-                                Color(0xFF12092A) to "Violet", Color(0xFF0D1B2A) to "Ocean",
-                                Color(0xFF071A0E) to "Forest", Color(0xFF1A080A) to "Ember",
-                                Color(0xFF1A1000) to "Gold", Color(0xFF101020) to "Midnight"
-                            )) { (color, name) ->
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MasterColorPresets.forEach { (color, name) ->
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Box(Modifier.size(36.dp).clip(CircleShape).background(color)
                                         .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
@@ -728,7 +721,7 @@ private fun GlobalTab(
             }
         }
 
-        item {
+        item(key = "glow_effects", contentType = "glow_effects") {
             SectionCard(s.themeGlowEffects, icon = Icons.Outlined.AutoAwesome) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
@@ -746,7 +739,7 @@ private fun GlobalTab(
             }
         }
 
-        item {
+        item(key = "global_adjustments", contentType = "global_adjustments") {
             SectionCard("Global Adjustments", icon = Icons.Outlined.Tune) {
                 Text(s.themeAppliedOnTop, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
@@ -827,8 +820,11 @@ private fun AutoGeneratorPanel(
             FilledTonalButton(onClick = { showPicker = true }) { Text(s.themePick) }
         }
         Spacer(Modifier.height(12.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(listOf(Color(0xFF7C4DFF), Color(0xFF00BFA5), Color(0xFFFF6E6E), Color(0xFF4FC3F7), Color(0xFF81C784), Color(0xFFF48FB1), Color(0xFFFFD54F), Color(0xFF9FA8DA))) { p ->
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SeedColorPresets.forEach { p ->
                 Box(Modifier.size(32.dp).clip(CircleShape).background(p).border(if (seedColor == p) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, CircleShape).clickable { onSeedChanged(p) })
             }
         }
@@ -932,7 +928,7 @@ private fun EditThemeDialog(theme: CustomThemeConfig, onDismiss: () -> Unit, onS
                 )
                 Text(s.themeOverrideColors, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                 LazyColumn(Modifier.heightIn(max = 220.dp)) {
-                    items(ColorSchemeGenerator.getAvailableRoles()) { role ->
+                    items(ColorSchemeGenerator.getAvailableRoles(), key = { it }, contentType = { "role" }) { role ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(ColorSchemeGenerator.roleToDisplayName(role), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                             val cur = overrides[role]?.let { Color(it) } ?: run { val s = ColorSchemeGenerator.generateFromSeed(theme.seedColor, theme.isDark); when(role) { "primary" -> s.primary; "secondary" -> s.secondary; "tertiary" -> s.tertiary; "error" -> s.error; "background" -> s.background; "surface" -> s.surface; else -> s.outline } }
@@ -977,8 +973,11 @@ private fun ColorPickerDialog(initial: Color, onSelected: (Color) -> Unit, onDis
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { fm.clearFocus() })
                 )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf(Color(0xFF7C4DFF), Color(0xFF00BFA5), Color(0xFFFF6E6E), Color(0xFF4FC3F7), Color(0xFF81C784), Color(0xFFF48FB1), Color(0xFFFFD54F), Color(0xFF9FA8DA), Color(0xFF0A0A0F), Color(0xFFFFFFFF))) { p ->
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PickerColorPresets.forEach { p ->
                         Box(Modifier.size(36.dp).clip(CircleShape).background(p).border(if (color==p) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, CircleShape).clickable { color=p; hex=p.toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase() })
                     }
                 }
@@ -1026,11 +1025,11 @@ private fun HexColorInput(argb: Int?, onColorPicked: (Int) -> Unit) {
 
 @Composable
 private fun ChatColorPresets(onPick: (Int) -> Unit) {
-    val presets = listOf("Black" to Color(0xFF0A0A0F), "Navy" to Color(0xFF0D1117), "Violet" to Color(0xFF12092A),
-        "Slate" to Color(0xFF0F1621), "Teal" to Color(0xFF071A1A), "Ember" to Color(0xFF1A0A08),
-        "White" to Color(0xFFFFFFFF), "Light" to Color(0xFFF2F2F8))
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(presets) { (name, c) ->
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        ChatBackgroundPresets.forEach { (name, c) ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(38.dp).clip(CircleShape).background(c).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape).clickable { onPick(c.toArgb()) })
                 Spacer(Modifier.height(3.dp))
@@ -1173,3 +1172,23 @@ private fun ThemeTabList(
         )
     }
 }
+
+private val MasterColorPresets = listOf(
+    Color(0xFF0A0A0F) to "Black", Color(0xFF18182A) to "Navy",
+    Color(0xFF12092A) to "Violet", Color(0xFF0D1B2A) to "Ocean",
+    Color(0xFF071A0E) to "Forest", Color(0xFF1A080A) to "Ember",
+    Color(0xFF1A1000) to "Gold", Color(0xFF101020) to "Midnight"
+)
+
+private val SeedColorPresets = listOf(
+    Color(0xFF7C4DFF), Color(0xFF00BFA5), Color(0xFFFF6E6E), Color(0xFF4FC3F7),
+    Color(0xFF81C784), Color(0xFFF48FB1), Color(0xFFFFD54F), Color(0xFF9FA8DA)
+)
+
+private val PickerColorPresets = SeedColorPresets + listOf(Color(0xFF0A0A0F), Color(0xFFFFFFFF))
+
+private val ChatBackgroundPresets = listOf(
+    "Black" to Color(0xFF0A0A0F), "Navy" to Color(0xFF0D1117), "Violet" to Color(0xFF12092A),
+    "Slate" to Color(0xFF0F1621), "Teal" to Color(0xFF071A1A), "Ember" to Color(0xFF1A0A08),
+    "White" to Color(0xFFFFFFFF), "Light" to Color(0xFFF2F2F8)
+)

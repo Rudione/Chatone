@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,15 +33,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +50,8 @@ import androidx.compose.ui.unit.sp
 import io.rudione.chatone.data.remote.gif.GiphyApiClient
 import io.rudione.chatone.data.repository.GifRepository
 import io.rudione.chatone.presentation.chat.components.GifFavoriteStar
+import io.rudione.chatone.domain.model.GifAccess
+import io.rudione.chatone.domain.model.GifSearchConfig
 import io.rudione.chatone.domain.model.GifSearchItem
 import io.rudione.chatone.presentation.chat.rendering.LocalScrollActivity
 import io.rudione.chatone.presentation.chat.rendering.rememberScrollActivity
@@ -65,9 +66,56 @@ private const val SEARCH_DEBOUNCE_MS = 350L
 private const val LOAD_MORE_THRESHOLD = 8
 private const val GIF_PREVIEW_MAX_DIMENSION = 192
 
+@Stable
+private class GifResults {
+    var items by mutableStateOf<List<GifSearchItem>>(emptyList())
+        private set
+    var loading by mutableStateOf(false)
+        private set
+    var failed by mutableStateOf(false)
+        private set
+
+    private var nextOffset: Int? = 0
+    private val known = HashSet<String>()
+
+    val canLoadMore: Boolean get() = nextOffset != null && !loading && !failed
+
+    fun reset() {
+        items = emptyList()
+        known.clear()
+        nextOffset = 0
+        loading = false
+        failed = false
+    }
+
+    suspend fun loadNext(repository: GifRepository, config: GifSearchConfig, query: String) {
+        val offset = nextOffset ?: return
+        if (loading) return
+        loading = true
+        try {
+            when (val page = repository.load(config, query, offset)) {
+                is Result.Success -> {
+                    val fresh = page.data.items.filter { known.add(it.id) }
+                    if (fresh.isNotEmpty()) items = items + fresh
+                    nextOffset = page.data.nextOffset
+                }
+
+                else -> {
+                    nextOffset = null
+                    failed = true
+                }
+            }
+        } finally {
+            loading = false
+        }
+    }
+}
+
 @Composable
 internal fun GifPickerTab(
+    access: GifAccess,
     onGifSelected: (GifSearchItem) -> Unit,
+    onRefreshAccess: () -> Unit,
     canSendGifs: Boolean,
     sendError: String?,
     modifier: Modifier = Modifier
@@ -77,9 +125,9 @@ internal fun GifPickerTab(
     val uriHandler = LocalUriHandler.current
 
     val favorites by repository.favorites.collectAsState()
+    val favoriteIds = remember(favorites) { favorites.mapTo(HashSet(favorites.size)) { it.id } }
     var query by remember { mutableStateOf("") }
-    var apiKeyPresent by remember { mutableStateOf(repository.hasApiKey()) }
-    var showFavorites by remember { mutableStateOf(!apiKeyPresent && favorites.isNotEmpty()) }
+    var showFavorites by remember { mutableStateOf(false) }
 
     val debouncedQuery by produceState(initialValue = query, query) {
         if (query.isEmpty()) {
@@ -90,62 +138,26 @@ internal fun GifPickerTab(
         }
     }
 
-    val results = remember { mutableStateListOf<GifSearchItem>() }
-    var nextOffset by remember { mutableStateOf<Int?>(0) }
-    var isLoading by remember { mutableStateOf(false) }
-    var loadError by remember { mutableStateOf<String?>(null) }
-    var loadMoreTick by remember { mutableIntStateOf(0) }
-
+    val results = remember { GifResults() }
     val gridState = rememberLazyGridState()
     val scrollActivity = rememberScrollActivity(gridState)
+    val config = (access as? GifAccess.Ready)?.config
 
-    suspend fun fetchNextPage() {
-        val offset = nextOffset ?: return
-        if (isLoading) return
-        isLoading = true
-        when (val page = repository.load(debouncedQuery, offset)) {
-            is Result.Success -> {
-                val known = results.mapTo(HashSet()) { it.id }
-                results.addAll(page.data.items.filter { known.add(it.id) })
-                nextOffset = page.data.nextOffset
-                loadError = null
-            }
-
-            else -> {
-                nextOffset = null
-                loadError = s.gifLoadFailed
-            }
-        }
-        isLoading = false
-    }
-
-    LaunchedEffect(debouncedQuery, apiKeyPresent) {
-        results.clear()
-        nextOffset = 0
-        loadError = null
-        loadMoreTick = 0
-        isLoading = false
+    LaunchedEffect(config, debouncedQuery) {
+        results.reset()
         if (gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0)
-        if (apiKeyPresent) fetchNextPage()
-    }
-
-    LaunchedEffect(loadMoreTick) {
-        if (loadMoreTick > 0 && apiKeyPresent) fetchNextPage()
-    }
-
-    val shouldLoadMore by remember {
-        derivedStateOf {
+        val active = config ?: return@LaunchedEffect
+        results.loadNext(repository, active, debouncedQuery)
+        snapshotFlow {
             val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            results.isNotEmpty() && lastVisible >= results.size - LOAD_MORE_THRESHOLD
+            val loaded = results.items.size
+            !showFavorites && results.canLoadMore && loaded > 0 && lastVisible >= loaded - LOAD_MORE_THRESHOLD
+        }.collect { needsMore ->
+            if (needsMore) results.loadNext(repository, active, debouncedQuery)
         }
     }
 
-    LaunchedEffect(shouldLoadMore, isLoading, nextOffset) {
-        if (showFavorites || !shouldLoadMore || isLoading || nextOffset == null) return@LaunchedEffect
-        loadMoreTick++
-    }
-
-    val shown = if (showFavorites) favorites else results
+    val shown = if (showFavorites) favorites else results.items
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -174,26 +186,19 @@ internal fun GifPickerTab(
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
         when {
-            !apiKeyPresent && !showFavorites -> GifApiKeyPrompt(
+            !showFavorites && access == GifAccess.Loading -> GifCenteredBox { GifSpinner() }
+
+            !showFavorites && access == GifAccess.NeedsKey -> GifApiKeyPrompt(
                 onOpenSignup = { runCatching { uriHandler.openUri(GiphyApiClient.SIGNUP_URL) } },
-                onRecheck = { apiKeyPresent = repository.hasApiKey() }
+                onRecheck = onRefreshAccess
             )
 
-            shown.isEmpty() && isLoading -> GifCenteredBox {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                )
-            }
+            !showFavorites && access == GifAccess.Disabled -> GifCenteredBox { GifMessage(s.gifChannelDisabled) }
+
+            shown.isEmpty() && results.loading -> GifCenteredBox { GifSpinner() }
 
             shown.isEmpty() -> GifCenteredBox {
-                Text(
-                    loadError ?: s.gifNoResults,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Center
-                )
+                GifMessage(if (results.failed && !showFavorites) s.gifLoadFailed else s.gifNoResults)
             }
 
             else -> CompositionLocalProvider(LocalScrollActivity provides scrollActivity) {
@@ -212,17 +217,17 @@ internal fun GifPickerTab(
                     ) { gif ->
                         GifGridItem(
                             gif = gif,
-                            isFavorite = favorites.any { it.id == gif.id },
+                            isFavorite = gif.id in favoriteIds,
                             onClick = { onGifSelected(gif) },
                             onToggleFavorite = { repository.toggleFavorite(gif) }
                         )
                     }
-                    if (isLoading) {
-                        item(span = { GridItemSpan(maxLineSpan) }, contentType = "loader") {
+                    if (results.loading && !showFavorites) {
+                        item(key = "loader", span = { GridItemSpan(maxLineSpan) }, contentType = "loader") {
                             LoadMoreIndicator(isLoading = true)
                         }
                     }
-                    item(span = { GridItemSpan(maxLineSpan) }, contentType = "attribution") {
+                    item(key = "attribution", span = { GridItemSpan(maxLineSpan) }, contentType = "attribution") {
                         Text(
                             s.gifPoweredBy,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
@@ -235,6 +240,26 @@ internal fun GifPickerTab(
             }
         }
     }
+}
+
+@Composable
+private fun GifSpinner() {
+    CircularProgressIndicator(
+        modifier = Modifier.size(22.dp),
+        strokeWidth = 2.dp,
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+    )
+}
+
+@Composable
+private fun GifMessage(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(horizontal = 16.dp)
+    )
 }
 
 @Composable

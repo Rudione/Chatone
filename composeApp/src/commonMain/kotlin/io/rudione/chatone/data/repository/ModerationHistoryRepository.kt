@@ -1,131 +1,53 @@
 package io.rudione.chatone.data.repository
 
-import io.github.aakira.napier.Napier
-import io.rudione.chatone.data.local.ChatoneDatabase
-import io.rudione.chatone.data.remote.GqlTargetedModAction
+import io.rudione.chatone.data.remote.GqlModLogAction
+import io.rudione.chatone.data.remote.ModLogActionType
 import io.rudione.chatone.data.remote.TwitchGqlClient
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import kotlin.math.abs
-import kotlin.time.Clock
 
 data class ModerationHistoryEntry(
     val id: String,
-    val action: String,
-    val durationSeconds: Int?,
-    val reason: String?,
+    val action: ModLogActionType,
+    val label: String?,
     val moderatorLogin: String?,
     val timestamp: Long
 )
 
-class ModerationHistoryRepository(
-    private val database: ChatoneDatabase,
-    private val scope: CoroutineScope,
-    private val gqlClient: TwitchGqlClient
+data class ModerationHistory(
+    val entries: List<ModerationHistoryEntry>,
+    val counts: Map<ModLogActionType, Int>,
+    val messageCount: Int?
 ) {
+    fun count(type: ModLogActionType): Int = counts[type] ?: 0
+
+    val totalActions: Int get() = counts.values.sum()
 
     companion object {
-        private const val TAG = "ModerationHistory"
-
-        const val ACTION_BAN = "ban"
-        const val ACTION_TIMEOUT = "timeout"
-        const val ACTION_WARN = "warn"
-        const val ACTION_UNBAN = "unban"
-        const val ACTION_UNTIMEOUT = "untimeout"
-        const val ACTION_DELETE = "delete"
-
-        private const val MATCH_WINDOW_MS = 15_000L
+        val Empty = ModerationHistory(emptyList(), emptyMap(), null)
     }
+}
 
-    fun recordEvent(
-        channelId: String,
-        targetUserId: String,
-        targetLogin: String,
-        action: String,
-        durationSeconds: Int? = null,
-        reason: String? = null,
-        moderatorLogin: String? = null
-    ) {
-        if (channelId.isBlank() || targetUserId.isBlank()) return
-        val timestamp = Clock.System.now().toEpochMilliseconds()
-        scope.launch {
-            try {
-                database.moderationEventQueries.insertEvent(
-                    id = "${channelId}_${targetUserId}_$timestamp",
-                    channelId = channelId,
-                    targetUserId = targetUserId,
-                    targetLogin = targetLogin,
-                    action = action,
-                    durationSeconds = durationSeconds?.toLong(),
-                    reason = reason,
-                    moderatorLogin = moderatorLogin,
-                    timestamp = timestamp
-                )
-            } catch (e: Exception) {
-                Napier.w("Failed to record moderation event: ${e.message}", tag = TAG)
-            }
-        }
-    }
+class ModerationHistoryRepository(
+    private val gqlClient: TwitchGqlClient,
+    private val authStore: ModerationAuthStore
+) {
 
-    suspend fun loadHistoryForUser(
-        channelId: String,
-        targetUserId: String,
-        token: String
-    ): List<ModerationHistoryEntry> {
-        val local = getHistoryForUser(channelId, targetUserId)
-        if (token.isBlank()) return local
-        val remote = gqlClient.getTargetedModActions(channelId, targetUserId, token)
-            ?.mapNotNull { it.toEntry() }
-            ?: return local
-        val unmatchedLocal = local.toMutableList()
-        val merged = remote.map { entry ->
-            val twin = unmatchedLocal.firstOrNull {
-                it.action == entry.action && abs(it.timestamp - entry.timestamp) <= MATCH_WINDOW_MS
-            }
-            if (twin != null) {
-                unmatchedLocal.remove(twin)
-                twin
-            } else entry
-        }
-        return (merged + unmatchedLocal).sortedByDescending { it.timestamp }
-    }
-
-    private fun GqlTargetedModAction.toEntry(): ModerationHistoryEntry? {
-        val action = when (type.uppercase()) {
-            "BAN" -> ACTION_BAN
-            "TIMEOUT" -> ACTION_TIMEOUT
-            "UNBAN" -> ACTION_UNBAN
-            "UNTIMEOUT" -> ACTION_UNTIMEOUT
-            "WARN" -> ACTION_WARN
-            else -> return null
-        }
-        return ModerationHistoryEntry(
-            id = "gql_$id",
-            action = action,
-            durationSeconds = null,
-            reason = null,
-            moderatorLogin = null,
-            timestamp = timestampMs ?: return null
+    suspend fun loadHistoryForUser(channelId: String, targetUserId: String, accountToken: String): ModerationHistory {
+        if (channelId.isBlank() || targetUserId.isBlank()) return ModerationHistory.Empty
+        val token = runCatching { authStore.resolveToken(accountToken) }.getOrDefault(accountToken)
+        if (token.isBlank()) return ModerationHistory.Empty
+        val summary = gqlClient.getModLogSummary(channelId, targetUserId, token) ?: return ModerationHistory.Empty
+        return ModerationHistory(
+            entries = summary.actions.map { it.toEntry() },
+            counts = summary.counts,
+            messageCount = summary.messageCount
         )
     }
 
-    fun getHistoryForUser(channelId: String, targetUserId: String): List<ModerationHistoryEntry> {
-        if (channelId.isBlank() || targetUserId.isBlank()) return emptyList()
-        return try {
-            database.moderationEventQueries.getEventsForUser(channelId, targetUserId)
-                .executeAsList()
-                .map {
-                    ModerationHistoryEntry(
-                        id = it.id,
-                        action = it.action,
-                        durationSeconds = it.durationSeconds?.toInt(),
-                        reason = it.reason,
-                        moderatorLogin = it.moderatorLogin,
-                        timestamp = it.timestamp
-                    )
-                }
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
+    private fun GqlModLogAction.toEntry() = ModerationHistoryEntry(
+        id = id,
+        action = type,
+        label = label,
+        moderatorLogin = moderatorLogin,
+        timestamp = timestampMs
+    )
 }

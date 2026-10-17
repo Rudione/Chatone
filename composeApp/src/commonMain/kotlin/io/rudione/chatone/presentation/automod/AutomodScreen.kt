@@ -1,13 +1,15 @@
 package io.rudione.chatone.presentation.automod
 
+import androidx.compose.ui.draw.drawBehind
+import io.rudione.chatone.presentation.theme.i18n.AppStrings
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -64,6 +66,12 @@ import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.icons.lucide.X
 
 enum class AutomodFilter { ALL, GLOBAL, LOCAL }
+
+private fun AutomodFilter.label(s: AppStrings): String = when (this) {
+    AutomodFilter.ALL -> s.automodFilterAll
+    AutomodFilter.GLOBAL -> s.automodFilterGlobal
+    AutomodFilter.LOCAL -> s.automodFilterLocal
+}
 private enum class AutomodTab { WORDS, CHAT_RULES }
 
 private val WIDE_LAYOUT_MIN_WIDTH = 640.dp
@@ -98,15 +106,15 @@ fun AutomodScreen(
         val maxLeftPaneWidth =
             (availableWidth - DETAIL_PANE_MIN_WIDTH).coerceAtLeast(LEFT_PANE_MIN_WIDTH)
         var leftPaneWidth by remember { mutableStateOf(LEFT_PANE_DEFAULT_WIDTH) }
-        LaunchedEffect(maxLeftPaneWidth) {
+        SideEffect(maxLeftPaneWidth) {
             leftPaneWidth = leftPaneWidth.coerceIn(LEFT_PANE_MIN_WIDTH, maxLeftPaneWidth)
         }
         val clampedLeftPaneWidth = leftPaneWidth.coerceIn(LEFT_PANE_MIN_WIDTH, maxLeftPaneWidth)
 
-        LaunchedEffect(wordRules) {
+        SideEffect(wordRules) {
             if (wordSelectedId == null) wordSelectedId = wordRules.firstOrNull()?.id
         }
-        LaunchedEffect(chatRules) {
+        SideEffect(chatRules) {
             if (chatSelectedId == null) chatSelectedId = chatRules.firstOrNull()?.id
         }
 
@@ -345,13 +353,12 @@ private fun LeftHeader(
                 )
             }
         }
-        AutomodTabRow(
-            tabs = listOf(
-                Triple(AutomodTab.WORDS, s.automodTabWords, wordRules.size),
-                Triple(AutomodTab.CHAT_RULES, s.automodTabChatRules, chatRules.size)
-            ),
+        ExpressiveTabs(
+            tabs = AutomodTab.entries,
             selected = activeTab,
             onSelect = onTabChange,
+            label = { if (it == AutomodTab.WORDS) s.automodTabWords else s.automodTabChatRules },
+            badge = { if (it == AutomodTab.WORDS) wordRules.size else chatRules.size },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)
         )
     }
@@ -389,7 +396,7 @@ private fun WordListPane(
                     || r.channelLogin?.contains(q, true) == true || r.note.contains(q, true))
         }
     }
-    LaunchedEffect(filtered) {
+    SideEffect(filtered) {
         if (selectedId == null || filtered.none { it.id == selectedId })
             onSelectId(filtered.firstOrNull()?.id)
     }
@@ -413,17 +420,16 @@ private fun WordListPane(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-                ChatoneSegmentedControl(
-                    options = listOf(
-                        AutomodFilter.ALL to s.automodFilterAll,
-                        AutomodFilter.GLOBAL to s.automodFilterGlobal,
-                        AutomodFilter.LOCAL to s.automodFilterLocal
-                    ),
-                    selected = filter,
-                    onSelect = { filter = it }
-                )
-            }
+            ExpressiveTabs(
+                tabs = AutomodFilter.entries,
+                selected = filter,
+                onSelect = { filter = it },
+                label = { it.label(s) },
+                fill = false,
+                size = ExpressiveTabSize.Compact,
+                divider = false,
+                modifier = Modifier.weight(1f)
+            )
             AutomodActionButton(
                 icon = Lucide.Plus,
                 contentDescription = "Add",
@@ -445,7 +451,7 @@ private fun WordListPane(
             EmptyHint(s.automodNoRules, s.automodNoRulesHint, Modifier.fillMaxSize())
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                items(filtered, key = { it.id }) { rule ->
+                items(filtered, key = { it.id }, contentType = { "rule" }) { rule ->
                     WordRuleRow(
                         rule = rule,
                         selected = rule.id == selectedId && wide,
@@ -500,7 +506,7 @@ private fun ChatRuleListPane(
     }
     val selected = filtered.firstOrNull { it.id == selectedId }
 
-    LaunchedEffect(filtered) {
+    SideEffect(filtered) {
         if (selectedId == null || filtered.none { it.id == selectedId })
             onSelectId(filtered.firstOrNull()?.id)
     }
@@ -523,17 +529,16 @@ private fun ChatRuleListPane(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-                ChatoneSegmentedControl(
-                    options = listOf(
-                        AutomodFilter.ALL to s.automodFilterAll,
-                        AutomodFilter.GLOBAL to s.automodFilterGlobal,
-                        AutomodFilter.LOCAL to s.automodFilterLocal
-                    ),
-                    selected = filter,
-                    onSelect = { filter = it }
-                )
-            }
+            ExpressiveTabs(
+                tabs = AutomodFilter.entries,
+                selected = filter,
+                onSelect = { filter = it },
+                label = { it.label(s) },
+                fill = false,
+                size = ExpressiveTabSize.Compact,
+                divider = false,
+                modifier = Modifier.weight(1f)
+            )
             AutomodActionButton(
                 icon = Lucide.Plus,
                 contentDescription = "Add",
@@ -578,7 +583,7 @@ private fun ChatRuleListPane(
             EmptyHint(s.chatRuleNoRules, s.chatRuleNoRulesHint, Modifier.fillMaxSize())
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                items(filtered, key = { it.id }) { rule ->
+                items(filtered, key = { it.id }, contentType = { "rule" }) { rule ->
                     ChatRuleRow(
                         rule = rule,
                         selected = rule.id == selectedId && wide,
@@ -605,7 +610,7 @@ private fun WordRuleRow(
     val accent = MaterialTheme.colorScheme.primary
     Row(
         modifier = Modifier.fillMaxWidth()
-            .background(bg)
+            .drawBehind { drawRect(bg) }
             .drawWithContent {
                 drawContent()
                 if (selected) drawRect(color = accent, size = Size(3.dp.toPx(), size.height))
@@ -848,7 +853,7 @@ private fun ChatRuleRow(
     )
     val accent = MaterialTheme.colorScheme.primary
     Row(
-        modifier = Modifier.fillMaxWidth().background(bg)
+        modifier = Modifier.fillMaxWidth().drawBehind { drawRect(bg) }
             .drawWithContent {
                 drawContent()
                 if (selected) drawRect(color = accent, size = Size(3.dp.toPx(), size.height))

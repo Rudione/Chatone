@@ -1,5 +1,8 @@
 package io.rudione.chatone
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -12,11 +15,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -26,15 +27,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Density
-import coil3.SingletonImageLoader
-import coil3.annotation.DelicateCoilApi
-import coil3.compose.LocalPlatformContext
-import coil3.compose.setSingletonImageLoaderFactory
-import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Antilog
 import io.github.aakira.napier.LogLevel
 import io.github.aakira.napier.Napier
-import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import io.rudione.chatone.presentation.auth.AuthScreen
 import io.rudione.chatone.presentation.chat.ChatMediaSettings
@@ -43,6 +38,7 @@ import io.rudione.chatone.presentation.components.SystemBarsAppearance
 import io.rudione.chatone.presentation.main.MainScreen
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.presentation.settings.AlwaysOnTopMode
 import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.startup.LaunchReadiness
 import io.rudione.chatone.presentation.startup.LaunchSplashOverlay
@@ -58,7 +54,6 @@ import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.concurrent.IoDispatcher
 import io.rudione.chatone.util.font.resolveFontFamilyWithBundled
 import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.util.media.createAnimatedImageLoader
 import kotlinx.coroutines.withContext
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
@@ -99,11 +94,11 @@ private class ChatoneAntilog : Antilog() {
     }
 }
 
-@OptIn(DelicateCoilApi::class)
 @Composable
 fun App(
     darkTheme: Boolean = true,
     onAlwaysOnTopChanged: (Boolean) -> Unit = {},
+    onAlwaysOnTopModeChanged: (AlwaysOnTopMode) -> Unit = {},
     onThemeChanged: ((Boolean) -> Unit)? = null,
     onThemeTopBarColorChanged: ((Color?) -> Unit)? = null,
     onTitleBarModeChanged: ((TitleBarMode) -> Unit)? = null
@@ -111,24 +106,8 @@ fun App(
     val customThemeManager: CustomThemeManager = koinInject()
     val activeCustomTheme by customThemeManager.currentTheme.collectAsState()
 
-    val settings = Settings()
-
-    LaunchedEffect(Unit) {
+    SideEffect(Unit) {
         Napier.base(ChatoneAntilog())
-    }
-
-    val accountManager: AccountManager = koinInject()
-    setSingletonImageLoaderFactory { context ->
-        createAnimatedImageLoader(context, accountManager.activeProxy.value)
-    }
-
-    val platformContext = LocalPlatformContext.current
-    val imageProxy by accountManager.activeProxy.collectAsState()
-    var appliedImageProxy by remember { mutableStateOf(imageProxy) }
-    LaunchedEffect(imageProxy) {
-        if (imageProxy == appliedImageProxy) return@LaunchedEffect
-        appliedImageProxy = imageProxy
-        SingletonImageLoader.setUnsafe(createAnimatedImageLoader(platformContext, imageProxy))
     }
 
     val wallpaperController = remember { WallpaperController() }
@@ -143,7 +122,7 @@ fun App(
         val wallpaperLoader: WallpaperLoader = koinInject()
 
         val translationStore: io.rudione.chatone.presentation.chat.TranslationStore = koinInject()
-        LaunchedEffect(settingsState.translationTargetLang) {
+        SideEffect(settingsState.translationTargetLang) {
             translationStore.targetLang = settingsState.translationTargetLang
         }
 
@@ -162,17 +141,20 @@ fun App(
         val sevenTvCosmetics = sevenTvCosmeticsClient.cosmetics.collectAsState()
         val sevenTvPaints = sevenTvCosmeticsClient.paints.collectAsState()
 
-        LaunchedEffect(settingsState.alwaysOnTop) {
+        SideEffect(settingsState.alwaysOnTop) {
             onAlwaysOnTopChanged(settingsState.alwaysOnTop)
         }
 
-        LaunchedEffect(settingsState.titleBarMode) {
+        SideEffect(settingsState.alwaysOnTopMode) {
+            onAlwaysOnTopModeChanged(settingsState.alwaysOnTopMode)
+        }
+
+        SideEffect(settingsState.titleBarMode) {
             onTitleBarModeChanged?.invoke(settingsState.titleBarMode)
         }
 
-        LaunchedEffect(Unit) {
-            val saved = settingsState.wallpaperDisplayConfig
-            wallpaperController.setDisplayConfig(saved)
+        SideEffect(Unit) {
+            wallpaperController.setDisplayConfig(settingsState.wallpaperDisplayConfig)
         }
 
         LaunchedEffect(settingsState.wallpaperPath) {
@@ -206,7 +188,7 @@ fun App(
 
         val wallpaper by remember { derivedStateOf { wallpaperController.state } }
 
-        LaunchedEffect(customThemeManager.savedThemes.value, activeCustomTheme) {
+        SideEffect(customThemeManager.savedThemes.value, activeCustomTheme) {
             settingsViewModel.sendEvent(
                 SettingsEvent.OnCustomThemesJsonChanged(customThemeManager.serialize())
             )
@@ -217,6 +199,13 @@ fun App(
 
         val launchReadiness: LaunchReadiness = koinInject()
         LaunchedEffect(Unit) {
+            val themes = settingsState.customThemes
+            if (themes.isNotEmpty()) {
+                themes.forEach { customThemeManager.saveTheme(it) }
+                settingsState.activeCustomThemeId?.let { id ->
+                    themes.find { it.id == id }?.let { customThemeManager.setTheme(it) }
+                }
+            }
             val route = try {
                 if (getFirstValidAccount() != null) RootRoute.Main else RootRoute.Auth
             } catch (e: Exception) {
@@ -226,16 +215,6 @@ fun App(
             backStack.replaceWith(route)
             if (route == RootRoute.Main) launchReadiness.advance(LaunchStage.Connecting)
             else launchReadiness.finish()
-        }
-
-        LaunchedEffect(Unit) {
-            val themes = settingsState.customThemes
-            if (themes.isNotEmpty()) {
-                themes.forEach { customThemeManager.saveTheme(it) }
-                settingsState.activeCustomThemeId?.let { id ->
-                    themes.find { it.id == id }?.let { customThemeManager.setTheme(it) }
-                }
-            }
         }
 
         val uiScale = settingsState.uiScale
@@ -352,9 +331,6 @@ fun App(
                                 }
                             )
                         }
-                    }
-                    if (currentRoute == RootRoute.Main) {
-                        io.rudione.chatone.presentation.ai.AiAssistantOverlay()
                     }
                     LaunchSplashOverlay()
                 }

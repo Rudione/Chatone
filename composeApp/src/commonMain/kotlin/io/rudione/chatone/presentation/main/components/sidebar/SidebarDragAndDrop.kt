@@ -1,14 +1,13 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -29,9 +28,10 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DelegatingNode
-import androidx.compose.ui.node.GlobalPositionAwareModifierNode
+import androidx.compose.ui.node.LayoutAwareModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.currentValueOf
+import androidx.compose.ui.node.requireLayoutCoordinates
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -47,39 +47,63 @@ internal sealed interface SidebarDropTarget {
 
 internal data class SidebarDragSource(val login: String, val folderId: String?)
 
-internal class SidebarDropIndex {
-    val folderRects = mutableStateMapOf<String, Rect>()
-    val channelRects = mutableStateMapOf<String, Rect>()
-    val channelFolderIds = mutableStateMapOf<String, String?>()
-    var unfolderedSection by mutableStateOf<Rect?>(null)
+internal fun interface DropBounds {
+    fun boundsInRoot(): Rect?
+}
 
-    fun putChannel(login: String, folderId: String?, rect: Rect) {
-        channelRects[login] = rect
+internal class SidebarDropIndex {
+    private val folders = LinkedHashMap<String, DropBounds>()
+    private val channels = LinkedHashMap<String, DropBounds>()
+    private val channelFolderIds = HashMap<String, String?>()
+    private var unfoldered: DropBounds? = null
+
+    fun putFolder(folderId: String, bounds: DropBounds) {
+        folders[folderId] = bounds
+    }
+
+    fun removeFolder(folderId: String, bounds: DropBounds) {
+        if (folders[folderId] === bounds) folders.remove(folderId)
+    }
+
+    fun putChannel(login: String, folderId: String?, bounds: DropBounds) {
+        channels[login] = bounds
         channelFolderIds[login] = folderId
     }
 
-    fun forget(login: String) {
-        channelRects.remove(login)
+    fun removeChannel(login: String, bounds: DropBounds) {
+        if (channels[login] !== bounds) return
+        channels.remove(login)
         channelFolderIds.remove(login)
     }
 
+    fun putUnfoldered(bounds: DropBounds) {
+        unfoldered = bounds
+    }
+
+    fun removeUnfoldered(bounds: DropBounds) {
+        if (unfoldered === bounds) unfoldered = null
+    }
+
     fun resolve(pointInRoot: Offset): SidebarDropTarget? {
-        folderRects.entries.firstOrNull { it.value.contains(pointInRoot) }?.let {
+        folders.entries.firstOrNull { it.value.contains(pointInRoot) }?.let {
             return SidebarDropTarget.Folder(it.key)
         }
-        channelRects.entries.firstOrNull { it.value.contains(pointInRoot) }?.let {
+        channels.entries.firstOrNull { it.value.contains(pointInRoot) }?.let {
             return SidebarDropTarget.Channel(it.key, channelFolderIds[it.key])
         }
-        if (unfolderedSection?.contains(pointInRoot) == true) return SidebarDropTarget.Unfoldered
+        if (unfoldered?.contains(pointInRoot) == true) return SidebarDropTarget.Unfoldered
         return null
     }
 
-    fun hoveredFolderId(pointInRoot: Offset): String? = when (val t = resolve(pointInRoot)) {
-        is SidebarDropTarget.Folder -> t.folderId
-        is SidebarDropTarget.Channel -> t.folderId
+    private fun DropBounds.contains(point: Offset): Boolean = boundsInRoot()?.contains(point) == true
+}
+
+internal val SidebarDropTarget?.hoveredFolderId: String?
+    get() = when (this) {
+        is SidebarDropTarget.Folder -> folderId
+        is SidebarDropTarget.Channel -> folderId
         else -> null
     }
-}
 
 @Stable
 internal class SidebarDragState {
@@ -253,34 +277,53 @@ private data class DropZoneElement(
 ) : ModifierNodeElement<DropZoneNode>() {
     override fun create(): DropZoneNode = DropZoneNode(index, zone)
 
-    override fun update(node: DropZoneNode) {
-        if (node.index !== index || node.zone != zone) node.forget()
-        node.index = index
-        node.zone = zone
-    }
+    override fun update(node: DropZoneNode) = node.retarget(index, zone)
 }
 
 private class DropZoneNode(
-    var index: SidebarDropIndex,
-    var zone: DropZone
-) : Modifier.Node(), GlobalPositionAwareModifierNode {
+    private var index: SidebarDropIndex,
+    private var zone: DropZone
+) : Modifier.Node(), LayoutAwareModifierNode, DropBounds {
 
-    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        val bounds = coordinates.boundsInRoot()
-        when (val current = zone) {
-            is DropZone.Channel -> index.putChannel(current.login, current.folderId, bounds)
-            is DropZone.Folder -> index.folderRects[current.folderId] = bounds
-            DropZone.Unfoldered -> index.unfolderedSection = bounds
+    private var coordinates: LayoutCoordinates? = null
+
+    override fun boundsInRoot(): Rect? = coordinates?.takeIf { it.isAttached }?.boundsInRoot()
+
+    override fun onPlaced(coordinates: LayoutCoordinates) {
+        if (this.coordinates == null) {
+            this.coordinates = coordinates
+            register()
+        } else {
+            this.coordinates = coordinates
         }
     }
 
-    override fun onDetach() = forget()
+    override fun onDetach() {
+        unregister()
+        coordinates = null
+    }
 
-    fun forget() {
+    fun retarget(index: SidebarDropIndex, zone: DropZone) {
+        if (this.index === index && this.zone == zone) return
+        unregister()
+        this.index = index
+        this.zone = zone
+        if (coordinates != null) register()
+    }
+
+    private fun register() {
         when (val current = zone) {
-            is DropZone.Channel -> index.forget(current.login)
-            is DropZone.Folder -> index.folderRects.remove(current.folderId)
-            DropZone.Unfoldered -> index.unfolderedSection = null
+            is DropZone.Channel -> index.putChannel(current.login, current.folderId, this)
+            is DropZone.Folder -> index.putFolder(current.folderId, this)
+            DropZone.Unfoldered -> index.putUnfoldered(this)
+        }
+    }
+
+    private fun unregister() {
+        when (val current = zone) {
+            is DropZone.Channel -> index.removeChannel(current.login, this)
+            is DropZone.Folder -> index.removeFolder(current.folderId, this)
+            DropZone.Unfoldered -> index.removeUnfoldered(this)
         }
     }
 }
@@ -303,17 +346,13 @@ private class SidebarDragSourceNode(
     var state: SidebarDragState,
     var source: SidebarDragSource,
     var onHold: () -> Unit
-) : DelegatingNode(), GlobalPositionAwareModifierNode, CompositionLocalConsumerModifierNode {
-
-    private var originInRoot = Offset.Zero
+) : DelegatingNode(), CompositionLocalConsumerModifierNode {
 
     init {
         delegate(SuspendingPointerInputModifierNode { detectDragStart() })
     }
 
-    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        originInRoot = coordinates.positionInRoot()
-    }
+    private fun originInRoot(): Offset = requireLayoutCoordinates().positionInRoot()
 
     private suspend fun PointerInputScope.detectDragStart() {
         val slop = viewConfiguration.touchSlop
@@ -328,11 +367,11 @@ private class SidebarDragSourceNode(
             when {
                 outcome == null -> {
                     currentValueOf(LocalHapticFeedback).performHapticFeedback(HapticFeedbackType.LongPress)
-                    state.hold(source, down.id, originInRoot + latest, onHold)
+                    state.hold(source, down.id, originInRoot() + latest, onHold)
                 }
                 outcome is PressOutcome.Moved && down.type == PointerType.Mouse -> {
                     outcome.change.consume()
-                    state.start(source, down.id, originInRoot + outcome.change.position)
+                    state.start(source, down.id, originInRoot() + outcome.change.position)
                 }
             }
         }
@@ -375,17 +414,10 @@ private class SidebarDragTrackingNode(
     var state: SidebarDragState,
     var listState: LazyListState,
     var onDrop: (SidebarDragSource, Offset) -> Unit
-) : DelegatingNode(), GlobalPositionAwareModifierNode {
-
-    private var originInRoot = Offset.Zero
+) : DelegatingNode() {
 
     init {
         delegate(SuspendingPointerInputModifierNode { trackDrag() })
-    }
-
-    override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        originInRoot = coordinates.positionInRoot()
-        state.viewport = coordinates.boundsInRoot()
     }
 
     override fun onDetach() {
@@ -404,7 +436,9 @@ private class SidebarDragTrackingNode(
                     if (event.changes.none { it.pressed }) state.cancel()
                     continue
                 }
-                val point = originInRoot + dragChange.position
+                val coordinates = requireLayoutCoordinates()
+                state.viewport = coordinates.boundsInRoot()
+                val point = coordinates.positionInRoot() + dragChange.position
                 state.moveTo(point, slop)
                 dragChange.consume()
                 if (!dragChange.pressed) {

@@ -1,10 +1,10 @@
 package io.rudione.chatone.util.chat
 
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.ExperimentalComposeUiApi
 import io.rudione.chatone.util.EmoteAnimationCache
@@ -24,7 +24,7 @@ actual fun EmoteImageWithTooltip(
     modifier: Modifier,
     onShowContextMenu: (() -> Unit)?
 ) {
-    LaunchedEffect(emote.id) {
+    SideEffect(emote.id) {
         EmoteAnimationCache.recordTooltipTiming(emote.id)
     }
 

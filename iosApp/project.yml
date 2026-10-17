@@ -1,0 +1,52 @@
+name: iosApp
+options:
+  bundleIdPrefix: io.rudione
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    sources:
+      - iosApp
+    info:
+      path: iosApp/Info.plist
+      properties:
+        CFBundleDisplayName: Chatone
+        CFBundleShortVersionString: "0.0.0"
+        CFBundleVersion: "0"
+        CADisableMinimumFrameDurationOnPhone: true
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIBackgroundModes:
+          - audio
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.rudione.chatone
+        PRODUCT_NAME: Chatone
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS: [$(inherited), -framework, ComposeApp, -lsqlite3]
+        CODE_SIGN_STYLE: Automatic
+    preBuildScripts:
+      - name: Compile Kotlin Framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
+    postBuildScripts:
+      - name: Apply App Version
+        basedOnDependencyAnalysis: false
+        script: |
+          PROPS="$SRCROOT/../gradle.properties"
+          VERSION=$(sed -n 's/^app\.version=//p' "$PROPS" | tr -d '[:space:]')
+          CODE=$(sed -n 's/^app\.versionCode=//p' "$PROPS" | tr -d '[:space:]')
+          if [ -z "$VERSION" ] || [ -z "$CODE" ]; then
+            echo "error: app.version or app.versionCode is missing in gradle.properties"
+            exit 1
+          fi
+          PLIST="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" -c "Set :CFBundleVersion $CODE" "$PLIST"

@@ -46,6 +46,7 @@ object AnimatedEmoteLoader {
     private const val MAX_STATIC_URLS = 20_000
 
     private const val SWEEP_INTERVAL_MS = 30_000L
+    private const val IMAGE_ACCEPT = "image/webp,image/gif,image/apng,image/*;q=0.8"
 
     private val lock = ReentrantLock()
     private val cache = object : LinkedHashMap<String, AnimatedFrames>(128, 0.75f, true) {}
@@ -111,6 +112,7 @@ object AnimatedEmoteLoader {
             proxy?.proxyAuthorizationHeader()?.let {
                 conn.setRequestProperty("Proxy-Authorization", it)
             }
+            conn.setRequestProperty("Accept", IMAGE_ACCEPT)
             conn.connectTimeout = 10_000
             conn.readTimeout = 15_000
             conn.getInputStream().use { it.readNBytes(MAX_DOWNLOAD_BYTES) }

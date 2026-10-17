@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.icons.lucide.Check
@@ -52,6 +51,7 @@ import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.expressive.ClosingTap
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.components.PortalPopup
 
 private val ChipShape = RoundedCornerShape(10.dp)
 private val MenuShape = RoundedCornerShape(12.dp)
@@ -129,7 +129,7 @@ private fun TranslationLanguageMenu(
     val s = LocalStrings.current
     val gapPx = with(LocalDensity.current) { MenuGap.roundToPx() }
     val positionProvider = remember(gapPx) { AboveAnchorEnd(gapPx) }
-    Popup(
+    PortalPopup(
         popupPositionProvider = positionProvider,
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = false, dismissOnClickOutside = true)

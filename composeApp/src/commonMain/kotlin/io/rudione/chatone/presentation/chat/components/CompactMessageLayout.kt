@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.chat.modslider.ModSliderHandle
 import io.github.aakira.napier.Napier
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -145,7 +146,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
@@ -207,7 +207,7 @@ import io.rudione.chatone.util.link.openChatUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.viewmodel.koinViewModel
@@ -220,6 +220,7 @@ import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.Reply
 import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.icons.lucide.Trash2
+import io.rudione.chatone.presentation.components.PortalPopup
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -240,6 +241,7 @@ internal fun CompactMessageLayout(
     showDefaultDeleteButton: Boolean,
     showDefaultTimeoutButton: Boolean,
     showDefaultBanButton: Boolean,
+    sliderHandle: ModSliderHandle? = null,
     chatFontSizeSp: Float,
     onUsernameClick: () -> Unit,
     onRightClickUsername: (String) -> Unit,
@@ -370,7 +372,8 @@ internal fun CompactMessageLayout(
                 s = s,
                 prefixWidthPx = prefixWidthPx,
                 userColorByLogin = userColorByLogin,
-                translationStore = translationStore
+                translationStore = translationStore,
+                sliderHandle = sliderHandle
             )
             Row(
                 modifier = Modifier
@@ -464,7 +467,8 @@ internal fun CompactMessageContentWithIndent(
     s: AppStrings,
     prefixWidthPx: Float,
     userColorByLogin: ChatterColors = ChatterColors.None,
-    translationStore: TranslationStore
+    translationStore: TranslationStore,
+    sliderHandle: ModSliderHandle? = null
 ) {
     val lineHeightSp = when (chatFontSizeSp) {
         13f -> 20f; 15f -> 22f; 17f -> 24f; else -> chatFontSizeSp + 6f
@@ -502,6 +506,7 @@ internal fun CompactMessageContentWithIndent(
             )
         }
     }
+    val timestampLength = if (showTimestamp) formatTimestamp(message.timestamp, timestampFormat).length else 0
     val annotatedString = buildAnnotatedString {
         if (showTimestamp) {
             withStyle(
@@ -812,12 +817,15 @@ internal fun CompactMessageContentWithIndent(
                             }
                         }
                     }),
-                onTextLayout = { textLayoutResult = it }
+                onTextLayout = { layout ->
+                    textLayoutResult = layout
+                    sliderHandle?.reportTimestamp(layout, timestampLength)
+                }
             )
         }
         if (isDesktopPlatform) SelectionContainer(content = messageText) else messageText()
         hoveredUrl?.let { url ->
-            Popup(
+            PortalPopup(
                 popupPositionProvider = object : PopupPositionProvider {
                     override fun calculatePosition(
                         anchorBounds: IntRect,
@@ -844,7 +852,7 @@ internal fun CompactMessageContentWithIndent(
             ) { LinkHoverPopup(url = url) }
         }
         if (showContextMenu) {
-            Popup(
+            PortalPopup(
                 alignment = Alignment.TopStart,
                 offset = contextMenuOffset + IntOffset(8, 8),
                 properties = PopupProperties(

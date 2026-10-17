@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.stream
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -26,13 +29,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,7 +148,7 @@ private fun FloatingPlayerWindow(
         val scope = rememberCoroutineScope()
 
         LaunchedEffect(travel) { position.snapTo(anchorPosition(floating.anchor, travel)) }
-        LaunchedEffect(windowHeight) { floating.reportWindowHeight(windowHeight) }
+        SideEffect(windowHeight) { floating.reportWindowHeight(windowHeight) }
         LaunchedEffect(Unit) {
             appear.animateTo(1f, spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow))
         }

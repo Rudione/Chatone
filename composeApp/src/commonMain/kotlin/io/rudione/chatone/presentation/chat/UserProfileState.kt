@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import io.rudione.chatone.data.remote.AccountBadge
+import io.rudione.chatone.data.remote.BadgeHqClient
 import io.rudione.chatone.data.remote.BestLogsClient
 import io.rudione.chatone.data.remote.GqlDisplayBadge
 import io.rudione.chatone.data.remote.GqlUserDossier
@@ -20,7 +22,7 @@ import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.remote.TwitchGqlClient
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.ModerationAuthStore
-import io.rudione.chatone.data.repository.ModerationHistoryEntry
+import io.rudione.chatone.data.repository.ModerationHistory
 import io.rudione.chatone.data.repository.ModerationHistoryRepository
 import io.rudione.chatone.presentation.chat.presence.UserPresenceState
 import io.rudione.chatone.domain.model.ChatMessage
@@ -43,6 +45,7 @@ class UserProfileState internal constructor(
     private val moderationAuthStore: ModerationAuthStore,
     private val ivrApiClient: IvrApiClient,
     private val bestLogsClient: BestLogsClient,
+    private val badgeHqClient: BadgeHqClient,
     private val userId: String,
     private val username: String,
     private val channelId: String,
@@ -67,6 +70,8 @@ class UserProfileState internal constructor(
         internal set
     var gqlBadges by mutableStateOf<List<GqlDisplayBadge>>(emptyList())
         internal set
+    var accountBadges by mutableStateOf<List<AccountBadge>>(emptyList())
+        private set
     var previousNames by mutableStateOf<List<NameHistoryEntry>>(emptyList())
         private set
 
@@ -74,7 +79,7 @@ class UserProfileState internal constructor(
         internal set
     var remoteHistory by mutableStateOf<List<GqlUsercardMessage>>(emptyList())
         internal set
-    var moderationHistory by mutableStateOf<List<ModerationHistoryEntry>>(emptyList())
+    var moderationHistory by mutableStateOf(ModerationHistory.Empty)
         internal set
     var isModerationHistoryLoading by mutableStateOf(false)
         private set
@@ -132,6 +137,7 @@ class UserProfileState internal constructor(
         subAge = null
         dossier = null
         gqlBadges = emptyList()
+        accountBadges = emptyList()
         remoteHistory = emptyList()
         localHistory = emptyList()
         cursor = null
@@ -140,6 +146,9 @@ class UserProfileState internal constructor(
 
         if (username.isNotBlank() && channelLogin.isNotBlank()) {
             scope.launch { subAge = ivrApiClient.getSubAge(username, channelLogin) }
+        }
+        if (username.isNotBlank()) {
+            scope.launch { accountBadges = badgeHqClient.accountBadges(username).orEmpty() }
         }
         if (userId.isNotBlank()) {
             scope.launch {
@@ -158,10 +167,8 @@ class UserProfileState internal constructor(
             if (canModerate) {
                 isModerationHistoryLoading = true
                 scope.launch {
-                    val token = runCatching { moderationAuthStore.resolveToken(accessToken) }
-                        .getOrDefault(accessToken)
                     moderationHistory =
-                        moderationHistoryRepository.loadHistoryForUser(channelId, userId, token)
+                        moderationHistoryRepository.loadHistoryForUser(channelId, userId, accessToken)
                     isModerationHistoryLoading = false
                 }
             }
@@ -235,6 +242,7 @@ internal fun rememberUserProfileState(
     val moderationAuthStore: ModerationAuthStore = koinInject()
     val ivrApiClient: IvrApiClient = koinInject()
     val bestLogsClient: BestLogsClient = koinInject()
+    val badgeHqClient: BadgeHqClient = koinInject()
     val rolesClient: RolesTvClient = koinInject()
 
     val state = remember(userId, channelId) {
@@ -247,6 +255,7 @@ internal fun rememberUserProfileState(
             moderationAuthStore = moderationAuthStore,
             ivrApiClient = ivrApiClient,
             bestLogsClient = bestLogsClient,
+            badgeHqClient = badgeHqClient,
             userId = userId,
             username = username,
             channelId = channelId,

@@ -5,6 +5,7 @@ import io.github.aakira.napier.Napier
 import kotlin.time.Clock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -49,6 +50,7 @@ object SettingsImportExport {
         "mention_volume",
         "custom_sound_path",
         "always_on_top",
+        "always_on_top_mode",
         "hide_sidebar",
         "ui_scale",
         "language",
@@ -75,6 +77,9 @@ object SettingsImportExport {
         "show_default_timeout",
         "show_default_ban",
         "mod_buttons_on_hover",
+        "mod_buttons_in_chat",
+        "mod_slider",
+        "screen_chat",
         "disable_scroll_on_alt",
         "link_open_mode",
         "accent_color_index",
@@ -87,17 +92,21 @@ object SettingsImportExport {
     private const val MAX_LOCAL_PATH_CHARS = 1024
 
     private val SECRET_FIELDS = setOf("extraHeaders")
+    private val SECRET_LIST_FIELDS = setOf("formFields")
 
-    private fun withSecretsRedacted(key: String, element: JsonElement): JsonElement {
+    internal fun withSecretsRedacted(key: String, element: JsonElement): JsonElement {
         if (key != KEY_IMAGE_UPLOADER) return element
         val text = (element as? JsonPrimitive)?.contentOrNull ?: return element
-        if (SECRET_FIELDS.none { text.contains("\"$it\"") }) return element
+        if ((SECRET_FIELDS + SECRET_LIST_FIELDS).none { text.contains("\"$it\"") }) return element
         return try {
             val obj = json.parseToJsonElement(text).jsonObject
             val cleaned = buildMap {
                 putAll(obj)
                 SECRET_FIELDS.forEach { field ->
                     if (field in obj) put(field, JsonPrimitive(""))
+                }
+                SECRET_LIST_FIELDS.forEach { field ->
+                    if (field in obj) put(field, JsonArray(emptyList()))
                 }
             }
             JsonPrimitive(JsonObject(cleaned).toString())

@@ -1,8 +1,14 @@
 package io.rudione.chatone.presentation.settings.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
+import io.rudione.chatone.presentation.components.animatedBorder
+import androidx.compose.ui.draw.drawBehind
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,13 +37,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,7 +59,6 @@ import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.presentation.components.ChatoneFieldLabel
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneListItem
-import io.rudione.chatone.presentation.components.ChatoneSegmentedControl
 import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.components.SettingsCard
 import io.rudione.chatone.presentation.settings.SettingsDestination
@@ -79,9 +81,9 @@ fun MacrosSection(
     val settingsNavigator: SettingsNavigator = koinInject()
     val pendingDestination by settingsNavigator.pending.collectAsState()
 
-    LaunchedEffect(pendingDestination, state.macros) {
-        val destination = pendingDestination as? SettingsDestination.EditMacro ?: return@LaunchedEffect
-        val target = state.macros.firstOrNull { it.id == destination.macroId } ?: return@LaunchedEffect
+    SideEffect(pendingDestination, state.macros) {
+        val destination = pendingDestination as? SettingsDestination.EditMacro ?: return@SideEffect
+        val target = state.macros.firstOrNull { it.id == destination.macroId } ?: return@SideEffect
         editingMacro = target
         settingsNavigator.consume(destination)
     }
@@ -296,8 +298,8 @@ internal fun MacroIconTile(
         modifier = modifier
             .size(size)
             .clip(MacroTileShape)
-            .background(container)
-            .border(1.dp, border, MacroTileShape)
+            .drawBehind { drawRect(container) }
+            .animatedBorder(1.dp, MacroTileShape) { border }
             .then(
                 if (onClick != null) {
                     Modifier
@@ -329,11 +331,12 @@ internal fun MacroIconPicker(
     }
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ChatoneSegmentedControl(
-            options = listOf(true to s.modIconTabMaterial, false to s.modIconTabEmoji),
+        ExpressiveTabs(
+            tabs = ICON_TABS,
             selected = showVectors,
             onSelect = { showVectors = it },
-            fillWidth = true
+            label = { if (it) s.modIconTabMaterial else s.modIconTabEmoji },
+            size = ExpressiveTabSize.Compact
         )
         LazyVerticalGrid(
             columns = GridCells.Adaptive(36.dp),
@@ -387,3 +390,5 @@ private fun MacroNameDialog(
         MacroIconPicker(selected = icon, onSelect = { icon = it })
     }
 }
+
+private val ICON_TABS = listOf(true, false)

@@ -1,7 +1,7 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import io.rudione.chatone.domain.model.DisplayMessage
 
 @Composable
@@ -11,7 +11,7 @@ actual fun DetachedProfileWindow(
     accessToken: String,
     channelId: String,
     showModActions: Boolean,
-    currentUserIsBroadcaster: Boolean,
+    canManageRoles: Boolean,
     isBlocked: Boolean,
     onBlock: () -> Unit,
     onUnblock: () -> Unit,
@@ -25,5 +25,5 @@ actual fun DetachedProfileWindow(
     onWhisper: () -> Unit,
     onClose: () -> Unit
 ) {
-    LaunchedEffect(msg.id) { onClose() }
+    SideEffect(msg.id) { onClose() }
 }

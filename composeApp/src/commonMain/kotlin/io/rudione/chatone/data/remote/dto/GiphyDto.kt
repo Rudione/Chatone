@@ -43,6 +43,7 @@ data class GiphyImages(
 @Serializable
 data class GiphyImage(
     val url: String = "",
+    val webp: String? = null,
     val width: String = "",
     val height: String = ""
 )

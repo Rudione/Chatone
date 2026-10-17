@@ -1,8 +1,9 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,7 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +52,7 @@ fun ChatoneButton(
     val hovered by interaction.collectIsHoveredAsState()
     val pressed by interaction.collectIsPressedAsState()
     val palette = buttonPalette(tone)
-    val container by animateColorAsState(
+    val container = animateColorAsState(
         when {
             !enabled -> palette.container.copy(alpha = palette.container.alpha * 0.4f)
             pressed -> palette.pressed
@@ -68,7 +68,7 @@ fun ChatoneButton(
         modifier = modifier
             .height(height)
             .clip(ButtonShape)
-            .background(container)
+            .drawBehind { drawRect(container.value) }
             .then(
                 if (palette.border.alpha > 0f) Modifier.border(1.dp, palette.border, ButtonShape)
                 else Modifier

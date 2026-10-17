@@ -1,8 +1,8 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import org.koin.compose.koinInject
 
@@ -16,7 +16,7 @@ fun PreviewMultiChatIntegration(
     val persistence: PanelPersistence = koinInject()
     val lifecycleSync: PanelLifecycleSync = koinInject()
 
-    LaunchedEffect(panelManager) {
+    SideEffect(panelManager) {
         lifecycleSync.attach(panelManager)
     }
 

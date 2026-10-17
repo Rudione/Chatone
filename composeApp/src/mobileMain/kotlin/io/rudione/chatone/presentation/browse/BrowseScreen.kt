@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.browse
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.CubicBezierEasing
@@ -38,18 +41,14 @@ import io.rudione.chatone.icons.material.automirrored.rounded.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -63,7 +62,6 @@ import androidx.paging.compose.itemKey
 import io.rudione.chatone.domain.browse.BrowseCategory
 import io.rudione.chatone.domain.browse.BrowseChannel
 import io.rudione.chatone.domain.browse.BrowseStream
-import androidx.compose.ui.graphics.Color
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.SystemBackHandler
 import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
@@ -72,6 +70,7 @@ import kotlin.time.Clock
 import org.koin.compose.viewmodel.koinViewModel
 
 private val CategoryColumnMinWidth = 112.dp
+private val BrowseTabs = BrowseTab.entries.toList()
 private const val CATEGORY_PLACEHOLDERS = 12
 private val EnterEasing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 private val ExitEasing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
@@ -287,34 +286,19 @@ private fun BrowseTabs(
     strings: BrowseStrings,
     onSelect: (BrowseTab) -> Unit
 ) {
-    val tabs = remember(strings) {
-        listOf(
-            BrowseTab.FOLLOWING to strings.tabFollowing,
-            BrowseTab.POPULAR to strings.tabPopular,
-            BrowseTab.CATEGORIES to strings.tabCategories
-        )
-    }
-    val selectedIndex = tabs.indexOfFirst { it.first == selected }.coerceAtLeast(0)
-    PrimaryTabRow(
-        selectedTabIndex = selectedIndex,
-        containerColor = Color.Transparent,
+    ExpressiveTabs(
+        tabs = BrowseTabs,
+        selected = selected,
+        onSelect = onSelect,
+        label = { tab ->
+            when (tab) {
+                BrowseTab.FOLLOWING -> strings.tabFollowing
+                BrowseTab.POPULAR -> strings.tabPopular
+                BrowseTab.CATEGORIES -> strings.tabCategories
+            }
+        },
         modifier = Modifier.fillMaxWidth()
-    ) {
-        tabs.forEach { (tab, label) ->
-            Tab(
-                selected = tab == selected,
-                onClick = { onSelect(tab) },
-                text = {
-                    Text(
-                        label,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                }
-            )
-        }
-    }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

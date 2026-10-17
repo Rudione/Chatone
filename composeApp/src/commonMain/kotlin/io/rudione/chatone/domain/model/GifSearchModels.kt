@@ -1,6 +1,7 @@
 package io.rudione.chatone.domain.model
 
 import androidx.compose.runtime.Immutable
+import io.rudione.chatone.util.Result
 import kotlinx.serialization.Serializable
 
 @Immutable
@@ -21,3 +22,19 @@ data class GifSearchPage(
     val items: List<GifSearchItem>,
     val nextOffset: Int?
 )
+
+@Immutable
+data class GifSearchConfig(val apiKey: String, val rating: String)
+
+data class ChannelGifConfig(val enabled: Boolean, val apiKey: String, val rating: String)
+
+fun interface ChannelGifConfigSource {
+    suspend fun channelGifConfig(channelId: String, token: String): Result<ChannelGifConfig>
+}
+
+sealed interface GifAccess {
+    data object Loading : GifAccess
+    data class Ready(val config: GifSearchConfig, val fromChannel: Boolean) : GifAccess
+    data object Disabled : GifAccess
+    data object NeedsKey : GifAccess
+}

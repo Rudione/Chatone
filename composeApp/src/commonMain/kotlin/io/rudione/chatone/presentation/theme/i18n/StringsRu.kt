@@ -92,6 +92,11 @@ object StringsRu : AppStrings {
     override val settingsLanguageDesc = "Язык интерфейса приложения"
     override val settingsWindow = "Окно"
     override val settingsAlwaysOnTopDesc = "Держать окно поверх остальных"
+    override val settingsAlwaysOnTopMode = "Поверх чего"
+    override val settingsAlwaysOnTopModeDesc = "Над какими окнами держать чат. Настройки и профили всё равно открываются поверх чата"
+    override val settingsAlwaysOnTopExceptSystem = "Всех, кроме системных"
+    override val settingsAlwaysOnTopAllWindows = "Всех окон"
+    override val settingsAlwaysOnTopBrowser = "Только браузера"
     override val settingsHideSidebar = "Скрывать боковую панель"
     override val settingsHideSidebarDesc = "Всегда компактный режим при любой ширине окна, каналы открываются из меню"
     override val settingsSizeSmall = "Мелкий"
@@ -119,7 +124,7 @@ object StringsRu : AppStrings {
     override val sectionActions = "Действия"
     override val actionsHint = "Автоматизации для зрителя: сообщения по таймеру, автоответы, звуковые оповещения и сбор баллов."
     override val actionsAutomations = "Автоматизации"
-    override val actionsAutomationsHint = "Таймер работает, пока открыт указанный канал. Интервал и текст слегка варьируются, чтобы не попасть под фильтры Twitch."
+    override val actionsAutomationsHint = "Таймер пишет, пока канал открыт: не чаще раза в 5 минут и только если в чате кто-то общается."
     override val actionsEmpty = "Пока нет автоматизаций"
     override val actionsKindTimer = "Таймер"
     override val actionsKindReply = "Автоответ"
@@ -136,7 +141,7 @@ object StringsRu : AppStrings {
     override val actionsListEvery = "каждые {0}м: {1}"
     override val actionsListSound = "звук на «{0}»"
     override val actionsAdd = "Добавить"
-    override val actionsSafetyNote = "Ответы уходят с паузой, как у человека, без спама."
+    override val actionsSafetyNote = "Автоответ уходит от вашего имени с паузой на набор, не чаще раза в 30 секунд. Если Twitch не пропустит сообщение, в чате будет причина."
     override val actionsAutoClaim = "Автосбор бонусных баллов"
     override val actionsAutoClaimHint = "Собирать сундук баллов автоматически. Может не работать: Twitch блокирует эту операцию для сторонних клиентов."
     override val actionsMutedPhrases = "Скрытые фразы"
@@ -778,8 +783,6 @@ object StringsRu : AppStrings {
     override val profileDossierUnavailable = "Досье недоступно"
     override val profileDossierAccountAge = "Аккаунту"
     override val profileDossierFollowers = "Фолловеров"
-    override val profileDossierWithUs = "С нами"
-    override val profileDossierNotFollowing = "Не фоллов"
     override val profileDossierPartner = "Партнёр"
     override val profileDossierAffiliate = "Соратник"
     override val profileDossierSubTier = "Саб Tier {0}"
@@ -872,17 +875,18 @@ object StringsRu : AppStrings {
     override val gifNoResults = "Гифки не найдены"
     override val gifTrending = "Популярное"
     override val gifFavorites = "Избранное"
-    override val gifKeyMissingTitle = "Нужен ключ GIPHY"
+    override val gifKeyMissingTitle = "Нет ключа GIPHY"
     override val gifKeyMissingBody =
-        "Поиск гифок работает через GIPHY. Вставьте бесплатный API-ключ в Настройки → Чат."
+        "Обычно Twitch даёт его сам, но сейчас не вышло. Перезайдите в аккаунт или вставьте свой бесплатный ключ в «Настройки → Изображения»."
     override val gifKeyMissingAction = "Получить бесплатный ключ"
     override val gifTierHint = "Чтобы кидать гифки, нужна подписка 2 или 3 уровня на этот канал"
     override val gifLoadFailed = "Не удалось загрузить гифки"
+    override val gifChannelDisabled = "На этом канале гифки выключены"
     override val gifPoweredBy = "Работает на GIPHY"
     override val settingsShowChatGifs = "Показывать гифки в чате"
     override val settingsShowChatGifsDesc = "Показывать гифки от подписчиков 2 и 3 уровня"
     override val settingsGiphyApiKey = "API-ключ GIPHY"
-    override val settingsGiphyApiKeyDesc = "Нужен для поиска и отправки гифок; хранится в зашифрованном виде"
+    override val settingsGiphyApiKeyDesc = "Необязательно: Twitch даёт ключ сам. Пригодится, если гифки не грузятся. Хранится зашифрованным"
     override val emoteNoEmojiFound = "Эмодзи не найдены"
 
     override val automodLocalTitle = "Локальный AutoMod"
@@ -1394,6 +1398,7 @@ object StringsRu : AppStrings {
     override val secretHide = "Скрыть"
     override val pinReasonNotPinnable = "сообщение больше нельзя закрепить"
     override val pinReasonNotConnected = "нет подключения к каналу"
+    override val chatMessageNotSent = "Сообщение не отправлено"
     override val pinReasonUnknown = "неизвестная ошибка"
     override fun pinFailed(reason: String) = "Не удалось закрепить: $reason"
     override fun noRecentMessageToPin(login: String) = "Нет недавнего сообщения от @$login для закрепления."
@@ -1455,4 +1460,7 @@ object StringsRu : AppStrings {
     override val timeline: ChatTimelineStrings = ChatTimelineStringsRu
     override val launch: LaunchStrings = LaunchStringsRu
     override val insights: ProfileInsightStrings = ProfileInsightStringsRu
+    override val modSlider: ModSliderStrings = ModSliderStringsRu
+    override val screenChat: ScreenChatStrings = ScreenChatStringsRu
+    override val settingsHub: SettingsHubStrings = SettingsHubStringsRu
 }

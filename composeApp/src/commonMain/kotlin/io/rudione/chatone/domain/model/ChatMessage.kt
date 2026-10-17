@@ -48,6 +48,7 @@ data class Badge(
 fun List<Badge>.hasGrandModBadge(): Boolean = any { badge ->
     val id = badge.id.lowercase()
     when {
+        id == "lead_moderator" -> true
         id == "grand_moderator" -> true
         id == "chat_manager" -> true
         id == "broadcaster_mode" -> true

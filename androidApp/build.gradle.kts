@@ -14,7 +14,7 @@ kotlin {
 
 android {
     namespace = "io.rudione.chatone"
-    compileSdk = 36
+    compileSdk = 37
     ndkVersion = "29.0.14206865"
     defaultConfig {
         applicationId = "io.rudione.chatone"

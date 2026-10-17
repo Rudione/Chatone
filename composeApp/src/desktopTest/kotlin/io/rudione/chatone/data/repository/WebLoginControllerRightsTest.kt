@@ -173,8 +173,7 @@ class WebLoginControllerRightsTest {
 
         val url = login.openSite()
 
-        assertTrue(url.startsWith("https://app.example.test/auth/#k="))
-        assertFalse(url.contains("d="))
+        assertTrue(Regex("""^https://app\.example\.test/auth/\?s=[0-9a-f]{12}#k=[A-Za-z0-9_-]{43}$""").matches(url), url)
         assertTrue(requests.none { it.endsWith("/oauth2/device") })
     }
 

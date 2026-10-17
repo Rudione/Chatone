@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.presence
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -21,7 +24,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -37,14 +39,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -78,7 +77,7 @@ internal fun PresenceMapSection(state: UserPresenceState, modifier: Modifier = M
     if (!state.isSupported) return
     val s = LocalStrings.current
     val accent = MaterialTheme.colorScheme.primary
-    val arrow by animateFloatAsState(if (state.isOpen) 180f else 0f)
+    val arrow = animateFloatAsState(if (state.isOpen) 180f else 0f)
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             modifier = Modifier
@@ -102,7 +101,7 @@ internal fun PresenceMapSection(state: UserPresenceState, modifier: Modifier = M
             Icon(
                 Lucide.ChevronDown,
                 contentDescription = null,
-                modifier = Modifier.size(14.dp).rotate(arrow),
+                modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = arrow.value },
                 tint = accent.copy(alpha = 0.8f)
             )
         }

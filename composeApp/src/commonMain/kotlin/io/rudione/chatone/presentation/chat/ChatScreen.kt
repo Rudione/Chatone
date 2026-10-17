@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.safeDrawing
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.presentation.stream.LocalStreamPlayerHost
@@ -58,7 +61,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import io.rudione.chatone.presentation.chat.rendering.ChatFollowEffects
 import io.rudione.chatone.presentation.chat.rendering.rememberChatFollowState
-import io.rudione.chatone.presentation.chat.rendering.selectionCursor
+import io.rudione.chatone.presentation.chat.rendering.SelectionCursorBox
 import io.rudione.chatone.presentation.chat.rendering.stickToBottomExact
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -102,6 +105,10 @@ import io.rudione.chatone.presentation.chat.components.ChatTopBar
 import io.rudione.chatone.presentation.chat.components.roomModeLabels
 import io.rudione.chatone.presentation.chat.components.ModActionConfirmDialog
 import io.rudione.chatone.presentation.chat.components.PendingModAction
+import io.rudione.chatone.presentation.chat.modslider.ModSliderBinding
+import io.rudione.chatone.presentation.chat.modslider.ModSliderGuard
+import io.rudione.chatone.presentation.chat.modslider.ModSliderHost
+import io.rudione.chatone.presentation.chat.modslider.rememberModSliderStyle
 import io.rudione.chatone.presentation.chat.components.ChatSearchBar
 import io.rudione.chatone.presentation.chat.components.EmoteAutocompleteRow
 import io.rudione.chatone.presentation.chat.components.InputCompletionCallbacks
@@ -125,8 +132,6 @@ import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.settings.SettingsDestination
 import io.rudione.chatone.presentation.settings.SettingsNavigator
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -156,6 +161,7 @@ import io.rudione.chatone.presentation.theme.chatPaneBackgroundColor
 import io.rudione.chatone.presentation.theme.luminance
 import io.rudione.chatone.util.EmoteAnimationCache
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
+import io.rudione.chatone.util.system.isDesktopPlatform
 import io.rudione.chatone.util.automod.DisplayedChatChannels
 import io.rudione.chatone.presentation.chat.zoom.rememberChatMessageDensity
 import io.rudione.chatone.util.chat.plainText
@@ -223,7 +229,7 @@ fun ChatScreen(
     val liveMacros by SettingsViewModel.macrosLive.collectAsState()
     val effectivePinnedMacros = liveMacros?.let { Macro.pinnedFrom(it) } ?: settingsState.pinnedMacros
     val settingsNavigator: SettingsNavigator = koinInject()
-    LaunchedEffect(settingsState.allModButtons, settingsState.modButtonsVersion) {
+    SideEffect(settingsState.allModButtons, settingsState.modButtonsVersion) {
         Napier.d(
             tag = "ModReorder",
             message = "[ChatScreen@${settingsViewModel.hashCode()}] " +
@@ -236,6 +242,10 @@ fun ChatScreen(
     DisposableEffect(channelLogin) {
         DisplayedChatChannels.acquire(channelLogin)
         onDispose { DisplayedChatChannels.release(channelLogin) }
+    }
+    DisposableEffect(channelLogin, viewModel) {
+        val detach = ChatSessions.attach(channelLogin, viewModel)
+        onDispose(detach)
     }
     val surfaceStyle = LocalChatSurfaceStyle.current
     val messageAlphaModifier = remember(surfaceStyle.messageAlpha) {
@@ -311,17 +321,34 @@ fun ChatScreen(
     val coroutineScope = rememberCoroutineScope()
     val follow = rememberChatFollowState(listState)
     val modButtonsOnHover = settingsState.modButtonsOnHover && rememberInputCapabilities().pointer
-    LaunchedEffect(viewModel, modButtonsOnHover) {
-        viewModel.sendEvent(ChatEvent.OnModModeDefaultChanged(modButtonsOnHover))
+    val sliderHost = remember { ModSliderHost() }
+    val sliderStyle = rememberModSliderStyle()
+    val sliderSettings = settingsState.modSlider
+    val sliderButtons = liveModButtons ?: settingsState.allModButtons
+    val modSlider = remember(sliderSettings, sliderButtons, settingsState.defaultTimeoutDuration, sliderStyle) {
+        if (!isDesktopPlatform || !sliderSettings.enabled) null else ModSliderBinding(
+            host = sliderHost,
+            style = sliderStyle,
+            durations = sliderSettings.durations(sliderButtons, settingsState.defaultTimeoutDuration),
+            deleteAtStart = sliderSettings.deleteAtStart,
+            banAtEnd = sliderSettings.banAtEnd,
+            travelFraction = sliderSettings.travelFraction
+        )
     }
+    val modModeByDefault = modButtonsOnHover || modSlider != null
+    SideEffect(viewModel, modModeByDefault) {
+        viewModel.sendEvent(ChatEvent.OnModModeDefaultChanged(modModeByDefault))
+    }
+    ModSliderGuard(sliderHost)
+    val isPausedBySlider = sliderHost.isEngaged
 
-    val effectivelyPaused = isPausedByHotkey ||
+    val effectivelyPaused = isPausedByHotkey || isPausedBySlider ||
             (settingsState.pauseOnHover && isHoveredOverChat && !isHoveredOverEmoteTooltip) ||
             follow.isPausedByScroll
 
     var userScrolledSinceJoin by remember(channelLogin) { mutableStateOf(false) }
 
-    LaunchedEffect(follow.isPausedByScroll) {
+    SideEffect(follow.isPausedByScroll) {
         if (follow.isPausedByScroll) {
             userScrolledSinceJoin = true
         } else if (!isPausedByHotkey) {
@@ -334,7 +361,7 @@ fun ChatScreen(
         { listState.stickToBottomExact() }
     }
 
-    LaunchedEffect(effectivelyPaused) {
+    SideEffect(effectivelyPaused) {
         viewModel.sendEvent(ChatEvent.OnScrollbackPinned(effectivelyPaused))
     }
     val effectivelyPausedLatest by rememberUpdatedState(effectivelyPaused)
@@ -348,12 +375,12 @@ fun ChatScreen(
             hasNewMessagesWhilePaused = false
         },
         holdBottomWhilePaused = settingsState.pauseOnHover && isHoveredOverChat &&
-                !isPausedByHotkey && !follow.isPausedByScroll
+                !isPausedByHotkey && !isPausedBySlider && !follow.isPausedByScroll
     )
 
     val messagesSeq = state.messagesSeq
-    LaunchedEffect(messagesSeq) {
-        if (messagesSeq == 0L) return@LaunchedEffect
+    SideEffect(messagesSeq) {
+        if (messagesSeq == 0L) return@SideEffect
         if (effectivelyPaused && state.messages.isNotEmpty()) {
             hasNewMessagesWhilePaused = true
             unreadCount++
@@ -361,7 +388,7 @@ fun ChatScreen(
     }
 
     val channelId = state.channelId
-    LaunchedEffect(channelId) {
+    SideEffect(channelId) {
         if (channelId.isNotEmpty()) callbacks.onChannelIdResolved(channelId)
     }
 
@@ -405,7 +432,8 @@ fun ChatScreen(
                     val isActiveChannel = mentionChannel.equals(currentChannel, ignoreCase = true)
 
                     if (!isActiveChannel) {
-                        if (effect.playSound && settingsState.mentionSoundEnabled) {
+                        val playedByItsChat = DisplayedChatChannels.isDisplayed(mentionChannel)
+                        if (effect.playSound && settingsState.mentionSoundEnabled && !playedByItsChat) {
                             NotificationSoundPlayer.playMentionSound(
                                 volume = settingsState.mentionSoundVolume,
                                 customSoundPath = settingsState.customMentionSoundPath
@@ -600,7 +628,7 @@ fun ChatScreen(
 
     ReportLaunchStage(state.warmup.launchStage())
 
-    LaunchedEffect(channelLogin, identity.accessToken) {
+    SideEffect(channelLogin, identity.accessToken) {
         EmoteAnimationCache.clearAll()
         viewModel.sendEvent(
             ChatEvent.OnInit(
@@ -630,11 +658,12 @@ fun ChatScreen(
     }
 
     val modPanelDocked = dockHost != null && showModPanel && state.canModerate
-    val slashSuggestions = remember(state.messageInput, state.isMod, state.isBroadcaster, settingsState.chatCommands) {
+    val slashSuggestions = remember(state.messageInput, state.isMod, state.isBroadcaster, state.canManageRoles, settingsState.chatCommands) {
         val builtIn = SlashCommand.suggest(
             state.messageInput,
             isMod = state.isMod || state.canModerate,
-            isBroadcaster = state.isBroadcaster
+            isBroadcaster = state.isBroadcaster,
+            canManageRoles = state.canManageRoles
         )
         val customCmds = if (state.messageInput.startsWith("/")) {
             val typed = state.messageInput.removePrefix("/").lowercase()
@@ -662,13 +691,13 @@ fun ChatScreen(
         (builtIn + customCmds).distinctBy { it.name }.take(10)
     }
     var slashTabIndex by remember { mutableStateOf(-1) }
-    LaunchedEffect(slashSuggestions) {
+    SideEffect(slashSuggestions) {
         slashTabIndex = if (slashSuggestions.isNotEmpty()) 0 else -1
     }
     val chatDensity = LocalDensity.current
     var bottomStackHeightPx by remember { mutableIntStateOf(0) }
     var inputHeightPx by remember { mutableIntStateOf(0) }
-    LaunchedEffect(surfaceStyle.showInput) {
+    SideEffect(surfaceStyle.showInput) {
         if (!surfaceStyle.showInput) {
             bottomStackHeightPx = 0
             inputHeightPx = 0
@@ -819,266 +848,353 @@ fun ChatScreen(
                             LocalScrollActivity provides chatScrollActivity
                           ) {
                             Box(modifier = Modifier.fillMaxSize()) {
-                                LazyColumn(
-                                    state = listState,
-                                    modifier = Modifier.fillMaxSize()
-                                        .nestedScroll(follow.nestedScrollConnection)
-                                        .selectionCursor().handleHover(
-                                        onEnter = {
-                                            if (settingsState.pauseOnHover) isHoveredOverChat = true
-                                        },
-                                        onExit = { isHoveredOverChat = false }
-                                    )
-                                        .then(
-                                            if (pauseMouseButton != null) {
-                                                Modifier.pointerInput(
-                                                    pauseMouseButton,
-                                                    settingsState.pauseHotkeyMode
+                                SelectionCursorBox(modifier = Modifier.fillMaxSize(), cursorOverride = { sliderHost.cursor }) {
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier.fillMaxSize()
+                                            .nestedScroll(follow.nestedScrollConnection)
+                                            .handleHover(
+                                            onEnter = {
+                                                if (settingsState.pauseOnHover) isHoveredOverChat = true
+                                            },
+                                            onExit = { isHoveredOverChat = false }
+                                        )
+                                            .then(
+                                                if (pauseMouseButton != null) {
+                                                    Modifier.pointerInput(
+                                                        pauseMouseButton,
+                                                        settingsState.pauseHotkeyMode
+                                                    ) {
+                                                        awaitPointerEventScope {
+                                                            var buttonHeld = false
+                                                            while (true) {
+                                                                val event =
+                                                                    awaitPointerEvent(PointerEventPass.Initial)
+                                                                val pressed = event.buttons
+                                                                    .isPauseButtonPressed(pauseMouseButton)
+                                                                if (pressed == buttonHeld) continue
+                                                                buttonHeld = pressed
+                                                                if (settingsState.pauseHotkeyMode == PauseHotkeyMode.HOLD) {
+                                                                    isPausedByHotkey = pressed
+                                                                    if (!pressed) resumeFromPause()
+                                                                } else if (pressed) {
+                                                                    val wasPaused = isPausedByHotkey
+                                                                    isPausedByHotkey = !wasPaused
+                                                                    if (wasPaused) resumeFromPause()
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                } else Modifier
+                                            )
+                                            .then(
+                                                if (settingsState.disableScrollOnAlt && isPausedByHotkey) {
+                                                    Modifier.pointerInput(isPausedByHotkey) {
+                                                        awaitPointerEventScope {
+                                                            while (true) {
+                                                                val event =
+                                                                    awaitPointerEvent(PointerEventPass.Initial)
+                                                                if (event.type == PointerEventType.Scroll) {
+                                                                    event.changes.forEach { it.consume() }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                } else Modifier
+                                            )
+                                            .padding(end = 10.dp),
+                                        contentPadding = listContentPadding,
+                                        verticalArrangement = Arrangement.spacedBy(
+                                            when (settingsState.messageSpacing) {
+                                                SettingsState.MessageSpacing.NONE -> 0.dp
+                                                SettingsState.MessageSpacing.LOW -> 1.dp
+                                                SettingsState.MessageSpacing.MEDIUM -> 3.dp
+                                                SettingsState.MessageSpacing.HIGH -> 5.dp
+                                            } * messageScale
+                                        )
+                                    ) {
+                                        itemsIndexed(
+                                            items = dedupedMessages,
+                                            key = { _, it -> it.id },
+                                            contentType = { _, it -> it::class }) { _, message ->
+                                            val zebraTintColor =
+                                                if (settingsState.alternateRowBackground &&
+                                                    rowDecorations.zebraParityById[message.id] == true
                                                 ) {
-                                                    awaitPointerEventScope {
-                                                        var buttonHeld = false
-                                                        while (true) {
-                                                            val event =
-                                                                awaitPointerEvent(PointerEventPass.Initial)
-                                                            val pressed = event.buttons
-                                                                .isPauseButtonPressed(pauseMouseButton)
-                                                            if (pressed == buttonHeld) continue
-                                                            buttonHeld = pressed
-                                                            if (settingsState.pauseHotkeyMode == PauseHotkeyMode.HOLD) {
-                                                                isPausedByHotkey = pressed
-                                                                if (!pressed) resumeFromPause()
-                                                            } else if (pressed) {
-                                                                val wasPaused = isPausedByHotkey
-                                                                isPausedByHotkey = !wasPaused
-                                                                if (wasPaused) resumeFromPause()
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            } else Modifier
-                                        )
-                                        .then(
-                                            if (settingsState.disableScrollOnAlt && isPausedByHotkey) {
-                                                Modifier.pointerInput(isPausedByHotkey) {
-                                                    awaitPointerEventScope {
-                                                        while (true) {
-                                                            val event =
-                                                                awaitPointerEvent(PointerEventPass.Initial)
-                                                            if (event.type == PointerEventType.Scroll) {
-                                                                event.changes.forEach { it.consume() }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            } else Modifier
-                                        )
-                                        .padding(end = 10.dp),
-                                    contentPadding = listContentPadding,
-                                    verticalArrangement = Arrangement.spacedBy(
-                                        when (settingsState.messageSpacing) {
-                                            SettingsState.MessageSpacing.NONE -> 0.dp
-                                            SettingsState.MessageSpacing.LOW -> 1.dp
-                                            SettingsState.MessageSpacing.MEDIUM -> 3.dp
-                                            SettingsState.MessageSpacing.HIGH -> 5.dp
-                                        } * messageScale
-                                    )
-                                ) {
-                                    itemsIndexed(
-                                        items = dedupedMessages,
-                                        key = { _, it -> it.id },
-                                        contentType = { _, it -> it::class }) { _, message ->
-                                        val zebraTintColor =
-                                            if (settingsState.alternateRowBackground &&
-                                                rowDecorations.zebraParityById[message.id] == true
-                                            ) {
-                                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.035f)
-                                            } else Color.Transparent
-                                        CompositionLocalProvider(LocalDensity provides messageDensity) {
-                                        ChatDayBreakFrame(rowDecorations.dayBreakById[message.id]) {
-                                        when (message) {
-                                            is DisplayMessage.PrivMsg -> PrivMsgItem(
-                                                message = message,
-                                                isCompact = !options.isWideScreen,
-                                                zebraTint = zebraTintColor,
-                                                showModActions = state.modModeEnabled,
-                                                modActionsOnHover = modButtonsOnHover,
-                                                timestampFormat = settingsState.timestampFormat,
-                                                showBadges = settingsState.showBadges,
-                                                repeatCount = rowDecorations.repeatCountByMsgId[message.id] ?: 1,
-                                                isMod = state.canModerate || message.isBroadcaster,
-                                                currentUserId = state.currentUserId,
-                                                emoteSize = settingsState.emoteSize,
-                                                customModButtons = settingsState.customModButtons,
-                                                allModButtons = liveModButtons ?: settingsState.allModButtons,
-                                                modButtonsVersion = settingsState.modButtonsVersion,
-                                                extraVerticalPadding = when (settingsState.messageSpacing) {
-                                                    SettingsState.MessageSpacing.NONE -> 0.dp
-                                                    SettingsState.MessageSpacing.LOW -> 1.dp
-                                                    SettingsState.MessageSpacing.MEDIUM -> 2.dp
-                                                    SettingsState.MessageSpacing.HIGH -> 4.dp
-                                                },
-                                                showCustomModButtons = canActOnUser(
+                                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.035f)
+                                                } else Color.Transparent
+                                            CompositionLocalProvider(LocalDensity provides messageDensity) {
+                                            ChatDayBreakFrame(rowDecorations.dayBreakById[message.id]) {
+                                            when (message) {
+                                                is DisplayMessage.PrivMsg -> PrivMsgItem(
+                                                    message = message,
+                                                    isCompact = !options.isWideScreen,
+                                                    zebraTint = zebraTintColor,
+                                                    showModActions = state.modModeEnabled,
+                                                    modActionsOnHover = modButtonsOnHover,
+                                                    modButtonsVisible = settingsState.modButtonsInChat,
+                                                    timestampFormat = settingsState.timestampFormat,
+                                                    showBadges = settingsState.showBadges,
+                                                    repeatCount = rowDecorations.repeatCountByMsgId[message.id] ?: 1,
+                                                    isMod = state.canModerate || message.isBroadcaster,
+                                                    currentUserId = state.currentUserId,
+                                                    emoteSize = settingsState.emoteSize,
+                                                    customModButtons = settingsState.customModButtons,
+                                                    allModButtons = liveModButtons ?: settingsState.allModButtons,
+                                                    modButtonsVersion = settingsState.modButtonsVersion,
+                                                    extraVerticalPadding = when (settingsState.messageSpacing) {
+                                                        SettingsState.MessageSpacing.NONE -> 0.dp
+                                                        SettingsState.MessageSpacing.LOW -> 1.dp
+                                                        SettingsState.MessageSpacing.MEDIUM -> 2.dp
+                                                        SettingsState.MessageSpacing.HIGH -> 4.dp
+                                                    },
+                                                    showCustomModButtons = canActOnUser(
+                                                        actorIsBroadcaster = state.isBroadcaster,
+                                                        actorIsMod = state.isMod,
+                                                        targetIsBroadcaster = message.isBroadcaster,
+                                                        targetIsMod = message.isModerator,
+                                                        targetIsVip = message.isVip,
+                                                        targetIsSubscriber = message.isSubscriber,
+                                                        actorIsGrandMod = state.isGrandMod,
+                                                        targetIsGrandMod = message.isGrandMod
+                                                    ),
+                                                    actorCanModerate = state.canModerate,
                                                     actorIsBroadcaster = state.isBroadcaster,
-                                                    actorIsMod = state.isMod,
-                                                    targetIsBroadcaster = message.isBroadcaster,
-                                                    targetIsMod = message.isModerator,
-                                                    targetIsVip = message.isVip,
-                                                    targetIsSubscriber = message.isSubscriber,
-                                                    actorIsGrandMod = state.isGrandMod,
-                                                    targetIsGrandMod = message.isGrandMod
-                                                ),
-                                                actorCanModerate = state.canModerate,
-                                                actorIsBroadcaster = state.isBroadcaster,
-                                                showDefaultDeleteButton = settingsState.showDefaultDeleteButton,
-                                                showDefaultTimeoutButton = settingsState.showDefaultTimeoutButton &&
-                                                        canActOnUser(
-                                                            actorIsBroadcaster = state.isBroadcaster,
-                                                            actorIsMod = state.isMod,
-                                                            targetIsBroadcaster = message.isBroadcaster,
-                                                            targetIsMod = message.isModerator,
-                                                            targetIsVip = message.isVip,
-                                                            targetIsSubscriber = message.isSubscriber,
-                                                            actorIsGrandMod = state.isGrandMod,
-                                                            targetIsGrandMod = message.isGrandMod
-                                                        ),
-                                                showDefaultBanButton = settingsState.showDefaultBanButton &&
-                                                        canActOnUser(
-                                                            actorIsBroadcaster = state.isBroadcaster,
-                                                            actorIsMod = state.isMod,
-                                                            targetIsBroadcaster = message.isBroadcaster,
-                                                            targetIsMod = message.isModerator,
-                                                            targetIsVip = message.isVip,
-                                                            targetIsSubscriber = message.isSubscriber,
-                                                            actorIsGrandMod = state.isGrandMod,
-                                                            targetIsGrandMod = message.isGrandMod
-                                                        ),
-                                                chatFontSizeSp = when (settingsState.fontSize) {
-                                                    SettingsState.FontSize.SMALL -> 12f
-                                                    SettingsState.FontSize.MEDIUM -> 15f
-                                                    SettingsState.FontSize.LARGE -> 18f
-                                                },
-                                                onUsernameClick = {
-                                                    profileStack.open(message)
-                                                },
-                                                onRightClickUsername = { displayName ->
+                                                    showDefaultDeleteButton = settingsState.showDefaultDeleteButton,
+                                                    showDefaultTimeoutButton = settingsState.showDefaultTimeoutButton &&
+                                                            canActOnUser(
+                                                                actorIsBroadcaster = state.isBroadcaster,
+                                                                actorIsMod = state.isMod,
+                                                                targetIsBroadcaster = message.isBroadcaster,
+                                                                targetIsMod = message.isModerator,
+                                                                targetIsVip = message.isVip,
+                                                                targetIsSubscriber = message.isSubscriber,
+                                                                actorIsGrandMod = state.isGrandMod,
+                                                                targetIsGrandMod = message.isGrandMod
+                                                            ),
+                                                    showDefaultBanButton = settingsState.showDefaultBanButton &&
+                                                            canActOnUser(
+                                                                actorIsBroadcaster = state.isBroadcaster,
+                                                                actorIsMod = state.isMod,
+                                                                targetIsBroadcaster = message.isBroadcaster,
+                                                                targetIsMod = message.isModerator,
+                                                                targetIsVip = message.isVip,
+                                                                targetIsSubscriber = message.isSubscriber,
+                                                                actorIsGrandMod = state.isGrandMod,
+                                                                targetIsGrandMod = message.isGrandMod
+                                                            ),
+                                                    chatFontSizeSp = when (settingsState.fontSize) {
+                                                        SettingsState.FontSize.SMALL -> 12f
+                                                        SettingsState.FontSize.MEDIUM -> 15f
+                                                        SettingsState.FontSize.LARGE -> 18f
+                                                    },
+                                                    onUsernameClick = {
+                                                        profileStack.open(message)
+                                                    },
+                                                    onRightClickUsername = { displayName ->
 
-                                                    viewModel.sendEvent(
-                                                        ChatEvent.OnInsertMention(
-                                                            displayName
+                                                        viewModel.sendEvent(
+                                                            ChatEvent.OnInsertMention(
+                                                                displayName
+                                                            )
                                                         )
-                                                    )
-                                                },
-                                                onMentionClick = { mentionedUsername ->
-                                                    val cleanLogin =
-                                                        mentionedUsername.removePrefix("@")
-                                                    val mentionedMsg = state.messages
-                                                        .filterIsInstance<DisplayMessage.PrivMsg>()
-                                                        .lastOrNull {
-                                                            it.username.equals(
-                                                                cleanLogin,
-                                                                ignoreCase = true
+                                                    },
+                                                    onMentionClick = { mentionedUsername ->
+                                                        val cleanLogin =
+                                                            mentionedUsername.removePrefix("@")
+                                                        val mentionedMsg = state.messages
+                                                            .filterIsInstance<DisplayMessage.PrivMsg>()
+                                                            .lastOrNull {
+                                                                it.username.equals(
+                                                                    cleanLogin,
+                                                                    ignoreCase = true
+                                                                )
+                                                            }
+                                                        if (mentionedMsg != null) {
+                                                            profileStack.open(mentionedMsg)
+                                                        } else {
+                                                            profileStack.openLogin(
+                                                                login = cleanLogin,
+                                                                channel = state.channelLogin,
+                                                                nowMs = kotlin.time.Clock.System.now().toEpochMilliseconds()
                                                             )
                                                         }
-                                                    if (mentionedMsg != null) {
-                                                        profileStack.open(mentionedMsg)
-                                                    } else {
-                                                        profileStack.openLogin(
-                                                            login = cleanLogin,
-                                                            channel = state.channelLogin,
-                                                            nowMs = kotlin.time.Clock.System.now().toEpochMilliseconds()
+                                                    },
+                                                    onReply = {
+                                                        viewModel.sendEvent(
+                                                            ChatEvent.OnReplyToMessage(
+                                                                message
+                                                            )
                                                         )
-                                                    }
-                                                },
-                                                onReply = {
-                                                    viewModel.sendEvent(
-                                                        ChatEvent.OnReplyToMessage(
-                                                            message
+                                                    },
+                                                    onPin = {
+                                                        viewModel.sendEvent(
+                                                            ChatEvent.OnPinMessage(
+                                                                message.id
+                                                            )
                                                         )
-                                                    )
-                                                },
-                                                onPin = {
-                                                    viewModel.sendEvent(
-                                                        ChatEvent.OnPinMessage(
-                                                            message.id
-                                                        )
-                                                    )
-                                                },
-                                                onTimeout = {
-                                                    if (settingsState.confirmModActions) {
-                                                        pendingModAction = PendingModAction.Timeout(
-                                                            message.userId,
-                                                            message.displayName,
-                                                            settingsState.defaultTimeoutDuration
-                                                        )
-                                                    } else {
+                                                    },
+                                                    onTimeout = {
+                                                        if (settingsState.confirmModActions) {
+                                                            pendingModAction = PendingModAction.Timeout(
+                                                                message.userId,
+                                                                message.displayName,
+                                                                settingsState.defaultTimeoutDuration
+                                                            )
+                                                        } else {
+                                                            viewModel.sendEvent(
+                                                                ChatEvent.OnTimeoutUser(
+                                                                    message.userId,
+                                                                    settingsState.defaultTimeoutDuration
+                                                                )
+                                                            )
+                                                        }
+                                                    },
+                                                    onCustomTimeout = { seconds ->
                                                         viewModel.sendEvent(
                                                             ChatEvent.OnTimeoutUser(
                                                                 message.userId,
-                                                                settingsState.defaultTimeoutDuration
+                                                                seconds
                                                             )
                                                         )
-                                                    }
-                                                },
-                                                onCustomTimeout = { seconds ->
-                                                    viewModel.sendEvent(
-                                                        ChatEvent.OnTimeoutUser(
-                                                            message.userId,
-                                                            seconds
-                                                        )
-                                                    )
-                                                },
-                                                onBan = {
-                                                    if (settingsState.confirmModActions) {
-                                                        pendingModAction = PendingModAction.Ban(
-                                                            message.userId,
-                                                            message.displayName
-                                                        )
-                                                    } else {
+                                                    },
+                                                    onBan = {
+                                                        if (settingsState.confirmModActions) {
+                                                            pendingModAction = PendingModAction.Ban(
+                                                                message.userId,
+                                                                message.displayName
+                                                            )
+                                                        } else {
+                                                            viewModel.sendEvent(
+                                                                ChatEvent.OnBanUser(
+                                                                    message.userId
+                                                                )
+                                                            )
+                                                        }
+                                                    },
+                                                    onDelete = {
                                                         viewModel.sendEvent(
-                                                            ChatEvent.OnBanUser(
-                                                                message.userId
+                                                            ChatEvent.OnDeleteMessage(
+                                                                message.id
+                                                            )
+                                                        )
+                                                    },
+                                                    onUnban = {
+                                                        viewModel.sendEvent(ChatEvent.OnUnbanUser(message.userId))
+                                                    },
+                                                    modSlider = modSlider,
+                                                    searchHighlightQuery = chatSearchQuery,
+                                                    highlightRules = settingsState.highlightRules,
+                                                    userColorByLogin = rowDecorations.userColorByLogin,
+                                                    accessToken = state.currentAccessToken,
+                                                    modifier = messageAlphaModifier.swipeToReply(
+                                                        enabled = isPhone && state.currentUserId.isNotEmpty(),
+                                                        style = swipeReplyStyle
+                                                    ) {
+                                                        viewModel.sendEvent(ChatEvent.OnReplyToMessage(message))
+                                                    }
+                                                )
+
+                                                is DisplayMessage.SystemMsg -> SystemMsgItem(message)
+                                                is DisplayMessage.NotableChatterMsg -> NotableChatterItem(
+                                                    message = message,
+                                                    chatFontSizeSp = when (settingsState.fontSize) {
+                                                        SettingsState.FontSize.SMALL -> 12f
+                                                        SettingsState.FontSize.MEDIUM -> 15f
+                                                        SettingsState.FontSize.LARGE -> 18f
+                                                    },
+                                                    onClick = {
+                                                        val found = state.messages
+                                                            .filterIsInstance<DisplayMessage.PrivMsg>()
+                                                            .lastOrNull { it.userId == message.userId }
+                                                        profileStack.open(
+                                                            found ?: DisplayMessage.PrivMsg(
+                                                                id = "notable_profile_${message.userId}",
+                                                                timestamp = message.timestamp,
+                                                                channel = message.channel,
+                                                                userId = message.userId,
+                                                                username = message.login,
+                                                                displayName = message.displayName,
+                                                                color = message.color,
+                                                                tokens = emptyList(),
+                                                                badges = emptyList(),
+                                                                isModerator = false,
+                                                                isSubscriber = false,
+                                                                isVip = false,
+                                                                isBroadcaster = false,
+                                                                isMention = false,
+                                                                isAction = false
                                                             )
                                                         )
                                                     }
-                                                },
-                                                onDelete = {
-                                                    viewModel.sendEvent(
-                                                        ChatEvent.OnDeleteMessage(
-                                                            message.id
-                                                        )
-                                                    )
-                                                },
-                                                searchHighlightQuery = chatSearchQuery,
-                                                highlightRules = settingsState.highlightRules,
-                                                userColorByLogin = rowDecorations.userColorByLogin,
-                                                accessToken = state.currentAccessToken,
-                                                modifier = messageAlphaModifier.swipeToReply(
-                                                    enabled = isPhone && state.currentUserId.isNotEmpty(),
-                                                    style = swipeReplyStyle
-                                                ) {
-                                                    viewModel.sendEvent(ChatEvent.OnReplyToMessage(message))
-                                                }
-                                            )
+                                                )
+                                                is DisplayMessage.UserNoticeMsg -> UserNoticeMsgItem(
+                                                    message
+                                                )
 
-                                            is DisplayMessage.SystemMsg -> SystemMsgItem(message)
-                                            is DisplayMessage.NotableChatterMsg -> NotableChatterItem(
-                                                message = message,
-                                                chatFontSizeSp = when (settingsState.fontSize) {
-                                                    SettingsState.FontSize.SMALL -> 12f
-                                                    SettingsState.FontSize.MEDIUM -> 15f
-                                                    SettingsState.FontSize.LARGE -> 18f
-                                                },
-                                                onClick = {
-                                                    val found = state.messages
-                                                        .filterIsInstance<DisplayMessage.PrivMsg>()
-                                                        .lastOrNull { it.userId == message.userId }
-                                                    profileStack.open(
-                                                        found ?: DisplayMessage.PrivMsg(
-                                                            id = "notable_profile_${message.userId}",
+                                                is DisplayMessage.ModerationMsg -> ModerationMsgItem(
+                                                    message = message,
+                                                    chatFontSizeSp = when (settingsState.fontSize) {
+                                                        SettingsState.FontSize.SMALL -> 12f
+                                                        SettingsState.FontSize.MEDIUM -> 15f
+                                                        SettingsState.FontSize.LARGE -> 18f
+                                                    },
+                                                    onUsernameClick = { targetUser ->
+                                                        val found = state.messages
+                                                            .filterIsInstance<DisplayMessage.PrivMsg>()
+                                                            .lastOrNull {
+                                                                it.username.equals(
+                                                                    targetUser,
+                                                                    ignoreCase = true
+                                                                )
+                                                            }
+                                                        if (found != null) {
+                                                            profileStack.open(found)
+                                                        } else {
+                                                            profileStack.openLogin(
+                                                                login = targetUser,
+                                                                channel = state.channelLogin,
+                                                                nowMs = kotlin.time.Clock.System.now().toEpochMilliseconds()
+                                                            )
+                                                        }
+                                                    },
+                                                    onUnbanByLogin = if (state.canModerate) { login ->
+                                                        val userId = state.messages
+                                                            .filterIsInstance<DisplayMessage.PrivMsg>()
+                                                            .lastOrNull {
+                                                                it.username.equals(
+                                                                    login,
+                                                                    ignoreCase = true
+                                                                )
+                                                            }
+                                                            ?.userId ?: login
+                                                        viewModel.sendEvent(ChatEvent.OnUnbanUser(userId))
+                                                    } else null
+                                                )
+
+                                                is DisplayMessage.AutoModMsg -> AutoModMsgItem(
+                                                    message = message,
+                                                    onAllow = {
+                                                        viewModel.sendEvent(
+                                                            ChatEvent.OnAllowAutoModMessage(
+                                                                message.msgId
+                                                            )
+                                                        )
+                                                    },
+                                                    onDeny = {
+                                                        viewModel.sendEvent(
+                                                            ChatEvent.OnDenyAutoModMessage(
+                                                                message.msgId
+                                                            )
+                                                        )
+                                                    },
+                                                    onUsernameClick = {
+                                                        val syntheticMsg = DisplayMessage.PrivMsg(
+                                                            id = "automod_profile_${message.userId}",
                                                             timestamp = message.timestamp,
                                                             channel = message.channel,
                                                             userId = message.userId,
-                                                            username = message.login,
+                                                            username = message.username,
                                                             displayName = message.displayName,
                                                             color = message.color,
                                                             tokens = emptyList(),
@@ -1090,92 +1206,12 @@ fun ChatScreen(
                                                             isMention = false,
                                                             isAction = false
                                                         )
-                                                    )
-                                                }
-                                            )
-                                            is DisplayMessage.UserNoticeMsg -> UserNoticeMsgItem(
-                                                message
-                                            )
-
-                                            is DisplayMessage.ModerationMsg -> ModerationMsgItem(
-                                                message = message,
-                                                chatFontSizeSp = when (settingsState.fontSize) {
-                                                    SettingsState.FontSize.SMALL -> 12f
-                                                    SettingsState.FontSize.MEDIUM -> 15f
-                                                    SettingsState.FontSize.LARGE -> 18f
-                                                },
-                                                onUsernameClick = { targetUser ->
-                                                    val found = state.messages
-                                                        .filterIsInstance<DisplayMessage.PrivMsg>()
-                                                        .lastOrNull {
-                                                            it.username.equals(
-                                                                targetUser,
-                                                                ignoreCase = true
-                                                            )
-                                                        }
-                                                    if (found != null) {
-                                                        profileStack.open(found)
-                                                    } else {
-                                                        profileStack.openLogin(
-                                                            login = targetUser,
-                                                            channel = state.channelLogin,
-                                                            nowMs = kotlin.time.Clock.System.now().toEpochMilliseconds()
-                                                        )
+                                                        profileStack.open(syntheticMsg)
                                                     }
-                                                },
-                                                onUnbanByLogin = if (state.canModerate) { login ->
-                                                    val userId = state.messages
-                                                        .filterIsInstance<DisplayMessage.PrivMsg>()
-                                                        .lastOrNull {
-                                                            it.username.equals(
-                                                                login,
-                                                                ignoreCase = true
-                                                            )
-                                                        }
-                                                        ?.userId ?: login
-                                                    viewModel.sendEvent(ChatEvent.OnUnbanUser(userId))
-                                                } else null
-                                            )
-
-                                            is DisplayMessage.AutoModMsg -> AutoModMsgItem(
-                                                message = message,
-                                                onAllow = {
-                                                    viewModel.sendEvent(
-                                                        ChatEvent.OnAllowAutoModMessage(
-                                                            message.msgId
-                                                        )
-                                                    )
-                                                },
-                                                onDeny = {
-                                                    viewModel.sendEvent(
-                                                        ChatEvent.OnDenyAutoModMessage(
-                                                            message.msgId
-                                                        )
-                                                    )
-                                                },
-                                                onUsernameClick = {
-                                                    val syntheticMsg = DisplayMessage.PrivMsg(
-                                                        id = "automod_profile_${message.userId}",
-                                                        timestamp = message.timestamp,
-                                                        channel = message.channel,
-                                                        userId = message.userId,
-                                                        username = message.username,
-                                                        displayName = message.displayName,
-                                                        color = message.color,
-                                                        tokens = emptyList(),
-                                                        badges = emptyList(),
-                                                        isModerator = false,
-                                                        isSubscriber = false,
-                                                        isVip = false,
-                                                        isBroadcaster = false,
-                                                        isMention = false,
-                                                        isAction = false
-                                                    )
-                                                    profileStack.open(syntheticMsg)
-                                                }
-                                            )
-                                        }
-                                        }
+                                                )
+                                            }
+                                            }
+                                            }
                                         }
                                     }
                                 }
@@ -1674,7 +1710,7 @@ expect fun DetachedProfileWindow(
     accessToken: String,
     channelId: String,
     showModActions: Boolean,
-    currentUserIsBroadcaster: Boolean,
+    canManageRoles: Boolean,
     isBlocked: Boolean = false,
     onBlock: () -> Unit = {},
     onUnblock: () -> Unit = {},

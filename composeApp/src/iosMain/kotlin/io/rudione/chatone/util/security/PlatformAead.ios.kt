@@ -8,7 +8,7 @@ import platform.posix.arc4random_buf
 @OptIn(ExperimentalForeignApi::class)
 actual object PlatformAead {
 
-    actual val isSupported: Boolean = false
+    actual val isSupported: Boolean = true
 
     actual fun secureRandomBytes(size: Int): ByteArray {
         if (size <= 0) return ByteArray(0)
@@ -22,5 +22,5 @@ actual object PlatformAead {
         nonce: ByteArray,
         sealedBox: ByteArray,
         aad: ByteArray
-    ): ByteArray? = null
+    ): ByteArray? = runCatching { iosAesGcm(key)?.open(nonce, sealedBox, aad) }.getOrNull()
 }

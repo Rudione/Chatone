@@ -9,5 +9,5 @@ actual fun openAuthTab(url: String) = openUrl(url, SettingsState.LinkOpenMode.DE
 actual fun openUrl(url: String, mode: SettingsState.LinkOpenMode) {
     if (!isSafeHttpUrl(url)) return
     val nsUrl = NSURL.URLWithString(url) ?: return
-    UIApplication.sharedApplication.openURL(nsUrl)
+    UIApplication.sharedApplication.openURL(nsUrl, options = emptyMap<Any?, Any?>(), completionHandler = null)
 }

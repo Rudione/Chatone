@@ -1,37 +1,24 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -39,63 +26,22 @@ import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
-import io.rudione.chatone.domain.model.Channel
-import io.rudione.chatone.presentation.chat.ChatScreen
-import io.rudione.chatone.presentation.components.GlowSurface
-import io.rudione.chatone.presentation.components.GradientButton
-import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
-import io.rudione.chatone.presentation.settings.SettingsEvent
-import io.rudione.chatone.presentation.settings.SettingsScreen
-import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.system.GlobalKeyDispatcher
-import io.rudione.chatone.util.system.HotkeyAction
-import io.rudione.chatone.util.system.comboFor
-import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
-import io.rudione.chatone.presentation.theme.ChatoneColors
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.WallpaperGlowEdge
-import io.rudione.chatone.presentation.theme.panelBlur
-import io.rudione.chatone.presentation.theme.topBarBackgroundColor
-import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.launch
-import org.koin.compose.koinInject
-import org.koin.compose.viewmodel.koinViewModel
-import kotlin.math.hypot
-import io.rudione.chatone.presentation.chat.components.ChattersPanel
-import io.rudione.chatone.presentation.main.components.MentionsFeed
-import io.rudione.chatone.presentation.main.components.MentionTabsBar
-import io.rudione.chatone.presentation.main.components.MentionToast
-import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
-import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
-import io.rudione.chatone.presentation.settings.SettingsEffect
-import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
-import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
-import io.rudione.chatone.data.repository.AccountManager
-import io.rudione.chatone.data.repository.AuthRepository
-import io.rudione.chatone.data.repository.MentionMuteRepository
-import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
-import io.rudione.chatone.presentation.chat.ChatViewModel
-import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.domain.model.ChannelFolder
@@ -109,6 +55,7 @@ import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Menu
 import io.rudione.chatone.icons.lucide.MessageCircle
 import io.rudione.chatone.icons.lucide.Plus
+import io.rudione.chatone.presentation.components.PortalPopup
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -130,7 +77,7 @@ internal fun MiniRail(
     var railDragStartCenterX by remember { mutableStateOf(0f) }
     var railDropTargetLogin by remember { mutableStateOf<String?>(null) }
     val s = LocalStrings.current
-    val railItemCenters = remember { mutableStateMapOf<String, Float>() }
+    val railItemCoordinates = remember { HashMap<String, LayoutCoordinates>() }
     val tooltipOffsetYPx = with(density) { 28.dp.roundToPx() }
     val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
 
@@ -241,7 +188,8 @@ internal fun MiniRail(
                             is ChannelTab -> "rail_ch_${node.login}"
                             else -> node.hashCode().toString()
                         }
-                    }
+                    },
+                    contentType = { node -> if (node is ChannelFolder) "rail_folder" else "rail_channel" }
                 ) { node ->
                     if (node is ChannelFolder) {
                         val folder = node
@@ -286,7 +234,6 @@ internal fun MiniRail(
                     var tooltipOffset by remember { mutableStateOf(IntOffset.Zero) }
                     val isDraggedItem = railDragLogin == channel.login
                     val isDragTarget = railDropTargetLogin == channel.login && !isDraggedItem
-                    val itemCenterX = remember { mutableStateOf(0f) }
                     val folderTint = channelFolderTint[channel.login.lowercase().removePrefix("#")]
 
                     Box(
@@ -302,18 +249,14 @@ internal fun MiniRail(
                                     )
                                 } else Modifier
                             )
-                            .onGloballyPositioned { coords ->
-                                val bounds = coords.boundsInRoot()
-                                val cx = bounds.left + bounds.width / 2f
-                                railItemCenters[channel.login] = cx
-                                itemCenterX.value = cx
-                            }
+                            .onPlaced { coords -> railItemCoordinates[channel.login] = coords }
                             .pointerInput(channel.login) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = {
                                         railDragLogin = channel.login
                                         railDragOffset = Offset.Zero
-                                        railDragStartCenterX = itemCenterX.value
+                                        railDragStartCenterX =
+                                            railItemCoordinates[channel.login]?.railCenterXInRoot() ?: 0f
                                         railDropTargetLogin = null
                                         railDragFromIndex =
                                             state.openChannels.indexOfFirst { it.login == channel.login }
@@ -323,14 +266,11 @@ internal fun MiniRail(
                                         railDragOffset += delta
                                         val currentX = railDragStartCenterX + railDragOffset.x
                                         val itemHalfWidthPx = with(density) { 18.dp.toPx() }
-                                        val closest = railItemCenters.entries
-                                            .filter { (login, _) -> login != channel.login }
-                                            .minByOrNull { (_, cx) -> kotlin.math.abs(cx - currentX) }?.key
-                                        val nearestCx = closest?.let { railItemCenters[it] }
-                                        railDropTargetLogin =
-                                            if (closest != null && nearestCx != null &&
-                                                kotlin.math.abs(nearestCx - currentX) < itemHalfWidthPx
-                                            ) closest else null
+                                        railDropTargetLogin = railItemCoordinates.nearestRailItem(
+                                            centerX = currentX,
+                                            exclude = channel.login,
+                                            maxDistance = itemHalfWidthPx
+                                        )
                                     },
                                     onDragEnd = {
                                         val fromIdx = railDragFromIndex
@@ -454,7 +394,7 @@ internal fun MiniRail(
                                 .zIndex(2f)
                         )
                         if (showTooltip) {
-                            Popup(
+                            PortalPopup(
                                 alignment = Alignment.TopStart,
                                 offset = tooltipOffset,
                                 properties = androidx.compose.ui.window.PopupProperties(
@@ -548,4 +488,35 @@ internal fun MiniRail(
             }
         }
     }
+}
+
+private fun LayoutCoordinates.railCenterXInRoot(): Float? {
+    if (!isAttached) return null
+    val bounds = boundsInRoot()
+    return bounds.left + bounds.width / 2f
+}
+
+private fun MutableMap<String, LayoutCoordinates>.nearestRailItem(
+    centerX: Float,
+    exclude: String,
+    maxDistance: Float
+): String? {
+    var nearest: String? = null
+    var nearestDistance = maxDistance
+    val iterator = entries.iterator()
+    while (iterator.hasNext()) {
+        val (login, coordinates) = iterator.next()
+        val itemCenter = coordinates.railCenterXInRoot()
+        if (itemCenter == null) {
+            iterator.remove()
+            continue
+        }
+        if (login == exclude) continue
+        val distance = kotlin.math.abs(itemCenter - centerX)
+        if (distance < nearestDistance) {
+            nearest = login
+            nearestDistance = distance
+        }
+    }
+    return nearest
 }

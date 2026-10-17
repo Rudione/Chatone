@@ -1,8 +1,9 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +40,7 @@ fun ChatoneListItem(
     val scheme = MaterialTheme.colorScheme
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-    val container by animateColorAsState(
+    val container = animateColorAsState(
         when {
             highlighted -> lerp(scheme.surfaceContainerHighest, scheme.primary, 0.12f)
             hovered -> lerp(scheme.surfaceContainerHighest, scheme.onSurface, 0.04f)
@@ -49,7 +49,7 @@ fun ChatoneListItem(
         tween(140),
         label = "listItemContainer"
     )
-    val border by animateColorAsState(
+    val border = animateColorAsState(
         when {
             highlighted -> scheme.primary.copy(alpha = 0.5f)
             hovered -> scheme.outlineVariant.copy(alpha = 0.7f)
@@ -63,8 +63,8 @@ fun ChatoneListItem(
         modifier = modifier
             .fillMaxWidth()
             .clip(ItemShape)
-            .background(container)
-            .border(1.dp, border, ItemShape)
+            .drawBehind { drawRect(container.value) }
+            .animatedBorder(1.dp, ItemShape) { border.value }
             .then(
                 if (onClick != null) {
                     Modifier.clickable(interactionSource = interaction, indication = null, onClick = onClick)

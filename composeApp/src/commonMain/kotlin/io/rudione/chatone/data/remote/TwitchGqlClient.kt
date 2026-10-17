@@ -10,11 +10,19 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.rudione.chatone.data.remote.dto.PollChoice
+import io.rudione.chatone.data.remote.dto.PollData
+import io.rudione.chatone.data.remote.dto.PredictionData
+import io.rudione.chatone.data.remote.dto.PredictionOutcome
+import io.rudione.chatone.domain.model.ChannelGifConfig
+import io.rudione.chatone.domain.model.ChannelGifConfigSource
+import io.rudione.chatone.domain.moderation.ChannelRole
 import io.rudione.chatone.util.Result
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -29,7 +37,7 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlin.random.Random
 
 data class PinnedChatInfo(
@@ -96,12 +104,6 @@ data class GqlUsercardMessagePage(
     val messages: List<GqlUsercardMessage>,
     val nextCursor: String?,
     val hasNextPage: Boolean
-)
-
-data class GqlTargetedModAction(
-    val id: String,
-    val type: String,
-    val timestampMs: Long?
 )
 
 data class GqlTokenIdentity(val userId: String, val login: String, val displayName: String)
@@ -203,7 +205,7 @@ private fun randomUuid(): String {
 class TwitchGqlClient(
     private val httpClient: HttpClient,
     private val tokenResolver: FirstPartyTokenResolver = FirstPartyTokenResolver(httpClient)
-) {
+) : ChannelGifConfigSource {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private val sessionId = randomHexId()
@@ -424,6 +426,58 @@ class TwitchGqlClient(
         return if (raidId != null) Result.Success(raidId) else Result.Error(Exception("Failed to start raid"))
     }
 
+    suspend fun setChannelRole(
+        channelId: String,
+        targetLogin: String,
+        role: ChannelRole,
+        granted: Boolean,
+        token: String
+    ): Result<Unit> {
+        val mutation = RoleMutation.of(role, granted)
+        val r = persisted(mutation.operation, mutation.hash, token) {
+            putJsonObject("input") {
+                put("channelID", channelId)
+                put(mutation.targetField, targetLogin.lowercase())
+            }
+        }
+        if (r is Result.Error) return r
+        val node = (r as Result.Success).data.firstOrNull()?.jsonObject
+            ?: return Result.Error(Exception("Empty response"))
+        node["errors"]?.let { errors ->
+            val message = (errors as? JsonArray)?.firstOrNull()?.jsonObject?.get("message")?.jsonPrimitive?.contentOrNull
+            return Result.Error(Exception(message ?: errors.toString()))
+        }
+        val payload = node["data"]?.jsonObject?.get(mutation.payload) as? JsonObject
+            ?: return Result.Error(Exception("No ${mutation.payload} payload"))
+        val error = payload["error"]
+        if (error != null && error !is kotlinx.serialization.json.JsonNull) {
+            val code = (error as? JsonObject)?.let { obj ->
+                obj["code"]?.jsonPrimitive?.contentOrNull ?: obj["message"]?.jsonPrimitive?.contentOrNull
+            } ?: error.toString()
+            return Result.Error(Exception(code))
+        }
+        return Result.Success(Unit)
+    }
+
+    private enum class RoleMutation(
+        val operation: String,
+        val hash: String,
+        val payload: String,
+        val targetField: String
+    ) {
+        MOD("ModUser", MOD_USER_HASH, "modUser", "targetLogin"),
+        UNMOD("UnmodUser", UNMOD_USER_HASH, "unmodUser", "targetLogin"),
+        VIP("VIPUser", VIP_USER_HASH, "grantVIP", "granteeLogin"),
+        UNVIP("UnVIPUser", UNVIP_USER_HASH, "revokeVIP", "revokeeLogin");
+
+        companion object {
+            fun of(role: ChannelRole, granted: Boolean): RoleMutation = when (role) {
+                ChannelRole.MODERATOR -> if (granted) MOD else UNMOD
+                ChannelRole.VIP -> if (granted) VIP else UNVIP
+            }
+        }
+    }
+
     suspend fun cancelRaidGql(sourceId: String, token: String): Result<Unit> {
         val r = persisted("CancelRaid", CANCEL_RAID_HASH, token) {
             putJsonObject("input") {
@@ -523,53 +577,23 @@ class TwitchGqlClient(
         )
     }
 
-    suspend fun getTargetedModActions(
-        channelId: String,
-        targetId: String,
-        token: String,
-        maxPages: Int = TARGETED_ACTIONS_MAX_PAGES
-    ): List<GqlTargetedModAction>? {
-        if (channelId.isBlank() || targetId.isBlank()) return null
-        val actions = mutableListOf<GqlTargetedModAction>()
-        var cursor: String? = null
-        repeat(maxPages) {
-            val variables = buildJsonObject {
-                put("channelID", channelId)
-                put("targetID", targetId)
-                if (!cursor.isNullOrBlank()) put("after", cursor)
-            }
-            val r = inlineQuery(TARGETED_MOD_ACTIONS_QUERY, token, variables)
-            if (r !is Result.Success) return actions.takeIf { it.isNotEmpty() }
-            val node = r.data.firstDataNode()
-            val result = node
-                ?.get("data")?.asObjectOrNull()
-                ?.get("viewerCardModLogs")?.asObjectOrNull()
-                ?.get("targetedActions")?.asObjectOrNull()
-            if (result == null) {
-                Napier.w("Targeted mod actions unavailable: ${node?.gqlErrorOrNull()}", tag = TAG)
-                return actions.takeIf { it.isNotEmpty() }
-            }
-            val edges = result["edges"]?.asArrayOrNull()
-            if (edges == null) {
-                Napier.w("Targeted mod actions denied: ${result["code"]}", tag = TAG)
-                return actions.takeIf { it.isNotEmpty() }
-            }
-            edges.forEach { edge ->
-                val node = edge.asObjectOrNull()?.get("node")?.asObjectOrNull() ?: return@forEach
-                val id = node["id"]?.jsonPrimitive?.contentOrNull ?: return@forEach
-                val type = node["type"]?.jsonPrimitive?.contentOrNull ?: return@forEach
-                actions += GqlTargetedModAction(
-                    id = id,
-                    type = type,
-                    timestampMs = parseIsoInstantOrNull(node["timestamp"]?.jsonPrimitive?.contentOrNull)
-                )
-            }
-            val hasNext = result["pageInfo"]?.asObjectOrNull()
-                ?.get("hasNextPage")?.jsonPrimitive?.booleanOrNull == true
-            cursor = edges.lastOrNull()?.asObjectOrNull()?.get("cursor")?.jsonPrimitive?.contentOrNull
-            if (!hasNext || cursor.isNullOrBlank()) return actions
+    suspend fun getModLogSummary(channelId: String, targetId: String, token: String): GqlModLogSummary? {
+        if (channelId.isBlank() || targetId.isBlank() || token.isBlank()) return null
+        val variables = buildJsonObject {
+            put("channelID", channelId)
+            put("targetID", targetId)
         }
-        return actions
+        val r = inlineQuery(MOD_LOG_SUMMARY_QUERY, token, variables)
+        if (r !is Result.Success) return null
+        val node = r.data.firstDataNode()
+        val modLogs = node?.get("data")?.asObjectOrNull()?.get("viewerCardModLogs")?.asObjectOrNull()
+        if (modLogs == null) {
+            Napier.w("Mod logs unavailable: ${node?.gqlErrorOrNull()}", tag = TAG)
+            return null
+        }
+        val summary = ModLogSummaryParser.parse(modLogs, targetId)
+        if (summary == null) Napier.w("Mod logs denied for this account", tag = TAG)
+        return summary
     }
 
     suspend fun getChannelRewardTitles(channelLogin: String): Map<String, String>? {
@@ -875,6 +899,31 @@ class TwitchGqlClient(
         }
     }
 
+    override suspend fun channelGifConfig(channelId: String, token: String): Result<ChannelGifConfig> {
+        if (channelId.isBlank() || token.isBlank()) return Result.Error(Exception("Missing channel or token"))
+        val variables = buildJsonObject { put("channelID", channelId) }
+        val r = inlineQuery(GIF_PICKER_CONFIG_QUERY, token, variables)
+        if (r is Result.Error) return r
+        val node = (r as Result.Success).data.firstDataNode()
+        node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
+        val config = node?.get("data")?.asObjectOrNull()?.get("gifPickerConfig")?.asObjectOrNull()
+            ?: return Result.Error(Exception("Empty gifPickerConfig response"))
+        fun field(key: String) = config[key] as? JsonPrimitive
+        val apiKey = field("apiKey")?.contentOrNull?.takeIf { it.length <= MAX_GIF_API_KEY_LENGTH }.orEmpty()
+        val rating = when (field("contentRating")?.contentOrNull) {
+            "PG_13" -> "pg-13"
+            "G_PG" -> "pg"
+            else -> "g"
+        }
+        return Result.Success(
+            ChannelGifConfig(
+                enabled = field("isEnabled")?.booleanOrNull == true && field("isAllowlisted")?.booleanOrNull == true,
+                apiKey = apiKey,
+                rating = rating
+            )
+        )
+    }
+
     suspend fun sendGifMessage(
         channelId: String,
         gifId: String,
@@ -1112,7 +1161,7 @@ class TwitchGqlClient(
         return finishPollMutation(r, "createPoll", "Failed to create poll")
     }
 
-    suspend fun getViewablePollGql(channelLogin: String, token: String): io.rudione.chatone.data.remote.dto.PollData? {
+    suspend fun getViewablePollGql(channelLogin: String, token: String): PollData? {
         val r = persisted("ChannelPollContext_GetViewablePoll", GET_VIEWABLE_POLL_HASH, token) {
             put("login", channelLogin)
         }
@@ -1126,7 +1175,7 @@ class TwitchGqlClient(
             val co = c.asObjectOrNull() ?: return@mapNotNull null
             val cid = co["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
             val votes = co["votes"]?.asObjectOrNull()
-            io.rudione.chatone.data.remote.dto.PollChoice(
+            PollChoice(
                 id = cid,
                 title = co["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 votes = votes?.get("base")?.jsonPrimitive?.intOrNull ?: 0,
@@ -1142,11 +1191,12 @@ class TwitchGqlClient(
             ?.get("choices")?.asArrayOrNull()?.firstOrNull()?.asObjectOrNull()
             ?.get("pollChoice")?.asObjectOrNull()
             ?.get("id")?.jsonPrimitive?.contentOrNull
-        return io.rudione.chatone.data.remote.dto.PollData(
+        return PollData(
             id = id,
             title = title,
             choices = choices,
-            channelPointsVotingEnabled = cpVotes?.get("isEnabled")?.jsonPrimitive?.booleanOrNull ?: false,
+            channelPointsVotingEnabled = cpVotes?.get("isEnabled")?.jsonPrimitive?.booleanOrNull
+                ?: false,
             channelPointsPerVote = cpVotes?.get("cost")?.jsonPrimitive?.intOrNull ?: 0,
             status = poll["status"]?.jsonPrimitive?.contentOrNull.orEmpty(),
             duration = ((remainingMs ?: 0L) / 1000L).toInt(),
@@ -1287,7 +1337,7 @@ class TwitchGqlClient(
         return Result.Success(Unit)
     }
 
-    suspend fun getActivePredictionGql(channelLogin: String, token: String): io.rudione.chatone.data.remote.dto.PredictionData? {
+    suspend fun getActivePredictionGql(channelLogin: String, token: String): PredictionData? {
         val q = """
             query ChannelPointsPredictionContext(${'$'}channelLogin: String!) {
               channel(name: ${'$'}channelLogin) {
@@ -1315,7 +1365,7 @@ class TwitchGqlClient(
         val outcomes = ev["outcomes"]?.asArrayOrNull()?.mapNotNull { o ->
             val oo = o.asObjectOrNull() ?: return@mapNotNull null
             val oid = oo["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-            io.rudione.chatone.data.remote.dto.PredictionOutcome(
+            PredictionOutcome(
                 id = oid,
                 title = oo["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 users = oo["totalUsers"]?.jsonPrimitive?.intOrNull ?: 0,
@@ -1324,7 +1374,7 @@ class TwitchGqlClient(
             )
         }.orEmpty()
         if (outcomes.isEmpty()) return null
-        return io.rudione.chatone.data.remote.dto.PredictionData(
+        return PredictionData(
             id = id,
             title = title,
             outcomes = outcomes,
@@ -1420,6 +1470,10 @@ class TwitchGqlClient(
                 useIntegrity = true
             )
         )
+        private const val MAX_GIF_API_KEY_LENGTH = 512
+        private const val GIF_PICKER_CONFIG_QUERY =
+            "query ChatoneGifPickerConfig(\$channelID: ID!) { " +
+                    "gifPickerConfig(channelID: \$channelID) { isEnabled isAllowlisted apiKey contentRating } }"
         private const val SEND_GIF_MUTATION =
             "mutation ChatoneSendGif(\$input: SendGifMessageInput!) { " +
                     "sendGifMessage(input: \$input) { error } }"
@@ -1433,14 +1487,23 @@ class TwitchGqlClient(
             "2d099d4c9b6af80a07d8440140c4f3dbb04d516b35c401aab7ce8f60765308d5"
         private const val MODLOG_HASH =
             "eb4e9869e1bb0b3ed553e1ed657fa09f8553781093569c3a5813ad09ee9c0776"
-        private const val TARGETED_ACTIONS_MAX_PAGES = 5
-        private const val TARGETED_MOD_ACTIONS_QUERY =
-            "query ChatoneTargetedModActions(\$channelID: ID!, \$targetID: ID!, \$after: Cursor) { " +
+        private const val MOD_LOG_ACTIONS_FRAGMENT =
+            "fragment chatoneModActions on ModLogsTargetedActionsResult { " +
+                    "... on ModLogsTargetedActionsError { code } " +
+                    "... on ModLogsTargetedActionsConnection { count edges { node { id type timestamp " +
+                    "localizedLabel { fallbackString localizedStringFragments { token { " +
+                    "... on ModActionsLocalizedTextToken { text } ... on User { id login } } } } } } } }"
+        private const val MOD_LOG_SUMMARY_QUERY =
+            "query ChatoneModLogSummary(\$channelID: ID!, \$targetID: ID!) { " +
                     "viewerCardModLogs(channelID: \$channelID, targetID: \$targetID) { " +
-                    "targetedActions(first: 100, after: \$after) { " +
-                    "... on ModLogsTargetedActionsConnection { " +
-                    "edges { cursor node { id type timestamp } } pageInfo { hasNextPage } } " +
-                    "... on ModLogsTargetedActionsError { code } } } }"
+                    "messages(first: 1, excludeModActions: true) { " +
+                    "... on ViewerCardModLogsMessagesConnection { count } ... on ViewerCardModLogsMessagesError { code } } " +
+                    "bans: targetedActions(first: 99, type: BAN) { ...chatoneModActions } " +
+                    "timeouts: targetedActions(first: 99, type: TIMEOUT) { ...chatoneModActions } " +
+                    "unbans: targetedActions(first: 99, type: UNBAN) { ...chatoneModActions } " +
+                    "untimeouts: targetedActions(first: 99, type: UNTIMEOUT) { ...chatoneModActions } " +
+                    "warnings: targetedActions(first: 99, type: WARN) { ...chatoneModActions } } } " +
+                    MOD_LOG_ACTIONS_FRAGMENT
         private const val CHANNEL_REWARD_TITLES_QUERY =
             "query ChatoneRewardTitles(\$login: String!) { channel(name: \$login) { " +
                     "communityPointsSettings { customRewards { id title } } } }"
@@ -1452,6 +1515,14 @@ class TwitchGqlClient(
             "42a2a699ac85256d72fff2471c75803f7ffbc767ba790725de5ad5d6e0163648"
         private const val GO_RAID_HASH =
             "878ca88bed0c5a5f0687ad07562cffc0bf6a3136f15e5015c0f5f5f7f367f70a"
+        private const val MOD_USER_HASH =
+            "46da4ec4229593fe4b1bce911c75625c299638e228262ff621f80d5067695a8a"
+        private const val UNMOD_USER_HASH =
+            "1ed42ccb3bc3a6e79f51e954a2df233827f94491fbbb9bd05b22b1aaaf219b8b"
+        private const val VIP_USER_HASH =
+            "e8c397f1ed8b1fdbaa201eedac92dd189ecfb2d828985ec159d4ae77f9920170"
+        private const val UNVIP_USER_HASH =
+            "2ce4fcdf6667d013aa1f820010e699d1d4abdda55e26539ecf4efba8aff2d661"
 
         private const val CREATE_POLL_HASH =
             "4b1461a13fe166a59044961db192747d606f71a89abc3bfdecf79fe862d205cf"

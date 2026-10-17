@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.components
 
+import io.rudione.chatone.presentation.settings.settingsAnchor
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import chatone.composeapp.generated.resources.icon
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -58,7 +60,7 @@ private val SettingsCardRadius = if (isDesktopPlatform) 18.dp else 26.dp
 
 @Composable
 internal fun SettingsGroup(title: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = (if (title != null) Modifier.settingsAnchor(title) else Modifier).fillMaxWidth()) {
         if (title != null) {
             HighlightedSettingsText(
                 text = title,
@@ -171,6 +173,31 @@ internal fun SettingsPair(
             ) {
                 first()
                 second()
+            }
+        }
+    }
+}
+
+@Composable
+internal fun <T> SettingsGrid(
+    items: List<T>,
+    minCellWidth: Dp,
+    modifier: Modifier = Modifier,
+    spacing: Dp = 6.dp,
+    cell: @Composable (T) -> Unit
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val columns = ((maxWidth + spacing) / (minCellWidth + spacing)).toInt().coerceAtLeast(1)
+        Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+            items.chunked(columns).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(spacing),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    row.forEach { item -> Box(modifier = Modifier.weight(1f)) { cell(item) } }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                }
             }
         }
     }

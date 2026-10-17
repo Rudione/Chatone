@@ -1,11 +1,13 @@
 package io.rudione.chatone.presentation.chat.components
 
+import io.rudione.chatone.presentation.components.layoutHeight
+import io.rudione.chatone.presentation.components.animatedBorder
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,13 +30,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -49,7 +51,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.data.remote.TranslationClient
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
@@ -62,6 +63,7 @@ import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -76,6 +78,11 @@ import io.rudione.chatone.icons.lucide.Scissors
 import io.rudione.chatone.icons.lucide.SendHorizontal
 import io.rudione.chatone.icons.lucide.Smile
 import io.rudione.chatone.icons.lucide.X
+import io.rudione.chatone.presentation.components.ChatoneSwitch
+import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
+import io.rudione.chatone.presentation.components.HoverTooltipBox
+import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.components.PortalPopup
 
 private object NoOpTextContextMenuProvider :
     androidx.compose.foundation.text.contextmenu.provider.TextContextMenuProvider {
@@ -136,7 +143,7 @@ internal fun MessageInput(
         )
     }
 
-    LaunchedEffect(value) {
+    SideEffect(value) {
         if (tfv.text != value) {
             tfv = TextFieldValue(
                 value,
@@ -160,7 +167,7 @@ internal fun MessageInput(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
-    LaunchedEffect(isFocused) { onFocusChanged(isFocused) }
+    SideEffect(isFocused) { onFocusChanged(isFocused) }
 
     var slowmodeRemainingMs by remember { mutableLongStateOf(0L) }
     LaunchedEffect(slowModeSeconds, lastMessageSentAtMs) {
@@ -177,10 +184,16 @@ internal fun MessageInput(
             delay(100)
         }
     }
-    val slowmodeFraction by animateFloatAsState(
-        if (slowModeSeconds > 0) (1f - slowmodeRemainingMs.toFloat() / (slowModeSeconds * 1000f)).coerceIn(0f, 1f) else 0f,
-        tween(150)
-    )
+    val slowmodeFraction = remember { Animatable(0f) }
+    LaunchedEffect(slowModeSeconds) {
+        snapshotFlow {
+            if (slowModeSeconds > 0) (1f - slowmodeRemainingMs.toFloat() / (slowModeSeconds * 1000f)).coerceIn(0f, 1f) else 0f
+        }.collectLatest { slowmodeFraction.animateTo(it, tween(150)) }
+    }
+    val showSlowmodeRing by remember { derivedStateOf { slowmodeFraction.value > 0f } }
+    val slowmodeRemainingSeconds by remember {
+        derivedStateOf { ((slowmodeRemainingMs + 999) / 1000).toInt().coerceAtLeast(0) }
+    }
     val slowmodeColor = ChatoneTheme.extraColors.modTimeout
 
     val errorRed = Color(0xFFCF6679)
@@ -321,20 +334,16 @@ internal fun MessageInput(
         }
         val baseDividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
         val glowColor = MaterialTheme.colorScheme.primary
-        val glowAlpha = glowAnim.value.coerceIn(0f, 1f)
-        val glowStripHeight = (1f + glowAlpha * 4f).dp
+        val glowAlpha: () -> Float = { glowAnim.value.coerceIn(0f, 1f) }
         if (glass == null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(glowStripHeight)
-                    .background(
-                        if (glowAlpha > 0.01f) {
-                            glowColor.copy(alpha = glowAlpha)
-                        } else {
-                            baseDividerColor
-                        }
-                    )
+                    .layoutHeight { (1f + glowAlpha() * 4f).dp }
+                    .drawBehind {
+                        val alpha = glowAlpha()
+                        drawRect(if (alpha > 0.01f) glowColor.copy(alpha = alpha) else baseDividerColor)
+                    }
             )
         }
 
@@ -388,19 +397,15 @@ internal fun MessageInput(
                                         ambientColor = glowColor,
                                         spotColor = glowColor
                                     )
-                                    .border(
-                                        width = borderWidth,
-                                        color = borderColor,
-                                        shape = RoundedCornerShape(24.dp)
-                                    )
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(containerColor)
+                                    .animatedBorder({ borderWidth }, InputShape) { borderColor }
+                                    .clip(InputShape)
+                                    .drawBehind { drawRect(containerColor) }
                             } else {
                                 Modifier.chatInputGlassSurface(
                                     glass = glass,
-                                    resting = containerColor.compositeOver(bottomBarColor),
-                                    border = androidx.compose.ui.graphics.lerp(borderColor, glowColor, glowAlpha),
-                                    borderWidth = borderWidth,
+                                    resting = { containerColor.compositeOver(bottomBarColor) },
+                                    border = { androidx.compose.ui.graphics.lerp(borderColor, glowColor, glowAlpha()) },
+                                    borderWidth = { borderWidth },
                                     focused = isFocused,
                                     glow = glowColor
                                 )
@@ -408,9 +413,9 @@ internal fun MessageInput(
                         )
                 ) {
 
-                    if (slowmodeFraction > 0f) {
+                    if (showSlowmodeRing) {
                         MessageInputSlowmodeRing(
-                            fraction = slowmodeFraction,
+                            fraction = { slowmodeFraction.value },
                             color = slowmodeColor
                         )
                     }
@@ -441,7 +446,7 @@ internal fun MessageInput(
                                 MessageInputEmojiButton(
                                     enabled = enabled,
                                     isFocused = isFocused,
-                                    emojiContainerColor = emojiContainerColor,
+                                    emojiContainerColor = { emojiContainerColor },
                                     primaryCol = primaryCol,
                                     onClick = onEmotePickerClick
                                 )
@@ -507,8 +512,8 @@ internal fun MessageInput(
 
                             MessageInputSendColumn(
                                 canSend = canSend,
-                                sendScale = sendScale,
-                                sendContainerColor = sendContainerColor,
+                                sendScale = { sendScale },
+                                sendContainerColor = { sendContainerColor },
                                 primaryCol = primaryCol,
                                 charCount = charCount,
                                 maxChars = MAX_CHARS,
@@ -516,7 +521,7 @@ internal fun MessageInput(
                                 isOverLimit = isOverLimit,
                                 errorRed = errorRed,
                                 warnAmber = warnAmber,
-                                slowmodeRemainingMs = slowmodeRemainingMs,
+                                slowmodeRemainingSeconds = slowmodeRemainingSeconds,
                                 slowmodeColor = slowmodeColor,
                                 onSendClick = { performSend(false) }
                             )
@@ -793,31 +798,35 @@ private fun RowScope.MessageInputTextField(
 }
 
 @Composable
-private fun BoxScope.MessageInputSlowmodeRing(fraction: Float, color: Color) {
-    val cornerRadiusPx = with(LocalDensity.current) { 24.dp.toPx() }
-    val strokePx = with(LocalDensity.current) { 2.5.dp.toPx() }
-    Canvas(modifier = Modifier.matchParentSize()) {
-        val inset = strokePx / 2f
-        val roundRect = RoundRect(
-            left = inset,
-            top = inset,
-            right = size.width - inset,
-            bottom = size.height - inset,
-            cornerRadius = CornerRadius(
-                (cornerRadiusPx - inset).coerceAtLeast(0f),
-                (cornerRadiusPx - inset).coerceAtLeast(0f)
-            )
-        )
-        val fullPath = Path().apply { addRoundRect(roundRect) }
-        val measure = PathMeasure().apply { setPath(fullPath, false) }
-        val segment = Path()
-        measure.getSegment(0f, measure.length * fraction, segment, true)
-        drawPath(
-            path = segment,
-            color = color,
-            style = Stroke(width = strokePx, cap = StrokeCap.Round)
-        )
-    }
+private fun BoxScope.MessageInputSlowmodeRing(fraction: () -> Float, color: Color) {
+    val density = LocalDensity.current
+    val cornerRadiusPx = with(density) { 24.dp.toPx() }
+    val strokePx = with(density) { 2.5.dp.toPx() }
+    Spacer(
+        modifier = Modifier.matchParentSize().drawWithCache {
+            val inset = strokePx / 2f
+            val radius = (cornerRadiusPx - inset).coerceAtLeast(0f)
+            val fullPath = Path().apply {
+                addRoundRect(
+                    RoundRect(
+                        left = inset,
+                        top = inset,
+                        right = size.width - inset,
+                        bottom = size.height - inset,
+                        cornerRadius = CornerRadius(radius, radius)
+                    )
+                )
+            }
+            val measure = PathMeasure().apply { setPath(fullPath, false) }
+            val segment = Path()
+            val stroke = Stroke(width = strokePx, cap = StrokeCap.Round)
+            onDrawBehind {
+                segment.rewind()
+                measure.getSegment(0f, measure.length * fraction(), segment, true)
+                drawPath(path = segment, color = color, style = stroke)
+            }
+        }
+    )
 }
 
 @Composable
@@ -860,7 +869,7 @@ private fun MessageInputBannedBanner(banReason: String?, errorRed: Color) {
 private fun MessageInputEmojiButton(
     enabled: Boolean,
     isFocused: Boolean,
-    emojiContainerColor: Color,
+    emojiContainerColor: () -> Color,
     primaryCol: Color,
     onClick: () -> Unit
 ) {
@@ -869,7 +878,7 @@ private fun MessageInputEmojiButton(
         modifier = Modifier
             .size(32.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(emojiContainerColor)
+            .drawBehind { drawRect(emojiContainerColor()) }
             .border(
                 width = if (isFocused) 0.7.dp else 0.dp,
                 color = if (isFocused) primaryCol.copy(alpha = 0.16f) else Color.Transparent,
@@ -909,7 +918,7 @@ private fun MessageInputContextMenu(
 ) {
     val s = LocalStrings.current
     val clipboardManager = LocalClipboardManager.current
-    Popup(
+    PortalPopup(
         alignment = Alignment.TopStart,
         offset = offset + IntOffset(8, 8),
         properties = PopupProperties(
@@ -919,7 +928,7 @@ private fun MessageInputContextMenu(
         ),
         onDismissRequest = onDismiss
     ) {
-        io.rudione.chatone.presentation.components.LiquidGlassSurface(
+        LiquidGlassSurface(
             modifier = Modifier.widthIn(min = 180.dp, max = 260.dp),
             shape = RoundedCornerShape(12.dp),
             contentPadding = PaddingValues(vertical = 4.dp),
@@ -929,7 +938,7 @@ private fun MessageInputContextMenu(
             borderAlphaLow = 0f
         ) {
             Column {
-                io.rudione.chatone.presentation.components.LiquidGlassDropdownItem(
+                LiquidGlassDropdownItem(
                     text = s.cut,
                     icon = Lucide.Scissors,
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -948,7 +957,7 @@ private fun MessageInputContextMenu(
                         }
                     }
                 )
-                io.rudione.chatone.presentation.components.LiquidGlassDropdownItem(
+                LiquidGlassDropdownItem(
                     text = s.copy,
                     icon = Lucide.Copy,
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -965,7 +974,7 @@ private fun MessageInputContextMenu(
                         }
                     }
                 )
-                io.rudione.chatone.presentation.components.LiquidGlassDropdownItem(
+                LiquidGlassDropdownItem(
                     text = s.paste,
                     icon = Lucide.ClipboardPaste,
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -986,7 +995,7 @@ private fun MessageInputContextMenu(
                     modifier = Modifier.padding(vertical = 4.dp),
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                 )
-                io.rudione.chatone.presentation.components.LiquidGlassDropdownItem(
+                LiquidGlassDropdownItem(
                     text = s.inputTranslate,
                     icon = Lucide.Languages,
                     iconTint = MaterialTheme.colorScheme.primary,
@@ -1011,7 +1020,7 @@ private fun MessageInputContextMenu(
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
                     )
-                    io.rudione.chatone.presentation.components.ChatoneSwitch(
+                    ChatoneSwitch(
                         checked = autoTranslateEnabled,
                         onCheckedChange = onToggleAutoTranslate
                     )
@@ -1092,8 +1101,8 @@ private fun MessageInputUploadStatus(
 @Composable
 private fun MessageInputSendColumn(
     canSend: Boolean,
-    sendScale: Float,
-    sendContainerColor: Color,
+    sendScale: () -> Float,
+    sendContainerColor: () -> Color,
     primaryCol: Color,
     charCount: Int,
     maxChars: Int,
@@ -1101,7 +1110,7 @@ private fun MessageInputSendColumn(
     isOverLimit: Boolean,
     errorRed: Color,
     warnAmber: Color,
-    slowmodeRemainingMs: Long,
+    slowmodeRemainingSeconds: Int,
     slowmodeColor: Color,
     onSendClick: () -> Unit
 ) {
@@ -1115,11 +1124,12 @@ private fun MessageInputSendColumn(
             modifier = Modifier
                 .size(32.dp)
                 .graphicsLayer {
-                    scaleX = sendScale
-                    scaleY = sendScale
+                    val scale = sendScale()
+                    scaleX = scale
+                    scaleY = scale
                 }
                 .clip(RoundedCornerShape(16.dp))
-                .background(sendContainerColor)
+                .drawBehind { drawRect(sendContainerColor()) }
                 .border(
                     width = if (canSend) 1.dp else 0.dp,
                     color = primaryCol.copy(alpha = 0.22f),
@@ -1154,9 +1164,9 @@ private fun MessageInputSendColumn(
             )
         }
 
-        if (slowmodeRemainingMs > 0L) {
+        if (slowmodeRemainingSeconds > 0) {
             Text(
-                text = formatSlowmodeRemaining(slowmodeRemainingMs),
+                text = formatSlowmodeRemaining(slowmodeRemainingSeconds),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                 color = slowmodeColor,
                 fontWeight = FontWeight.Medium
@@ -1188,8 +1198,7 @@ private fun MessageInputBannedWordDialog(
     )
 }
 
-private fun formatSlowmodeRemaining(ms: Long): String {
-    val totalSeconds = ((ms + 999) / 1000).toInt().coerceAtLeast(0)
+private fun formatSlowmodeRemaining(totalSeconds: Int): String {
     return if (totalSeconds >= 60) {
         "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
     } else {
@@ -1197,17 +1206,15 @@ private fun formatSlowmodeRemaining(ms: Long): String {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiquidGlassTooltipBox(
     tooltip: String,
     content: @Composable () -> Unit
 ) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+    HoverTooltipBox(
         tooltip = {
             DisableSelection {
-                io.rudione.chatone.presentation.components.LiquidGlassSurface(
+                LiquidGlassSurface(
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     backgroundAlphaHigh = 0.88f,
@@ -1223,23 +1230,19 @@ fun LiquidGlassTooltipBox(
                 }
             }
         },
-        state = rememberTooltipState()
-    ) {
-        content()
-    }
+        content = content
+    )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiquidGlassRichTooltipBox(
     tooltipContent: @Composable () -> Unit,
     content: @Composable () -> Unit
 ) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+    HoverTooltipBox(
         tooltip = {
             DisableSelection {
-                io.rudione.chatone.presentation.components.LiquidGlassSurface(
+                LiquidGlassSurface(
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(10.dp),
                     backgroundAlphaHigh = 0.95f,
@@ -1251,10 +1254,8 @@ fun LiquidGlassRichTooltipBox(
                 }
             }
         },
-        state = rememberTooltipState()
-    ) {
-        content()
-    }
+        content = content
+    )
 }
 
 @Composable
@@ -1291,7 +1292,7 @@ private fun formatTimestampFor(
     timestamp: Long,
     format: SettingsState.TimestampFormat
 ): String {
-    val instant = kotlinx.datetime.Instant.fromEpochMilliseconds(timestamp)
+    val instant = kotlin.time.Instant.fromEpochMilliseconds(timestamp)
     val dt = instant.toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
     return when (format) {
         SettingsState.TimestampFormat.H24 ->
@@ -1303,3 +1304,5 @@ private fun formatTimestampFor(
         SettingsState.TimestampFormat.OFF -> ""
     }
 }
+
+private val InputShape = RoundedCornerShape(24.dp)

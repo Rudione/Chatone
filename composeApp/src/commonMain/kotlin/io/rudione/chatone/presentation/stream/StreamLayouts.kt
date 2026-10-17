@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.stream
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -16,14 +19,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,7 +78,7 @@ fun LandscapeStreamLayout(
     val preferences = state.preferences
     val mode = preferences.landscapeChatMode
     var fraction by remember { mutableFloatStateOf(preferences.sideChatFraction) }
-    LaunchedEffect(preferences.sideChatFraction) { fraction = preferences.sideChatFraction }
+    SideEffect(preferences.sideChatFraction) { fraction = preferences.sideChatFraction }
     var totalWidthPx by remember { mutableIntStateOf(0) }
 
     Row(

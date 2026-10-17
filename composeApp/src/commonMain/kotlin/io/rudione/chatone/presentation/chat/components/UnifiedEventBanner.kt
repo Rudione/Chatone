@@ -214,12 +214,7 @@ internal fun EventHideButton(tooltip: String, onHide: () -> Unit) {
     LiquidGlassTooltipBox(tooltip = tooltip) {
         ChatoneIconButton(
             onClick = onHide,
-            modifier = Modifier
-                .size(if (touch) 28.dp else 24.dp)
-                .then(
-                    if (touch) Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                    else Modifier
-                )
+            modifier = Modifier.size(if (touch) 28.dp else 24.dp)
         ) {
             Icon(
                 Lucide.EyeOff,

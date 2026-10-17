@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import io.rudione.chatone.presentation.components.animatedBorder
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -33,18 +38,17 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.Macro
@@ -55,6 +59,9 @@ import io.rudione.chatone.presentation.chat.multichat.horizontalMouseWheelScroll
 import io.rudione.chatone.presentation.components.ChatoneCountBadge
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.onSecondaryClick
+import io.rudione.chatone.presentation.components.onUnclaimedSecondaryClick
+import io.rudione.chatone.presentation.channelmenu.ChannelOptionsMenu
+import io.rudione.chatone.presentation.channelmenu.busChannelMenu
 import io.rudione.chatone.presentation.settings.components.MacroIcon
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
@@ -127,6 +134,9 @@ internal fun ChatTopBar(
     val actions = remember(onRefresh, onOpenPointsBits, onToggleModMode, onOpenModPanel, onExecuteMacro, onEditMacro) {
         TopBarActionCallbacks(onRefresh, onOpenPointsBits, onToggleModMode, onOpenModPanel, onExecuteMacro, onEditMacro)
     }
+    val channelMenu = remember(channelLogin, isMod) { busChannelMenu(channelLogin, canSeeViewers = isMod) }
+    var barMenuAt by remember { mutableStateOf<Dp?>(null) }
+    val density = LocalDensity.current
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val narrowBar = maxWidth < NarrowBarWidth
@@ -141,6 +151,7 @@ internal fun ChatTopBar(
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
                 .height(metrics.barHeight)
+                .onUnclaimedSecondaryClick { at -> barMenuAt = with(density) { at.x.toDp() } }
                 .then(
                     if (surfaceStyle.scrollableHeader) {
                         Modifier.horizontalScroll(headerScrollState)
@@ -175,6 +186,7 @@ internal fun ChatTopBar(
                 liveStream = liveStream,
                 connectionStatus = connectionStatus,
                 isConnected = isConnected,
+                channelMenu = channelMenu,
                 singleLine = metrics.barHeight < SingleLineHeaderBelow,
                 compactLatency = narrowBar
             )
@@ -208,6 +220,12 @@ internal fun ChatTopBar(
                 )
             }
         }
+        ChannelOptionsMenu(
+            expanded = barMenuAt != null,
+            onDismissRequest = { barMenuAt = null },
+            model = channelMenu,
+            offset = DpOffset(barMenuAt ?: 0.dp, 0.dp)
+        )
     }
 }
 
@@ -247,7 +265,7 @@ private fun TopBarActions(
             )
         }
         var refreshSpinning by remember { mutableStateOf(false) }
-        val refreshRotation by animateFloatAsState(
+        val refreshRotation = animateFloatAsState(
             targetValue = if (refreshSpinning) 360f else 0f,
             animationSpec = tween(500),
             finishedListener = { refreshSpinning = false }
@@ -263,7 +281,7 @@ private fun TopBarActions(
                 Lucide.RefreshCw,
                 contentDescription = "Refresh",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(metrics.icon).rotate(refreshRotation)
+                modifier = Modifier.size(metrics.icon).graphicsLayer { rotationZ = refreshRotation.value }
             )
         }
         ChatTopBarAddPanelButton(currentChannel = channelLogin)
@@ -354,7 +372,7 @@ private fun MacroQuickButton(
     val hovered by interaction.collectIsHoveredAsState()
     val pressed by interaction.collectIsPressedAsState()
     val accent = MaterialTheme.colorScheme.primary
-    val container by animateColorAsState(
+    val container = animateColorAsState(
         accent.copy(
             alpha = when {
                 pressed -> 0.34f
@@ -365,7 +383,7 @@ private fun MacroQuickButton(
         tween(120),
         label = "macroContainer"
     )
-    val border by animateColorAsState(
+    val border = animateColorAsState(
         accent.copy(alpha = if (hovered) 0.6f else 0.3f),
         tween(120),
         label = "macroBorder"
@@ -374,8 +392,8 @@ private fun MacroQuickButton(
         modifier = Modifier
             .size(size)
             .clip(MacroButtonShape)
-            .background(container)
-            .border(1.dp, border, MacroButtonShape)
+            .drawBehind { drawRect(container.value) }
+            .animatedBorder(1.dp, MacroButtonShape) { border.value }
             .onSecondaryClick(onEdit)
             .combinedClickable(
                 interactionSource = interaction,

@@ -1,7 +1,7 @@
 package io.rudione.chatone.presentation.chat
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,12 +30,12 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.rudione.chatone.data.remote.GqlUsercardMessage
 import io.rudione.chatone.data.remote.SubAgeInfo
 import io.rudione.chatone.data.repository.MentionMuteRepository
+import io.rudione.chatone.data.remote.ModLogActionType
+import io.rudione.chatone.data.repository.ModerationHistory
 import io.rudione.chatone.data.repository.ModerationHistoryEntry
-import io.rudione.chatone.data.repository.ModerationHistoryRepository
 import io.rudione.chatone.data.repository.NicknameRepository
 import io.rudione.chatone.data.repository.UserNoteRepository
 import io.rudione.chatone.domain.model.ChatMessage
@@ -47,7 +47,7 @@ import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.theme.i18n.format
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -89,7 +89,7 @@ internal fun UsercardTab(
     isModerator: Boolean,
     isVip: Boolean,
     isSubscriber: Boolean,
-    currentUserIsBroadcaster: Boolean,
+    canManageRoles: Boolean,
     isBlocked: Boolean = false,
     onBlock: () -> Unit = {},
     onUnblock: () -> Unit = {},
@@ -479,18 +479,18 @@ internal fun UsercardTab(
                     contentDescription = LocalStrings.current.profileUnban,
                     onClick = { onUnban(); onDismiss() }
                 )
-                if (currentUserIsBroadcaster) {
+                if (canManageRoles) {
                     ModIconChip(
                         icon = if (isModerator) Lucide.ShieldCheck else Lucide.Shield,
                         tint = ChatoneTheme.extraColors.connected,
                         contentDescription = if (isModerator) "Unmod" else "Mod",
-                        onClick = { if (isModerator) onUnmod() else onMod(); onDismiss() }
+                        onClick = { if (isModerator) onUnmod() else onMod() }
                     )
                     ModIconChip(
                         icon = Lucide.Gem,
                         tint = Color(0xFFE005B9),
                         contentDescription = if (isVip) "Un-VIP" else "VIP",
-                        onClick = { if (isVip) onUnvip() else onVip(); onDismiss() }
+                        onClick = { if (isVip) onUnvip() else onVip() }
                     )
                 }
             }
@@ -553,14 +553,14 @@ internal fun MessagesTab(
             ) {
                 val localHistoryBlock: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
                     if (localHistory.isNotEmpty()) {
-                        item(key = "local-history-header") {
+                        item(key = "local-history-header", contentType = "header") {
                             Text(
                                 LocalStrings.current.profileLocalHistory,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                         }
-                        items(localHistory, key = { "local_" + it.id }) { lm ->
+                        items(localHistory, key = { "local_" + it.id }, contentType = { "local-message" }) { lm ->
                             LocalHistoryMessageItem(
                                 message = lm,
                                 displayName = displayName,
@@ -571,7 +571,7 @@ internal fun MessagesTab(
                 }
                 val historyBlock: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
                     if (history.isNotEmpty() || isHistoryLoading || hasMoreHistory) {
-                        item(key = "history-header") {
+                        item(key = "history-header", contentType = "header") {
                             if (isHistoryLoading) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -601,7 +601,7 @@ internal fun MessagesTab(
                                 }
                             }
                         }
-                        items(history, key = { "hist_" + it.id }) { hm ->
+                        items(history, key = { "hist_" + it.id }, contentType = { "history-message" }) { hm ->
                             GqlHistoryMessageItem(
                                 message = hm,
                                 displayName = displayName,
@@ -614,7 +614,7 @@ internal fun MessagesTab(
                     localHistoryBlock()
                     historyBlock()
                 }
-                items(messages, key = { it.id }) { msg ->
+                items(messages, key = { it.id }, contentType = { "message" }) { msg ->
                     MessageHistoryItem(
                         message = msg,
                         nameColor = nameColor
@@ -750,6 +750,9 @@ internal fun formatMessageTime(timestamp: Long): String {
     return "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
 }
 
+internal const val PROFILE_USERCARD_TAB = 0
+internal const val PROFILE_MESSAGES_TAB = 1
+internal const val PROFILE_HISTORY_TAB = 2
 internal const val PROFILE_ROLES_TAB = 3
 
 @Composable
@@ -763,70 +766,41 @@ internal fun CompactProfileTabs(
     trailing: @Composable () -> Unit = {}
 ) {
     val s = LocalStrings.current
+    val tabs = buildList {
+        add(PROFILE_USERCARD_TAB)
+        add(PROFILE_MESSAGES_TAB)
+        if (showRolesTab) add(PROFILE_ROLES_TAB)
+        if (showHistoryTab) add(PROFILE_HISTORY_TAB)
+    }
     Column {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            @Composable
-            fun tab(index: Int, label: String, badge: Int = 0) {
-                val selected = selectedTab == index
-                val labelColor by animateColorAsState(
-                    if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-                val indicatorWidth by animateDpAsState(if (selected) 16.dp else 0.dp)
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                        .clickable { onSelect(index) }
-                        .padding(horizontal = 10.dp)
-                        .padding(top = 5.dp, bottom = 2.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                            color = labelColor
-                        )
-                        if (badge > 0) {
-                            Text(
-                                "$badge",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = if (selected) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (selected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
-                                    )
-                                    .padding(horizontal = 4.dp)
-                            )
-                        }
+            ExpressiveTabs(
+                tabs = tabs,
+                selected = selectedTab.takeIf { it in tabs } ?: PROFILE_USERCARD_TAB,
+                onSelect = onSelect,
+                label = { tab ->
+                    when (tab) {
+                        PROFILE_MESSAGES_TAB -> s.profileTabMessages
+                        PROFILE_ROLES_TAB -> s.insights.tabRoles
+                        PROFILE_HISTORY_TAB -> s.profileTabHistory
+                        else -> s.profileTabUsercard
                     }
-                    Spacer(Modifier.height(3.dp))
-                    Box(
-                        Modifier
-                            .width(indicatorWidth)
-                            .height(2.dp)
-                            .clip(RoundedCornerShape(1.dp))
-                            .background(MaterialTheme.colorScheme.primary)
-                    )
-                }
-            }
-            tab(0, s.profileTabUsercard)
-            tab(1, s.profileTabMessages, messagesCount)
-            if (showRolesTab) tab(PROFILE_ROLES_TAB, s.insights.tabRoles)
-            if (showHistoryTab) tab(2, s.profileTabHistory, historyCount)
-            Spacer(Modifier.weight(1f))
+                },
+                badge = { tab ->
+                    when (tab) {
+                        PROFILE_MESSAGES_TAB -> messagesCount
+                        PROFILE_HISTORY_TAB -> historyCount
+                        else -> 0
+                    }
+                },
+                fill = false,
+                size = ExpressiveTabSize.Compact,
+                divider = false,
+                modifier = Modifier.weight(1f)
+            )
             trailing()
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -927,14 +901,12 @@ internal fun ModIconChip(
 }
 
 @Composable
-internal fun ModerationHistoryTab(entries: List<ModerationHistoryEntry>, isLoading: Boolean = false) {
+internal fun ModerationHistoryTab(history: ModerationHistory, isLoading: Boolean = false) {
     val s = LocalStrings.current
-    val bans =
-        entries.count { it.action == ModerationHistoryRepository.ACTION_BAN }
-    val timeouts =
-        entries.count { it.action == ModerationHistoryRepository.ACTION_TIMEOUT }
-    val warnings =
-        entries.count { it.action == ModerationHistoryRepository.ACTION_WARN }
+    val entries = history.entries
+    val bans = history.count(ModLogActionType.BAN)
+    val timeouts = history.count(ModLogActionType.TIMEOUT)
+    val warnings = history.count(ModLogActionType.WARN)
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
         if (bans + timeouts + warnings > 0) {
@@ -999,7 +971,7 @@ internal fun ModerationHistoryTab(entries: List<ModerationHistoryEntry>, isLoadi
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 320.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(entries, key = { it.id }) { entry ->
+                    items(entries, key = { it.id }, contentType = { "entry" }) { entry ->
                         ModerationHistoryRow(entry)
                     }
                 }
@@ -1043,44 +1015,11 @@ private fun HistoryCounterChip(
 private fun ModerationHistoryRow(entry: ModerationHistoryEntry) {
     val s = LocalStrings.current
     val (icon, tint, label) = when (entry.action) {
-        ModerationHistoryRepository.ACTION_BAN ->
-            Triple(Lucide.Ban, ChatoneTheme.extraColors.modBan, s.profileHistoryBanEntry)
-
-        ModerationHistoryRepository.ACTION_TIMEOUT ->
-            Triple(
-                Lucide.Timer, ChatoneTheme.extraColors.modTimeout,
-                entry.durationSeconds?.let {
-                    s.format(s.profileHistoryTimeoutEntry, ModActionButton.formatDuration(it))
-                } ?: s.profileHistoryTimeoutEntryPlain
-            )
-
-        ModerationHistoryRepository.ACTION_UNBAN ->
-            Triple(
-                Lucide.LockOpen,
-                MaterialTheme.colorScheme.primary,
-                s.profileHistoryUnbanEntry
-            )
-
-        ModerationHistoryRepository.ACTION_UNTIMEOUT ->
-            Triple(
-                Lucide.TimerOff,
-                MaterialTheme.colorScheme.primary,
-                s.profileHistoryUntimeoutEntry
-            )
-
-        ModerationHistoryRepository.ACTION_DELETE ->
-            Triple(
-                Lucide.Trash2,
-                ChatoneTheme.extraColors.modDelete,
-                s.profileHistoryDeleteEntry
-            )
-
-        else ->
-            Triple(
-                Lucide.TriangleAlert,
-                MaterialTheme.colorScheme.tertiary,
-                s.profileHistoryWarnEntry
-            )
+        ModLogActionType.BAN -> Triple(Lucide.Ban, ChatoneTheme.extraColors.modBan, s.profileHistoryBanEntry)
+        ModLogActionType.TIMEOUT -> Triple(Lucide.Timer, ChatoneTheme.extraColors.modTimeout, s.profileHistoryTimeoutEntryPlain)
+        ModLogActionType.UNBAN -> Triple(Lucide.LockOpen, MaterialTheme.colorScheme.primary, s.profileHistoryUnbanEntry)
+        ModLogActionType.UNTIMEOUT -> Triple(Lucide.TimerOff, MaterialTheme.colorScheme.primary, s.profileHistoryUntimeoutEntry)
+        ModLogActionType.WARN -> Triple(Lucide.TriangleAlert, MaterialTheme.colorScheme.tertiary, s.profileHistoryWarnEntry)
     }
 
     Row(
@@ -1112,9 +1051,9 @@ private fun ModerationHistoryRow(entry: ModerationHistoryEntry) {
                     )
                 }
             }
-            if (!entry.reason.isNullOrBlank()) {
+            if (!entry.label.isNullOrBlank()) {
                 Text(
-                    s.format(s.profileHistoryReason, entry.reason),
+                    entry.label,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )

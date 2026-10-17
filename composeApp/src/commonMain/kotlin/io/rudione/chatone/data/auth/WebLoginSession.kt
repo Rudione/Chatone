@@ -3,6 +3,7 @@ package io.rudione.chatone.data.auth
 import io.rudione.chatone.util.security.AEAD_KEY_BYTES
 import io.rudione.chatone.util.security.Base64Url
 import io.rudione.chatone.util.security.PlatformAead
+import io.rudione.chatone.util.security.randomHex
 import io.rudione.chatone.util.settings.AppConfig
 
 class WebLoginSession {
@@ -18,9 +19,14 @@ class WebLoginSession {
         sessionKey?.fill(0)
         sessionKey = key
 
+        val base = loginUrl.substringBefore('#')
+        val fragment = loginUrl.substringAfter('#', missingDelimiterValue = "")
         return buildString {
-            append(loginUrl.trimEnd('#'))
-            append(if (loginUrl.contains('#')) '&' else '#')
+            append(base)
+            append(if (base.contains('?')) '&' else '?')
+            append("s=").append(randomHex(SESSION_TAG_BYTES))
+            append('#')
+            if (fragment.isNotEmpty()) append(fragment).append('&')
             append("k=").append(key?.let(Base64Url::encode).orEmpty())
             if (key != null && returnTarget != null) append('&').append(returnTarget.fragmentParameter)
         }
@@ -31,5 +37,9 @@ class WebLoginSession {
     fun end() {
         sessionKey?.fill(0)
         sessionKey = null
+    }
+
+    private companion object {
+        const val SESSION_TAG_BYTES = 6
     }
 }

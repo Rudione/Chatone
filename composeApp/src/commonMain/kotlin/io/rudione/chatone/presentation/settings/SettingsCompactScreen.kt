@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.settings
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -37,19 +40,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.icons.lucide.ArrowLeft
 import io.rudione.chatone.icons.lucide.ChevronDown
@@ -65,32 +62,70 @@ import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.rememberInputCapabilities
 import io.rudione.chatone.util.system.isDesktopPlatform
 import org.koin.compose.koinInject
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.rememberCoroutineScope
+import io.rudione.chatone.presentation.screenchat.screenChatFloatsOverFullScreen
+import io.rudione.chatone.presentation.settings.search.SettingsCatalogContext
+import io.rudione.chatone.presentation.settings.search.SettingsSearchEmpty
+import io.rudione.chatone.presentation.settings.search.SettingsSearchHit
+import io.rudione.chatone.presentation.settings.search.SettingsSearchState
+import io.rudione.chatone.presentation.settings.search.rememberSettingsCatalog
+import io.rudione.chatone.presentation.settings.search.rememberSettingsSearchModel
+import io.rudione.chatone.presentation.settings.search.reveal
+import io.rudione.chatone.presentation.settings.search.settingsSearchKeys
+import io.rudione.chatone.presentation.settings.search.settingsSearchResultItems
+import io.rudione.chatone.util.platform.DeviceFormFactor
+import io.rudione.chatone.util.platform.currentFormFactor
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun SettingsCompactScreen(
     state: SettingsState,
     onNavigateBack: () -> Unit,
-    onThemeChanged: (Boolean) -> Unit,
     viewModel: SettingsViewModel,
     modifier: Modifier = Modifier,
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
     val s = LocalStrings.current
-    var query by rememberSaveable { mutableStateOf("") }
+    val search = remember { SettingsSearchState() }
+    val page = remember { SettingsPageState() }
     val expansion = remember { SettingsSectionExpansion() }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val input = rememberInputCapabilities()
+    val context = remember(input) {
+        SettingsCatalogContext(
+            input,
+            desktop = isDesktopPlatform,
+            phone = currentFormFactor() == DeviceFormFactor.PHONE,
+            macOs = screenChatFloatsOverFullScreen
+        )
+    }
+    val model = rememberSettingsSearchModel(search.query, s, rememberSettingsCatalog(s, context))
+    val sections = remember(input) { SettingsSection.entries.filter { it.isAvailable(input) } }
     val settingsNavigator: SettingsNavigator = koinInject()
     val pendingDestination by settingsNavigator.pending.collectAsState()
-    LaunchedEffect(pendingDestination) {
-        pendingDestination?.let { destination ->
-            expansion.onQueryChanged(query, "")
-            query = ""
-            expansion.reveal(destination.section())
+
+    fun revealSection(section: SettingsSection, then: suspend () -> Unit) {
+        search.clear()
+        expansion.reveal(section)
+        scope.launch {
+            val index = sections.indexOf(section)
+            if (index >= 0) listState.animateScrollToItem(index + FIRST_SECTION_ITEM)
+            then()
         }
     }
-    val input = rememberInputCapabilities()
-    val matching = remember(query, s, input) { settingsSectionsMatching(query, s).filter { it.isAvailable(input) } }
-    val searching = query.isNotBlank()
+
+    SideEffect(pendingDestination) {
+        pendingDestination?.let { destination ->
+            destination.moderationTab()?.let { page.moderationTab = it }
+            revealSection(destination.section()) {}
+        }
+    }
+    val openHit: (SettingsSearchHit) -> Unit = { hit ->
+        revealSection(hit.entry.section) { page.reveal(hit.entry, settleMs = SECTION_EXPAND_MS) }
+    }
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     val scheme = MaterialTheme.colorScheme
 
@@ -100,8 +135,9 @@ internal fun SettingsCompactScreen(
             .ambientHaze(base = scheme.background, strength = HAZE_STRENGTH, animated = !isDesktopPlatform)
             .touchHaze(tint = scheme.primary, strength = HAZE_STRENGTH)
     ) {
-        CompositionLocalProvider(LocalSettingsSearch provides query) {
+        CompositionLocalProvider(LocalSettingsSearch provides search.query, LocalSettingsPage provides page) {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
@@ -113,7 +149,7 @@ internal fun SettingsCompactScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                item(key = "header") {
+                item(key = "header", contentType = "header") {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -130,49 +166,54 @@ internal fun SettingsCompactScreen(
                 }
                 stickyHeader(key = "search") {
                     ExpressiveSearchField(
-                        value = query,
-                        onValueChange = { next ->
-                            expansion.onQueryChanged(query, next)
-                            query = next
-                        },
+                        value = search.query,
+                        onValueChange = search::change,
                         placeholder = s.settingsSearchPlaceholder,
                         clearLabel = s.clear,
-                        modifier = Modifier.padding(vertical = 6.dp)
+                        modifier = Modifier
+                            .padding(vertical = 6.dp)
+                            .settingsSearchKeys(search, { model.flat.size }) {
+                                model.flat.getOrNull(search.activeIndex)?.let(openHit)
+                            }
                     )
                 }
-                if (matching.isEmpty()) {
-                    item(key = "empty") {
-                        Text(
-                            s.settingsSearchNoResults,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = scheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-                items(matching, key = { it.name }) { section ->
-                    val open = expansion.isOpen(section, searching)
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionHeader(
-                            section = section,
-                            label = section.localizedLabel(s),
-                            open = open,
-                            onToggle = { expansion.toggle(section, searching) }
-                        )
-                        AnimatedVisibility(
-                            visible = open,
-                            enter = expandVertically(tween(220)) + fadeIn(tween(180)),
-                            exit = shrinkVertically(tween(200)) + fadeOut(tween(140))
-                        ) {
-                            SectionContentColumn(
-                                section = section,
-                                state = state,
-                                onThemeChanged = onThemeChanged,
-                                viewModel = viewModel,
-                                modifier = Modifier.padding(bottom = 6.dp),
-                                onOpenThemeCreator = onOpenThemeCreator
+                if (search.isSearching) {
+                    if (model.flat.isEmpty()) {
+                        item(key = "empty", contentType = "empty") { SettingsSearchEmpty() }
+                    } else {
+                        item(key = "found", contentType = "found") {
+                            Text(
+                                s.settingsHub.searchFound.replace("{0}", model.flat.size.toString()),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = scheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 6.dp)
                             )
+                        }
+                        settingsSearchResultItems(model.groups, search.activeIndex, openHit)
+                    }
+                } else {
+                    items(sections, key = { it.name }, contentType = { "section" }) { section ->
+                        val open = expansion.isOpen(section)
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            SectionHeader(
+                                section = section,
+                                label = section.localizedLabel(s),
+                                open = open,
+                                onToggle = { expansion.toggle(section) }
+                            )
+                            AnimatedVisibility(
+                                visible = open,
+                                enter = expandVertically(tween(220)) + fadeIn(tween(180)),
+                                exit = shrinkVertically(tween(200)) + fadeOut(tween(140))
+                            ) {
+                                SettingsSectionContent(
+                                    section = section,
+                                    state = state,
+                                    viewModel = viewModel,
+                                    onOpenThemeCreator = onOpenThemeCreator,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -208,7 +249,7 @@ private fun SectionHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(40.dp).clip(SectionChipShape).background(chip),
+            modifier = Modifier.size(40.dp).clip(SectionChipShape).drawBehind { drawRect(chip) },
             contentAlignment = Alignment.Center
         ) {
             Icon(section.icon, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(20.dp))
@@ -232,3 +273,5 @@ private fun SectionHeader(
 
 private val SectionChipShape = ScallopShape(lobes = 8, depth = 0.09f)
 private const val HAZE_STRENGTH = 0.6f
+private const val FIRST_SECTION_ITEM = 2
+private const val SECTION_EXPAND_MS = 260L

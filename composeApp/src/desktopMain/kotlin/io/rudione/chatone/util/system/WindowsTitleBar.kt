@@ -48,6 +48,23 @@ object WindowsTitleBar {
         }
     }
 
+    fun nativeHandle(window: Window): Long? = if (isWindows()) getHwnd(window) else null
+
+    fun setTopmost(hwnd: Long, topmost: Boolean) {
+        if (!isWindows() || hwnd == 0L) return
+        runCatching {
+            User32.INSTANCE.SetWindowPos(
+                WinDef.HWND(Pointer(hwnd)),
+                WinDef.HWND(Pointer(if (topmost) HWND_TOPMOST else HWND_NOTOPMOST)),
+                0, 0, 0, 0,
+                SWP_NOSIZE or SWP_NOMOVE or SWP_NOACTIVATE or SWP_NOOWNERZORDER
+            )
+        }
+    }
+
+    private const val HWND_TOPMOST = -1L
+    private const val HWND_NOTOPMOST = -2L
+
     private val dwmLib: NativeLibrary? by lazy {
         runCatching { NativeLibrary.getInstance(windowsSystem32Path("dwmapi.dll")) }.getOrNull()
     }
@@ -169,6 +186,7 @@ object WindowsTitleBar {
     private const val SWP_NOSIZE = 0x0001
     private const val SWP_NOZORDER = 0x0004
     private const val SWP_NOACTIVATE = 0x0010
+    private const val SWP_NOOWNERZORDER = 0x0200
 
     private val subclassed = ConcurrentHashMap<Long, BorderlessWindowProc>()
 

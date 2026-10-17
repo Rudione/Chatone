@@ -45,7 +45,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -1084,7 +1084,7 @@ class MainViewModel(
             when (val result = searchChannelsUseCase(query, account.accessToken)) {
                 is Result.Success -> update {
                     it.copy(
-                        searchResults = result.data,
+                        searchResults = result.data.distinctBy { it.login },
                         isSearching = false
                     )
                 }

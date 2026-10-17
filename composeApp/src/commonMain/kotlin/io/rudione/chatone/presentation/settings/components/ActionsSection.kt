@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.AutomationKind
 import io.rudione.chatone.domain.model.ChatAutomation
+import io.rudione.chatone.domain.model.normalizeAutomationChannel
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.ExpressiveCheckbox
 import io.rudione.chatone.presentation.settings.SettingsEvent
@@ -180,7 +181,7 @@ fun ActionsSection(
                                 AutomationKind.TIMED_MESSAGE ->
                                     append(
                                         s.actionsListEvery
-                                            .replace("{0}", auto.intervalMinutes.toString())
+                                            .replace("{0}", auto.effectiveIntervalMinutes.toString())
                                             .replace("{1}", auto.message)
                                     )
                                 AutomationKind.AUTO_REPLY -> {
@@ -209,8 +210,8 @@ fun ActionsSection(
                             channel = if (auto.channelLogin == "*") "" else auto.channelLogin
                             message = auto.message
                             keyword = auto.keyword
-                            interval = auto.intervalMinutes.toString()
-                            cooldown = auto.cooldownSeconds.toString()
+                            interval = auto.effectiveIntervalMinutes.toString()
+                            cooldown = auto.effectiveCooldownSeconds.toString()
                             onlyMention = auto.onlyWhenMentioned
                         },
                         modifier = Modifier.size(24.dp)
@@ -341,7 +342,7 @@ fun ActionsSection(
             ) {
                 FilledTonalButton(
                     onClick = {
-                        val valid = (allChannels || channel.isNotBlank()) && when (kind) {
+                        val valid = (allChannels || normalizeAutomationChannel(channel).isNotEmpty()) && when (kind) {
                             AutomationKind.TIMED_MESSAGE -> message.isNotBlank()
                             AutomationKind.AUTO_REPLY -> message.isNotBlank() && (keyword.isNotBlank() || onlyMention)
                             AutomationKind.KEYWORD_SOUND -> keyword.isNotBlank()
@@ -352,11 +353,16 @@ fun ActionsSection(
                             id = existing?.id ?: "auto_${Clock.System.now().toEpochMilliseconds()}",
                             enabled = existing?.enabled ?: true,
                             kind = kind,
-                            channelLogin = if (allChannels) "*" else channel.removePrefix("#"),
+                            channelLogin = if (allChannels) ChatAutomation.ALL_CHANNELS else normalizeAutomationChannel(channel),
                             message = message.trim(),
                             keyword = keyword.trim(),
-                            intervalMinutes = interval.toIntOrNull()?.coerceIn(1, 720) ?: 15,
-                            cooldownSeconds = cooldown.toIntOrNull()?.coerceIn(5, 3600) ?: 60,
+                            intervalMinutes = interval.toIntOrNull()
+                                ?.coerceIn(ChatAutomation.MIN_TIMER_MINUTES, ChatAutomation.MAX_TIMER_MINUTES) ?: 15,
+                            cooldownSeconds = cooldown.toIntOrNull()?.coerceIn(
+                                if (kind == AutomationKind.KEYWORD_SOUND) ChatAutomation.MIN_SOUND_COOLDOWN_SECONDS
+                                else ChatAutomation.MIN_REPLY_COOLDOWN_SECONDS,
+                                ChatAutomation.MAX_COOLDOWN_SECONDS
+                            ) ?: 60,
                             onlyWhenMentioned = kind == AutomationKind.AUTO_REPLY && onlyMention
                         )
                         if (existing != null) {

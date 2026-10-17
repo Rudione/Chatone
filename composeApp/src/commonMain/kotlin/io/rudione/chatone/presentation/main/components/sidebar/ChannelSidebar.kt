@@ -1,22 +1,14 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,89 +18,38 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
-import io.rudione.chatone.domain.model.Channel
-import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.components.RailAction
 import io.rudione.chatone.presentation.components.ChatoneIconRail
-import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.GradientButton
-import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
-import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
-import io.rudione.chatone.presentation.settings.SettingsEvent
-import io.rudione.chatone.presentation.settings.SettingsScreen
-import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.system.GlobalKeyDispatcher
-import io.rudione.chatone.util.system.HotkeyAction
-import io.rudione.chatone.util.system.comboFor
-import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
 import io.rudione.chatone.presentation.theme.ChatoneColors
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.WallpaperGlowEdge
-import io.rudione.chatone.presentation.theme.panelBlur
-import io.rudione.chatone.presentation.theme.topBarBackgroundColor
-import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
-import org.koin.compose.viewmodel.koinViewModel
-import kotlin.math.hypot
-import io.rudione.chatone.presentation.chat.components.ChattersPanel
-import io.rudione.chatone.presentation.main.components.MentionsFeed
-import io.rudione.chatone.presentation.main.components.MentionTabsBar
-import io.rudione.chatone.presentation.main.components.MentionToast
-import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
-import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
-import io.rudione.chatone.presentation.settings.SettingsEffect
-import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
-import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
-import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.data.repository.AiAssistantController
-import io.rudione.chatone.data.repository.AuthRepository
-import io.rudione.chatone.data.repository.MentionMuteRepository
-import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
-import io.rudione.chatone.presentation.chat.ChatViewModel
-import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.main.MainEvent
+import io.rudione.chatone.presentation.channelmenu.ChannelMenuActions
+import io.rudione.chatone.presentation.channelmenu.ChannelMenuModel
+import io.rudione.chatone.presentation.channelmenu.ChannelOptionsMenu
 import io.rudione.chatone.domain.model.ChannelFolder
 import io.rudione.chatone.domain.model.ChannelTab
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
-import io.rudione.chatone.util.system.ChannelPanelRequestBus
 import io.rudione.chatone.icons.lucide.AtSign
-import io.rudione.chatone.icons.lucide.Bell
-import io.rudione.chatone.icons.lucide.BellOff
 import io.rudione.chatone.icons.lucide.ChevronDown
 import io.rudione.chatone.icons.lucide.ChevronLeft
 import io.rudione.chatone.icons.lucide.ChevronRight
@@ -118,11 +59,9 @@ import io.rudione.chatone.icons.lucide.FolderOpen
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.MessageCircle
 import io.rudione.chatone.icons.lucide.Pencil
-import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.Plus
 import io.rudione.chatone.icons.lucide.Settings
 import io.rudione.chatone.icons.lucide.Sparkles
-import io.rudione.chatone.icons.lucide.Star
 import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.icons.lucide.User
 import io.rudione.chatone.icons.lucide.X
@@ -133,39 +72,31 @@ internal fun ChannelSidebar(
     state: MainState,
     onEvent: (MainEvent) -> Unit,
     isWideScreen: Boolean = false,
-    mentionMuteRepository: MentionMuteRepository? = null,
     onOpenBrowse: (() -> Unit)? = null
 ) {
     val extra = ChatoneTheme.extraColors
-
-    var sidebarTopLeftInRoot by remember { mutableStateOf(Offset.Zero) }
 
     val dropIndex = remember { SidebarDropIndex() }
     val dragState = remember { SidebarDragState() }
     val listState = rememberLazyListState()
     val density = LocalDensity.current
-    val dropTargetFolderId by remember(dropIndex, dragState) {
-        derivedStateOf { if (dragState.isDragging) dropIndex.hoveredFolderId(dragState.pointInRoot) else null }
+    val dropTarget by remember(dropIndex, dragState, listState) {
+        derivedStateOf {
+            if (!dragState.isDragging) return@derivedStateOf null
+            listState.firstVisibleItemIndex
+            listState.firstVisibleItemScrollOffset
+            dropIndex.resolve(dragState.pointInRoot)
+        }
     }
+    val dropTargetFolderId = dropTarget.hoveredFolderId
     LaunchedEffect(dragState.isDragging) {
         if (dragState.isDragging) dragState.autoScroll(listState, density)
     }
-
-    LaunchedEffect(state.folders, state.unfolderedChannels) {
-        val alive = buildSet {
-            state.folders.forEach { f -> f.channels.forEach { add(it.login) } }
-            state.unfolderedChannels.forEach { add(it.login) }
-        }
-        dropIndex.channelRects.keys.toList()
-            .filterNot { it in alive }
-            .forEach { dropIndex.forget(it) }
-        dropIndex.folderRects.keys.toList()
-            .filterNot { id -> state.folders.any { it.id == id } }
-            .forEach { dropIndex.folderRects.remove(it) }
-    }
     val s = LocalStrings.current
-    val folderedLogins = state.folders.flatMap { it.channels }.map { it.login }.toSet()
-    val filteredUnfoldered = state.unfolderedChannels.filter { it.login !in folderedLogins }
+    val filteredUnfoldered = remember(state.folders, state.unfolderedChannels) {
+        val folderedLogins = state.folders.flatMapTo(HashSet()) { folder -> folder.channels.map { it.login } }
+        state.unfolderedChannels.filter { it.login !in folderedLogins }
+    }
     val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
     val floating = glowEnabled && isWideScreen
     val sidebarShape = when {
@@ -216,7 +147,6 @@ internal fun ChannelSidebar(
                 WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
                     .union(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
             )
-            .onGloballyPositioned { sidebarTopLeftInRoot = it.positionInRoot() }
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
@@ -315,87 +245,26 @@ internal fun ChannelSidebar(
                             )
                         }
                         val activeLogin = state.activeChannelLogin ?: ""
-                        val isChannelMuted = remember(activeLogin) {
-                            mentionMuteRepository?.isChannelMuted(activeLogin) ?: false
-                        }
-                        var channelMuted by remember(activeLogin) { mutableStateOf(isChannelMuted) }
-                        ChatoneDropdownMenu(
-                            expanded = showChannelMenu,
-                            onDismissRequest = { showChannelMenu = false }) {
-                            if (isBroadcaster || isModForActive) {
-                                DropdownMenuItem(
-                                    text = { Text(LocalStrings.current.mainViewersList) },
-                                    leadingIcon = {
-                                        Icon(
-                                            Lucide.User,
-                                            null,
-                                            modifier = Modifier.size(16.dp)
+                        val menuModel = remember(activeLogin, isBroadcaster, isModForActive) {
+                            ChannelMenuModel(
+                                channelLogin = activeLogin,
+                                canSeeViewers = isBroadcaster || isModForActive,
+                                actions = ChannelMenuActions(
+                                    onShowViewers = { onEvent(MainEvent.ShowChattersPanel) },
+                                    onSetMentionsMuted = { muted ->
+                                        onEvent(
+                                            if (muted) MainEvent.MuteMentionsChannel(activeLogin)
+                                            else MainEvent.UnmuteMentionsChannel(activeLogin)
                                         )
-                                    },
-                                    onClick = {
-                                        showChannelMenu = false; onEvent(MainEvent.ShowChattersPanel)
                                     }
                                 )
-                            }
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        if (channelMuted)
-                                            LocalStrings.current.unmuteMentionsForChannel
-                                        else
-                                            LocalStrings.current.muteMentionsForChannel
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        if (channelMuted) Lucide.Bell
-                                        else Lucide.BellOff,
-                                        null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                },
-                                onClick = {
-                                    showChannelMenu = false
-                                    if (channelMuted) {
-                                        onEvent(MainEvent.UnmuteMentionsChannel(activeLogin))
-                                        channelMuted = false
-                                    } else {
-                                        onEvent(MainEvent.MuteMentionsChannel(activeLogin))
-                                        channelMuted = true
-                                    }
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(LocalStrings.current.mainChannelBadgesBits) },
-                                leadingIcon = {
-                                    Icon(
-                                        Lucide.Star,
-                                        null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                },
-                                onClick = {
-                                    showChannelMenu = false
-                                    ChannelPanelRequestBus
-                                        .requestOpenPointsBitsPanel(activeLogin)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(LocalStrings.current.mainTogglePinnedMessage) },
-                                leadingIcon = {
-                                    Icon(
-                                        Lucide.Pin,
-                                        null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                },
-                                onClick = {
-                                    showChannelMenu = false
-                                    ChannelPanelRequestBus
-                                        .requestToggleHiddenEvents(activeLogin)
-                                }
                             )
                         }
+                        ChannelOptionsMenu(
+                            expanded = showChannelMenu,
+                            onDismissRequest = { showChannelMenu = false },
+                            model = menuModel
+                        )
                     }
                 }
                 Box(
@@ -443,13 +312,14 @@ internal fun ChannelSidebar(
             verticalArrangement = Arrangement.Top
         ) {
             if (onOpenBrowse != null) {
-                item(key = "browse_entry") {
+                item(key = "browse_entry", contentType = "browse_entry") {
                     BrowseEntryItem(strings = s.explore, onClick = onOpenBrowse)
                 }
             }
             itemsIndexed(
                 state.folders,
-                key = { _: Int, f: ChannelFolder -> "folder_${f.id}" }
+                key = { _: Int, f: ChannelFolder -> "folder_${f.id}" },
+                contentType = { _, _ -> "folder" }
             ) { folderIndex: Int, folder: ChannelFolder ->
                 FolderItem(
                     folder = folder,
@@ -494,9 +364,9 @@ internal fun ChannelSidebar(
                 }
             }
 
-            item(key = "unfoldered_header") {
-                val isEjectTarget = dragState.isDragging && dragState.source?.folderId != null &&
-                        dropIndex.resolve(dragState.pointInRoot) == SidebarDropTarget.Unfoldered
+            item(key = "unfoldered_header", contentType = "section_header") {
+                val isEjectTarget = dragState.source?.folderId != null &&
+                        dropTarget == SidebarDropTarget.Unfoldered
                 Text(
                     LocalStrings.current.mainChannelsHeader,
                     style = MaterialTheme.typography.labelSmall,
@@ -518,7 +388,8 @@ internal fun ChannelSidebar(
 
             itemsIndexed(
                 filteredUnfoldered,
-                key = { _: Int, c: ChannelTab -> "channel_${c.login}" }
+                key = { _: Int, c: ChannelTab -> "channel_${c.login}" },
+                contentType = { _, _ -> "channel" }
             ) { index: Int, channel: ChannelTab ->
                 ChannelItemWithDrag(
                     channel = channel,
@@ -541,10 +412,10 @@ internal fun ChannelSidebar(
             }
 
             if (state.recentChannels.isNotEmpty()) {
-                item(key = "recent_header") {
+                item(key = "recent_header", contentType = "section_header") {
                     RecentChannelsHeader(strings = s.explore, modifier = Modifier.animateItem())
                 }
-                items(state.recentChannels, key = { "recent_${it.login}" }) { channel ->
+                items(state.recentChannels, key = { "recent_${it.login}" }, contentType = { "recent" }) { channel ->
                     RecentChannelItem(
                         channel = channel,
                         isActive = channel.login == state.activeChannelLogin,
@@ -558,7 +429,7 @@ internal fun ChannelSidebar(
             }
 
             if (state.monitorTabs.isNotEmpty()) {
-                item(key = "monitor_header") {
+                item(key = "monitor_header", contentType = "section_header") {
                     Text(
                         LocalStrings.current.openChannelSpecialHeader,
                         style = MaterialTheme.typography.labelSmall,
@@ -567,7 +438,7 @@ internal fun ChannelSidebar(
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-                items(state.monitorTabs.size, key = { "monitor_${state.monitorTabs[it]}" }) { i ->
+                items(state.monitorTabs.size, key = { "monitor_${state.monitorTabs[it]}" }, contentType = { "monitor" }) { i ->
                     val login = state.monitorTabs[i]
                     MonitorTabSidebarItem(
                         login = login,
@@ -579,7 +450,7 @@ internal fun ChannelSidebar(
                 }
             }
 
-            item(key = "bottom_spacer") {
+            item(key = "bottom_spacer", contentType = "spacer") {
                 Spacer(Modifier.height(12.dp))
             }
         }
@@ -642,9 +513,13 @@ internal fun ChannelSidebar(
     if (dragState.isDragging && draggedLogin != null) {
         Box(
             modifier = Modifier
-                .offset {
-                    val local = dragState.pointInRoot - sidebarTopLeftInRoot
-                    IntOffset(local.x.toInt(), local.y.toInt())
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    layout(placeable.width, placeable.height) {
+                        val origin = coordinates?.positionInRoot() ?: Offset.Zero
+                        val local = dragState.pointInRoot - origin
+                        placeable.place(local.x.toInt(), local.y.toInt())
+                    }
                 }
                 .zIndex(1000f)
                 .clip(RoundedCornerShape(8.dp))

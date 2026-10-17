@@ -28,7 +28,7 @@ import io.rudione.chatone.domain.model.WhisperMessage
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -176,7 +176,7 @@ fun WhisperPanel(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        items(state.whisperConversations, key = { it.userId }) { conv ->
+                        items(state.whisperConversations, key = { it.userId }, contentType = { "conversation" }) { conv ->
                             WhisperConversationRow(
                                 conv = conv,
                                 onClick = {
@@ -272,7 +272,7 @@ private fun WhisperChat(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            items(conversation.messages, key = { it.id }) { msg ->
+            items(conversation.messages, key = { it.id }, contentType = { "whisper" }) { msg ->
                 WhisperBubble(msg = msg)
             }
         }

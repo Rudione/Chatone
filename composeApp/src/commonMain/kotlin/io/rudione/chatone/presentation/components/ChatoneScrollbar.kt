@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -12,12 +15,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -43,8 +44,8 @@ data class ScrollbarThumb(
     }
 }
 
-private val TrackColor = Color.White.copy(alpha = 0.05f)
-private val ThumbColor = Color.White.copy(alpha = 0.22f)
+private val TrackColor = Color.White.copy(alpha = 0.025f)
+private val ThumbColor = Color.White.copy(alpha = 0.20f)
 private val ThumbColorHover = Color.White.copy(alpha = 0.40f)
 private val MinThumbDp = 28.dp
 
@@ -93,7 +94,7 @@ private fun rememberLazyMetrics(listState: LazyListState, itemCount: Int): State
             }
     }
 
-    LaunchedEffect(itemCount) {
+    SideEffect(itemCount) {
         if (metrics.knownCount > itemCount + METRICS_RETENTION_SLACK) {
             metrics.reset()
         }

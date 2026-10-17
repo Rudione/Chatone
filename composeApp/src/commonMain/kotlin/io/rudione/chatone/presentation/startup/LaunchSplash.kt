@@ -23,7 +23,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,7 +33,6 @@ import io.rudione.chatone.presentation.components.expressive.ScallopBadge
 import io.rudione.chatone.presentation.components.expressive.ambientHaze
 import io.rudione.chatone.presentation.components.expressive.touchHaze
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.util.system.LaunchGate
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 import kotlin.time.Duration
@@ -43,11 +41,8 @@ import kotlin.time.Duration.Companion.seconds
 @Composable
 fun LaunchSplashOverlay(maxHold: Duration = MAX_HOLD) {
     val readiness: LaunchReadiness = koinInject()
-    val systemSplash: LaunchGate = koinInject()
     val stage by readiness.stage.collectAsState()
-    LaunchedEffect(readiness, systemSplash) {
-        withFrameNanos { }
-        systemSplash.open()
+    LaunchedEffect(readiness) {
         delay(maxHold)
         readiness.finish()
     }

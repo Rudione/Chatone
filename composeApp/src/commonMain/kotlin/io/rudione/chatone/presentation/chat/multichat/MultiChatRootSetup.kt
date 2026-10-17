@@ -1,9 +1,10 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import io.rudione.chatone.presentation.account.AccountInitializer
 import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.presentation.account.AccountMigration
@@ -34,7 +35,7 @@ fun MultiChatRootSetup(
     }
 
     val activeId by accountManager.activeAccountId.collectAsState()
-    LaunchedEffect(activeId) {
+    SideEffect(activeId) {
         if (activeId.isNotBlank()) onActiveAccountChanged(activeId)
     }
 }

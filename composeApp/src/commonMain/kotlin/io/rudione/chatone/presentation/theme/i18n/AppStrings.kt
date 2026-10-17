@@ -101,6 +101,11 @@ interface AppStrings {
     val settingsLanguageDesc: String
     val settingsWindow: String
     val settingsAlwaysOnTopDesc: String
+    val settingsAlwaysOnTopMode: String
+    val settingsAlwaysOnTopModeDesc: String
+    val settingsAlwaysOnTopExceptSystem: String
+    val settingsAlwaysOnTopAllWindows: String
+    val settingsAlwaysOnTopBrowser: String
     val settingsHideSidebar: String
     val settingsHideSidebarDesc: String
     val settingsSizeSmall: String
@@ -799,8 +804,6 @@ interface AppStrings {
     val profileDossierUnavailable: String
     val profileDossierAccountAge: String
     val profileDossierFollowers: String
-    val profileDossierWithUs: String
-    val profileDossierNotFollowing: String
     val profileDossierPartner: String
     val profileDossierAffiliate: String
     val profileDossierSubTier: String
@@ -898,6 +901,7 @@ interface AppStrings {
     val gifKeyMissingAction: String
     val gifTierHint: String
     val gifLoadFailed: String
+    val gifChannelDisabled: String
     val gifPoweredBy: String
     val settingsShowChatGifs: String
     val settingsShowChatGifsDesc: String
@@ -1415,6 +1419,7 @@ interface AppStrings {
     val secretHide: String
     val pinReasonNotPinnable: String
     val pinReasonNotConnected: String
+    val chatMessageNotSent: String
     val pinReasonUnknown: String
     fun pinFailed(reason: String): String
     fun noRecentMessageToPin(login: String): String
@@ -1425,6 +1430,9 @@ interface AppStrings {
     val timeline: ChatTimelineStrings
     val launch: LaunchStrings
     val insights: ProfileInsightStrings
+    val modSlider: ModSliderStrings
+    val screenChat: ScreenChatStrings
+    val settingsHub: SettingsHubStrings
 
     companion object {
         fun forLocale(locale: String): AppStrings = when (locale) {

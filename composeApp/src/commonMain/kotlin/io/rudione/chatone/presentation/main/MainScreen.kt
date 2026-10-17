@@ -2,69 +2,30 @@ package io.rudione.chatone.presentation.main
 
 import io.rudione.chatone.domain.model.ChannelTab
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.consumeAllChanges
-import androidx.compose.ui.input.pointer.isSecondaryPressed
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.zIndex
-import coil3.compose.AsyncImage
-import io.rudione.chatone.domain.model.Channel
 import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.chat.ChatScreenCallbacks
 import io.rudione.chatone.presentation.chat.ChatScreenOptions
 import io.rudione.chatone.presentation.chat.ChatSessionIdentity
+import io.rudione.chatone.presentation.components.layoutWidth
 import io.rudione.chatone.presentation.components.DockHost
 import io.rudione.chatone.presentation.components.DockPanel
 import io.rudione.chatone.presentation.components.LocalDockHost
 import io.rudione.chatone.presentation.components.LocalWindowSize
+import io.rudione.chatone.presentation.ai.AiAssistantOverlay
 import io.rudione.chatone.presentation.ai.AiAssistantPanel
 import io.rudione.chatone.presentation.automod.AutomodScreen
 import io.rudione.chatone.presentation.components.ChatoneSplitHandle
@@ -78,10 +39,8 @@ import io.rudione.chatone.presentation.components.SwipeDirection
 import io.rudione.chatone.presentation.components.directionalSwipe
 import io.rudione.chatone.presentation.components.ChatoneTileDefaults
 import io.rudione.chatone.presentation.components.GlowSurface
-import io.rudione.chatone.presentation.components.GradientButton
 import io.rudione.chatone.presentation.components.TileTone
 import io.rudione.chatone.presentation.components.chatoneTile
-import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
 import io.rudione.chatone.presentation.settings.SettingsEvent
@@ -89,25 +48,21 @@ import io.rudione.chatone.presentation.settings.SettingsNavigator
 import io.rudione.chatone.presentation.settings.SettingsScreen
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
+import io.rudione.chatone.presentation.screenchat.ScreenChatWindows
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
 import io.rudione.chatone.util.system.HotkeyAction
 import io.rudione.chatone.util.system.comboFor
 import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
-import io.rudione.chatone.presentation.theme.ChatoneColors
-import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperGlowEdge
-import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.util.system.NotificationLaunches
 import kotlinx.coroutines.flow.filterNotNull
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.math.hypot
 import io.rudione.chatone.presentation.chat.components.ChattersPanel
 import io.rudione.chatone.presentation.main.components.MentionsFeed
 import io.rudione.chatone.presentation.main.components.MentionTabsBar
@@ -119,14 +74,12 @@ import io.rudione.chatone.presentation.main.components.sidebar.MiniRail
 import io.rudione.chatone.presentation.main.components.sidebar.CompactSidebar
 import io.rudione.chatone.presentation.main.components.sidebar.ChannelSidebar
 import io.rudione.chatone.presentation.main.components.sidebar.ChannelTabBar
-import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
 import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
 import io.rudione.chatone.presentation.settings.SettingsEffect
 import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
 import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
 import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.data.repository.AuthRepository
-import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
 import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
@@ -190,6 +143,8 @@ fun MainScreen(
     if (!chatOnScreen) ReportLaunchStage(LaunchStage.Ready)
 
     MultiChatRootSetup()
+    ChannelMenuRequestEffects(viewModel, state.activeChannelLogin)
+    ScreenChatChannelSync(remember(state.openChannels) { state.openChannels.map { it.login } })
     val inputCapabilities = rememberInputCapabilities()
     if (inputCapabilities.hardwareKeyboard) ChatZoomShortcuts()
     val accountManager: AccountManager = koinInject()
@@ -278,13 +233,12 @@ fun MainScreen(
     }
 
     LaunchedEffect(Unit) {
-        NotificationLaunches.pending.filterNotNull().collect { target ->
-            viewModel.sendEvent(MainEvent.SelectChannel(target.channelLogin, target.messageId))
-            NotificationLaunches.consume(target)
+        launch {
+            NotificationLaunches.pending.filterNotNull().collect { target ->
+                viewModel.sendEvent(MainEvent.SelectChannel(target.channelLogin, target.messageId))
+                NotificationLaunches.consume(target)
+            }
         }
-    }
-
-    LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
                 MainEffect.NavigateToAuth -> onNavigateToAuth()
@@ -361,7 +315,6 @@ fun MainScreen(
             ) {
                 val availableWidth = maxWidth
                 val dockHost = remember { DockHost() }
-                var sidebarWidth by remember { mutableStateOf(state.sidebarWidthDp.dp) }
                 var dockWidth by remember { mutableStateOf(ChatoneBreakpoints.dockWidth) }
                 var tornSettings by remember { mutableStateOf(false) }
                 val aiController: AiAssistantController = koinInject()
@@ -407,15 +360,10 @@ fun MainScreen(
                 else ChatoneBreakpoints.of(availableWidth)
                 val isLarge = windowSize == ChatoneWindowSize.Large
                 val isWideScreen = windowSize != ChatoneWindowSize.Compact
-                LaunchedEffect(isWideScreen, isLarge) {
+                SideEffect(isWideScreen, isLarge) {
                     isWideScreenForSettings = isWideScreen
                 }
-                SideEffect { io.rudione.chatone.presentation.components.DockState.large = isLarge }
-
-                var sidebarDragging by remember { mutableStateOf(false) }
-                LaunchedEffect(state.sidebarWidthDp) {
-                    if (!sidebarDragging) sidebarWidth = state.sidebarWidthDp.dp
-                }
+                SideEffect { DockState.large = isLarge }
 
                 val sidebarRailMode = state.sidebarCollapsed
                 val paneChrome = ChatoneTileDefaults.outerPadding * 2 + ChatoneTileDefaults.gap
@@ -423,13 +371,10 @@ fun MainScreen(
                         availableWidth - paneChrome - if (isLarge) ChatoneBreakpoints.minPane * 2
                         else ChatoneBreakpoints.minChatPane
                         ).coerceAtLeast(ChatoneBreakpoints.minPane)
-                val clampedSidebarWidth =
-                    sidebarWidth.coerceIn(ChatoneBreakpoints.minPane, maxSidebarWidth)
-                val effectiveSidebarWidth by animateDpAsState(
-                    targetValue = if (sidebarRailMode) ChatoneBreakpoints.railWidth else clampedSidebarWidth,
-                    animationSpec = if (sidebarDragging) snap() else tween(220),
-                    label = "sidebar_width"
-                )
+                val sidebarTarget = if (sidebarRailMode) ChatoneBreakpoints.railWidth
+                else state.sidebarWidthDp.dp.coerceIn(ChatoneBreakpoints.minPane, maxSidebarWidth)
+                val sidebarWidth = remember { SidebarWidthAnimation(sidebarTarget) }
+                LaunchedEffect(sidebarWidth, sidebarTarget) { sidebarWidth.settle(sidebarTarget) }
 
                 val chatIdentity by rememberUpdatedState(
                     ChatSessionIdentity(
@@ -438,6 +383,11 @@ fun MainScreen(
                         userLogin = state.selectedAccount?.login.orEmpty(),
                         displayName = state.selectedAccount?.displayName.orEmpty()
                     )
+                )
+                ScreenChatWindows(
+                    identity = chatIdentity,
+                    chat = settingsState,
+                    onSettingsChange = { settingsViewModel.sendEvent(SettingsEvent.OnScreenChatChanged(it)) }
                 )
                 val sharedChatCallbacks = remember(viewModel) {
                     ChatScreenCallbacks(
@@ -571,7 +521,7 @@ fun MainScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .width(effectiveSidebarWidth)
+                                    .layoutWidth(sidebarWidth::current)
                                     .then(
                                         if (sidebarRailMode) Modifier
                                         else Modifier.chatoneTile(TileTone.Base)
@@ -644,7 +594,6 @@ fun MainScreen(
                                                 state = state,
                                                 onEvent = { viewModel.sendEvent(it) },
                                                 isWideScreen = true,
-                                                mentionMuteRepository = viewModel.mentionMuteRepository,
                                                 onOpenBrowse = openBrowse
                                             )
                                         }
@@ -664,13 +613,11 @@ fun MainScreen(
                             } else {
                                 ChatoneSplitHandle(
                                     onDelta = { d ->
-                                        sidebarDragging = true
-                                        sidebarWidth = (clampedSidebarWidth + d)
-                                            .coerceIn(ChatoneBreakpoints.minPane, maxSidebarWidth)
+                                        val width = sidebarWidth.drag(d, ChatoneBreakpoints.minPane, maxSidebarWidth)
+                                        scope.launch { sidebarWidth.snapTo(width) }
                                     },
                                     onDragEnd = {
-                                        sidebarDragging = false
-                                        viewModel.sendEvent(MainEvent.SetSidebarWidth(sidebarWidth.value))
+                                        viewModel.sendEvent(MainEvent.SetSidebarWidth(sidebarWidth.endDrag().value))
                                     }
                                 )
                             }
@@ -790,7 +737,7 @@ fun MainScreen(
                                 ChatoneSplitHandle(
                                     onDelta = { d ->
                                         val maxDock =
-                                            availableWidth - effectiveSidebarWidth - ChatoneBreakpoints.minPane
+                                            availableWidth - sidebarWidth.current() - ChatoneBreakpoints.minPane
                                         dockWidth = (dockWidth - d)
                                             .coerceIn(
                                                 ChatoneBreakpoints.minPane,
@@ -1308,12 +1255,20 @@ fun MainScreen(
         }
     }
 
+    CompositionLocalProvider(LocalFloatingStreamPlayer provides floatingPlayer) {
+        Box(Modifier.fillMaxSize().zIndex(ASSISTANT_Z_INDEX)) {
+            AiAssistantOverlay()
+        }
+    }
+
     if (streamUi != null && streamUi.inPictureInPicture) {
         Box(Modifier.fillMaxSize().zIndex(1000f)) {
             streamUi.PictureInPicturePlayer()
         }
     }
 }
+
+private const val ASSISTANT_Z_INDEX = 70f
 
 @Composable
 private fun BoxScope.CompactChannelDrawer(
@@ -1353,7 +1308,6 @@ private fun BoxScope.CompactChannelDrawer(
                 state = state,
                 onEvent = { event: MainEvent -> viewModel.sendEvent(event) },
                 isWideScreen = false,
-                mentionMuteRepository = viewModel.mentionMuteRepository,
                 onOpenBrowse = onOpenBrowse
             )
             if (wallpaperActive && glowEnabled) {

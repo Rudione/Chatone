@@ -1,7 +1,8 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -72,7 +72,7 @@ fun ChatoneSplitHandle(
                 .width(2.dp)
                 .height(46.dp)
                 .clip(RoundedCornerShape(1.dp))
-                .background(tint)
+                .drawBehind { drawRect(tint) }
         )
     }
 }

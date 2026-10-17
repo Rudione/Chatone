@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -15,12 +18,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -61,7 +62,7 @@ internal fun DockEvictionEffects(
 private fun DockEvictionEffect(dockHost: DockHost?, panel: DockPanel, onEvicted: () -> Unit) {
     var wasDocked by remember { mutableStateOf(false) }
     val evicted by rememberUpdatedState(onEvicted)
-    LaunchedEffect(dockHost?.panel) {
+    SideEffect(dockHost?.panel) {
         if (dockHost.evictedFrom(panel, wasDocked)) {
             wasDocked = false
             evicted()
@@ -111,23 +112,25 @@ internal fun ChatDetachedProfileSection(
     onOpenWhisper: OpenWhisperCallback,
     onClose: () -> Unit
 ) {
+    val roles = state.rolesOf(msg)
+    val roleActions = rememberRoleActions(viewModel, msg, roles)
     DetachedProfileWindow(
-        msg = msg,
+        msg = msg.copy(isModerator = roles.moderator, isVip = roles.vip, badges = msg.badges.matching(roles)),
         channelMessages = state.messages,
         accessToken = state.currentAccessToken,
         channelId = state.channelId,
         showModActions = state.canModerate,
-        currentUserIsBroadcaster = state.currentUserLogin.equals(channelLogin, ignoreCase = true),
+        canManageRoles = state.canManageRoles && msg.userId != state.currentUserId,
         isBlocked = msg.userId in state.blockedUserIds,
         onBlock = { viewModel.sendEvent(ChatEvent.OnBlockUser(msg.userId, msg.username)) },
         onUnblock = { viewModel.sendEvent(ChatEvent.OnUnblockUser(msg.userId, msg.username)) },
         onTimeout = { seconds -> viewModel.sendEvent(ChatEvent.OnTimeoutUser(msg.userId, seconds)) },
         onBan = { viewModel.sendEvent(ChatEvent.OnBanUser(msg.userId)) },
         onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(msg.userId)) },
-        onMod = { viewModel.sendEvent(ChatEvent.OnModUser(msg.userId)) },
-        onUnmod = { viewModel.sendEvent(ChatEvent.OnUnmodUser(msg.userId)) },
-        onVip = { viewModel.sendEvent(ChatEvent.OnVipUser(msg.userId)) },
-        onUnvip = { viewModel.sendEvent(ChatEvent.OnUnvipUser(msg.userId)) },
+        onMod = roleActions.onMod,
+        onUnmod = roleActions.onUnmod,
+        onVip = roleActions.onVip,
+        onUnvip = roleActions.onUnvip,
         onWhisper = {
             onOpenWhisper(msg.userId, msg.username, msg.displayName, "", msg.color)
             onClose()
@@ -150,6 +153,8 @@ internal fun ChatProfilePopupSection(
     onDismiss: () -> Unit
 ) {
     val target = rememberResolvedProfileMessage(msg)
+    val roles = state.rolesOf(target)
+    val roleActions = rememberRoleActions(viewModel, target, roles)
     key(currentUserId) {
         UserProfilePopup(
             userId = target.userId,
@@ -159,14 +164,14 @@ internal fun ChatProfilePopupSection(
             channelMessages = state.messages,
             accessToken = state.currentAccessToken,
             channelId = state.channelId,
-            isModerator = target.isModerator,
+            isModerator = roles.moderator,
             isSubscriber = target.isSubscriber,
-            isVip = target.isVip,
+            isVip = roles.vip,
             isBroadcaster = target.isBroadcaster,
-            badges = target.badges,
+            badges = target.badges.matching(roles),
             sevenTvBadge = target.sevenTvBadge,
             showModActions = state.canModerate,
-            currentUserIsBroadcaster = state.currentUserLogin.equals(channelLogin, ignoreCase = true),
+            canManageRoles = state.canManageRoles && target.userId != state.currentUserId,
             isBlocked = target.userId in state.blockedUserIds,
             onBlock = { viewModel.sendEvent(ChatEvent.OnBlockUser(target.userId, target.username)) },
             onUnblock = { viewModel.sendEvent(ChatEvent.OnUnblockUser(target.userId, target.username)) },
@@ -174,10 +179,10 @@ internal fun ChatProfilePopupSection(
             onBan = { viewModel.sendEvent(ChatEvent.OnBanUser(target.userId)) },
             onBanWithReason = { reason -> viewModel.sendEvent(ChatEvent.OnBanUser(target.userId, reason)) },
             onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(target.userId)) },
-            onMod = { viewModel.sendEvent(ChatEvent.OnModUser(target.userId)) },
-            onUnmod = { viewModel.sendEvent(ChatEvent.OnUnmodUser(target.userId)) },
-            onVip = { viewModel.sendEvent(ChatEvent.OnVipUser(target.userId)) },
-            onUnvip = { viewModel.sendEvent(ChatEvent.OnUnvipUser(target.userId)) },
+            onMod = roleActions.onMod,
+            onUnmod = roleActions.onUnmod,
+            onVip = roleActions.onVip,
+            onUnvip = roleActions.onUnvip,
             onWhisper = {
                 onOpenWhisper(target.userId, target.username, target.displayName, "", target.color)
                 onDismiss()
@@ -224,6 +229,7 @@ internal fun ChatEmotePickerSection(
         viewModel.sendEvent(ChatEvent.OnMessageInputChanged(newInput))
     }
     val onGifPicked: (GifSearchItem) -> Unit = { gif -> viewModel.sendEvent(ChatEvent.OnSendGif(gif)) }
+    val onRefreshGifAccess: () -> Unit = { viewModel.sendEvent(ChatEvent.OnRefreshGifAccess) }
     val onDismiss = { viewModel.sendEvent(ChatEvent.OnToggleEmotePicker) }
 
     if (dockHost == null) {
@@ -237,6 +243,8 @@ internal fun ChatEmotePickerSection(
                 onGifSelected = onGifPicked,
                 canSendGifs = state.ownSubTier >= 2,
                 gifSendError = state.gifSendError,
+                gifAccess = state.gifAccess,
+                onRefreshGifAccess = onRefreshGifAccess,
                 onDismiss = onDismiss
             )
         }
@@ -251,6 +259,8 @@ internal fun ChatEmotePickerSection(
                 onGifSelected = onGifPicked,
                 canSendGifs = state.ownSubTier >= 2,
                 gifSendError = state.gifSendError,
+                gifAccess = state.gifAccess,
+                onRefreshGifAccess = onRefreshGifAccess,
                 onDismiss = onDismiss,
                 docked = true
             )

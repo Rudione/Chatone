@@ -148,7 +148,7 @@ fun ChattersPanel(
                         modifier = Modifier.fillMaxWidth().heightIn(max = 340.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        items(filtered, key = { it.userId }) { chatter ->
+                        items(filtered, key = { it.userId }, contentType = { "chatter" }) { chatter ->
                             ChatterRow(
                                 chatter = chatter,
                                 onClick = { onUserClick(chatter.userId, chatter.userLogin, chatter.userName) }

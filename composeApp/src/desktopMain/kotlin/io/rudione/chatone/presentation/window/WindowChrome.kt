@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.window
 
+import io.rudione.chatone.presentation.components.PopupPortalHost
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -187,7 +188,7 @@ fun ChatoneDetachedWindow(
         onCloseRequest = onCloseRequest,
         title = title,
         state = windowState,
-        alwaysOnTop = alwaysOnTop,
+        alwaysOnTop = AppWindowLayer.keepsOnTop(alwaysOnTop),
         resizable = resizable,
         undecorated = isUndecorated,
         icon = appIcon
@@ -211,36 +212,40 @@ fun ChatoneDetachedWindow(
             onDispose { window.removeWindowListener(listener) }
         }
 
-        CompositionLocalProvider(LocalDraggableWindow provides window) {
-            if (withCustomTitleBar) {
-                val captionColor = TitleBarState.captionColor
-                LaunchedEffect(captionColor) {
-                    WindowsTitleBar.applyTitleBarColor(
-                        window, captionColor, TitleBarState.captionIsDark
-                    )
-                }
-                Column(modifier = Modifier.fillMaxSize()) {
-                    ChatoneTitleBar(
-                        title = title,
-                        icon = appIcon,
-                        background = captionColor,
-                        windowState = windowState,
-                        onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
-                        onToggleMaximize = {
-                            windowState.placement =
-                                if (windowState.placement == WindowPlacement.Maximized)
-                                    WindowPlacement.Floating
-                                else
-                                    WindowPlacement.Maximized
-                        },
-                        onClose = onCloseRequest
-                    )
-                    Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                        content()
+        RegisterAppWindow(window)
+
+        PopupPortalHost {
+            CompositionLocalProvider(LocalDraggableWindow provides window) {
+                if (withCustomTitleBar) {
+                    val captionColor = TitleBarState.captionColor
+                    LaunchedEffect(captionColor) {
+                        WindowsTitleBar.applyTitleBarColor(
+                            window, captionColor, TitleBarState.captionIsDark
+                        )
                     }
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ChatoneTitleBar(
+                            title = title,
+                            icon = appIcon,
+                            background = captionColor,
+                            windowState = windowState,
+                            onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
+                            onToggleMaximize = {
+                                windowState.placement =
+                                    if (windowState.placement == WindowPlacement.Maximized)
+                                        WindowPlacement.Floating
+                                    else
+                                        WindowPlacement.Maximized
+                            },
+                            onClose = onCloseRequest
+                        )
+                        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            content()
+                        }
+                    }
+                } else {
+                    content()
                 }
-            } else {
-                content()
             }
         }
     }

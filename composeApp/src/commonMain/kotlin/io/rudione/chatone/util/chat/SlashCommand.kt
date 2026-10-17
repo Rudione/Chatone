@@ -22,7 +22,8 @@ object SlashCommand {
         val usage: String,
         val description: String,
         val requiresMod: Boolean = false,
-        val requiresBroadcaster: Boolean = false
+        val requiresBroadcaster: Boolean = false,
+        val requiresRoleManager: Boolean = false
     )
 
     val ALL: List<CommandInfo> = listOf(
@@ -159,27 +160,27 @@ object SlashCommand {
             "Disable unique-chat",
             requiresMod = true
         ),
-        CommandInfo("vip", listOf("vip"), "/vip <user>", "Add a VIP", requiresBroadcaster = true),
+        CommandInfo("vip", listOf("vip"), "/vip <user>", "Add a VIP", requiresRoleManager = true),
         CommandInfo(
             "unvip",
             listOf("unvip"),
             "/unvip <user>",
             "Remove a VIP",
-            requiresBroadcaster = true
+            requiresRoleManager = true
         ),
         CommandInfo(
             "mod",
             listOf("mod"),
             "/mod <user>",
             "Add a moderator",
-            requiresBroadcaster = true
+            requiresRoleManager = true
         ),
         CommandInfo(
             "unmod",
             listOf("unmod"),
             "/unmod <user>",
             "Remove a moderator",
-            requiresBroadcaster = true
+            requiresRoleManager = true
         ),
         CommandInfo(
             "shoutout",
@@ -334,7 +335,12 @@ object SlashCommand {
 
     enum class NukeAction { DELETE, TIMEOUT, BAN }
 
-    fun suggest(input: String, isMod: Boolean, isBroadcaster: Boolean): List<CommandInfo> {
+    fun suggest(
+        input: String,
+        isMod: Boolean,
+        isBroadcaster: Boolean,
+        canManageRoles: Boolean = isBroadcaster
+    ): List<CommandInfo> {
         if (!input.startsWith("/")) return emptyList()
         val firstSpace = input.indexOf(' ')
         if (firstSpace >= 0) return emptyList()
@@ -343,6 +349,7 @@ object SlashCommand {
             .filter { ci ->
                 when {
                     ci.requiresBroadcaster -> isBroadcaster
+                    ci.requiresRoleManager -> canManageRoles
                     ci.requiresMod -> isMod || isBroadcaster
                     else -> true
                 }

@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.stream
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -50,11 +53,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,7 +94,7 @@ private val ScrimColor = Color.Black
 @Immutable
 internal data class StreamControlsCallbacks(
     val onEvent: (StreamPlayerEvent) -> Unit,
-    val onBack: () -> Unit,
+    val onBack: (() -> Unit)?,
     val onToggleFullscreen: () -> Unit,
     val onEnterPictureInPicture: () -> Unit
 )
@@ -134,13 +135,15 @@ internal fun BoxScope.StreamControlsOverlay(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        PlayerIconButton(
-            icon = Icons.AutoMirrored.Rounded.ArrowBack,
-            contentDescription = strings.back,
-            onClick = callbacks.onBack,
-            size = buttonSize,
-            iconSize = iconSize
-        )
+        callbacks.onBack?.let { onBack ->
+            PlayerIconButton(
+                icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = strings.back,
+                onClick = onBack,
+                size = buttonSize,
+                iconSize = iconSize
+            )
+        }
         Spacer(Modifier.weight(1f))
         if (pictureInPictureSupported && state.isPlaybackActive) {
             PlayerIconButton(
@@ -382,7 +385,7 @@ internal fun PlayerIconButton(
                 scaleY = scale
             }
             .clip(CircleShape)
-            .background(container)
+            .drawBehind { drawRect(container) }
             .clickable(
                 interactionSource = interaction,
                 indication = null,

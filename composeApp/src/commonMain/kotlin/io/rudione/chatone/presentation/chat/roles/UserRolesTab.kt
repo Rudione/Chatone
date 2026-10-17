@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.chat.roles
 
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -22,13 +24,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,7 +42,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.ChannelRole
@@ -112,7 +109,6 @@ internal fun UserRolesTab(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RoleTabs(
     roles: List<ChannelRole>,
@@ -121,54 +117,14 @@ private fun RoleTabs(
     onSelect: (ChannelRole) -> Unit
 ) {
     val insights = LocalStrings.current.insights
-    val accent = MaterialTheme.colorScheme.primary
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    val selectedIndex = roles.indexOf(selected).coerceAtLeast(0)
-    PrimaryTabRow(
-        selectedTabIndex = selectedIndex,
-        containerColor = Color.Transparent,
-        contentColor = accent,
-        indicator = {
-            TabRowDefaults.PrimaryIndicator(
-                modifier = Modifier.tabIndicatorOffset(selectedIndex, matchContentSize = true),
-                width = Dp.Unspecified,
-                height = 2.dp,
-                color = accent,
-                shape = RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp)
-            )
-        },
-        divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)) }
-    ) {
-        roles.forEach { role ->
-            val isSelected = role == selected
-            Tab(
-                selected = isSelected,
-                onClick = { onSelect(role) },
-                selectedContentColor = accent,
-                unselectedContentColor = muted
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 2.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
-                ) {
-                    Text(
-                        roleTitle(insights, role),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Text(
-                        countOf(role).toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isSelected) accent.copy(alpha = 0.75f) else muted.copy(alpha = 0.6f)
-                    )
-                }
-            }
-        }
-    }
+    ExpressiveTabs(
+        tabs = roles,
+        selected = selected,
+        onSelect = onSelect,
+        label = { roleTitle(insights, it) },
+        badge = countOf,
+        size = ExpressiveTabSize.Compact
+    )
 }
 
 @Composable
@@ -198,11 +154,11 @@ private fun RoleChannelsList(
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(vertical = 3.dp)
     ) {
-        items(list.channels, key = { it.id }) { channel ->
+        items(list.channels, key = { it.id }, contentType = { "channel" }) { channel ->
             RoleChannelRow(channel = channel, onClick = { onOpenChannel(channel.login) })
         }
         if (list.isLoading || list.failed) {
-            item(key = "more") {
+            item(key = "more", contentType = "more") {
                 Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
                     if (list.isLoading) {
                         CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp)

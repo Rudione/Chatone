@@ -24,6 +24,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -90,6 +91,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
@@ -147,12 +149,12 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import io.ktor.client.HttpClient
+import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.EmoteRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.di.UntrustedContentClientQualifier
@@ -164,6 +166,12 @@ import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.MentionEntry
 import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.presentation.chat.components.ChannelHeaderBlock
+import io.rudione.chatone.domain.moderation.ModSliderAction
+import io.rudione.chatone.presentation.chat.modslider.ModSliderBinding
+import io.rudione.chatone.presentation.chat.modslider.ModSliderGrabZone
+import io.rudione.chatone.presentation.chat.modslider.ModSliderGutter
+import io.rudione.chatone.presentation.chat.modslider.modSliderRow
+import io.rudione.chatone.presentation.chat.modslider.rememberModSliderHandle
 import io.rudione.chatone.presentation.chat.components.ChatGifBlock
 import io.rudione.chatone.presentation.chat.components.ChatTopBar
 import io.rudione.chatone.presentation.chat.components.BadgeIcon
@@ -212,7 +220,7 @@ import io.rudione.chatone.util.link.openChatUrl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.koinInject
@@ -227,6 +235,12 @@ import io.rudione.chatone.icons.lucide.Reply
 import io.rudione.chatone.icons.lucide.Star
 import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.icons.lucide.Trash2
+import io.rudione.chatone.presentation.chat.components.TwitchClipCard
+import io.rudione.chatone.util.media.ImageSource
+import io.rudione.chatone.util.media.LinkImageResolver
+import io.rudione.chatone.util.media.TwitchClipCache
+import io.rudione.chatone.util.media.TwitchClipInfo
+import io.rudione.chatone.presentation.components.PortalPopup
 
 @Composable
 fun PrivMsgItem(
@@ -234,6 +248,7 @@ fun PrivMsgItem(
     isCompact: Boolean = false,
     showModActions: Boolean = false,
     modActionsOnHover: Boolean = false,
+    modButtonsVisible: Boolean = true,
     timestampFormat: SettingsState.TimestampFormat = SettingsState.TimestampFormat.H24,
     showBadges: Boolean = true,
     isMod: Boolean = false,
@@ -257,12 +272,14 @@ fun PrivMsgItem(
     onCustomTimeout: (Int) -> Unit = {},
     onBan: () -> Unit = {},
     onDelete: () -> Unit = {},
+    onUnban: () -> Unit = {},
+    modSlider: ModSliderBinding? = null,
     actorCanModerate: Boolean = false,
     actorIsBroadcaster: Boolean = false,
     searchHighlightQuery: String = "",
-    highlightRules: List<io.rudione.chatone.domain.model.HighlightRule> = emptyList(),
+    highlightRules: List<HighlightRule> = emptyList(),
     zebraTint: Color = Color.Transparent,
-    extraVerticalPadding: androidx.compose.ui.unit.Dp = 0.dp,
+    extraVerticalPadding: Dp = 0.dp,
     repeatCount: Int = 1,
     userColorByLogin: ChatterColors = ChatterColors.None,
     accessToken: String = "",
@@ -290,11 +307,8 @@ fun PrivMsgItem(
     val mentionBgColor = Color(ChatoneTheme.colorTokens.mentionBg)
     val mentionAccentColor = ruleColor("username", ChatoneTheme.colorTokens.mentionAccent)
     val isOwnMessage = currentUserId.isNotEmpty() && message.userId == currentUserId
-    val isSearchMatch = searchHighlightQuery.isNotBlank() && run {
-        val msgText = message.rawMessage?.message ?: message.tokens.joinToString("") {
-            it.plainText()
-        }
-        msgText.contains(searchHighlightQuery, ignoreCase = true)
+    val isSearchMatch = searchHighlightQuery.isNotBlank() && remember(message.rawMessage, messageRawText, searchHighlightQuery) {
+        (message.rawMessage?.message ?: messageRawText).contains(searchHighlightQuery, ignoreCase = true)
     }
     val backgroundColor = when {
         isSearchMatch -> searchBgColor
@@ -339,22 +353,22 @@ fun PrivMsgItem(
 
     val clipLinks = remember(message.tokens) {
         message.tokens.filterIsInstance<MessageToken.Link>()
-            .mapNotNull { link -> io.rudione.chatone.util.media.TwitchClipCache.extractSlug(link.url)?.let { link to it } }
+            .mapNotNull { link -> TwitchClipCache.extractSlug(link.url)?.let { link to it } }
     }
     val clipInfoByUrl = remember(clipLinks) {
-        mutableStateMapOf<String, io.rudione.chatone.util.media.TwitchClipInfo?>().apply {
+        mutableStateMapOf<String, TwitchClipInfo?>().apply {
             clipLinks.forEach { (link, slug) ->
-                put(link.url, io.rudione.chatone.util.media.TwitchClipCache.cached(slug))
+                put(link.url, TwitchClipCache.cached(slug))
             }
         }
     }
     if (clipLinks.isNotEmpty() && accessToken.isNotBlank()) {
-        val twitchApiClient: io.rudione.chatone.data.remote.TwitchApiClient = koinInject()
+        val twitchApiClient: TwitchApiClient = koinInject()
         LaunchedEffect(clipLinks, accessToken) {
             clipLinks.forEach { (link, slug) ->
                 if (clipInfoByUrl[link.url] == null) {
                     clipInfoByUrl[link.url] =
-                        io.rudione.chatone.util.media.TwitchClipCache.fetch(twitchApiClient, accessToken, slug)
+                        TwitchClipCache.fetch(twitchApiClient, accessToken, slug)
                 }
             }
         }
@@ -367,29 +381,72 @@ fun PrivMsgItem(
     val hoverTarget = if (rowHovered && backgroundColor == Color.Transparent) {
         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)
     } else Color.Transparent
-    val hoverOverlay = if (isDesktopPlatform) animateColorAsState(hoverTarget, tween(100)).value else hoverTarget
+    val hoverOverlay = if (isDesktopPlatform) animateColorAsState(hoverTarget, tween(100)) else rememberUpdatedState(hoverTarget)
     val modActionsAllowed = showModActions && (actorCanModerate || actorIsBroadcaster)
     val modActionsVisible = modActionsAllowed && (!modActionsOnHover || rowHovered)
-
-    val effectiveBg = when {
-        backgroundColor != Color.Transparent -> backgroundColor
-        hoverOverlay != Color.Transparent -> hoverOverlay
-        else -> zebraTint
-    }
+    val sliderHandle = if (modSlider != null && modActionsAllowed) {
+        val sliderCanAct = canActOnUser(
+            actorIsBroadcaster = actorIsBroadcaster,
+            actorIsMod = actorCanModerate,
+            targetIsBroadcaster = message.isBroadcaster,
+            targetIsMod = message.isModerator,
+            targetIsVip = message.isVip,
+            targetIsSubscriber = message.isSubscriber,
+            actorIsGrandMod = false,
+            targetIsGrandMod = message.isGrandMod
+        )
+        rememberModSliderHandle(
+            binding = modSlider,
+            canDelete = sliderCanAct || isOwnMessage,
+            canPunish = sliderCanAct && !isOwnMessage,
+            hovered = { rowHovered }
+        ) { action ->
+            when (action) {
+                ModSliderAction.Delete -> onDelete()
+                is ModSliderAction.Timeout -> onCustomTimeout(action.seconds)
+                ModSliderAction.Ban -> onBan()
+                ModSliderAction.Unban -> onUnban()
+            }
+        }
+    } else null
+    val defaultDeleteShown = showDefaultDeleteButton && sliderHandle == null
+    val defaultTimeoutShown = showDefaultTimeoutButton && sliderHandle == null
+    val defaultBanShown = showDefaultBanButton && sliderHandle == null
+    val sliderPrefixButtons = sliderHandle != null && modButtonsVisible && showCustomModButtons && !isOwnMessage &&
+        sliderHandle.track.backward != null &&
+        (resolvedModButtons.ifEmpty { customModButtons }).any { !it.isDefault && it.enabled }
+    val prefixVisible = modActionsVisible && modButtonsVisible && (sliderHandle == null || sliderPrefixButtons)
+    val sliderGutter = modSlider != null && modActionsAllowed
+    val sliderRowModifier = if (sliderHandle != null && modSlider != null) {
+        Modifier.modSliderRow(sliderHandle.state, modSlider.style)
+    } else Modifier
     val baseVerticalPadding = 2.dp + extraVerticalPadding
     val rowVerticalPadding = if (hasAccentBar) baseVerticalPadding * 1.1f else baseVerticalPadding
-    Column(
-        modifier = modifier.fillMaxWidth()
-            .background(effectiveBg)
-            .then(accentBarModifier)
-            .handleHover(onEnter = { rowHovered = true }, onExit = { rowHovered = false })
-            .padding(
-                start = if (hasAccentBar) 8.dp else 4.dp,
-                end = 4.dp,
-                top = rowVerticalPadding,
-                bottom = rowVerticalPadding
+    val rowStartPadding = when {
+        sliderGutter -> ModSliderGutter
+        hasAccentBar -> 8.dp
+        else -> 4.dp
+    }
+    val rowHoverModifier = Modifier.handleHover(onEnter = { rowHovered = true }, onExit = { rowHovered = false })
+    val rowBodyModifier = Modifier.fillMaxWidth()
+        .drawBehind {
+            val overlay = hoverOverlay.value
+            drawRect(
+                when {
+                    backgroundColor != Color.Transparent -> backgroundColor
+                    overlay != Color.Transparent -> overlay
+                    else -> zebraTint
+                }
             )
-    ) {
+        }
+        .then(accentBarModifier)
+        .padding(
+            start = rowStartPadding,
+            end = 4.dp,
+            top = rowVerticalPadding,
+            bottom = rowVerticalPadding
+        )
+    val rowBody: @Composable ColumnScope.() -> Unit = {
         if (message.rewardName != null) {
             val rewardLabel = when (message.rewardName) {
                 "Highlight My Message" -> s.rewardHighlightMyMessage
@@ -428,7 +485,7 @@ fun PrivMsgItem(
         if (useCompact) {
             CompactMessageLayout(
                 message = message,
-                showModActions = modActionsVisible,
+                showModActions = prefixVisible,
                 showTimestamp = showTimestamp,
                 timestampFormat = timestampFormat,
                 showBadges = showBadges,
@@ -440,9 +497,10 @@ fun PrivMsgItem(
                 allModButtons = resolvedModButtons,
                 modButtonsVersion = modButtonsVersion,
                 showCustomModButtons = showCustomModButtons,
-                showDefaultDeleteButton = showDefaultDeleteButton,
-                showDefaultTimeoutButton = showDefaultTimeoutButton,
-                showDefaultBanButton = showDefaultBanButton,
+                showDefaultDeleteButton = defaultDeleteShown,
+                showDefaultTimeoutButton = defaultTimeoutShown,
+                showDefaultBanButton = defaultBanShown,
+                sliderHandle = sliderHandle,
                 chatFontSizeSp = chatFontSizeSp,
                 onUsernameClick = onUsernameClick,
                 onRightClickUsername = onRightClickUsername,
@@ -534,7 +592,7 @@ fun PrivMsgItem(
                 verticalAlignment = Alignment.Top
             ) {
                 val firstLineHeight = chatFirstLineHeight(chatFontSizeSp)
-                if (modActionsVisible) {
+                if (prefixVisible) {
                     Row(
                         modifier = Modifier.height(firstLineHeight),
                         verticalAlignment = Alignment.CenterVertically,
@@ -571,7 +629,7 @@ fun PrivMsgItem(
                                     key(btn.id) {
                                         when (btn.id) {
                                             "default_delete" -> {
-                                                if (showDefaultDeleteButton && (canAct || isOwnMessage)) {
+                                                if (defaultDeleteShown && (canAct || isOwnMessage)) {
                                                     ModActionIconBtn(
                                                         icon = Lucide.Trash2,
                                                         label = s.chatDeleteMessage,
@@ -582,7 +640,7 @@ fun PrivMsgItem(
                                             }
 
                                             "default_timeout" -> {
-                                                if (showDefaultTimeoutButton && canAct && !isOwnMessage) {
+                                                if (defaultTimeoutShown && canAct && !isOwnMessage) {
                                                     val parts = ModActionButton.DEFAULT_TIMEOUT.durationParts
                                                     ModActionIconBtn(
                                                         icon = Lucide.Timer,
@@ -596,7 +654,7 @@ fun PrivMsgItem(
                                             }
 
                                             "default_ban" -> {
-                                                if (showDefaultBanButton && canAct && !isOwnMessage) {
+                                                if (defaultBanShown && canAct && !isOwnMessage) {
                                                     ModActionIconBtn(
                                                         icon = Lucide.Ban,
                                                         label = s.chatBanUser,
@@ -644,6 +702,9 @@ fun PrivMsgItem(
                 val emoteKeyMap = mutableMapOf<String, GenericEmote>()
                 var emoteCounter = 0
 
+                val timestampLength = if (timestampFormat != SettingsState.TimestampFormat.OFF) {
+                    formatTimestamp(message.timestamp, timestampFormat).length
+                } else 0
                 val annotatedString = buildAnnotatedString {
                     if (timestampFormat != SettingsState.TimestampFormat.OFF) {
                         withStyle(
@@ -893,22 +954,23 @@ fun PrivMsgItem(
                 }
                 Box(modifier = Modifier.weight(1f)) {
                     val messageText: @Composable () -> Unit = {
-                        Text(
-                            text = buildAnnotatedString {
+                        val displayText = remember(annotatedString, repeatCount, mentionColor) {
+                            if (repeatCount <= 1) annotatedString else buildAnnotatedString {
                                 append(annotatedString)
-                                if (repeatCount > 1) {
-                                    append("  ")
-                                    withStyle(
-                                        SpanStyle(
-                                            color = mentionColor,
-                                            fontWeight = FontWeight.Bold,
-                                            background = mentionColor.copy(alpha = 0.12f)
-                                        )
-                                    ) {
-                                        append(" ×$repeatCount ")
-                                    }
+                                append("  ")
+                                withStyle(
+                                    SpanStyle(
+                                        color = mentionColor,
+                                        fontWeight = FontWeight.Bold,
+                                        background = mentionColor.copy(alpha = 0.12f)
+                                    )
+                                ) {
+                                    append(" ×$repeatCount ")
                                 }
-                            },
+                            }
+                        }
+                        Text(
+                            text = displayText,
                             inlineContent = inlineContent,
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontSize = resolvedChatFontSize.sp,
@@ -1114,13 +1176,16 @@ fun PrivMsgItem(
                                         }
                                     }
                                 }),
-                            onTextLayout = { textLayoutResult = it }
+                            onTextLayout = { layout ->
+                                textLayoutResult = layout
+                                sliderHandle?.reportTimestamp(layout, timestampLength)
+                            }
                         )
                     }
                     if (isDesktopPlatform) SelectionContainer(content = messageText) else messageText()
 
                     hoveredUrl?.let { url ->
-                        Popup(
+                        PortalPopup(
                             popupPositionProvider = object : PopupPositionProvider {
                                 override fun calculatePosition(
                                     anchorBounds: IntRect,
@@ -1152,7 +1217,7 @@ fun PrivMsgItem(
                 }
 
                 if (showContextMenu) {
-                    Popup(
+                    PortalPopup(
                         alignment = Alignment.TopStart,
                         offset = contextMenuOffset + IntOffset(8, 8),
                         properties = PopupProperties(
@@ -1238,7 +1303,7 @@ fun PrivMsgItem(
         if (imageLinks.isNotEmpty() && inlineSettings.showInlineImages != InlineImageMode.OFF && !message.isDeleted) {
             imageLinks.forEach { link ->
                 val isAutoLoadHost = remember(link.url) {
-                    io.rudione.chatone.util.media.LinkImageResolver.isAutoLoadHost(link.url)
+                    LinkImageResolver.isAutoLoadHost(link.url)
                 }
                 var isLoadAllowed by remember(link.url) { mutableStateOf(isAutoLoadHost) }
                 var isRevealed by remember(link.url) {
@@ -1308,7 +1373,7 @@ fun PrivMsgItem(
             clipLinks.forEach { (link, _) ->
                 val clipInfo = clipInfoByUrl[link.url]
                 if (clipInfo != null) {
-                    io.rudione.chatone.presentation.chat.components.TwitchClipCard(
+                    TwitchClipCard(
                         clip = clipInfo,
                         onClick = {
                             try {
@@ -1322,6 +1387,18 @@ fun PrivMsgItem(
                 }
             }
         }
+    }
+    if (sliderHandle != null) {
+        Box(modifier = sliderRowModifier.then(modifier).fillMaxWidth().then(rowHoverModifier)) {
+            Column(modifier = rowBodyModifier, content = rowBody)
+            ModSliderGrabZone(
+                handle = sliderHandle,
+                reachTimestamp = !sliderPrefixButtons,
+                modifier = Modifier.matchParentSize()
+            )
+        }
+    } else {
+        Column(modifier = modifier.fillMaxWidth().then(rowHoverModifier).then(rowBodyModifier), content = rowBody)
     }
 }
 
@@ -1404,21 +1481,21 @@ internal fun ModActionIconBtn(
 @Composable
 internal fun rememberResolvedImageUrl(pageUrl: String): String? {
     val immediate = remember(pageUrl) {
-        io.rudione.chatone.util.media.LinkImageResolver.resolveImmediate(pageUrl)
+        LinkImageResolver.resolveImmediate(pageUrl)
     }
     if (immediate != null) return immediate
 
     val httpClient: HttpClient = koinInject(UntrustedContentClientQualifier)
     var resolved by remember(pageUrl) {
         mutableStateOf(
-            (io.rudione.chatone.util.media.LinkImageResolver.cached(pageUrl)
-                    as? io.rudione.chatone.util.media.ImageSource.Direct)?.imageUrl
+            (LinkImageResolver.cached(pageUrl)
+                    as? ImageSource.Direct)?.imageUrl
         )
     }
     LaunchedEffect(pageUrl) {
         if (resolved == null) {
-            val source = io.rudione.chatone.util.media.LinkImageResolver.resolve(httpClient, pageUrl)
-            resolved = (source as? io.rudione.chatone.util.media.ImageSource.Direct)?.imageUrl
+            val source = LinkImageResolver.resolve(httpClient, pageUrl)
+            resolved = (source as? ImageSource.Direct)?.imageUrl
         }
     }
     return resolved

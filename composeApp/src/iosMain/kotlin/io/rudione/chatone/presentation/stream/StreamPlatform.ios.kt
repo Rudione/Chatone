@@ -33,6 +33,14 @@ actual fun rememberStreamOrientationController(active: Boolean): StreamOrientati
 actual fun rememberPictureInPictureController(): PictureInPictureController = UnsupportedPictureInPictureController
 
 @Composable
+actual fun rememberAppBackgroundController(): AppBackgroundController = NoOpAppBackgroundController
+
+private val NoOpAppBackgroundController = AppBackgroundController {}
+
+@Composable
+actual fun PictureInPictureDismissEffect(controller: PictureInPictureController, onDismissed: () -> Unit) = Unit
+
+@Composable
 actual fun PictureInPictureAutoEnterEffect(
     controller: PictureInPictureController,
     enabled: Boolean,
@@ -50,5 +58,5 @@ private object NoOpStreamOrientationController : StreamOrientationController {
 private object UnsupportedPictureInPictureController : PictureInPictureController {
     override val isSupported: Boolean = false
     override val isActive: Boolean = false
-    override fun enter() = Unit
+    override fun enter(): Boolean = false
 }

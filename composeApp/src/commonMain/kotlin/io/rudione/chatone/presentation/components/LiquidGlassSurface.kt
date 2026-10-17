@@ -66,6 +66,10 @@ fun Modifier.chatoneGlassPanel(
         shape
     )
 
+object LiquidGlassDefaults {
+    const val SMOKE_ALPHA = 0.8f
+}
+
 @Composable
 fun LiquidGlassSurface(
     modifier: Modifier = Modifier,
@@ -104,7 +108,11 @@ fun LiquidGlassSurface(
 
     val shimmerProgress = if (shimmer && glowEnabled) rememberShimmerProgress() else null
     val scheme = MaterialTheme.colorScheme
-    val surfaceColor = if (glowEnabled) baseColor.copy(alpha = alphaHigh).compositeOver(scheme.background) else scheme.surfaceContainer
+    val smoke = scheme.background.copy(alpha = LiquidGlassDefaults.SMOKE_ALPHA)
+    val glassTop = baseColor.copy(alpha = alphaHigh).compositeOver(smoke)
+    val glassBottom = baseColor.copy(alpha = alphaLow).compositeOver(smoke)
+    val glassBrush = remember(glassTop, glassBottom) { Brush.verticalGradient(listOf(glassTop, glassBottom)) }
+    val surfaceColor = if (glowEnabled) glassTop.compositeOver(scheme.background) else scheme.surfaceContainer
     val contentColor = remember(surfaceColor, scheme.onSurface) { readableOn(scheme.onSurface, surfaceColor) }
 
     Box(
@@ -113,14 +121,7 @@ fun LiquidGlassSurface(
             .then(
                 if (glowEnabled) {
                     Modifier
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    baseColor.copy(alpha = alphaHigh),
-                                    baseColor.copy(alpha = alphaLow)
-                                )
-                            )
-                        )
+                        .background(glassBrush)
                         .border(
                             width = 1.dp,
                             brush = Brush.verticalGradient(

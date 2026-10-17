@@ -45,11 +45,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.ic_twitch
 import coil3.compose.AsyncImage
+import io.rudione.chatone.data.remote.AccountBadge
+import io.rudione.chatone.data.remote.BadgeHqClient
 import io.rudione.chatone.data.remote.GqlDisplayBadge
 import io.rudione.chatone.data.remote.GqlUsercardMessage
 import io.rudione.chatone.data.remote.IvrApiClient
@@ -58,7 +59,7 @@ import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.remote.TwitchGqlClient
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
-import io.rudione.chatone.data.repository.ModerationHistoryEntry
+import io.rudione.chatone.data.repository.ModerationHistory
 import io.rudione.chatone.data.repository.ModerationHistoryRepository
 import io.rudione.chatone.data.repository.UserNoteRepository
 import io.rudione.chatone.domain.model.Badge
@@ -70,7 +71,7 @@ import io.rudione.chatone.presentation.components.ExpressiveCheckbox
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.painterResource
@@ -87,6 +88,7 @@ import io.rudione.chatone.icons.lucide.CopyCheck
 import io.rudione.chatone.icons.lucide.ExternalLink
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
+import io.rudione.chatone.presentation.components.PortalPopup
 
 private const val MOBILE_PROFILE_POSITION_KEY = "mobile.profile_popup"
 
@@ -110,7 +112,7 @@ fun UserProfilePopup(
     channelMessages: List<DisplayMessage> = emptyList(),
     showModActions: Boolean = false,
 
-    currentUserIsBroadcaster: Boolean = false,
+    canManageRoles: Boolean = false,
     isBlocked: Boolean = false,
     onBlock: () -> Unit = {},
     onUnblock: () -> Unit = {},
@@ -152,7 +154,7 @@ fun UserProfilePopup(
                     .takeLast(1000)
             },
             canModerate = showModActions,
-            currentUserIsBroadcaster = currentUserIsBroadcaster,
+            canManageRoles = canManageRoles,
             isBlocked = isBlocked,
             channelId = channelId,
             channelLogin = channelLogin,
@@ -186,7 +188,7 @@ fun UserProfilePopup(
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     val clipboardManager = LocalClipboardManager.current
 
-    var moderationHistory by remember(userId) { mutableStateOf<List<ModerationHistoryEntry>>(emptyList()) }
+    var moderationHistory by remember(userId) { mutableStateOf(ModerationHistory.Empty) }
     var isModerationHistoryLoading by remember(userId) { mutableStateOf(false) }
     val archive = rememberUserLogArchive(channelId, userId)
     val roles = rememberUserRoles(userId, username)
@@ -225,6 +227,8 @@ fun UserProfilePopup(
     var gqlBadges by remember(userId) {
         mutableStateOf<List<GqlDisplayBadge>>(emptyList())
     }
+    var accountBadges by remember(userId) { mutableStateOf<List<AccountBadge>>(emptyList()) }
+    val badgeHqClient: BadgeHqClient = koinInject()
     var followedAt by remember(userId) { mutableStateOf<String?>(null) }
     var subAge by remember(userId) { mutableStateOf<SubAgeInfo?>(null) }
     val ivrApiClient: IvrApiClient = koinInject()
@@ -253,6 +257,7 @@ fun UserProfilePopup(
         followedAt = null
         subAge = null
         gqlBadges = emptyList()
+        accountBadges = emptyList()
         if (username.isNotEmpty() && channelLogin.isNotEmpty()) {
             launch { subAge = ivrApiClient.getSubAge(username, channelLogin) }
         }
@@ -262,6 +267,7 @@ fun UserProfilePopup(
                     twitchGqlClient.getUserDisplayBadges(username, channelLogin, accessToken)
                 }.getOrDefault(emptyList())
             }
+            launch { accountBadges = badgeHqClient.accountBadges(username).orEmpty() }
         }
 
         if (channelId.isNotEmpty() && userId.isNotEmpty()) {
@@ -349,11 +355,11 @@ fun UserProfilePopup(
                         Key.U -> { onUnban(); onDismiss(); true }
                         Key.W -> { onWhisper(); onDismiss(); true }
                         Key.K -> { if (isBlocked) onUnblock() else onBlock(); onDismiss(); true }
-                        Key.M -> if (currentUserIsBroadcaster) {
-                            if (isModerator) onUnmod() else onMod(); onDismiss(); true
+                        Key.M -> if (canManageRoles) {
+                            if (isModerator) onUnmod() else onMod(); true
                         } else false
-                        Key.V -> if (currentUserIsBroadcaster) {
-                            if (isVip) onUnvip() else onVip(); onDismiss(); true
+                        Key.V -> if (canManageRoles) {
+                            if (isVip) onUnvip() else onVip(); true
                         } else false
                         else -> false
                     }
@@ -373,6 +379,7 @@ fun UserProfilePopup(
                     color = color,
                     badges = badges,
                     gqlBadges = gqlBadges,
+                    accountBadges = accountBadges,
                     sevenTvBadge = sevenTvBadge,
                     isBroadcaster = isBroadcaster,
                     isModerator = isModerator,
@@ -382,14 +389,14 @@ fun UserProfilePopup(
                     onDismiss = onDismiss
                 )
                 val showHistoryTab = showModActions &&
-                        (isModerationHistoryLoading || moderationHistory.isNotEmpty())
+                        (isModerationHistoryLoading || moderationHistory.totalActions > 0)
                 val activeTab = if (selectedTab == 2 && !showHistoryTab) 1 else selectedTab
                 CompactProfileTabs(
                     selectedTab = activeTab,
                     onSelect = { selectedTab = it },
                     messagesCount = userMessages.size,
                     showHistoryTab = showHistoryTab,
-                    historyCount = moderationHistory.size,
+                    historyCount = moderationHistory.totalActions,
                     showRolesTab = roles.isSupported,
                     trailing = {
                         if (activeTab == 1) {
@@ -425,7 +432,7 @@ fun UserProfilePopup(
                         isModerator = isModerator,
                         isVip = isVip,
                         isSubscriber = isSubscriber,
-                        currentUserIsBroadcaster = currentUserIsBroadcaster,
+                        canManageRoles = canManageRoles,
                         isBlocked = isBlocked,
                         onBlock = onBlock,
                         onUnblock = onUnblock,
@@ -465,7 +472,7 @@ fun UserProfilePopup(
                     )
 
                     2 -> ModerationHistoryTab(
-                        entries = moderationHistory,
+                        history = moderationHistory,
                         isLoading = isModerationHistoryLoading
                     )
 
@@ -486,7 +493,7 @@ fun UserProfilePopup(
             )
         ) { dragHandle -> card(dragHandle) }
     } else {
-        Popup(
+        PortalPopup(
             popupPositionProvider = rememberFloatingPopupPositionProvider(placement),
             onDismissRequest = onDismiss,
             properties = PopupProperties(focusable = true)
@@ -543,6 +550,7 @@ fun UserProfileHeader(
     modifier: Modifier = Modifier,
     userId: String = "",
     gqlBadges: List<GqlDisplayBadge> = emptyList(),
+    accountBadges: List<AccountBadge> = emptyList(),
     onDetach: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
     showIconDetached: Boolean = true
@@ -552,7 +560,7 @@ fun UserProfileHeader(
     val uriHandler = LocalUriHandler.current
     val sevenTv = rememberSevenTvCosmetic(userId)
     val thirdPartyMaps = LocalThirdPartyBadges.current
-    val badgeItems = remember(userId, badges, gqlBadges, sevenTvBadge, thirdPartyMaps) {
+    val badgeItems = remember(userId, badges, gqlBadges, sevenTvBadge, thirdPartyMaps, accountBadges) {
         buildProfileBadges(
             chatBadges = badges,
             gqlBadges = gqlBadges,
@@ -560,7 +568,8 @@ fun UserProfileHeader(
             thirdPartyBadges = buildList {
                 thirdPartyMaps.ffzByLogin[username.lowercase()]?.let { addAll(it) }
                 thirdPartyMaps.bttvByUserId[userId]?.let { add(it) }
-            }
+            },
+            accountBadges = accountBadges
         )
     }
 

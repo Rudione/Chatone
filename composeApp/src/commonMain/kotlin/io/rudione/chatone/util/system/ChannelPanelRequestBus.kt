@@ -17,4 +17,18 @@ object ChannelPanelRequestBus {
     fun requestToggleHiddenEvents(channelLogin: String) {
         _toggleHiddenEvents.tryEmit(channelLogin)
     }
+
+    private val _showChatters = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val showChatters: SharedFlow<String> = _showChatters
+
+    fun requestShowChatters(channelLogin: String) {
+        _showChatters.tryEmit(channelLogin)
+    }
+
+    private val _mentionsMuted = MutableSharedFlow<Pair<String, Boolean>>(extraBufferCapacity = 1)
+    val mentionsMuted: SharedFlow<Pair<String, Boolean>> = _mentionsMuted
+
+    fun requestSetMentionsMuted(channelLogin: String, muted: Boolean) {
+        _mentionsMuted.tryEmit(channelLogin to muted)
+    }
 }

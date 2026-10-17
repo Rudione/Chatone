@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.zoom
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -27,10 +30,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
@@ -114,10 +115,10 @@ fun ChatZoomIndicator(
     var shownFor by remember { mutableStateOf<ChatMessageScale?>(null) }
     var visible by remember { mutableStateOf(false) }
 
-    LaunchedEffect(scale) {
+    SideEffect(scale) {
         if (shownFor == null) {
             shownFor = scale
-            return@LaunchedEffect
+            return@SideEffect
         }
         shownFor = scale
         visible = true

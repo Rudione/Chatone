@@ -64,15 +64,39 @@ class SidebarDragAndDropTest {
     @Test
     fun dropIndexPrefersFoldersOverChannelsOverTheUnfolderedSection() {
         val index = SidebarDropIndex()
-        index.unfolderedSection = androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 300f)
-        index.putChannel("a", null, androidx.compose.ui.geometry.Rect(0f, 100f, 100f, 130f))
-        index.folderRects["f"] = androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 30f)
+        val channel = DropBounds { androidx.compose.ui.geometry.Rect(0f, 100f, 100f, 130f) }
+        index.putUnfoldered { androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 300f) }
+        index.putChannel("a", null, channel)
+        index.putFolder("f") { androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 30f) }
 
         assertEquals(SidebarDropTarget.Folder("f"), index.resolve(Offset(10f, 10f)))
         assertEquals(SidebarDropTarget.Channel("a", null), index.resolve(Offset(10f, 110f)))
         assertEquals(SidebarDropTarget.Unfoldered, index.resolve(Offset(10f, 200f)))
 
-        index.forget("a")
+        index.removeChannel("a", channel)
         assertEquals(SidebarDropTarget.Unfoldered, index.resolve(Offset(10f, 110f)))
+    }
+
+    @Test
+    fun dropIndexKeepsTheNewerZoneWhenAnOldOneLeaves() {
+        val index = SidebarDropIndex()
+        val old = DropBounds { androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 30f) }
+        val moved = DropBounds { androidx.compose.ui.geometry.Rect(0f, 40f, 100f, 70f) }
+        index.putChannel("a", null, old)
+        index.putChannel("a", "f", moved)
+
+        index.removeChannel("a", old)
+
+        assertEquals(SidebarDropTarget.Channel("a", "f"), index.resolve(Offset(10f, 50f)))
+        assertNull(index.resolve(Offset(10f, 10f)))
+    }
+
+    @Test
+    fun detachedZonesAreIgnored() {
+        val index = SidebarDropIndex()
+        index.putFolder("f") { null }
+
+        assertNull(index.resolve(Offset(10f, 10f)))
+        assertNull(index.resolve(Offset(10f, 10f)).hoveredFolderId)
     }
 }

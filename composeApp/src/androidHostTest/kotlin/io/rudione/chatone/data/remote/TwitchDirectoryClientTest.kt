@@ -167,6 +167,61 @@ class TwitchDirectoryClientTest {
     }
 
     @Test
+    fun followedStreamsGetAvatarsFromTwitchUsers() = runTest {
+        val gqlBodies = mutableListOf<String>()
+        val engine = MockEngine { request ->
+            val json = headersOf(HttpHeaders.ContentType, "application/json")
+            if (request.url.host == "api.twitch.tv") {
+                respond(
+                    """{"data":[
+                        {"id":"1","user_id":"10","user_login":"Shroud","user_name":"shroud","title":"t","viewer_count":5,"thumbnail_url":"https://x/{width}x{height}.jpg"},
+                        {"id":"2","user_id":"11","user_login":"nobody","user_name":"nobody","title":"t","viewer_count":1}
+                    ],"pagination":{"cursor":"next"}}""",
+                    HttpStatusCode.OK,
+                    json
+                )
+            } else {
+                gqlBodies += (request.body as TextContent).text
+                respond(
+                    """{"data":{"users":[{"login":"shroud","profileImageURL":"https://cdn/shroud-70x70.png"},null]}}""",
+                    HttpStatusCode.OK,
+                    json
+                )
+            }
+        }
+        val directory = TwitchDirectoryClient(HttpClient(engine), fixedClock)
+
+        val page = withContext(Dispatchers.Default) { directory.followedStreams("42", "token", null) }!!
+
+        assertEquals("https://cdn/shroud-70x70.png", page.items.first { it.login == "shroud" }.avatarUrl)
+        assertEquals("", page.items.first { it.login == "nobody" }.avatarUrl)
+        assertEquals("next", page.nextCursor)
+        val logins = Json.parseToJsonElement(gqlBodies.single()).jsonObject["variables"]!!.jsonObject["logins"]!!.jsonArray
+        assertEquals(listOf("shroud", "nobody"), logins.map { it.jsonPrimitive.content })
+    }
+
+    @Test
+    fun followedStreamsSurviveAFailedAvatarLookup() = runTest {
+        val engine = MockEngine { request ->
+            if (request.url.host == "api.twitch.tv") {
+                respond(
+                    """{"data":[{"id":"1","user_id":"10","user_login":"shroud","user_name":"shroud","title":"t","viewer_count":5}]}""",
+                    HttpStatusCode.OK,
+                    headersOf(HttpHeaders.ContentType, "application/json")
+                )
+            } else {
+                respond("{}", HttpStatusCode.BadGateway)
+            }
+        }
+        val directory = TwitchDirectoryClient(HttpClient(engine), fixedClock)
+
+        val page = withContext(Dispatchers.Default) { directory.followedStreams("42", "token", null) }!!
+
+        assertEquals(listOf("shroud"), page.items.map { it.login })
+        assertEquals("", page.items.single().avatarUrl)
+    }
+
+    @Test
     fun failedRequestReturnsNull() = runTest {
         val directory = client("{}", HttpStatusCode.BadGateway)
 

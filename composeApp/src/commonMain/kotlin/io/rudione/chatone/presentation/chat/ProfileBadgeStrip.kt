@@ -3,16 +3,14 @@ package io.rudione.chatone.presentation.chat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,14 +28,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import io.rudione.chatone.data.remote.AccountBadge
 import io.rudione.chatone.data.remote.GqlDisplayBadge
 import io.rudione.chatone.data.repository.ThirdPartyBadge
 import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
-import io.rudione.chatone.icons.lucide.ChevronDown
-import io.rudione.chatone.icons.lucide.ChevronUp
+import io.rudione.chatone.icons.lucide.ChevronLeft
 import io.rudione.chatone.icons.lucide.Lucide
 
 internal data class ProfileBadgeItem(
@@ -46,14 +45,15 @@ internal data class ProfileBadgeItem(
     val tooltip: String
 )
 
-private const val COLLAPSED_ROWS = 2
-private const val EXPANDED_ROWS = 4
+private const val EXPANDED_MAX_ROWS = 6
+private const val MAX_COUNTER = 99
 
 internal fun buildProfileBadges(
     chatBadges: List<Badge>,
     gqlBadges: List<GqlDisplayBadge>,
     sevenTvBadge: SevenTvCosmetics.Badge?,
-    thirdPartyBadges: List<ThirdPartyBadge>
+    thirdPartyBadges: List<ThirdPartyBadge>,
+    accountBadges: List<AccountBadge> = emptyList()
 ): List<ProfileBadgeItem> {
     val seen = mutableSetOf<String>()
     val result = mutableListOf<ProfileBadgeItem>()
@@ -89,10 +89,14 @@ internal fun buildProfileBadges(
     thirdPartyBadges.forEach { badge ->
         add(key = "3rd_${badge.title}", imageUrl = badge.imageUrl, tooltip = badge.title)
     }
+    accountBadges.forEach { badge ->
+        add(key = badge.key, imageUrl = badge.imageUrl, tooltip = badge.title)
+    }
 
     return result
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ProfileBadgeStrip(
     badges: List<ProfileBadgeItem>,
@@ -101,85 +105,86 @@ internal fun ProfileBadgeStrip(
     spacing: Dp = 3.dp
 ) {
     if (badges.isEmpty()) return
-    var expanded by remember(badges.size) { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val perRow = ((maxWidth + spacing) / (badgeSize + spacing))
             .toInt().coerceAtLeast(1)
-        val rows = badges.chunked(perRow)
-        val rowHeight = badgeSize + spacing
-        val visibleRows = if (expanded) minOf(rows.size, EXPANDED_ROWS)
-        else minOf(rows.size, COLLAPSED_ROWS)
-        val needsToggle = rows.size > COLLAPSED_ROWS
-        val scrollable = expanded && rows.size > EXPANDED_ROWS
-        val scrollState = rememberScrollState()
-
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Column(
+        val arrangement = Arrangement.spacedBy(spacing)
+        when {
+            badges.size <= perRow -> Row(horizontalArrangement = arrangement) {
+                badges.forEach { ProfileBadge(it, badgeSize) }
+            }
+            expanded -> FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (scrollable) Modifier
-                            .heightIn(max = rowHeight * EXPANDED_ROWS)
-                            .verticalScroll(scrollState)
-                        else Modifier
-                    ),
-                verticalArrangement = Arrangement.spacedBy(spacing)
+                    .heightIn(max = (badgeSize + spacing) * EXPANDED_MAX_ROWS)
+                    .verticalScroll(rememberScrollState()),
+                horizontalArrangement = arrangement,
+                verticalArrangement = arrangement
             ) {
-                val shown = if (scrollable) rows else rows.take(visibleRows)
-                shown.forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(spacing)) {
-                        row.forEach { badge ->
-                            LiquidGlassTooltipBox(tooltip = badge.tooltip) {
-                                AsyncImage(
-                                    model = badge.imageUrl,
-                                    contentDescription = badge.tooltip,
-                                    modifier = Modifier.size(badgeSize)
-                                )
-                            }
-                        }
-                    }
+                badges.forEach { ProfileBadge(it, badgeSize) }
+                BadgeOverflowTile(size = badgeSize, onClick = { expanded = false }) {
+                    Icon(
+                        Lucide.ChevronLeft,
+                        contentDescription = null,
+                        modifier = Modifier.size(badgeSize * 0.6f),
+                        tint = overflowContentColor()
+                    )
                 }
             }
-
-            if (needsToggle) {
-                Spacer(Modifier.height(2.dp))
-                BadgeExpandToggle(
-                    expanded = expanded,
-                    hiddenCount = badges.size - (perRow * COLLAPSED_ROWS).coerceAtMost(badges.size),
-                    onClick = { expanded = !expanded }
-                )
+            else -> {
+                val visible = perRow - 1
+                Row(horizontalArrangement = arrangement) {
+                    badges.take(visible).forEach { ProfileBadge(it, badgeSize) }
+                    BadgeOverflowTile(size = badgeSize, onClick = { expanded = true }) {
+                        val hidden = badges.size - visible
+                        val label = if (hidden > MAX_COUNTER) "$MAX_COUNTER+" else hidden.toString()
+                        val fontSize = (badgeSize.value * if (label.length > 2) 0.38f else 0.5f).sp
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = fontSize,
+                                lineHeight = fontSize
+                            ),
+                            fontWeight = FontWeight.SemiBold,
+                            color = overflowContentColor(),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun BadgeExpandToggle(
-    expanded: Boolean,
-    hiddenCount: Int,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 1.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            if (expanded) "−" else "+$hiddenCount",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-        )
-        Spacer(Modifier.width(2.dp))
-        Icon(
-            if (expanded) Lucide.ChevronUp else Lucide.ChevronDown,
-            contentDescription = null,
-            modifier = Modifier.size(12.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+private fun ProfileBadge(badge: ProfileBadgeItem, size: Dp) {
+    LiquidGlassTooltipBox(tooltip = badge.tooltip) {
+        AsyncImage(
+            model = badge.imageUrl,
+            contentDescription = badge.tooltip,
+            modifier = Modifier.size(size)
         )
     }
 }
+
+@Composable
+private fun BadgeOverflowTile(
+    size: Dp,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) { content() }
+}
+
+@Composable
+private fun overflowContentColor() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)

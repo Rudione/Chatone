@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.stream
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -9,12 +12,10 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import io.rudione.chatone.presentation.chat.ChatViewModel
@@ -34,8 +35,14 @@ import org.koin.compose.viewmodel.koinViewModel
 @Stable
 class StreamWindowControls internal constructor(
     val orientation: StreamOrientationController,
-    val pictureInPicture: PictureInPictureController
-)
+    val pictureInPicture: PictureInPictureController,
+    val background: AppBackgroundController
+) {
+    fun leaveApp(intoPictureInPicture: Boolean) {
+        if (intoPictureInPicture && pictureInPicture.enter()) return
+        background.moveToBackground()
+    }
+}
 
 @Immutable
 class MobileStreamUi internal constructor(
@@ -81,7 +88,7 @@ fun rememberMobileStreamUi(
     if (host == null) return null
     val navigateBack by rememberUpdatedState(onNavigateBack)
 
-    LaunchedEffect(host, channelLogin) {
+    SideEffect(host, channelLogin) {
         host.onEvent(StreamPlayerEvent.FollowChannel(channelLogin))
     }
 
@@ -97,10 +104,12 @@ fun rememberMobileStreamUi(
     val orientation = theater ?: rememberStreamOrientationController(active = openChannel != null)
     val fullLayout = theater?.expanded ?: landscapeWindow
     val pictureInPicture = rememberPictureInPictureController()
-    val controls = remember(orientation, pictureInPicture) {
+    val background = rememberAppBackgroundController()
+    val controls = remember(orientation, pictureInPicture, background) {
         StreamWindowControls(
             orientation,
-            pictureInPicture
+            pictureInPicture,
+            background
         )
     }
     val floating =
@@ -124,7 +133,7 @@ fun rememberMobileStreamUi(
                         controls.orientation.exitLandscape()
                     else controls.orientation.enterLandscape()
                 },
-                onBack = { navigateBack?.invoke() ?: host.onEvent(StreamPlayerEvent.Close) },
+                onBack = navigateBack,
                 modifier = playerModifier,
                 ambience = ambience,
                 overlay = overlay
@@ -186,7 +195,7 @@ private fun rememberTheaterLayoutController(
     playerOpen: Boolean
 ): TheaterLayoutController {
     val controller = remember { TheaterLayoutController(landscapeWindow) }
-    LaunchedEffect(landscapeWindow, playerOpen) { controller.expanded = landscapeWindow }
+    SideEffect(landscapeWindow, playerOpen) { controller.expanded = landscapeWindow }
     return controller
 }
 
@@ -209,15 +218,19 @@ private fun StreamWindowEffects(
         onToggleMute = { host.onEvent(StreamPlayerEvent.ToggleMute) }
     )
     StreamVisibilityEffect { visible -> host.onEvent(StreamPlayerEvent.AppVisibilityChanged(visible)) }
+    PictureInPictureDismissEffect(controls.pictureInPicture) {
+        host.onEvent(StreamPlayerEvent.PictureInPictureDismissed)
+    }
     StreamImmersiveEffect(enabled = state.isOpen && (landscapeActive || controls.pictureInPicture.isActive))
+    val pictureInPictureOnLeave = state.isOpen && state.isPlaybackActive && state.preferences.autoPictureInPicture
     StreamBackHandler(enabled = state.isOpen && !state.settingsVisible) {
         when {
             landscapeActive -> controls.orientation.exitLandscape()
             onNavigateBack != null -> onNavigateBack()
-            else -> host.onEvent(StreamPlayerEvent.Dismiss)
+            else -> controls.leaveApp(intoPictureInPicture = pictureInPictureOnLeave)
         }
     }
-    LaunchedEffect(host, chatChannelLogin, chatChannelLive) {
+    SideEffect(host, chatChannelLogin, chatChannelLive) {
         if (chatChannelLive) host.onEvent(StreamPlayerEvent.StreamWentLive)
     }
 }

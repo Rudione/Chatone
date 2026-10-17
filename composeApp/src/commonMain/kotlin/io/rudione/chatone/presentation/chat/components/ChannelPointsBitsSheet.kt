@@ -197,7 +197,7 @@ private fun LazyGridScope.rewardGroup(
     onRedeem: (GqlChannelPointReward, String) -> Unit
 ) {
     if (rewards.isEmpty()) return
-    item(span = { GridItemSpan(maxLineSpan) }, key = "header_$title") {
+    item(span = { GridItemSpan(maxLineSpan) }, key = "header_$title", contentType = "header") {
         Column(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
             Text(
@@ -208,7 +208,7 @@ private fun LazyGridScope.rewardGroup(
             )
         }
     }
-    items(rewards, key = { it.id }) { reward ->
+    items(rewards, key = { it.id }, contentType = { "reward" }) { reward ->
         RewardTile(reward = reward, balance = balance) { text -> onRedeem(reward, text) }
     }
 }
@@ -388,7 +388,7 @@ internal fun ChannelPointsBitsSheet(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)
                     ) {
-                        items(groups.available, key = { it.id }) { reward ->
+                        items(groups.available, key = { it.id }, contentType = { "reward" }) { reward ->
                             RewardTile(reward = reward, balance = balance) { text ->
                                 onRedeem(reward, text)
                             }

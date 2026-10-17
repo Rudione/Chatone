@@ -21,7 +21,7 @@ import io.rudione.chatone.presentation.chat.components.RaidBanner
 import io.rudione.chatone.presentation.components.DockHost
 import io.rudione.chatone.presentation.components.insetBottom
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 
 @Composable
 internal fun BoxScope.ChatEventOverlaysSection(

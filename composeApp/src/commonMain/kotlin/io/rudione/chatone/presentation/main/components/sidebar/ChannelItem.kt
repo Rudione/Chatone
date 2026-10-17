@@ -36,7 +36,6 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
@@ -46,7 +45,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.Channel
@@ -105,6 +103,7 @@ import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Folder
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
+import io.rudione.chatone.presentation.components.PortalPopup
 
 @Composable
 internal fun CompactChannelAvatar(
@@ -186,7 +185,7 @@ internal fun CompactChannelAvatar(
                     )
                 }
                 if (showTooltip) {
-                    Popup(
+                    PortalPopup(
                         alignment = Alignment.TopStart,
                         offset = tooltipOffset,
                         properties = androidx.compose.ui.window.PopupProperties(focusable = false)

@@ -1,5 +1,6 @@
 package io.rudione.chatone
 
+import io.rudione.chatone.presentation.components.PopupPortalHost
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +21,10 @@ import com.russhwolf.settings.Settings
 import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.window.AppWindowLayer
+import io.rudione.chatone.presentation.window.AppWindowLayerEffect
 import io.rudione.chatone.presentation.window.ChatoneTitleBar
+import io.rudione.chatone.presentation.window.RegisterAppWindow
 import io.rudione.chatone.presentation.window.UpdateAvailableOverlay
 import io.rudione.chatone.presentation.window.MIN_CHAT_WINDOW_HEIGHT
 import io.rudione.chatone.presentation.window.NATIVE_WINDOW_BG
@@ -31,7 +35,9 @@ import io.rudione.chatone.presentation.window.resolveTitleBar
 import io.rudione.chatone.presentation.window.useCustomTitleBar
 import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.util.emote.AnimatedEmoteLoader
+import io.rudione.chatone.util.media.AppImageLoaderInstaller
 import io.rudione.chatone.util.system.AutoUpdater
+import io.rudione.chatone.util.system.DesktopMainWindow
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
 import io.rudione.chatone.util.system.WindowsTitleBar
 import kotlinx.coroutines.CoroutineScope
@@ -64,6 +70,7 @@ fun main() {
         modules(appModules())
     }.koin
 
+    koin.get<AppImageLoaderInstaller>().install()
     val accountManager = koin.get<AccountManager>()
     AnimatedEmoteLoader.setProxyProvider { accountManager.activeProxy.value }
     koin.startNotificationServices()
@@ -118,8 +125,13 @@ fun main() {
             }
         }
 
-        val initialSettings = remember { SettingsViewModel.loadInitialState() }
-        var alwaysOnTop by remember { mutableStateOf(initialSettings.alwaysOnTop) }
+        val initialSettings = remember {
+            SettingsViewModel.loadInitialState().also {
+                AppWindowLayer.alwaysOnTop = it.alwaysOnTop
+                AppWindowLayer.mode = it.alwaysOnTopMode
+            }
+        }
+        AppWindowLayerEffect()
         var isDarkTheme by remember { mutableStateOf(initialSettings.darkTheme) }
         var themeTopBarColor by remember { mutableStateOf<Color?>(null) }
         var titleBarMode by remember { mutableStateOf(initialSettings.titleBarMode) }
@@ -136,6 +148,7 @@ fun main() {
             icon = appIcon,
             tooltip = "Chatone",
             menu = {
+                Item("Открыть Chatone") { DesktopMainWindow.bringToFront() }
                 Item("Выход") { exitApplication() }
             }
         )
@@ -144,7 +157,7 @@ fun main() {
             onCloseRequest = { exitApplication() },
             title = "Chatone",
             state = windowState,
-            alwaysOnTop = alwaysOnTop,
+            alwaysOnTop = AppWindowLayer.alwaysOnTop,
             undecorated = useCustomTitleBar,
             icon = appIcon,
             onPreviewKeyEvent = { GlobalKeyDispatcher.dispatch(it) }
@@ -179,8 +192,14 @@ fun main() {
                     }
                 }
                 window.addWindowListener(listener)
-                onDispose { window.removeWindowListener(listener) }
+                DesktopMainWindow.frame = window
+                onDispose {
+                    window.removeWindowListener(listener)
+                    if (DesktopMainWindow.frame === window) DesktopMainWindow.frame = null
+                }
             }
+
+            RegisterAppWindow(window, primary = true)
 
             LaunchedEffect(isDarkTheme, themeTopBarColor, titleBarMode) {
                 TitleBarState.mode = titleBarMode
@@ -190,41 +209,45 @@ fun main() {
                 WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
             }
 
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (useCustomTitleBar) {
-                    val captionColor = TitleBarState.captionColor
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        ChatoneTitleBar(
-                            title = "Chatone",
-                            icon = appIcon,
-                            background = captionColor,
-                            windowState = windowState,
-                            onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
-                            onToggleMaximize = {
-                                windowState.placement =
-                                    if (windowState.placement == WindowPlacement.Maximized)
-                                        WindowPlacement.Floating
-                                    else
-                                        WindowPlacement.Maximized
-                            },
-                            onClose = { exitApplication() }
-                        )
+            PopupPortalHost {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (useCustomTitleBar) {
+                        val captionColor = TitleBarState.captionColor
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            ChatoneTitleBar(
+                                title = "Chatone",
+                                icon = appIcon,
+                                background = captionColor,
+                                windowState = windowState,
+                                onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
+                                onToggleMaximize = {
+                                    windowState.placement =
+                                        if (windowState.placement == WindowPlacement.Maximized)
+                                            WindowPlacement.Floating
+                                        else
+                                            WindowPlacement.Maximized
+                                },
+                                onClose = { exitApplication() }
+                            )
+                            App(
+                                onAlwaysOnTopChanged = { AppWindowLayer.alwaysOnTop = it },
+                                onAlwaysOnTopModeChanged = { AppWindowLayer.mode = it },
+                                onThemeChanged = { isDarkTheme = it },
+                                onThemeTopBarColorChanged = { themeTopBarColor = it },
+                                onTitleBarModeChanged = { titleBarMode = it }
+                            )
+                        }
+                    } else {
                         App(
-                            onAlwaysOnTopChanged = { alwaysOnTop = it },
+                            onAlwaysOnTopChanged = { AppWindowLayer.alwaysOnTop = it },
+                            onAlwaysOnTopModeChanged = { AppWindowLayer.mode = it },
                             onThemeChanged = { isDarkTheme = it },
                             onThemeTopBarColorChanged = { themeTopBarColor = it },
                             onTitleBarModeChanged = { titleBarMode = it }
                         )
                     }
-                } else {
-                    App(
-                        onAlwaysOnTopChanged = { alwaysOnTop = it },
-                        onThemeChanged = { isDarkTheme = it },
-                        onThemeTopBarColorChanged = { themeTopBarColor = it },
-                        onTitleBarModeChanged = { titleBarMode = it }
-                    )
+                    ChatoneTheme(darkTheme = isDarkTheme) { UpdateAvailableOverlay() }
                 }
-                ChatoneTheme(darkTheme = isDarkTheme) { UpdateAvailableOverlay() }
             }
         }
     }

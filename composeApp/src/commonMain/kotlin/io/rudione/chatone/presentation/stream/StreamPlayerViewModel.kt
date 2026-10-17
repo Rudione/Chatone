@@ -112,6 +112,7 @@ class StreamPlayerViewModel(
                 viewportHeight = event.height.coerceAtLeast(0)
             }
             is StreamPlayerEvent.AppVisibilityChanged -> onVisibilityChanged(event.visible)
+            StreamPlayerEvent.PictureInPictureDismissed -> onPictureInPictureDismissed()
         }
     }
 
@@ -474,6 +475,18 @@ class StreamPlayerViewModel(
             playbackEngine.seekToLive()
             playbackEngine.setPlaying(true)
         }
+    }
+
+    private fun onPictureInPictureDismissed() {
+        appVisible = false
+        val playbackEngine = engine ?: return
+        val wasPlaying = playingInBackground || _state.value.isPlaybackActive
+        backgroundJob?.cancel()
+        backgroundJob = null
+        playingInBackground = false
+        if (!wasPlaying) return
+        resumeWhenVisible = true
+        playbackEngine.setPlaying(false)
     }
 
     private fun scheduleBackgroundAudioOnly() {

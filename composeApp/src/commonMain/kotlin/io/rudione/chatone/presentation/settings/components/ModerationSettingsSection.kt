@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.settings.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import io.rudione.chatone.presentation.components.expressive.HelpHint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,21 +29,17 @@ import io.rudione.chatone.icons.material.outlined.Block
 import io.rudione.chatone.icons.material.outlined.Delete
 import io.rudione.chatone.icons.material.outlined.Edit
 import io.rudione.chatone.icons.material.outlined.Palette
-import io.rudione.chatone.icons.material.outlined.Shield
 import io.rudione.chatone.icons.material.outlined.Timer
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,7 +57,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.domain.model.ModActionButton
-import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
 import io.rudione.chatone.presentation.components.ChatoneButton
 import io.rudione.chatone.presentation.components.ChatoneButtonTone
 import io.rudione.chatone.presentation.components.ChatoneChip
@@ -72,14 +70,11 @@ import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.components.SettingsCard
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
+import io.rudione.chatone.presentation.settings.settingsAnchor
 import io.rudione.chatone.presentation.settings.theme_settings.ThemeCreatorSection
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.rememberInputCapabilities
-
-private val DEFAULT_TIMEOUT_OPTIONS = listOf(
-    60 to "1m", 300 to "5m", 600 to "10m", 1800 to "30m", 3600 to "1h", 86400 to "1d"
-)
 
 private val TIMEOUT_BUTTON_PRESETS = listOf(
     1 to "1s", 10 to "10s", 60 to "1m", 300 to "5m", 600 to "10m",
@@ -94,77 +89,7 @@ private val ModTagShape = RoundedCornerShape(8.dp)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ModerationSettingsSection(
-    state: SettingsState,
-    onEvent: (SettingsEvent) -> Unit,
-    blockedUsernames: List<String> = emptyList(),
-    isLoadingBlockedUsers: Boolean = false,
-    blockedLoadError: String? = null,
-    onUnblockUser: (String) -> Unit = {},
-    onRefreshBlockedUsers: () -> Unit = {},
-) {
-    val s = LocalStrings.current
-    var showAutomod by remember { mutableStateOf(false) }
-
-    if (showAutomod) {
-        DetachedAutomodWindow(
-            currentChannelLogin = null,
-            onClose = { showAutomod = false }
-        )
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-
-        SettingsCard(title = s.modLocalAutomod, help = s.modLocalAutomodDesc) {
-            ChatoneButton(
-                text = s.modOpenLocalAutomodEditor,
-                onClick = { showAutomod = true },
-                tone = ChatoneButtonTone.Neutral,
-                icon = Icons.Outlined.Shield
-            )
-        }
-
-        ModActionButtonsSection(state = state, onEvent = onEvent)
-
-        MacrosSection(state = state, onEvent = onEvent)
-
-        SettingsCard(title = s.modDefaultTimeoutDuration) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                DEFAULT_TIMEOUT_OPTIONS.forEach { (seconds, label) ->
-                    ChatoneChip(
-                        label = label,
-                        onClick = { onEvent(SettingsEvent.OnDefaultTimeoutChanged(seconds)) },
-                        selected = state.defaultTimeoutDuration == seconds
-                    )
-                }
-            }
-        }
-
-        SettingsCard(title = s.modSavedReasonsTitle, help = s.modSavedReasonsDesc) {
-            ChatoneTextField(
-                value = state.savedTimeoutReason,
-                onValueChange = { onEvent(SettingsEvent.OnSavedTimeoutReasonChanged(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                label = s.modSavedTimeoutReasonLabel,
-                singleLine = true
-            )
-            ChatoneTextField(
-                value = state.savedBanReason,
-                onValueChange = { onEvent(SettingsEvent.OnSavedBanReasonChanged(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                label = s.modSavedBanReasonLabel,
-                singleLine = true
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ModActionButtonsSection(
+internal fun ModActionButtonsSection(
     state: SettingsState,
     onEvent: (SettingsEvent) -> Unit
 ) {
@@ -178,7 +103,7 @@ private fun ModActionButtonsSection(
     var dragOffsetY by remember { mutableFloatStateOf(0f) }
     var preDragOrder by remember { mutableStateOf<List<ModActionButton>?>(null) }
     var rowPitchPx by remember { mutableIntStateOf(0) }
-    LaunchedEffect(state.allModButtons) {
+    SideEffect(state.allModButtons) {
         if (draggedIndex == null) {
             orderedButtons = state.allModButtons.sortedBy { it.sortOrder }
         }
@@ -216,28 +141,21 @@ private fun ModActionButtonsSection(
             )
         }
 
-        if (rememberInputCapabilities().pointer) {
-            ChatoneListItem(
-                onClick = { onEvent(SettingsEvent.OnModButtonsOnHoverChanged(!state.modButtonsOnHover)) },
-                trailing = {
-                    ChatoneSwitch(
-                        checked = state.modButtonsOnHover,
-                        onCheckedChange = { onEvent(SettingsEvent.OnModButtonsOnHoverChanged(it)) },
-                        modifier = Modifier.height(28.dp)
-                    )
-                }
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        s.modButtonsOnHover,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    HelpHint(title = s.modButtonsOnHover, text = s.modButtonsOnHoverDesc, size = 28.dp)
-                }
-            }
+        ModButtonsSwitchItem(
+            title = s.modSlider.buttonsInChat,
+            help = s.modSlider.buttonsInChatHelp,
+            subtitle = s.modSlider.buttonsInChatOff.takeUnless { state.modButtonsInChat },
+            checked = state.modButtonsInChat,
+            onCheckedChange = { onEvent(SettingsEvent.OnModButtonsInChatChanged(it)) }
+        )
+
+        if (state.modButtonsInChat && rememberInputCapabilities().pointer) {
+            ModButtonsSwitchItem(
+                title = s.modButtonsOnHover,
+                help = s.modButtonsOnHoverDesc,
+                checked = state.modButtonsOnHover,
+                onCheckedChange = { onEvent(SettingsEvent.OnModButtonsOnHoverChanged(it)) }
+            )
         }
 
         ChatoneFieldLabel(s.modPreviewLabel)
@@ -368,6 +286,45 @@ private fun ModActionButtonsSection(
             },
             onDismiss = { editingButton = null }
         )
+    }
+}
+
+@Composable
+private fun ModButtonsSwitchItem(
+    title: String,
+    help: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    subtitle: String? = null
+) {
+    ChatoneListItem(
+        modifier = Modifier.settingsAnchor(title),
+        onClick = { onCheckedChange(!checked) },
+        trailing = {
+            ChatoneSwitch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                modifier = Modifier.height(28.dp)
+            )
+        }
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            HelpHint(title = title, text = help, size = 28.dp)
+        }
+        if (subtitle != null) {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

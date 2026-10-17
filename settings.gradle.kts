@@ -30,54 +30,57 @@ dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
            
-            version("kotlin", "2.2.20")
-            version("compose", "1.10.3")
+            version("kotlin", "2.4.21")
+            version("compose", "1.12.2")
             version("agp", "9.3.3")
 
            
-            version("ktor", "3.1.1")
+            version("ktor", "3.6.0")
 
            
-            version("koin", "4.0.0")
-            version("koinCompose", "4.0.0")
+            version("koin", "4.2.2")
+            version("koinCompose", "4.2.2")
 
            
-            version("sqldelight", "2.0.2")
+            version("sqldelight", "2.4.1")
 
            
-            version("kotlinxSerialization", "1.7.3")
+            version("kotlinxSerialization", "1.11.0")
 
            
-            version("coroutines", "1.9.0")
+            version("coroutines", "1.11.0")
 
            
-            version("datetime", "0.7.1")
+            version("datetime", "0.8.0")
 
            
             version("napier", "2.7.1")
 
            
-            version("settings", "1.2.0")
+            version("settings", "1.3.0")
 
            
-            version("androidxCore", "1.15.0")
-            version("androidxActivity", "1.9.3")
-            version("androidxLifecycle", "2.8.7")
+            version("androidxCore", "1.19.1")
+            version("androidxActivity", "1.13.0")
+            version("androidxLifecycle", "2.11.0")
             version("androidxSplashscreen", "1.2.0")
 
            
-            version("coil", "3.1.0")
+            version("coil", "3.6.3")
 
             version("media3", "1.11.1")
 
-            version("work", "2.11.2")
+            version("work", "2.12.0")
 
 
-            version("jna", "5.14.0")
+            version("jna", "5.19.1")
 
 
-            version("nav3", "1.1.1")
-            version("paging", "3.4.2")
+            version("nav3", "1.1.2")
+            version("material3", "1.9.0")
+            version("atomicfu", "0.33.0")
+            version("androidxBrowser", "1.10.0")
+            version("paging", "3.5.3")
 
 
             plugin("kotlinMultiplatform", "org.jetbrains.kotlin.multiplatform").versionRef("kotlin")
@@ -87,7 +90,6 @@ dependencyResolutionManagement {
             plugin("composeCompiler", "org.jetbrains.kotlin.plugin.compose").versionRef("kotlin")
             plugin("kotlinSerialization", "org.jetbrains.kotlin.plugin.serialization").versionRef("kotlin")
             plugin("sqldelight", "app.cash.sqldelight").versionRef("sqldelight")
-            plugin("ksp", "com.google.devtools.ksp").version("2.1.10-1.0.31")
 
            
             library("ktor-client-core", "io.ktor", "ktor-client-core").versionRef("ktor")
@@ -127,7 +129,7 @@ dependencyResolutionManagement {
             library("kotlinx-coroutines-test", "org.jetbrains.kotlinx", "kotlinx-coroutines-test").versionRef("coroutines")
 
            
-            library("slf4j-simple", "org.slf4j", "slf4j-simple").version("2.0.16")
+            library("slf4j-simple", "org.slf4j", "slf4j-simple").version("2.0.20")
 
            
             library("kotlinx-datetime", "org.jetbrains.kotlinx", "kotlinx-datetime").versionRef("datetime")
@@ -169,6 +171,15 @@ dependencyResolutionManagement {
 
 
             library("navigation3-ui", "org.jetbrains.androidx.navigation3", "navigation3-ui").versionRef("nav3")
+
+            library("compose-runtime", "org.jetbrains.compose.runtime", "runtime").versionRef("compose")
+            library("compose-foundation", "org.jetbrains.compose.foundation", "foundation").versionRef("compose")
+            library("compose-ui", "org.jetbrains.compose.ui", "ui").versionRef("compose")
+            library("compose-material3", "org.jetbrains.compose.material3", "material3").versionRef("material3")
+            library("compose-components-resources", "org.jetbrains.compose.components", "components-resources").versionRef("compose")
+            library("compose-components-uiToolingPreview", "org.jetbrains.compose.components", "components-ui-tooling-preview").versionRef("compose")
+            library("kotlinx-atomicfu", "org.jetbrains.kotlinx", "atomicfu").versionRef("atomicfu")
+            library("androidx-browser", "androidx.browser", "browser").versionRef("androidxBrowser")
         }
     }
 }

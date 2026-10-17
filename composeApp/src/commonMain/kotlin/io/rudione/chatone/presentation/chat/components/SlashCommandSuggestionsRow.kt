@@ -54,7 +54,7 @@ fun SlashCommandSuggestionsRow(
                 .heightIn(max = 220.dp)
                 .padding(vertical = 4.dp)
         ) {
-            items(commands, key = { it.name }) { cmd ->
+            items(commands, key = { it.name }, contentType = { "command" }) { cmd ->
                 val isSelected = commands.getOrNull(selectedIndex)?.name == cmd.name
                 val selectedBg = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent
                 Row(

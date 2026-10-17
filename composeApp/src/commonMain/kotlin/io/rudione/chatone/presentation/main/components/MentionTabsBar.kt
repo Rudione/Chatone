@@ -70,7 +70,7 @@ fun MentionTabsBar(
             tint = MaterialTheme.colorScheme.primary
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            items(channels, key = { it.login }) { tab ->
+            items(channels, key = { it.login }, contentType = { "tab" }) { tab ->
                 MentionTab(
                     data = tab,
                     active = tab.login.equals(activeLogin, ignoreCase = true),

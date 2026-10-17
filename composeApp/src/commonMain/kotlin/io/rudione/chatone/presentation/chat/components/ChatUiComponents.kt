@@ -465,7 +465,7 @@ internal fun EmoteAutocompleteRow(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                itemsIndexed(emotes, key = { _, e -> e.id }) { idx, emote ->
+                itemsIndexed(emotes, key = { _, e -> e.code }, contentType = { _, _ -> "emote" }) { idx, emote ->
                     val isSelected = idx == selectedIndex
                     Surface(
                         onClick = { onSelect(emote); onDismiss() },
@@ -537,7 +537,7 @@ internal fun MentionAutocompleteRow(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                itemsIndexed(usernames, key = { _, u -> u }) { idx, username ->
+                itemsIndexed(usernames, key = { _, u -> u }, contentType = { _, _ -> "username" }) { idx, username ->
                     val isSelected = idx == selectedIndex
                     Surface(
                         onClick = { onSelect(username); onDismiss() },

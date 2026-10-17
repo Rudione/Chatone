@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import io.rudione.chatone.presentation.components.animatedBorder
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
@@ -11,11 +14,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -151,9 +152,9 @@ fun rememberChatInputGlass(
 
 fun Modifier.chatInputGlassSurface(
     glass: ChatInputGlass,
-    resting: Color,
-    border: Color,
-    borderWidth: Dp,
+    resting: () -> Color,
+    border: () -> Color,
+    borderWidth: () -> Dp,
     focused: Boolean,
     glow: Color
 ): Modifier {
@@ -169,11 +170,11 @@ fun Modifier.chatInputGlassSurface(
             ambientShadowColor = lerp(glow, GlassShadow, amount)
             spotShadowColor = lerp(glow, GlassShadow, amount)
         }
-        .border(borderWidth, border, shape)
+        .animatedBorder(borderWidth, shape, border)
         .clip(shape)
         .drawBehind {
             val amount = glass.progress()
-            drawRect(glass.fill(resting))
+            drawRect(glass.fill(resting()))
             if (amount > 0f) {
                 drawRect(
                     Brush.verticalGradient(

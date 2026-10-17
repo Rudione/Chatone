@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.components.expressive
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -22,10 +25,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,7 +43,6 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.icons.lucide.CircleQuestionMark
@@ -50,6 +50,7 @@ import io.rudione.chatone.icons.lucide.Lucide
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
+import io.rudione.chatone.presentation.components.PortalPopup
 
 @Composable
 fun HelpHint(
@@ -63,7 +64,7 @@ fun HelpHint(
     var pinned by remember { mutableStateOf(false) }
     var hoverMuted by remember { mutableStateOf(false) }
     val closing = remember { ClosingTap() }
-    LaunchedEffect(hovered) { if (!hovered) hoverMuted = false }
+    SideEffect(hovered) { if (!hovered) hoverMuted = false }
     val open = pinned || (hovered && !hoverMuted)
     val tint = if (open) MaterialTheme.colorScheme.primary
     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -90,7 +91,7 @@ fun HelpHint(
         if (open) {
             val inset = with(LocalDensity.current) { HINT_INSET.roundToPx() }
             val position = remember(inset) { HintPosition(inset) }
-            Popup(
+            PortalPopup(
                 popupPositionProvider = position,
                 onDismissRequest = {
                     if (pinned) {

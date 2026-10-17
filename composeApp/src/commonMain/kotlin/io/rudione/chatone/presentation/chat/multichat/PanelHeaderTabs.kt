@@ -45,7 +45,7 @@ fun PanelHeaderTabs(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp)
     ) {
-        items(panels, key = { it.panelId }) { panel ->
+        items(panels, key = { it.panelId }, contentType = { "panel" }) { panel ->
             val isActive = panel.panelId == activeId
             Row(
                 modifier = Modifier

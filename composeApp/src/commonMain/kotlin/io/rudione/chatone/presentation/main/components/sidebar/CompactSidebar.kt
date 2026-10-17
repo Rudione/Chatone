@@ -1,103 +1,29 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.consumeAllChanges
-import androidx.compose.ui.input.pointer.isSecondaryPressed
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.zIndex
-import coil3.compose.AsyncImage
-import io.rudione.chatone.domain.model.Channel
-import io.rudione.chatone.presentation.chat.ChatScreen
-import io.rudione.chatone.presentation.components.GlowSurface
-import io.rudione.chatone.presentation.components.GradientButton
-import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
-import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
-import io.rudione.chatone.presentation.settings.SettingsEvent
-import io.rudione.chatone.presentation.settings.SettingsScreen
-import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.system.GlobalKeyDispatcher
-import io.rudione.chatone.util.system.HotkeyAction
-import io.rudione.chatone.util.system.comboFor
-import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
-import io.rudione.chatone.presentation.theme.ChatoneColors
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.WallpaperGlowEdge
-import io.rudione.chatone.presentation.theme.panelBlur
-import io.rudione.chatone.presentation.theme.topBarBackgroundColor
-import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.coroutines.launch
-import org.koin.compose.koinInject
-import org.koin.compose.viewmodel.koinViewModel
-import kotlin.math.hypot
-import io.rudione.chatone.presentation.chat.components.ChattersPanel
-import io.rudione.chatone.presentation.main.components.MentionsFeed
-import io.rudione.chatone.presentation.main.components.MentionTabsBar
-import io.rudione.chatone.presentation.main.components.MentionToast
-import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
-import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
-import io.rudione.chatone.presentation.settings.SettingsEffect
-import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
-import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
-import io.rudione.chatone.data.repository.AccountManager
-import io.rudione.chatone.data.repository.AuthRepository
-import io.rudione.chatone.data.repository.MentionMuteRepository
-import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
-import io.rudione.chatone.presentation.chat.ChatViewModel
-import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.main.MainEvent
-import io.rudione.chatone.domain.model.ChannelFolder
-import io.rudione.chatone.domain.model.ChannelTab
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneTileDefaults
 import io.rudione.chatone.presentation.components.ChatoneCountBadge
@@ -210,8 +136,10 @@ internal fun CompactSidebar(
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
         )
 
-        val folderedLogins = state.folders.flatMap { it.channels }.map { it.login }.toSet()
-        val filteredUnfoldered = state.unfolderedChannels.filter { it.login !in folderedLogins }
+        val filteredUnfoldered = remember(state.folders, state.unfolderedChannels) {
+            val folderedLogins = state.folders.flatMapTo(HashSet()) { folder -> folder.channels.map { it.login } }
+            state.unfolderedChannels.filter { it.login !in folderedLogins }
+        }
         val s = LocalStrings.current
 
         LazyColumn(
@@ -220,7 +148,7 @@ internal fun CompactSidebar(
             contentPadding = PaddingValues(vertical = 3.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
-            itemsIndexed(state.folders, key = { _, f -> "cf_${f.id}" }) { _, folder ->
+            itemsIndexed(state.folders, key = { _, f -> "cf_${f.id}" }, contentType = { _, _ -> "folder" }) { _, folder ->
                 val isExpanded = folder.isExpanded
                 val folderColor = parseFolderColor(folder.color)
 
@@ -306,7 +234,7 @@ internal fun CompactSidebar(
                 }
             }
 
-            items(filteredUnfoldered, key = { "cu_${it.login}" }) { channel ->
+            items(filteredUnfoldered, key = { "cu_${it.login}" }, contentType = { "channel" }) { channel ->
                 val isActive = channel.login == state.activeChannelLogin
                 CompactChannelAvatar(
                     channel = channel,
@@ -317,7 +245,7 @@ internal fun CompactSidebar(
             }
 
             if (state.monitorTabs.isNotEmpty()) {
-                items(state.monitorTabs.size, key = { "cmonitor_${state.monitorTabs[it]}" }) { i ->
+                items(state.monitorTabs.size, key = { "cmonitor_${state.monitorTabs[it]}" }, contentType = { "monitor" }) { i ->
                     val login = state.monitorTabs[i]
                     val isActive = login == state.activeChannelLogin
                     val label = if (login == "/live") s.openChannelLiveLabel else s.openChannelAutomodLabel
@@ -350,7 +278,7 @@ internal fun CompactSidebar(
                 }
             }
 
-            item { Spacer(Modifier.height(6.dp)) }
+            item(key = "bottom_spacer", contentType = "spacer") { Spacer(Modifier.height(6.dp)) }
         }
 
         HorizontalDivider(

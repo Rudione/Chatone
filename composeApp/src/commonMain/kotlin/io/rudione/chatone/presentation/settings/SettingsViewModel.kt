@@ -16,6 +16,8 @@ import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.domain.model.ImageUploaderConfig
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.ModActionButton
+import io.rudione.chatone.domain.model.ModSliderSettings
+import io.rudione.chatone.domain.model.ScreenChatSettings
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import io.rudione.chatone.presentation.theme.ACCENT_PALETTE_SCHEMA_VERSION
 import io.rudione.chatone.presentation.theme.CustomThemeConfig
@@ -49,6 +51,7 @@ import kotlinx.serialization.json.Json
 enum class PauseHotkeyMode { TOGGLE, HOLD }
 enum class InlineImageMode { ON, OFF, BLUR }
 enum class TitleBarMode { DARK, LIGHT, ADAPTIVE, SYSTEM }
+enum class AlwaysOnTopMode { EXCEPT_SYSTEM, ALL_WINDOWS, BROWSER }
 
 data class SettingsState(
     val darkTheme: Boolean = true,
@@ -75,6 +78,7 @@ data class SettingsState(
     val mentionSoundVolume: Float = 0.8f,
     val customMentionSoundPath: String = "",
     val alwaysOnTop: Boolean = false,
+    val alwaysOnTopMode: AlwaysOnTopMode = AlwaysOnTopMode.EXCEPT_SYSTEM,
     val hideSidebar: Boolean = false,
     val uiScale: Float = 1.0f,
     val pauseOnHover: Boolean = false,
@@ -110,6 +114,9 @@ data class SettingsState(
     val showDefaultTimeoutButton: Boolean = true,
     val showDefaultBanButton: Boolean = true,
     val modButtonsOnHover: Boolean = false,
+    val modButtonsInChat: Boolean = true,
+    val modSlider: ModSliderSettings = ModSliderSettings(),
+    val screenChat: ScreenChatSettings = ScreenChatSettings(),
     val disableScrollOnAlt: Boolean = true,
     val linkOpenMode: LinkOpenMode = LinkOpenMode.DEFAULT,
     val customThemesJson: String = "",
@@ -218,6 +225,7 @@ sealed class SettingsEvent : UiEvent {
     data class OnMentionSoundVolumeChanged(val volume: Float) : SettingsEvent()
     data class OnCustomMentionSoundPathChanged(val path: String) : SettingsEvent()
     data class OnAlwaysOnTopChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnAlwaysOnTopModeChanged(val mode: AlwaysOnTopMode) : SettingsEvent()
     data class OnHideSidebarChanged(val enabled: Boolean) : SettingsEvent()
     data class OnPauseOnHoverChanged(val enabled: Boolean) : SettingsEvent()
     data class OnPauseHotkeyChanged(val hotkey: String) : SettingsEvent()
@@ -250,6 +258,9 @@ sealed class SettingsEvent : UiEvent {
     data class OnShowDefaultTimeoutChanged(val show: Boolean) : SettingsEvent()
     data class OnShowDefaultBanChanged(val show: Boolean) : SettingsEvent()
     data class OnModButtonsOnHoverChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnModButtonsInChatChanged(val enabled: Boolean) : SettingsEvent()
+    data class OnModSliderChanged(val settings: ModSliderSettings) : SettingsEvent()
+    data class OnScreenChatChanged(val settings: ScreenChatSettings) : SettingsEvent()
     data class OnReorderModButtons(val from: Int, val to: Int) : SettingsEvent()
 
     data class OnAddMacro(val name: String, val icon: String) : SettingsEvent()
@@ -316,6 +327,7 @@ class SettingsViewModel(
         private const val KEY_MENTION_VOLUME = "mention_volume"
         private const val KEY_CUSTOM_SOUND_PATH = "custom_sound_path"
         private const val KEY_ALWAYS_ON_TOP = "always_on_top"
+        private const val KEY_ALWAYS_ON_TOP_MODE = "always_on_top_mode"
         private const val KEY_HIDE_SIDEBAR = "hide_sidebar"
         private const val KEY_UI_SCALE = "ui_scale"
         private const val KEY_LANGUAGE = "language"
@@ -349,6 +361,9 @@ class SettingsViewModel(
         private const val KEY_SHOW_DEFAULT_TIMEOUT = "show_default_timeout"
         private const val KEY_SHOW_DEFAULT_BAN = "show_default_ban"
         private const val KEY_MOD_BUTTONS_ON_HOVER = "mod_buttons_on_hover"
+        private const val KEY_MOD_BUTTONS_IN_CHAT = "mod_buttons_in_chat"
+        private const val KEY_MOD_SLIDER = "mod_slider"
+        private const val KEY_SCREEN_CHAT = "screen_chat"
         private const val KEY_DISABLE_SCROLL_ON_ALT = "disable_scroll_on_alt"
         private const val KEY_LINK_OPEN_MODE = "link_open_mode"
         private const val KEY_ACCENT_COLOR_INDEX = "accent_color_index"
@@ -508,7 +523,8 @@ class SettingsViewModel(
                 imageUploader = try {
                     settings.getStringOrNull(KEY_IMAGE_UPLOADER)
                         ?.let { json.decodeFromString<ImageUploaderConfig>(it) }
-                        ?.let { it.copy(extraHeaders = SecretVault.open(it.extraHeaders)) }
+                        ?.opened(SecretVault::open)
+                        ?.withStandardService()
                         ?: ImageUploaderConfig()
                 } catch (_: Exception) {
                     ImageUploaderConfig()
@@ -547,6 +563,9 @@ class SettingsViewModel(
                 mentionSoundVolume = settings.getFloat(KEY_MENTION_VOLUME, 0.8f),
                 customMentionSoundPath = settings.getStringOrNull(KEY_CUSTOM_SOUND_PATH) ?: "",
                 alwaysOnTop = settings.getBoolean(KEY_ALWAYS_ON_TOP, false),
+                alwaysOnTopMode = AlwaysOnTopMode.entries.firstOrNull {
+                    it.name == settings.getString(KEY_ALWAYS_ON_TOP_MODE, AlwaysOnTopMode.EXCEPT_SYSTEM.name)
+                } ?: AlwaysOnTopMode.EXCEPT_SYSTEM,
                 hideSidebar = settings.getBoolean(KEY_HIDE_SIDEBAR, false),
                 uiScale = settings.getFloat(KEY_UI_SCALE, 1.0f),
                 language = settings.getString(KEY_LANGUAGE, "en"),
@@ -588,6 +607,13 @@ class SettingsViewModel(
                 showDefaultTimeoutButton = settings.getBoolean(KEY_SHOW_DEFAULT_TIMEOUT, true),
                 showDefaultBanButton = settings.getBoolean(KEY_SHOW_DEFAULT_BAN, true),
                 modButtonsOnHover = settings.getBoolean(KEY_MOD_BUTTONS_ON_HOVER, false),
+                modButtonsInChat = settings.getBoolean(KEY_MOD_BUTTONS_IN_CHAT, true),
+                modSlider = runCatching {
+                    settings.getStringOrNull(KEY_MOD_SLIDER)?.let { json.decodeFromString<ModSliderSettings>(it).sanitized() }
+                }.getOrNull() ?: ModSliderSettings(),
+                screenChat = runCatching {
+                    settings.getStringOrNull(KEY_SCREEN_CHAT)?.let { json.decodeFromString<ScreenChatSettings>(it).sanitized() }
+                }.getOrNull() ?: ScreenChatSettings(),
                 disableScrollOnAlt = settings.getBoolean(KEY_DISABLE_SCROLL_ON_ALT, true),
                 linkOpenMode = try {
                     SettingsState.LinkOpenMode.valueOf(
@@ -837,7 +863,7 @@ class SettingsViewModel(
                 settings.putString(
                     KEY_IMAGE_UPLOADER,
                     json.encodeToString(
-                        event.config.copy(extraHeaders = SecretVault.seal(event.config.extraHeaders))
+                        event.config.sealed(SecretVault::seal)
                     )
                 )
                 update { it.copy(imageUploader = event.config) }
@@ -1170,6 +1196,11 @@ class SettingsViewModel(
                 ); update { it.copy(alwaysOnTop = event.enabled) }
             }
 
+            is SettingsEvent.OnAlwaysOnTopModeChanged -> {
+                settings.putString(KEY_ALWAYS_ON_TOP_MODE, event.mode.name)
+                update { it.copy(alwaysOnTopMode = event.mode) }
+            }
+
             is SettingsEvent.OnHideSidebarChanged -> {
                 settings.putBoolean(KEY_HIDE_SIDEBAR, event.enabled)
                 update { it.copy(hideSidebar = event.enabled) }
@@ -1379,6 +1410,23 @@ class SettingsViewModel(
             is SettingsEvent.OnModButtonsOnHoverChanged -> {
                 settings.putBoolean(KEY_MOD_BUTTONS_ON_HOVER, event.enabled)
                 update { it.copy(modButtonsOnHover = event.enabled) }
+            }
+
+            is SettingsEvent.OnModButtonsInChatChanged -> {
+                settings.putBoolean(KEY_MOD_BUTTONS_IN_CHAT, event.enabled)
+                update { it.copy(modButtonsInChat = event.enabled) }
+            }
+
+            is SettingsEvent.OnModSliderChanged -> {
+                val sanitized = event.settings.sanitized()
+                settings.putString(KEY_MOD_SLIDER, json.encodeToString(sanitized))
+                update { it.copy(modSlider = sanitized) }
+            }
+
+            is SettingsEvent.OnScreenChatChanged -> {
+                val sanitized = event.settings.sanitized()
+                settings.putString(KEY_SCREEN_CHAT, json.encodeToString(sanitized))
+                update { it.copy(screenChat = sanitized) }
             }
 
             is SettingsEvent.OnAddMacro -> update { s ->

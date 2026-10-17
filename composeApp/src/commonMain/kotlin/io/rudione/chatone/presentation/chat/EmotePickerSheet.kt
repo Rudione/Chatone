@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
+import io.rudione.chatone.presentation.components.expressive.ExpressiveTabRow
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -34,7 +36,6 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.russhwolf.settings.Settings
@@ -52,9 +53,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import io.rudione.chatone.presentation.chat.models.EmoteUiData
 import io.rudione.chatone.util.emote.EmoteSearchIndex
-import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.painter.Painter
@@ -65,6 +64,7 @@ import chatone.composeapp.generated.resources.ic_ffz
 import chatone.composeapp.generated.resources.ic_gif
 import chatone.composeapp.generated.resources.ic_seventv
 import chatone.composeapp.generated.resources.ic_twitch
+import io.rudione.chatone.domain.model.GifAccess
 import io.rudione.chatone.domain.model.GifSearchItem
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.chat.rendering.LocalScrollActivity
@@ -951,6 +951,8 @@ fun EmotePickerSheet(
     onGifSelected: ((GifSearchItem) -> Unit)? = null,
     canSendGifs: Boolean = false,
     gifSendError: String? = null,
+    gifAccess: GifAccess = GifAccess.Loading,
+    onRefreshGifAccess: () -> Unit = {},
     onDismiss: () -> Unit,
     closeOnMouseLeave: Boolean = false,
     docked: Boolean = false
@@ -1103,7 +1105,9 @@ fun EmotePickerSheet(
                 onToggleFavoriteEmoji = { toggleFavoriteEmoji(it) },
                 onGifSelected = onGifSelected,
                 canSendGifs = canSendGifs,
-                gifSendError = gifSendError
+                gifSendError = gifSendError,
+                gifAccess = gifAccess,
+                onRefreshGifAccess = onRefreshGifAccess
             )
             Spacer(Modifier.height(8.dp))
         }
@@ -1242,12 +1246,14 @@ internal fun EmoteTab(
     onToggleFavoriteEmoji: (String) -> Unit = {},
     onGifSelected: ((GifSearchItem) -> Unit)? = null,
     canSendGifs: Boolean = false,
-    gifSendError: String? = null
+    gifSendError: String? = null,
+    gifAccess: GifAccess = GifAccess.Loading,
+    onRefreshGifAccess: () -> Unit = {}
 ) {
 
     val twitchChannel = channelEmotes.twitchEmotes
     val twitchGlobal: List<GenericEmote> = channelEmotes.twitchGlobal
-    val twitchSubscribed = personalEmotes.filter { it.provider == EmoteProvider.TWITCH }
+    val twitchSubscribed = remember(personalEmotes) { personalEmotes.filter { it.provider == EmoteProvider.TWITCH } }
     val hasTwitch = twitchChannel.isNotEmpty() || twitchGlobal.isNotEmpty()
     val hasSub = twitchSubscribed.isNotEmpty()
     val sevenTv = channelEmotes.byProvider[EmoteProvider.SEVEN_TV] ?: emptyList()
@@ -1409,7 +1415,9 @@ internal fun EmoteTab(
 
         if (isGifTab && onGifSelected != null) {
             GifPickerTab(
+                access = gifAccess,
                 onGifSelected = onGifSelected,
+                onRefreshAccess = onRefreshGifAccess,
                 canSendGifs = canSendGifs,
                 sendError = gifSendError
             )
@@ -1599,7 +1607,7 @@ private fun EmojiTab(
                 horizontalArrangement = Arrangement.spacedBy(0.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                items(favoriteEmojis.toList(), key = { "fav_$it" }) { emoji ->
+                items(favoriteEmojis.toList(), key = { "fav_$it" }, contentType = { "emoji" }) { emoji ->
                     EmojiGridItem(
                         emoji = emoji,
                         isFavorite = true,
@@ -1611,33 +1619,16 @@ private fun EmojiTab(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
         }
         if (searchQuery.isBlank()) {
-            ScrollableTabRow(
-                selectedTabIndex = selectedCategoryIndex,
-                modifier = Modifier.fillMaxWidth(),
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.primary,
-                edgePadding = 8.dp,
-                divider = {}
-            ) {
-                EMOJI_CATEGORIES.forEachIndexed { index, category ->
-                    Tab(
-                        selected = selectedCategoryIndex == index,
-                        onClick = { selectedCategoryIndex = index },
-                        modifier = Modifier.padding(horizontal = 2.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (selectedCategoryIndex == index)
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                    else Color.Transparent
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) { Text(category.icon, fontSize = 18.sp, textAlign = TextAlign.Center) }
-                    }
-                }
+            ExpressiveTabRow(
+                tabs = EMOJI_CATEGORIES.indices.toList(),
+                selected = selectedCategoryIndex,
+                onSelect = { selectedCategoryIndex = it },
+                fill = false,
+                size = ExpressiveTabSize.Compact,
+                divider = false,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+            ) { index, _, _ ->
+                Text(EMOJI_CATEGORIES[index].icon, fontSize = 18.sp, textAlign = TextAlign.Center)
             }
             Text(
                 EMOJI_CATEGORIES.getOrNull(selectedCategoryIndex)?.label ?: "",
@@ -1670,7 +1661,8 @@ private fun EmojiTab(
             ) {
                 itemsIndexed(
                     items = displayEmojis,
-                    key = { index, emoji -> "$index-$emoji" }
+                    key = { index, emoji -> "$index-$emoji" },
+                    contentType = { _, _ -> "emoji" }
                 ) { _, emoji ->
                     EmojiGridItem(
                         emoji = emoji,
@@ -1778,18 +1770,23 @@ private fun EmoteProviderTabStrip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            tabs.forEachIndexed { index, entry ->
-                EmoteTabTile(
-                    entry = entry,
-                    selected = index == selectedIndex,
-                    onClick = { onSelect(index) }
+        ExpressiveTabRow(
+            tabs = tabs,
+            selected = tabs.getOrElse(selectedIndex) { tabs.first() },
+            onSelect = { entry -> onSelect(tabs.indexOf(entry)) },
+            fill = false,
+            size = ExpressiveTabSize.Compact,
+            divider = false,
+            accentOf = { it.tab.accent() },
+            modifier = Modifier.weight(1f)
+        ) { entry, _, color ->
+            val label = if (entry.count > 0) "${entry.label} · ${entry.count}" else entry.label
+            LiquidGlassTooltipBox(tooltip = label) {
+                Icon(
+                    painter = entry.tab.icon() ?: rememberVectorPainter(Lucide.LayoutGrid),
+                    contentDescription = label,
+                    tint = color,
+                    modifier = Modifier.size(TabIconSize)
                 )
             }
         }

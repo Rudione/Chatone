@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.components.rows
 
+import io.rudione.chatone.presentation.settings.settingsAnchor
+import io.rudione.chatone.presentation.settings.search.SearchText
 import io.rudione.chatone.presentation.components.ChatoneSlider
 
 import androidx.compose.foundation.BorderStroke
@@ -24,7 +26,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
@@ -56,29 +57,13 @@ fun HighlightedSettingsText(
     overflow: TextOverflow = TextOverflow.Clip
 ) {
     val q = LocalSettingsSearch.current.trim()
+    val highlight = Color(0xFFFFEE58).copy(alpha = 0.25f)
     val annotated = remember(text, q) {
-        if (q.isEmpty() || q.length < 2) {
-            buildAnnotatedString { append(text) }
-        } else {
-            val lowerText = text.lowercase()
-            val lowerQ = q.lowercase()
-            buildAnnotatedString {
-                var i = 0
-                while (i < text.length) {
-                    val idx = lowerText.indexOf(lowerQ, i)
-                    if (idx < 0) {
-                        append(text.substring(i))
-                        break
-                    }
-                    if (idx > i) append(text.substring(i, idx))
-                    withStyle(
-                        SpanStyle(
-                            background = Color(0xFFFFEE58).copy(alpha = 0.25f),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    ) { append(text.substring(idx, idx + q.length)) }
-                    i = idx + q.length
-                }
+        val ranges = if (q.length < 2) emptyList() else SearchText.highlightRanges(text, q)
+        buildAnnotatedString {
+            append(text)
+            ranges.forEach { range ->
+                addStyle(SpanStyle(background = highlight, fontWeight = FontWeight.SemiBold), range.first, range.last + 1)
             }
         }
     }
@@ -106,7 +91,15 @@ internal object SettingsRowMetrics {
     val horizontal: Dp = if (isDesktopPlatform) 14.dp else 18.dp
     val vertical: Dp = if (isDesktopPlatform) 6.dp else 10.dp
     val minHeight: Dp = if (isDesktopPlatform) 44.dp else 56.dp
+    val inset: Dp = 5.dp
+    val insetVertical: Dp = 2.dp
+    val shape = RoundedCornerShape(if (isDesktopPlatform) 12.dp else 18.dp)
 }
+
+private fun Modifier.settingsRowTouchArea(onClick: () -> Unit): Modifier = this
+    .padding(horizontal = SettingsRowMetrics.inset, vertical = SettingsRowMetrics.insetVertical)
+    .clip(SettingsRowMetrics.shape)
+    .clickable(onClick = onClick)
 
 @Composable
 private fun settingsTitleStyle(): TextStyle =
@@ -159,10 +152,11 @@ fun SwitchRow(
 ) {
     Row(
         modifier = Modifier
+            .settingsAnchor(title)
             .fillMaxWidth()
             .heightIn(min = SettingsRowMetrics.minHeight)
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical),
+            .settingsRowTouchArea { onCheckedChange(!checked) }
+            .padding(horizontal = SettingsRowMetrics.horizontal - SettingsRowMetrics.inset, vertical = SettingsRowMetrics.vertical - SettingsRowMetrics.insetVertical),
         verticalAlignment = Alignment.CenterVertically
     ) {
         RowTitle(title, subtitle)
@@ -180,13 +174,13 @@ fun ListRow(
     onSelected: (Int) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier = Modifier.settingsAnchor(title)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = SettingsRowMetrics.minHeight)
-                .clickable { expanded = true }
-                .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical),
+                .settingsRowTouchArea { expanded = true }
+                .padding(horizontal = SettingsRowMetrics.horizontal - SettingsRowMetrics.inset, vertical = SettingsRowMetrics.vertical - SettingsRowMetrics.insetVertical),
             verticalAlignment = Alignment.CenterVertically
         ) {
             RowTitle(title, help)
@@ -237,7 +231,9 @@ fun SliderRow(
     onValueChange: (Float) -> Unit
 ) {
     Column(
-        modifier = Modifier.padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical)
+        modifier = Modifier
+            .settingsAnchor(label)
+            .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             RowTitle(label, null)
@@ -259,7 +255,9 @@ fun SliderRow(
     onValueChange: ((Float) -> Unit)? = null
 ) {
     Column(
-        modifier = Modifier.padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical)
+        modifier = Modifier
+            .settingsAnchor(title)
+            .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             RowTitle(title, null)
@@ -293,16 +291,21 @@ fun HotkeyRow(
 ) {
     var isRecording by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
+        modifier = Modifier
+            .settingsAnchor(title)
+            .fillMaxWidth()
+            .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical + 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyLarge)
-            HighlightedSettingsText(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            HighlightedSettingsText(title, style = settingsTitleStyle(), color = MaterialTheme.colorScheme.onSurface)
+            if (subtitle.isNotBlank()) {
+                HighlightedSettingsText(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         Spacer(Modifier.width(12.dp))
         Row(

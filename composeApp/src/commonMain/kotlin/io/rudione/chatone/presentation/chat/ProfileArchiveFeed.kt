@@ -186,7 +186,7 @@ private fun ArchiveLineList(archive: UserLogArchiveState, displayName: String, n
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            item(key = "archive-older") {
+            item(key = "archive-older", contentType = "archive-older") {
                 DisableSelection {
                     when {
                         archive.isLoading -> Box(
@@ -207,7 +207,7 @@ private fun ArchiveLineList(archive: UserLogArchiveState, displayName: String, n
                     }
                 }
             }
-            items(rows, key = { it.key }) { row ->
+            items(rows, key = { it.key }, contentType = { "archive-row" }) { row ->
                 when (row) {
                     is ArchiveRow.Day -> DisableSelection { ArchiveDayHeader(row.label) }
                     is ArchiveRow.Line -> ArchiveLineRow(row.line, displayName, nameColor)

@@ -15,6 +15,7 @@ import io.rudione.chatone.data.auth.LoginSiteResolver
 import io.rudione.chatone.data.local.DatabaseDriverFactory
 import io.rudione.chatone.data.local.createDatabase
 import io.rudione.chatone.data.remote.AiAssistantClient
+import io.rudione.chatone.data.remote.BadgeHqClient
 import io.rudione.chatone.data.remote.BestLogsClient
 import io.rudione.chatone.data.remote.ImageUploaderClient
 import io.rudione.chatone.data.remote.IvrApiClient
@@ -42,6 +43,9 @@ import io.rudione.chatone.data.repository.AuthRepositoryImpl
 import io.rudione.chatone.data.repository.BadgeRepository
 import io.rudione.chatone.data.repository.ChannelFolderRepository
 import io.rudione.chatone.data.repository.ChatRepository
+import io.rudione.chatone.data.repository.ChannelRoleGateway
+import io.rudione.chatone.presentation.screenchat.ScreenChatController
+import io.rudione.chatone.data.repository.ChannelRoleRepository
 import io.rudione.chatone.data.repository.ChatRepositoryImpl
 import io.rudione.chatone.data.repository.AutomodRepository
 import io.rudione.chatone.data.repository.EmoteRepository
@@ -106,8 +110,8 @@ import io.rudione.chatone.presentation.chat.multichat.PanelViewModelStoreRegistr
 import io.rudione.chatone.presentation.settings.SettingsNavigator
 import io.rudione.chatone.presentation.startup.LaunchReadiness
 import io.rudione.chatone.presentation.theme.CustomThemeManager
+import io.rudione.chatone.util.media.AppImageLoaderInstaller
 import io.rudione.chatone.util.settings.AppConfig
-import io.rudione.chatone.util.system.LaunchGate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -192,6 +196,7 @@ val networkModule = module {
     single { BestLogsClient(httpClient = get()) }
     single { TwitchChatterFameClient(httpClient = get()) }
     single { RolesTvClient(httpClient = get()) }
+    single { BadgeHqClient(httpClient = get()) }
     single { MentionRepository(get()) }
 
     single { SevenTvApiClient(httpClient = get()) }
@@ -211,6 +216,13 @@ val networkModule = module {
             gqlClient = get(),
             accountManager = get(),
             scope = get()
+        )
+    }
+    single<ChannelRoleGateway> {
+        ChannelRoleRepository(
+            helix = get(),
+            gql = get(),
+            moderationAuth = get()
         )
     }
     single { TwitchDeviceAuthClient(httpClient = get()) }
@@ -282,7 +294,8 @@ val repositoryModule = module {
     single {
         GifRepository(
             giphyApi = get(),
-            settings = get()
+            settings = get(),
+            channelConfigs = get<TwitchGqlClient>()
         )
     }
 
@@ -300,9 +313,8 @@ val repositoryModule = module {
 
     single {
         ModerationHistoryRepository(
-            database = get(),
-            scope = get(IoScopeQualifier),
-            gqlClient = get()
+            gqlClient = get(),
+            authStore = get()
         )
     }
 
@@ -377,10 +389,10 @@ val useCaseModule = module {
 
 val appModule = module {
     single { CustomThemeManager() }
-    single { LaunchGate() }
     single { LaunchReadiness() }
     single { ChatPanelManager() }
     single { AccountManager(settings = get()) }
+    single { AppImageLoaderInstaller(accountManager = get(), scope = get()) }
     single { PanelPersistence(settings = get()) }
     single { AccountListLoader(authRepository = get()) }
     single { HttpClientFactory(accountManager = get()) }
@@ -477,11 +489,39 @@ val settingsModule = module {
     single { ChatMessageScaleRepository(settings = get()) }
     single { RecentChannelsRepository(settings = get()) }
     single { SettingsNavigator() }
+    single { ScreenChatController(settings = get()) }
 }
 
 val viewModelModule = module {
     viewModelOf(::AuthViewModel)
-    viewModelOf(::ChatViewModel)
+    viewModel {
+        ChatViewModel(
+            chatRepository = get(),
+            emoteRepository = get(),
+            badgeRepository = get(),
+            recentMessagesClient = get(),
+            sendMessageUseCase = get(),
+            joinChannelUseCase = get(),
+            apiClient = get(),
+            sevenTvCosmeticsClient = get(),
+            sevenTvEventApi = get(),
+            sevenTvApi = get(),
+            automodRepository = get(),
+            pubSubClient = get(),
+            eventSubClient = get(),
+            imageUploaderClient = get(),
+            twitchGqlClient = get(),
+            moderationAuthStore = get(),
+            aiAssistantController = get(),
+            aiAssistantClient = get(),
+            mentionMuteRepository = get(),
+            messagePersistence = get(),
+            persistedSettings = get(),
+            accountAgeRepository = get(),
+            channelRoleGateway = get(),
+            gifRepository = get()
+        )
+    }
     viewModel { SettingsViewModel(get(), get(), get()) }
     viewModelOf(::MainViewModel)
 }

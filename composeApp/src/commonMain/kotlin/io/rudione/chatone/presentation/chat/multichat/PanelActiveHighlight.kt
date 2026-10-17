@@ -1,11 +1,10 @@
 package io.rudione.chatone.presentation.chat.multichat
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.border
+import io.rudione.chatone.presentation.components.animatedBorder
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -20,10 +19,11 @@ fun Modifier.panelActiveHighlight(
     val isActive = rememberIsPanelActive(panelManager, panelId)
     val targetColor = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
     else Color.Transparent
-    val borderColor by animateColorAsState(targetValue = targetColor, label = "panelHighlightColor")
-    return this.border(
+    val borderColor = animateColorAsState(targetValue = targetColor, label = "panelHighlightColor")
+    return this.animatedBorder(
         width = if (isActive) 1.dp else 0.dp,
-        color = borderColor,
-        shape = RoundedCornerShape(10.dp)
-    )
+        shape = PanelHighlightShape
+    ) { borderColor.value }
 }
+
+private val PanelHighlightShape = RoundedCornerShape(10.dp)

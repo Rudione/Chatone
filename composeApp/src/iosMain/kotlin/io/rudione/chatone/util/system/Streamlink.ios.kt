@@ -5,5 +5,5 @@ import platform.UIKit.UIApplication
 
 actual fun openInStreamlink(channelLogin: String, quality: String) {
     val nsUrl = NSURL.URLWithString("https://twitch.tv/$channelLogin") ?: return
-    UIApplication.sharedApplication.openURL(nsUrl)
+    UIApplication.sharedApplication.openURL(nsUrl, options = emptyMap<Any?, Any?>(), completionHandler = null)
 }

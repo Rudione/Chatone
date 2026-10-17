@@ -3,7 +3,6 @@ package io.rudione.chatone.presentation.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,7 +22,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.icons.lucide.Check
 import io.rudione.chatone.icons.lucide.Lucide
@@ -60,7 +61,7 @@ fun ChatoneSwitch(
             .alpha(if (enabled) 1f else 0.4f)
             .width(48.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(trackColor)
+            .drawBehind { drawRect(trackColor) }
             .border(
                 width = if (checked) 0.dp else 1.5.dp,
                 color = borderColor,
@@ -75,10 +76,10 @@ fun ChatoneSwitch(
     ) {
         Box(
             modifier = Modifier
-                .offset(x = thumbOffset)
+                .offset { IntOffset(thumbOffset.roundToPx(), 0) }
                 .size(24.dp)
                 .clip(CircleShape)
-                .background(thumbColor),
+                .drawBehind { drawRect(thumbColor) },
             contentAlignment = Alignment.Center
         ) {
             if (checked) {

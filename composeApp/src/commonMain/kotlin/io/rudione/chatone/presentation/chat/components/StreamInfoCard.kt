@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import coil3.compose.AsyncImage
@@ -52,6 +51,7 @@ import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.stream.StreamFormatting
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.components.PortalPopup
 
 private val PreviewShape = RoundedCornerShape(8.dp)
 private val ChipShape = RoundedCornerShape(6.dp)
@@ -126,7 +126,7 @@ internal fun StreamInfoPopup(liveStream: ChannelData, onDismiss: () -> Unit) {
     val position = remember(gapPx, marginPx) { AboveAnchor(gapPx, marginPx) }
     val appear = remember { Animatable(0f) }
     LaunchedEffect(Unit) { appear.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMedium)) }
-    Popup(
+    PortalPopup(
         popupPositionProvider = position,
         onDismissRequest = onDismiss,
         properties = PopupProperties(focusable = false, dismissOnClickOutside = true)

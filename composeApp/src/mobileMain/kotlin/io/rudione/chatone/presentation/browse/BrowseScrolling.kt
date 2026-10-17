@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.browse
 
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -16,7 +19,6 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -41,7 +43,7 @@ private val ButtonMargin = 16.dp
 internal fun BoxScope.ScrollToTopButton(gridState: LazyGridState, strings: BrowseStrings, bottomInset: Dp) {
     val visible by remember(gridState) { derivedStateOf { gridState.firstVisibleItemIndex > SHOW_AFTER_INDEX } }
     val floating = LocalFloatingStreamPlayer.current
-    val clearance by animateDpAsState(floating?.bottomEndClearance ?: 0.dp, tween(260), label = "scrollTopClearance")
+    val clearance = animateDpAsState(floating?.bottomEndClearance ?: 0.dp, tween(260), label = "scrollTopClearance")
     val scope = rememberCoroutineScope()
     AnimatedVisibility(
         visible = visible,
@@ -49,7 +51,8 @@ internal fun BoxScope.ScrollToTopButton(gridState: LazyGridState, strings: Brows
         exit = scaleOut(targetScale = 0.6f) + fadeOut(),
         modifier = Modifier
             .align(Alignment.BottomEnd)
-            .padding(end = ButtonMargin, bottom = ButtonMargin + bottomInset + clearance)
+            .padding(end = ButtonMargin, bottom = ButtonMargin + bottomInset)
+            .offset { IntOffset(0, -clearance.value.roundToPx()) }
     ) {
         SmallFloatingActionButton(
             onClick = {

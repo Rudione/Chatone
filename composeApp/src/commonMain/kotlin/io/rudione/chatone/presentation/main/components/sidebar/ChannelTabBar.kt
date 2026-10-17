@@ -1,104 +1,41 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.consumeAllChanges
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.zIndex
-import coil3.compose.AsyncImage
-import io.rudione.chatone.domain.model.Channel
-import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.components.ChatoneCountChip
-import io.rudione.chatone.presentation.components.GlowSurface
-import io.rudione.chatone.presentation.components.GradientButton
-import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
-import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
-import io.rudione.chatone.presentation.settings.SettingsEvent
-import io.rudione.chatone.presentation.settings.SettingsScreen
-import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.system.GlobalKeyDispatcher
-import io.rudione.chatone.util.system.HotkeyAction
-import io.rudione.chatone.util.system.comboFor
-import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
-import io.rudione.chatone.presentation.theme.ChatoneColors
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.WallpaperGlowEdge
 import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
-import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.util.system.handleHover
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.coroutines.launch
-import org.koin.compose.koinInject
-import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.hypot
-import io.rudione.chatone.presentation.chat.components.ChattersPanel
-import io.rudione.chatone.presentation.main.components.MentionsFeed
-import io.rudione.chatone.presentation.main.components.MentionTabsBar
-import io.rudione.chatone.presentation.main.components.MentionToast
-import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
-import io.rudione.chatone.presentation.settings.DetachedSettingsWindow
-import io.rudione.chatone.presentation.settings.SettingsEffect
-import io.rudione.chatone.presentation.chat.multichat.MultiChatRootSetup
-import io.rudione.chatone.presentation.account.AccountAutoConnectEffect
-import io.rudione.chatone.data.repository.AccountManager
-import io.rudione.chatone.data.repository.AuthRepository
-import io.rudione.chatone.data.repository.MentionMuteRepository
-import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
-import io.rudione.chatone.presentation.chat.ChatViewModel
-import io.rudione.chatone.presentation.chat.multichat.MainScreenChatRouter
-import io.rudione.chatone.presentation.main.MainState
-import io.rudione.chatone.presentation.main.MainEvent
+import kotlin.math.roundToInt
 import io.rudione.chatone.domain.model.ChannelFolder
 import io.rudione.chatone.domain.model.ChannelTab
 import io.rudione.chatone.icons.lucide.ChevronDown
@@ -132,7 +69,7 @@ internal fun ChannelTabBar(
         }
     }
     val collapsedFolders = remember(folders) { folders.filterNot { it.isExpanded }.mapTo(HashSet()) { it.id } }
-    LaunchedEffect(folders, channels) {
+    SideEffect(folders, channels) {
         io.github.aakira.napier.Napier.d(
             "ChannelTabBar: folders=${folders.size} (${folders.joinToString { it.name + "[${it.channels.size}]" }}), channels=${channels.size}, mapped=${folderByLogin.size}",
             tag = "ChannelTabBar"
@@ -145,10 +82,13 @@ internal fun ChannelTabBar(
     var dragOffset by remember { mutableStateOf(Offset.Zero) }
     var dropTargetIndex by remember { mutableStateOf<Int?>(null) }
 
-    val tabCenters = remember { mutableStateListOf<Pair<Int, Offset>>() }
-    val folderChipBounds =
-        remember { mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
+    val tabCoords = remember { HashMap<Int, LayoutCoordinates>() }
+    val folderChipCoords = remember { HashMap<String, LayoutCoordinates>() }
+    val containerAnchor = remember { LayoutAnchor() }
     var folderDropTargetId by remember { mutableStateOf<String?>(null) }
+    val currentChannels by rememberUpdatedState(channels)
+    val currentOnReorder by rememberUpdatedState(onReorder)
+    val currentOnMoveToFolder by rememberUpdatedState(onMoveToFolder)
 
     val tabBarWallpaper = LocalWallpaperController.current.state
     val tabBarBlur =
@@ -166,7 +106,7 @@ internal fun ChannelTabBar(
         } else {
             Box(modifier = Modifier.matchParentSize().background(tabBarColor))
         }
-        Box(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth().onPlaced { containerAnchor.coords = it }) {
             val displayChannels: List<ChannelTab> = remember(channels, folders) {
                 val key = { ch: ChannelTab -> ch.login.lowercase().removePrefix("#") }
                 val foldered = folders.flatMap { f ->
@@ -177,6 +117,7 @@ internal fun ChannelTabBar(
                 val unfoldered = channels.filter { key(it) !in seen }
                 foldered + unfoldered
             }
+            val currentDisplayChannels by rememberUpdatedState(displayChannels)
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(0.dp)
@@ -234,7 +175,7 @@ internal fun ChannelTabBar(
                             isCollapsed = isCollapsed,
                             onClick = { onToggleFolder(folderInfo.id) },
                             isDropTarget = folderDropTargetId == folderInfo.id,
-                            onPositioned = { rect -> folderChipBounds[folderInfo.id] = rect }
+                            onPlaced = { coords -> folderChipCoords[folderInfo.id] = coords }
                         )
                     } else if (isGroupStart && folderInfo == null && index > 0) {
                         Box(
@@ -249,8 +190,6 @@ internal fun ChannelTabBar(
                     if (folderInfo != null && folderInfo.id in collapsedFolders) {
                         return@forEachIndexed
                     }
-
-                    val tabCenter = remember { mutableStateOf(Offset.Zero) }
 
                     Box(
                         modifier = Modifier
@@ -278,16 +217,7 @@ internal fun ChannelTabBar(
                             )
                             .clickable { onSelect(channel.login) }
                             .padding(start = 6.dp, end = 2.dp, top = 3.dp, bottom = 3.dp)
-                            .onGloballyPositioned { coords ->
-                                val bounds = coords.boundsInRoot()
-                                tabCenter.value = Offset(
-                                    bounds.left + bounds.width / 2,
-                                    bounds.top + bounds.height / 2
-                                )
-
-                                tabCenters.removeAll { pair: Pair<Int, Offset> -> pair.first == index }
-                                tabCenters.add(index to tabCenter.value)
-                            }
+                            .onPlaced { coords -> tabCoords[index] = coords }
                             .pointerInput(channel.login, index) {
                                 detectDragGestures(
                                     onDragStart = { draggedIndex = index },
@@ -295,22 +225,25 @@ internal fun ChannelTabBar(
                                         change.consumeAllChanges()
                                         dragOffset += delta
 
-                                        val currentDragPos = tabCenter.value + dragOffset
+                                        val start = tabCoords[index]?.centerInRootOrNull()
+                                            ?: return@detectDragGestures
+                                        val currentDragPos = start + dragOffset
 
                                         val hitFolderId =
-                                            folderChipBounds.entries.firstOrNull { (_, rect) ->
-                                                rect.contains(currentDragPos)
+                                            folderChipCoords.entries.firstOrNull { (_, coords) ->
+                                                coords.isAttached && coords.boundsInRoot().contains(currentDragPos)
                                             }?.key
                                         if (hitFolderId != null) {
                                             folderDropTargetId = hitFolderId
                                             dropTargetIndex = null
                                         } else {
                                             folderDropTargetId = null
-                                            dropTargetIndex =
-                                                tabCenters.minByOrNull { pair: Pair<Int, Offset> ->
+                                            dropTargetIndex = tabCoords.entries
+                                                .mapNotNull { (i, coords) -> coords.centerInRootOrNull()?.let { i to it } }
+                                                .minByOrNull { (_, center) ->
                                                     hypot(
-                                                        currentDragPos.x - pair.second.x,
-                                                        currentDragPos.y - pair.second.y
+                                                        currentDragPos.x - center.x,
+                                                        currentDragPos.y - center.y
                                                     )
                                                 }?.first
                                         }
@@ -320,22 +253,22 @@ internal fun ChannelTabBar(
                                         val targetFolder = folderDropTargetId
                                         val toDisp = dropTargetIndex
                                         val fromLogin =
-                                            fromDisp?.let { displayChannels.getOrNull(it)?.login }
+                                            fromDisp?.let { currentDisplayChannels.getOrNull(it)?.login }
                                         val toLogin =
-                                            toDisp?.let { displayChannels.getOrNull(it)?.login }
+                                            toDisp?.let { currentDisplayChannels.getOrNull(it)?.login }
                                         val fromOrig =
-                                            fromLogin?.let { l -> channels.indexOfFirst { it.login == l } }
+                                            fromLogin?.let { l -> currentChannels.indexOfFirst { it.login == l } }
                                                 ?.takeIf { it >= 0 }
                                         val toOrig =
-                                            toLogin?.let { l -> channels.indexOfFirst { it.login == l } }
+                                            toLogin?.let { l -> currentChannels.indexOfFirst { it.login == l } }
                                                 ?.takeIf { it >= 0 }
                                         when {
                                             fromLogin != null && targetFolder != null -> {
-                                                onMoveToFolder(fromLogin, targetFolder)
+                                                currentOnMoveToFolder(fromLogin, targetFolder)
                                             }
 
                                             fromOrig != null && toOrig != null && fromOrig != toOrig -> {
-                                                onReorder(fromOrig, toOrig)
+                                                currentOnReorder(fromOrig, toOrig)
                                             }
                                         }
                                         draggedIndex = null
@@ -425,25 +358,31 @@ internal fun ChannelTabBar(
                             isCollapsed = true,
                             onClick = { },
                             isDropTarget = folderDropTargetId == f.id,
-                            onPositioned = { rect -> folderChipBounds[f.id] = rect }
+                            onPlaced = { coords -> folderChipCoords[f.id] = coords }
                         )
                     }
                 }
             }
 
             draggedIndex?.let { idx: Int ->
-                channels.getOrNull(idx)?.let { ch: ChannelTab ->
+                displayChannels.getOrNull(idx)?.let { ch: ChannelTab ->
                     Box(
                         modifier = Modifier
-                            .offset {
-                                IntOffset(
-                                    tabCenters.getOrNull(idx)?.second?.x?.toInt()
-                                        ?: 0 + dragOffset.x.toInt(),
-                                    tabCenters.getOrNull(idx)?.second?.y?.toInt()
-                                        ?: 0 + dragOffset.y.toInt()
-                                )
-                            }
                             .zIndex(10f)
+                            .layout { measurable, constraints ->
+                                val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                                layout(0, 0) {
+                                    val container = containerAnchor.coords
+                                    val tab = tabCoords[idx]
+                                    val center = if (container != null && container.isAttached && tab != null && tab.isAttached) {
+                                        container.localPositionOf(tab, Offset(tab.size.width / 2f, tab.size.height / 2f))
+                                    } else Offset.Zero
+                                    placeable.place(
+                                        (center.x + dragOffset.x - placeable.width / 2f).roundToInt(),
+                                        (center.y + dragOffset.y - placeable.height / 2f).roundToInt()
+                                    )
+                                }
+                            }
                             .clip(RoundedCornerShape(6.dp))
                             .background(MaterialTheme.colorScheme.primaryContainer)
                             .border(
@@ -474,7 +413,7 @@ internal fun TabBarFolderChip(
     isCollapsed: Boolean,
     onClick: () -> Unit,
     isDropTarget: Boolean = false,
-    onPositioned: (androidx.compose.ui.geometry.Rect) -> Unit = {}
+    onPlaced: (LayoutCoordinates) -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -490,7 +429,7 @@ internal fun TabBarFolderChip(
                 ) else Modifier
             )
             .clickable(onClick = onClick)
-            .onGloballyPositioned { coords -> onPositioned(coords.boundsInRoot()) }
+            .onPlaced(onPlaced)
             .padding(horizontal = 5.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -526,3 +465,10 @@ internal fun TabBarFolderChip(
         )
     }
 }
+
+private class LayoutAnchor {
+    var coords: LayoutCoordinates? = null
+}
+
+private fun LayoutCoordinates.centerInRootOrNull(): Offset? =
+    if (isAttached) boundsInRoot().center else null

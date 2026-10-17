@@ -8,6 +8,7 @@ import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
 import io.rudione.chatone.data.remote.AiAssistantClient
 import io.rudione.chatone.data.remote.AiChatMessage
+import io.rudione.chatone.data.remote.ChatMessageRejectedException
 import io.rudione.chatone.data.remote.GqlChannelPointReward
 import io.rudione.chatone.data.remote.ChatterFame
 import io.rudione.chatone.data.remote.RecentMessagesClient
@@ -17,11 +18,16 @@ import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient
 import io.rudione.chatone.data.remote.emote.SevenTvEventApi
+import io.rudione.chatone.data.repository.GifRepository
 import io.rudione.chatone.data.repository.AutomodRepository
 import io.rudione.chatone.data.repository.BadgeRepository
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.EmoteRepository
+import io.rudione.chatone.data.repository.ChannelRoleGateway
 import io.rudione.chatone.domain.model.Badge
+import io.rudione.chatone.domain.moderation.ChannelRole
+import io.rudione.chatone.domain.moderation.RoleTarget
+import io.rudione.chatone.domain.moderation.UserRoles
 import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.ChatRule
 import io.rudione.chatone.domain.model.ChatRuleType
@@ -78,12 +84,12 @@ import io.rudione.chatone.data.repository.EnrichedPersonalEmoteBackfiller
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.repository.MessagePersistenceQueue
 import io.rudione.chatone.data.repository.ModerationAuthStore
-import io.rudione.chatone.data.repository.ModerationHistoryRepository
 import io.rudione.chatone.di.GlobalDi
 import io.rudione.chatone.data.remote.BestLogsClient
 import io.rudione.chatone.data.repository.ChannelLogBackfill
 import io.rudione.chatone.domain.model.ChatCommand
 import io.rudione.chatone.domain.model.ChatCommandKind
+import io.rudione.chatone.domain.model.GifAccess
 import io.rudione.chatone.domain.model.GifSearchItem
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.util.Result
@@ -187,6 +193,7 @@ data class ChatState(
     val twitchSubscriberEmotes: List<GenericEmote> = emptyList(),
     val ownSubTier: Int = 0,
     val gifSendError: String? = null,
+    val gifAccess: GifAccess = GifAccess.Loading,
     val twitchChannelEmotes: List<GenericEmote> = emptyList(),
     val twitchGlobalEmotes: List<GenericEmote> = emptyList(),
     val uploadProgress: Float? = null,
@@ -195,9 +202,14 @@ data class ChatState(
     val pendingUploadPath: String? = null,
     val pendingUploadHost: String? = null,
     val pendingUploadHostIsNew: Boolean = false,
-    val warmup: ChatWarmup = ChatWarmup()
+    val warmup: ChatWarmup = ChatWarmup(),
+    val roleOverrides: Map<String, UserRoles> = emptyMap()
 ) : UiState {
     val canModerate: Boolean get() = isMod || isBroadcaster
+    val canManageRoles: Boolean get() = isBroadcaster || isGrandMod
+
+    fun rolesOf(message: DisplayMessage.PrivMsg): UserRoles =
+        roleOverrides[message.userId] ?: UserRoles(moderator = message.isModerator, vip = message.isVip)
 }
 
 data class RoomState(
@@ -233,10 +245,12 @@ sealed class ChatEvent : UiEvent {
     data class OnDeleteMessage(val messageId: String) : ChatEvent()
     data class OnWhisper(val username: String) : ChatEvent()
     data class OnInsertMention(val displayName: String) : ChatEvent()
-    data class OnModUser(val userId: String) : ChatEvent()
-    data class OnUnmodUser(val userId: String) : ChatEvent()
-    data class OnVipUser(val userId: String) : ChatEvent()
-    data class OnUnvipUser(val userId: String) : ChatEvent()
+    data class OnSetUserRole(
+        val target: RoleTarget,
+        val current: UserRoles,
+        val role: ChannelRole,
+        val granted: Boolean
+    ) : ChatEvent()
 
     data class OnSelectEmoteCompletion(val emote: GenericEmote) : ChatEvent()
     object OnDismissCompletions : ChatEvent()
@@ -284,6 +298,7 @@ sealed class ChatEvent : UiEvent {
     object OnToggleEmotePicker : ChatEvent()
     data class OnSendGif(val gif: GifSearchItem) : ChatEvent()
     object OnClearGifSendError : ChatEvent()
+    object OnRefreshGifAccess : ChatEvent()
     object OnRefreshChannel : ChatEvent()
     data class OnBlockUser(val targetUserId: String, val targetLogin: String) : ChatEvent()
     data class OnUnblockUser(val targetUserId: String, val targetLogin: String) : ChatEvent()
@@ -364,8 +379,12 @@ class ChatViewModel(
     private val mentionMuteRepository: MentionMuteRepository,
     private val messagePersistence: MessagePersistenceQueue,
     private val persistedSettings: com.russhwolf.settings.Settings,
-    private val accountAgeRepository: AccountAgeRepository
+    private val accountAgeRepository: AccountAgeRepository,
+    private val channelRoleGateway: ChannelRoleGateway,
+    private val gifRepository: GifRepository
 ) : BaseViewModel<ChatState, ChatEvent, ChatEffect>(ChatState()) {
+
+    private var gifAccessJob: Job? = null
 
     private val notableChatters = GlobalDi.tryGet<TwitchChatterFameClient>()
         ?.let { NotableChatterTracker(it, viewModelScope, ::insertNotableChatter) }
@@ -380,6 +399,8 @@ class ChatViewModel(
         private const val RULE_REPLY_MIN_DELAY_MS = 700L
         private const val RULE_REPLY_MAX_DELAY_MS = 1_900L
         private const val MOD_NOTICE_DEDUPE_MS = 4000L
+        private const val NOTICE_DEDUP_LOOKBACK = 30
+        private const val NOTICE_DEDUP_WINDOW_MS = 10_000L
         private const val REWARD_TITLES_REFRESH_MS = 60_000L
         private const val QUIET_CHAT_THRESHOLD = 60
         private const val QUIET_CHAT_BACKFILL_TARGET = 200
@@ -445,10 +466,17 @@ class ChatViewModel(
 
     private val automationController = ChatAutomationController(
         scope = viewModelScope,
-        apiClient = apiClient,
         getChatState = { state.value },
         getSettings = { cachedSettings() },
-        sendViaHelixOnly = ::sendViaHelixOnly
+        sendAsUser = ::sendAutomatedMessage
+    )
+
+    private val roleController = ChannelRoleController(
+        scope = viewModelScope,
+        gateway = channelRoleGateway,
+        getState = { state.value },
+        update = { transform -> update(transform) },
+        onError = { message -> sendEffect(ChatEffect.ShowError(message)) }
     )
 
     private fun isPhraseMuted(text: String): Boolean {
@@ -1096,10 +1124,7 @@ class ChatViewModel(
             is ChatEvent.OnDeleteMessage -> deleteMessage(event.messageId)
             is ChatEvent.OnWhisper -> whisperUser(event.username)
             is ChatEvent.OnInsertMention -> insertMention(event.displayName)
-            is ChatEvent.OnModUser -> modUser(event.userId)
-            is ChatEvent.OnUnmodUser -> unmodUser(event.userId)
-            is ChatEvent.OnVipUser -> vipUser(event.userId)
-            is ChatEvent.OnUnvipUser -> unvipUser(event.userId)
+            is ChatEvent.OnSetUserRole -> roleController.set(event.target, event.current, event.role, event.granted)
             is ChatEvent.OnSelectEmoteCompletion -> selectEmoteCompletion(event.emote)
             ChatEvent.OnDismissCompletions -> update {
                 it.copy(
@@ -1181,10 +1206,12 @@ class ChatViewModel(
                         gifSendError = null
                     )
                 }
+                if (state.value.isEmotePickerVisible) refreshGifAccess()
             }
 
             is ChatEvent.OnSendGif -> sendGif(event.gif)
             ChatEvent.OnClearGifSendError -> update { it.copy(gifSendError = null) }
+            ChatEvent.OnRefreshGifAccess -> refreshGifAccess()
 
             ChatEvent.OnRefreshChannel -> refreshChannel()
 
@@ -1266,6 +1293,17 @@ class ChatViewModel(
                     it.copy(uploadProgress = null, uploadError = e.message ?: "error")
                 }
             }
+        }
+    }
+
+    private fun refreshGifAccess() {
+        val s = state.value
+        gifAccessJob?.cancel()
+        if (s.gifAccess !is GifAccess.Ready) update { it.copy(gifAccess = GifAccess.Loading) }
+        gifAccessJob = viewModelScope.launch {
+            val token = moderationAuthStore.resolveToken(s.currentAccessToken)
+            val access = gifRepository.access(s.channelId, token)
+            update { it.copy(gifAccess = access) }
         }
     }
 
@@ -1540,9 +1578,11 @@ class ChatViewModel(
                 twitchChannelEmotes = channelTwitchEmoteCache[key] ?: emptyList(),
                 twitchSubscriberEmotes = channelSubEmoteCache[key] ?: emptyList(),
                 ownSubTier = 0,
-                gifSendError = null
+                gifSendError = null,
+                roleOverrides = emptyMap()
             )
         }
+        roleController.reset()
 
         viewModelScope.launch {
             try {
@@ -2393,6 +2433,7 @@ class ChatViewModel(
                         highlightColor = matchResult.color
                     ) else displayMsg
                     automationController.onIncomingMessage(message, isOwnMessage)
+                    roleController.onMessage(message.userId, UserRoles(moderator = message.isModerator, vip = message.isVip))
                     update { state ->
                         if (!state.channelLogin.equals(
                                 message.channelName,
@@ -2500,14 +2541,7 @@ class ChatViewModel(
                             if (isBanNotice) {
                                 update { it.copy(isBanned = true, banReason = event.message) }
                             } else {
-                                addMessage(
-                                    DisplayMessage.SystemMsg(
-                                        id = uniqueId("notice"),
-                                        timestamp = Clock.System.now().toEpochMilliseconds(),
-                                        channel = event.channel, text = event.message,
-                                        type = DisplayMessage.SystemMsg.SystemType.NOTICE
-                                    )
-                                )
+                                addNoticeOnce(event.channel, event.message)
                             }
                         }
                     }
@@ -2663,20 +2697,6 @@ class ChatViewModel(
                                         moderatorLogin = modLogin
                                     )
                                 )
-                                if (!targetUserId.isNullOrBlank()) {
-                                    GlobalDi.tryGet<ModerationHistoryRepository>()
-                                        ?.recordEvent(
-                                            channelId = state.value.channelId,
-                                            targetUserId = targetUserId,
-                                            targetLogin = event.targetUser,
-                                            action = if (event.banDuration != null)
-                                                ModerationHistoryRepository.ACTION_TIMEOUT
-                                            else ModerationHistoryRepository.ACTION_BAN,
-                                            durationSeconds = event.banDuration,
-                                            reason = pendingMod?.reason,
-                                            moderatorLogin = modLogin
-                                        )
-                                }
                                 update { state ->
                                     state.copy(messages = state.messages.map { dm ->
                                         if (dm is DisplayMessage.PrivMsg && dm.username.equals(
@@ -3175,23 +3195,6 @@ class ChatViewModel(
 
             "unraid" -> {
                 update { it.copy(pendingRaidTarget = null, pendingRaidTargetId = null, pendingRaidStartedAt = 0L) }
-            }
-
-            "warn" -> {
-                val targetUserId = event.targetUserId
-                    ?: state.value.messages.filterIsInstance<DisplayMessage.PrivMsg>()
-                        .lastOrNull { it.username.equals(event.target, ignoreCase = true) }?.userId
-                if (!targetUserId.isNullOrBlank()) {
-                    GlobalDi.tryGet<ModerationHistoryRepository>()
-                        ?.recordEvent(
-                            channelId = state.value.channelId,
-                            targetUserId = targetUserId,
-                            targetLogin = event.target.orEmpty(),
-                            action = ModerationHistoryRepository.ACTION_WARN,
-                            reason = event.reason,
-                            moderatorLogin = event.moderator
-                        )
-                }
             }
         }
     }
@@ -3918,37 +3921,13 @@ class ChatViewModel(
                 if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable unique-chat"))
             }
 
-            is SlashCommand.Parsed.Vip -> {
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Broadcaster-only command"))
-                val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
-                val r = apiClient.addVip(token, broadcasterId, tid)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to add VIP"))
-            }
+            is SlashCommand.Parsed.Vip -> setRoleByLogin(cmd.targetLogin, ChannelRole.VIP, granted = true)
 
-            is SlashCommand.Parsed.UnVip -> {
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Broadcaster-only command"))
-                val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
-                val r = apiClient.removeVip(token, broadcasterId, tid)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to remove VIP"))
-            }
+            is SlashCommand.Parsed.UnVip -> setRoleByLogin(cmd.targetLogin, ChannelRole.VIP, granted = false)
 
-            is SlashCommand.Parsed.Mod -> {
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Broadcaster-only command"))
-                val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
-                val r = apiClient.addModerator(token, broadcasterId, tid)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to add mod"))
-            }
+            is SlashCommand.Parsed.Mod -> setRoleByLogin(cmd.targetLogin, ChannelRole.MODERATOR, granted = true)
 
-            is SlashCommand.Parsed.UnMod -> {
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Broadcaster-only command"))
-                val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
-                val r = apiClient.removeModerator(token, broadcasterId, tid)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to remove mod"))
-            }
+            is SlashCommand.Parsed.UnMod -> setRoleByLogin(cmd.targetLogin, ChannelRole.MODERATOR, granted = false)
 
             is SlashCommand.Parsed.Shoutout -> {
                 if (!requireMod()) return
@@ -4451,10 +4430,15 @@ class ChatViewModel(
         channelLogin: String,
         message: String,
         keepText: Boolean,
-        s: ChatState
-    ) {
+        s: ChatState,
+        reply: OutgoingReply? = s.replyingTo?.let { p ->
+            OutgoingReply(p.id, p.username, p.displayName, p.tokens.joinToString("") { t -> t.plainText() })
+        },
+        automated: Boolean = false
+    ): Boolean {
         val now = Clock.System.now().toEpochMilliseconds()
         val localId = uniqueId("local")
+        if (!automated) AutomationGate.shared.recordSent(channelLogin, message, now)
 
         val ownBadges: List<Badge> = if (currentUserBadgeRaw.isNotEmpty()) {
 
@@ -4478,7 +4462,6 @@ class ChatViewModel(
             }
         }
 
-        val parent = s.replyingTo
         val rawMsg = ChatMessage(
             id = localId,
             channelId = s.channelId,
@@ -4491,29 +4474,27 @@ class ChatViewModel(
             color = s.currentUserColor.takeIf { it.isNotBlank() },
             badges = ownBadges,
             isModerator = s.isMod,
-            replyParentMsgId = parent?.id,
-            replyParentUserLogin = parent?.username,
-            replyParentDisplayName = parent?.displayName,
-            replyParentMsgBody = parent?.tokens?.joinToString("") { t ->
-                t.plainText()
-            }
+            replyParentMsgId = reply?.id,
+            replyParentUserLogin = reply?.login,
+            replyParentDisplayName = reply?.displayName,
+            replyParentMsgBody = reply?.body
         )
         val displayMsg = chatMessageToDisplay(rawMsg)
-        val newHistory = (listOf(message) + s.sentMessageHistory).take(MAX_HISTORY)
 
         update { state ->
             val newMessages = (state.messages + displayMsg).takeLast(appendCap)
             val evicted = (state.messages.size + 1 - newMessages.size).coerceAtLeast(0)
             state.copy(
                 messageInput = if (keepText) state.messageInput else "",
-                showEmoteCompletions = false,
-                emoteCompletions = emptyList(),
+                showEmoteCompletions = if (automated) state.showEmoteCompletions else false,
+                emoteCompletions = if (automated) state.emoteCompletions else emptyList(),
                 messages = newMessages,
                 messagesSeq = state.messagesSeq + 1,
                 messagesStartOrdinal = state.messagesStartOrdinal + evicted,
                 replyingTo = if (keepText) state.replyingTo else null,
-                sentMessageHistory = newHistory,
-                historyIndex = -1
+                sentMessageHistory = if (automated) state.sentMessageHistory
+                else (listOf(message) + state.sentMessageHistory).take(MAX_HISTORY),
+                historyIndex = if (automated) state.historyIndex else -1
             )
         }
         sendEffect(ChatEffect.ScrollToBottom)
@@ -4522,7 +4503,7 @@ class ChatViewModel(
             if (s.currentAccessToken.isNotEmpty()) resolveChannelId(channelLogin).orEmpty() else ""
         }
         if (s.currentAccessToken.isNotEmpty() && channelId.isNotEmpty()) {
-            val replyId = s.replyingTo?.id?.takeIf { it.isNotEmpty() && !it.startsWith("local_") }
+            val replyId = reply?.id?.takeIf { it.isNotEmpty() && !it.startsWith("local_") }
             val helixResult = apiClient.sendChatMessage(
                 accessToken = s.currentAccessToken,
                 broadcasterId = channelId,
@@ -4550,14 +4531,22 @@ class ChatViewModel(
                         }
                         Napier.d("Message sent via Helix, patched $localId → $realId", tag = TAG)
                     }
+                    return true
                 }
 
                 is Result.Error -> {
-                    Napier.w(
-                        "Helix send failed: ${helixResult.exception.message}, message still shown locally",
-                        tag = TAG
-                    )
-
+                    val error = helixResult.exception
+                    Napier.w("Helix send failed: ${error.message}, removing local echo", tag = TAG)
+                    update { st ->
+                        st.copy(messages = st.messages.filterNot { it is DisplayMessage.PrivMsg && it.id == localId })
+                    }
+                    val reason = error.message?.takeIf { it.isNotBlank() }
+                    val text = when {
+                        error is ChatMessageRejectedException && !error.code.startsWith("http_") && reason != null -> reason
+                        reason != null -> "${cachedStrings().chatMessageNotSent}: $reason"
+                        else -> cachedStrings().chatMessageNotSent
+                    }
+                    addNoticeOnce(channelLogin, text)
                 }
 
                 is Result.Loading -> {}
@@ -4565,8 +4554,32 @@ class ChatViewModel(
         } else {
             val missing = if (s.currentAccessToken.isEmpty()) "access token" else "channel id for $channelLogin"
             Napier.w("Cannot send via Helix: missing $missing", tag = TAG)
+            update { st ->
+                st.copy(messages = st.messages.filterNot { it is DisplayMessage.PrivMsg && it.id == localId })
+            }
             sendEffect(ChatEffect.ShowError("Authentication required to send messages"))
         }
+        return false
+    }
+
+    private suspend fun sendAutomatedMessage(channelLogin: String, text: String, replyTo: ChatMessage?): Boolean =
+        sendViaHelixOnly(
+            channelLogin = channelLogin,
+            message = text,
+            keepText = true,
+            s = state.value,
+            reply = replyTo?.let { OutgoingReply(it.id, it.username, it.displayName, it.message) },
+            automated = true
+        )
+
+    private fun addNoticeOnce(channelLogin: String, text: String) {
+        val now = Clock.System.now().toEpochMilliseconds()
+        val duplicate = state.value.messages.asReversed().asSequence().take(NOTICE_DEDUP_LOOKBACK).any { dm ->
+            dm is DisplayMessage.SystemMsg && dm.type == DisplayMessage.SystemMsg.SystemType.NOTICE &&
+                    dm.text.isNotBlank() && now - dm.timestamp < NOTICE_DEDUP_WINDOW_MS &&
+                    (dm.text.contains(text, ignoreCase = true) || text.contains(dm.text, ignoreCase = true))
+        }
+        if (!duplicate) systemNotice(channelLogin, text)
     }
 
     private suspend fun resolveChannelId(channelLogin: String): String? {
@@ -4870,40 +4883,12 @@ class ChatViewModel(
         }
     }
 
-    private fun modUser(userId: String) {
+    private suspend fun setRoleByLogin(login: String, role: ChannelRole, granted: Boolean) {
         val s = state.value
-        if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
-        viewModelScope.launch {
-            val result = apiClient.addModerator(s.currentAccessToken, s.channelId, userId)
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to mod user"))
-        }
-    }
-
-    private fun unmodUser(userId: String) {
-        val s = state.value
-        if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
-        viewModelScope.launch {
-            val result = apiClient.removeModerator(s.currentAccessToken, s.channelId, userId)
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to unmod user"))
-        }
-    }
-
-    private fun vipUser(userId: String) {
-        val s = state.value
-        if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
-        viewModelScope.launch {
-            val result = apiClient.addVip(s.currentAccessToken, s.channelId, userId)
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to VIP user"))
-        }
-    }
-
-    private fun unvipUser(userId: String) {
-        val s = state.value
-        if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
-        viewModelScope.launch {
-            val result = apiClient.removeVip(s.currentAccessToken, s.channelId, userId)
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to un-VIP user"))
-        }
+        if (!s.canManageRoles) return sendEffect(ChatEffect.ShowError("Broadcaster or lead moderator only"))
+        val targetLogin = login.trim().removePrefix("@").lowercase()
+        val targetId = resolveUserId(targetLogin) ?: return sendEffect(ChatEffect.ShowError("User not found"))
+        roleController.set(RoleTarget(targetId, targetLogin), s.roleOverrides[targetId], role, granted)
     }
 
     private fun whisperUser(username: String) {
@@ -5588,6 +5573,7 @@ class ChatViewModel(
             text
         }
         sendMessageUseCase(channelLogin, payload)
+        AutomationGate.shared.recordSent(channelLogin, text, Clock.System.now().toEpochMilliseconds())
         lastSentBaseText = text
         return false
     }
@@ -5868,3 +5854,10 @@ class ChatViewModel(
         }
     }
 }
+
+private data class OutgoingReply(
+    val id: String,
+    val login: String,
+    val displayName: String,
+    val body: String
+)

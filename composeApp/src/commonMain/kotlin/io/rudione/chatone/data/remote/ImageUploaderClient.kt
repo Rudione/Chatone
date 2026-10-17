@@ -121,6 +121,7 @@ class ImageUploaderClient(private val httpClient: HttpClient) {
         val response = httpClient.submitFormWithBinaryData(
             url = config.requestUrl,
             formData = formData {
+                config.extraFormFields.forEach { field -> append(field.name, field.value) }
                 append(
                     config.formField.trim(),
                     bytes,

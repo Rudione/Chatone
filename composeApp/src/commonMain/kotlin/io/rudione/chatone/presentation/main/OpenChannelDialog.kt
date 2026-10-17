@@ -234,7 +234,7 @@ private fun ChannelSearchInline(
                 modifier = Modifier.heightIn(max = 190.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(searchResults) { channel ->
+                items(searchResults, key = { it.login }, contentType = { "channel" }) { channel ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

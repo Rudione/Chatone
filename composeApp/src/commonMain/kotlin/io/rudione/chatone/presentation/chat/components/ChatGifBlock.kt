@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat.components
 
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -15,12 +16,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.repository.GifRepository
@@ -30,6 +31,7 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.util.link.openChatUrl
+import io.rudione.chatone.util.media.GiphyMedia
 import org.koin.compose.koinInject
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Star
@@ -47,6 +49,8 @@ internal fun ChatGifBlock(
     val repository: GifRepository = koinInject()
     val favorites by repository.favorites.collectAsState()
     val isFavorite = remember(favorites, gif.id) { favorites.any { it.id == gif.id } }
+    val displayUrl = remember(gif.id, gif.url) { GiphyMedia.chatUrl(gif.id, gif.url) }
+    val maxDimension = with(LocalDensity.current) { maxOf(maxHeight, GIF_MAX_WIDTH).roundToPx() }
 
     Box(
         modifier = modifier
@@ -67,11 +71,12 @@ internal fun ChatGifBlock(
         contentAlignment = Alignment.BottomEnd
     ) {
         AnimatedEmoteImage(
-            url = gif.url,
+            url = displayUrl,
             contentDescription = gif.title,
             modifier = Modifier
                 .heightIn(max = maxHeight)
-                .widthIn(max = GIF_MAX_WIDTH)
+                .widthIn(max = GIF_MAX_WIDTH),
+            maxDimension = maxDimension
         )
         Text(
             text = "GIF",

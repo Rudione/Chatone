@@ -66,7 +66,7 @@ internal fun UserProfileDesktopCard(
     highlightRules: List<HighlightRule>,
     chatFontSizeSp: Float,
     canModerate: Boolean,
-    currentUserIsBroadcaster: Boolean,
+    canManageRoles: Boolean,
     isBlocked: Boolean,
     mentionsMuted: Boolean,
     onToggleMentionMute: () -> Unit,
@@ -78,7 +78,7 @@ internal fun UserProfileDesktopCard(
     val s = LocalStrings.current
     var selectedTab by remember(data.userId) { mutableStateOf(ProfileCardTab.Messages) }
     val showHistory = canModerate &&
-            (profileState.isModerationHistoryLoading || profileState.moderationHistory.isNotEmpty())
+            (profileState.isModerationHistoryLoading || profileState.moderationHistory.totalActions > 0)
     val activeTab = if (selectedTab == ProfileCardTab.ModHistory && !showHistory) ProfileCardTab.Messages
     else selectedTab
     var notesOpen by remember(data.userId) { mutableStateOf(false) }
@@ -94,7 +94,7 @@ internal fun UserProfileDesktopCard(
 
     val badgeItems = remember(
         data.userId, data.badges, profileState.gqlBadges, data.sevenTvBadge,
-        ffzBadges, bttvBadges
+        ffzBadges, bttvBadges, profileState.accountBadges
     ) {
         buildProfileBadges(
             chatBadges = data.badges,
@@ -103,7 +103,8 @@ internal fun UserProfileDesktopCard(
             thirdPartyBadges = buildList {
                 ffzBadges[data.username.lowercase()]?.let { addAll(it) }
                 bttvBadges[data.userId]?.let { add(it) }
-            }
+            },
+            accountBadges = profileState.accountBadges
         )
     }
 
@@ -132,7 +133,7 @@ internal fun UserProfileDesktopCard(
 
             ProfileQuickActions(
                 canModerate = canModerate,
-                currentUserIsBroadcaster = currentUserIsBroadcaster,
+                canManageRoles = canManageRoles,
                 targetIsBroadcaster = data.isBroadcaster,
                 targetIsModerator = data.isModerator,
                 targetIsVip = data.isVip,
@@ -190,7 +191,7 @@ internal fun UserProfileDesktopCard(
                 onSelect = { selectedTab = it },
                 messagesCount = sessionMessages.size + profileState.localHistory.size +
                         profileState.remoteHistory.size,
-                historyCount = profileState.moderationHistory.size,
+                historyCount = profileState.moderationHistory.totalActions,
                 showHistory = showHistory,
                 compact = compact,
                 trailing = {
@@ -249,7 +250,6 @@ internal fun UserProfileDesktopCard(
                         dossier = profileState.dossier,
                         isLoading = profileState.isDossierLoading,
                         subAge = profileState.subAge,
-                        followedAtFallback = profileState.followedAt,
                         sevenTv = sevenTv,
                         presence = profileState.presence,
                         onOpenChannel = callbacks.onOpenChannel,
@@ -263,7 +263,7 @@ internal fun UserProfileDesktopCard(
                     )
 
                     ProfileCardTab.ModHistory -> ModerationHistoryTab(
-                        entries = profileState.moderationHistory,
+                        history = profileState.moderationHistory,
                         isLoading = profileState.isModerationHistoryLoading
                     )
                 }

@@ -75,4 +75,5 @@ sealed interface StreamPlayerEvent {
     data object StreamWentLive : StreamPlayerEvent
     data class ViewportChanged(val width: Int, val height: Int) : StreamPlayerEvent
     data class AppVisibilityChanged(val visible: Boolean) : StreamPlayerEvent
+    data object PictureInPictureDismissed : StreamPlayerEvent
 }

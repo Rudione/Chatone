@@ -78,7 +78,6 @@ import io.rudione.chatone.presentation.components.rows.ListRow
 import io.rudione.chatone.presentation.components.rows.DropdownRow
 import io.rudione.chatone.presentation.components.rows.SliderRow
 import io.rudione.chatone.presentation.components.rows.HotkeyRow
-import io.rudione.chatone.presentation.settings.components.ModerationSettingsSection
 import io.rudione.chatone.presentation.settings.theme_settings.ThemeSettingsScreen
 import io.rudione.chatone.presentation.settings.theme_settings.ThinSlider
 import io.rudione.chatone.presentation.theme.ChatoneTheme

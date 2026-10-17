@@ -1,5 +1,14 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.runtime.getValue
+import kotlin.math.ceil
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -22,12 +31,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,20 +48,20 @@ fun ExpressiveCheckbox(
     modifier: Modifier = Modifier,
     boxSize: Int = 20,
 ) {
-    val fill by animateColorAsState(
+    val fill = animateColorAsState(
         if (checked) MaterialTheme.colorScheme.primary else Color.Transparent,
         tween(180), label = "fill"
     )
-    val borderColor by animateColorAsState(
+    val borderColor = animateColorAsState(
         if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
         tween(180), label = "border"
     )
-    val corner by animateDpAsState(
+    val corner = animateDpAsState(
         if (checked) (boxSize / 2).dp else (boxSize / 4).dp,
         spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
         label = "corner"
     )
-    val checkScale by animateFloatAsState(
+    val checkScale = animateFloatAsState(
         if (checked) 1f else 0f,
         spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "checkScale"
@@ -63,9 +70,7 @@ fun ExpressiveCheckbox(
     Box(
         modifier = modifier
             .size(boxSize.dp)
-            .clip(RoundedCornerShape(corner))
-            .background(fill)
-            .border(2.dp, borderColor, RoundedCornerShape(corner))
+            .drawBehind { drawCheckboxBox(fill.value, borderColor.value, corner.value.toPx()) }
             .then(
                 if (onCheckedChange != null) Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -78,7 +83,10 @@ fun ExpressiveCheckbox(
             Lucide.Check,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size((boxSize * 0.7f).dp).scale(checkScale)
+            modifier = Modifier.size((boxSize * 0.7f).dp).graphicsLayer {
+                scaleX = checkScale.value
+                scaleY = checkScale.value
+            }
         )
     }
 }
@@ -93,14 +101,14 @@ fun ExpressiveCheckRow(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-    val bg by animateColorAsState(
+    val bg = animateColorAsState(
         if (hovered) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f) else Color.Transparent,
         tween(140), label = "checkRowBg"
     )
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(bg)
+            .drawBehind { drawRect(bg.value) }
             .clickable(interactionSource = interaction, indication = null) { onCheckedChange(!checked) }
             .padding(horizontal = 6.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -162,3 +170,18 @@ fun ExpressiveCheckChip(
         )
     }
 }
+
+private fun DrawScope.drawCheckboxBox(fill: Color, border: Color, cornerPx: Float) {
+    drawRoundRect(fill, cornerRadius = CornerRadius(cornerPx))
+    val stroke = ceil(CHECKBOX_BORDER.toPx())
+    val half = stroke / 2f
+    drawRoundRect(
+        color = border,
+        topLeft = Offset(half, half),
+        size = Size(size.width - stroke, size.height - stroke),
+        cornerRadius = CornerRadius((cornerPx - half).coerceAtLeast(0f)),
+        style = Stroke(stroke)
+    )
+}
+
+private val CHECKBOX_BORDER = 2.dp

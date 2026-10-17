@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.components.PopupPortalHost
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -13,7 +14,9 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import com.russhwolf.settings.Settings
+import io.rudione.chatone.presentation.window.AppWindowLayer
 import io.rudione.chatone.presentation.window.LocalDraggableWindow
+import io.rudione.chatone.presentation.window.RegisterAppWindow
 import io.rudione.chatone.presentation.window.isWindowsOs
 import io.rudione.chatone.util.system.WindowsTitleBar
 import java.awt.Dimension
@@ -127,9 +130,11 @@ actual fun UserProfileContainer(
         undecorated = true,
         transparent = false,
         resizable = true,
-        alwaysOnTop = isPinned,
+        alwaysOnTop = AppWindowLayer.keepsOnTop(isPinned),
         focusable = true
     ) {
+        RegisterAppWindow(window)
+
         DisposableEffect(window) {
             window.minimumSize = Dimension(
                 PROFILE_CARD_MIN_WIDTH.value.toInt(),
@@ -152,14 +157,16 @@ actual fun UserProfileContainer(
             }
         }
 
-        CompositionLocalProvider(LocalDraggableWindow provides window) {
-            ProfileCardSurface(
-                width = windowState.size.width,
-                height = windowState.size.height,
-                onResize = null,
-                drawBorder = true,
-                cornerRadius = 0.dp
-            ) { content() }
+        PopupPortalHost {
+            CompositionLocalProvider(LocalDraggableWindow provides window) {
+                ProfileCardSurface(
+                    width = windowState.size.width,
+                    height = windowState.size.height,
+                    onResize = null,
+                    drawBorder = true,
+                    cornerRadius = 0.dp
+                ) { content() }
+            }
         }
     }
 }

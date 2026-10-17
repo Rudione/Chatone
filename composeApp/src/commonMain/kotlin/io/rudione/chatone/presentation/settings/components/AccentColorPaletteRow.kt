@@ -1,12 +1,14 @@
 package io.rudione.chatone.presentation.settings.components
 
+import androidx.compose.runtime.getValue
+import io.rudione.chatone.presentation.components.animatedBorder
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -40,7 +42,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
@@ -271,11 +272,7 @@ private fun PaletteCard(
                     listOf(scheme.surfaceContainerHigh, scheme.surfaceContainerLowest)
                 )
             )
-            .border(
-                width = if (selected) 1.5.dp else 1.dp,
-                color = borderColor,
-                shape = shape
-            )
+            .animatedBorder(if (selected) 1.5.dp else 1.dp, shape) { borderColor }
             .hoverable(interactionSource)
             .clickable(
                 interactionSource = interactionSource,
@@ -286,16 +283,15 @@ private fun PaletteCard(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(
-                            palette.accent.copy(alpha = bloom),
-                            Color.Transparent
-                        ),
-                        center = Offset(0f, 0f),
-                        radius = 220f
+                .drawBehind {
+                    drawRect(
+                        Brush.radialGradient(
+                            colors = listOf(palette.accent.copy(alpha = bloom), Color.Transparent),
+                            center = Offset.Zero,
+                            radius = 220f
+                        )
                     )
-                )
+                }
         )
         Box(
             modifier = Modifier
@@ -396,7 +392,7 @@ private fun CustomThemeCard(
                     listOf(scheme.surfaceContainerHigh, scheme.surfaceContainerLowest)
                 )
             )
-            .border(width = if (selected) 1.5.dp else 1.dp, color = borderColor, shape = shape)
+            .animatedBorder(if (selected) 1.5.dp else 1.dp, shape) { borderColor }
             .hoverable(interactionSource)
             .clickable(
                 interactionSource = interactionSource,

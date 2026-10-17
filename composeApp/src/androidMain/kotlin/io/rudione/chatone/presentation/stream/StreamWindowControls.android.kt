@@ -108,6 +108,40 @@ actual fun rememberPictureInPictureController(): PictureInPictureController {
 }
 
 @Composable
+actual fun rememberAppBackgroundController(): AppBackgroundController {
+    val activity = LocalContext.current.findActivity()
+    return remember(activity) { AppBackgroundController { activity?.moveTaskToBack(true) } }
+}
+
+@Composable
+actual fun PictureInPictureDismissEffect(controller: PictureInPictureController, onDismissed: () -> Unit) {
+    val activity = (controller as? AndroidPictureInPictureController)?.activity ?: return
+    val dismissed by rememberUpdatedState(onDismissed)
+    DisposableEffect(activity) {
+        val tracker = PictureInPictureExitTracker { dismissed() }
+        val modeListener = Consumer<PictureInPictureModeChangedInfo> { info ->
+            tracker.onModeChanged(
+                inPictureInPicture = info.isInPictureInPictureMode,
+                started = activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            )
+        }
+        val lifecycleObserver = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> tracker.onResumed()
+                Lifecycle.Event.ON_STOP -> tracker.onStopped()
+                else -> Unit
+            }
+        }
+        activity.addOnPictureInPictureModeChangedListener(modeListener)
+        activity.lifecycle.addObserver(lifecycleObserver)
+        onDispose {
+            activity.removeOnPictureInPictureModeChangedListener(modeListener)
+            activity.lifecycle.removeObserver(lifecycleObserver)
+        }
+    }
+}
+
+@Composable
 actual fun PictureInPictureAutoEnterEffect(
     controller: PictureInPictureController,
     enabled: Boolean,
@@ -193,15 +227,17 @@ private class AndroidPictureInPictureController(
     private var appliedAutoEnter: Boolean? = null
     private var appliedButtons: PictureInPictureButtons? = null
 
-    override fun enter() {
-        val host = activity ?: return
-        if (!isSupported || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        runCatching {
-            host.enterPictureInPictureMode(params(autoEnter = false))
-            appliedRatio = ratio
-            appliedAutoEnter = false
-            appliedButtons = buttons
-        }
+    override fun enter(): Boolean {
+        val host = activity ?: return false
+        if (!isSupported || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        val autoEnter = appliedAutoEnter == true
+        return runCatching {
+            host.enterPictureInPictureMode(params(autoEnter)).also {
+                appliedRatio = ratio
+                appliedAutoEnter = autoEnter
+                appliedButtons = buttons
+            }
+        }.getOrDefault(false)
     }
 
     fun updateParams(autoEnter: Boolean, aspectRatio: Float, buttons: PictureInPictureButtons?) {

@@ -58,7 +58,7 @@ internal fun DesktopUserProfilePopup(
     isSubscriber: Boolean,
     sessionMessages: List<DisplayMessage.PrivMsg>,
     canModerate: Boolean,
-    currentUserIsBroadcaster: Boolean,
+    canManageRoles: Boolean,
     isBlocked: Boolean,
     channelId: String,
     channelLogin: String,
@@ -163,11 +163,11 @@ internal fun DesktopUserProfilePopup(
                     Key.U -> { onUnban(); onDismiss(); true }
                     Key.W -> { onWhisper(); onDismiss(); true }
                     Key.K -> { if (isBlocked) onUnblock() else onBlock(); onDismiss(); true }
-                    Key.M -> if (currentUserIsBroadcaster) {
-                        if (isModerator) onUnmod() else onMod(); onDismiss(); true
+                    Key.M -> if (canManageRoles) {
+                        if (isModerator) onUnmod() else onMod(); true
                     } else false
-                    Key.V -> if (currentUserIsBroadcaster) {
-                        if (isVip) onUnvip() else onVip(); onDismiss(); true
+                    Key.V -> if (canManageRoles) {
+                        if (isVip) onUnvip() else onVip(); true
                     } else false
                     else -> false
                 }
@@ -196,7 +196,7 @@ internal fun DesktopUserProfilePopup(
                     SettingsState.FontSize.LARGE -> 18f
                 },
                 canModerate = canModerate,
-                currentUserIsBroadcaster = currentUserIsBroadcaster,
+                canManageRoles = canManageRoles,
                 isBlocked = isBlocked,
                 mentionsMuted = mentionsMuted,
                 onToggleMentionMute = {

@@ -434,7 +434,7 @@ private fun moderationTintAlpha(hovered: Boolean, pressed: Boolean, resting: Flo
 @Composable
 internal fun ProfileQuickActions(
     canModerate: Boolean,
-    currentUserIsBroadcaster: Boolean,
+    canManageRoles: Boolean,
     targetIsBroadcaster: Boolean,
     targetIsModerator: Boolean,
     targetIsVip: Boolean,
@@ -497,7 +497,7 @@ internal fun ProfileQuickActions(
                 onClick = onBlockToggle
             )
         }
-        if (canModerate && currentUserIsBroadcaster && !targetIsBroadcaster) {
+        if (canModerate && canManageRoles && !targetIsBroadcaster) {
             QuickActionChip(
                 icon = if (targetIsModerator) Lucide.ShieldCheck else Lucide.Shield,
                 label = "Mod",
@@ -645,7 +645,7 @@ internal fun ProfileMessageFeed(
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
-            item(key = "history-controls") {
+            item(key = "history-controls", contentType = "history-controls") {
                 DisableSelection {
                     when {
                         isHistoryLoading -> Row(
@@ -678,13 +678,13 @@ internal fun ProfileMessageFeed(
                 }
             }
 
-            items(remoteHistory, key = { "remote_${it.id}" }) { entry ->
+            items(remoteHistory, key = { "remote_${it.id}" }, contentType = { "remote" }) { entry ->
                 GqlHistoryMessageItem(entry, displayName, nameColor)
             }
-            items(localHistory, key = { "local_${it.id}" }) { entry ->
+            items(localHistory, key = { "local_${it.id}" }, contentType = { "local" }) { entry ->
                 LocalHistoryMessageItem(entry, displayName, nameColor)
             }
-            items(sessionMessages, key = { it.id }) { message ->
+            items(sessionMessages, key = { it.id }, contentType = { "session" }) { message ->
                 PrivMsgItem(
                     message = message,
                     chatFontSizeSp = chatFontSizeSp,

@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import io.rudione.chatone.presentation.components.layoutWidthFraction
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -11,11 +15,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -199,6 +202,7 @@ private fun PollChoiceRow(
     onClick: () -> Unit
 ) {
     val animFraction by animateFloatAsState(targetValue = fraction.coerceIn(0f, 1f), label = "poll-fraction")
+    val percent by remember { derivedStateOf { (animFraction * 100).toInt() } }
     val fillColor by animateColorAsState(
         when {
             isWinner -> PollWinnerGreen.copy(alpha = 0.35f)
@@ -223,10 +227,10 @@ private fun PollChoiceRow(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth(animFraction)
+                .layoutWidthFraction { animFraction }
                 .fillMaxHeight()
                 .clip(RoundedCornerShape(6.dp))
-                .background(fillColor)
+                .drawBehind { drawRect(fillColor) }
         )
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -252,7 +256,7 @@ private fun PollChoiceRow(
             }
             Spacer(Modifier.width(6.dp))
             Text(
-                if (compact) "${(animFraction * 100).toInt()}%" else "${(animFraction * 100).toInt()}% · $votes",
+                if (compact) "$percent%" else "$percent% · $votes",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

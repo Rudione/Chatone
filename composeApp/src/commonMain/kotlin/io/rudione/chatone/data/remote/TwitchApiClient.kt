@@ -3,6 +3,7 @@ package io.rudione.chatone.data.remote
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -12,6 +13,7 @@ import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -25,8 +27,13 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.decodeFromString
+import kotlinx.coroutines.CancellationException
+
+class ChatMessageRejectedException(val code: String, reason: String) : Exception(reason)
 
 class TwitchApiClient(
     private val httpClient: HttpClient,
@@ -448,24 +455,27 @@ class TwitchApiClient(
                     }
                 })
             }
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
             if (!response.status.isSuccess()) {
                 val errText = response.bodyAsText()
                 Napier.e("sendChatMessage HTTP ${response.status}: $errText", tag = TAG)
-                return Result.Error(Exception("HTTP ${response.status}"))
+                val reason = runCatching {
+                    json.parseToJsonElement(errText).jsonObject["message"]?.jsonPrimitive?.content
+                }.getOrNull()?.takeIf { it.isNotBlank() } ?: "HTTP ${response.status}"
+                return Result.Error(ChatMessageRejectedException("http_${response.status.value}", reason))
             }
             val rawText = response.bodyAsText()
             Napier.v("sendChatMessage response: $rawText", tag = TAG)
 
-            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
             val body = json.decodeFromString<SendChatMessageResponse>(rawText)
             val data = body.data.firstOrNull()
             if (data != null && data.isSent) {
                 Napier.d("sendChatMessage success, message_id=${data.messageId}", tag = TAG)
                 Result.Success(data)
             } else {
-                val reason = data?.dropReason?.message ?: "Message not sent / not in response"
-                Napier.e("sendChatMessage not sent: $reason", tag = TAG)
-                Result.Error(Exception(reason))
+                val reason = data?.dropReason?.message?.takeIf { it.isNotBlank() } ?: "Message not sent / not in response"
+                Napier.e("sendChatMessage not sent: ${data?.dropReason?.code} $reason", tag = TAG)
+                Result.Error(ChatMessageRejectedException(data?.dropReason?.code.orEmpty(), reason))
             }
         } catch (e: Exception) {
             Napier.e("Failed to send chat message via Helix: ${e.message}", e, tag = TAG)
@@ -477,72 +487,55 @@ class TwitchApiClient(
         accessToken: String,
         broadcasterId: String,
         userId: String
-    ): Result<Unit> {
-        return try {
-            httpClient.post("$baseUrl/moderation/moderators") {
-                header("Authorization", "Bearer $accessToken")
-                header("Client-Id", clientId)
-                parameter("broadcaster_id", broadcasterId)
-                parameter("user_id", userId)
-            }
-            Result.Success(Unit)
-        } catch (e: Exception) {
-            Napier.e("Failed to add moderator: ${e.message}", e, tag = TAG)
-            Result.Error(e)
-        }
+    ): Result<Unit> = channelRoleCall("add moderator") {
+        httpClient.post("$baseUrl/moderation/moderators") { roleRequest(accessToken, broadcasterId, userId) }
     }
 
     suspend fun removeModerator(
         accessToken: String,
         broadcasterId: String,
         userId: String
-    ): Result<Unit> {
-        return try {
-            httpClient.delete("$baseUrl/moderation/moderators") {
-                header("Authorization", "Bearer $accessToken")
-                header("Client-Id", clientId)
-                parameter("broadcaster_id", broadcasterId)
-                parameter("user_id", userId)
-            }
-            Result.Success(Unit)
-        } catch (e: Exception) {
-            Napier.e("Failed to remove moderator: ${e.message}", e, tag = TAG)
-            Result.Error(e)
-        }
+    ): Result<Unit> = channelRoleCall("remove moderator") {
+        httpClient.delete("$baseUrl/moderation/moderators") { roleRequest(accessToken, broadcasterId, userId) }
     }
 
-    suspend fun addVip(accessToken: String, broadcasterId: String, userId: String): Result<Unit> {
-        return try {
-            httpClient.post("$baseUrl/channels/vips") {
-                header("Authorization", "Bearer $accessToken")
-                header("Client-Id", clientId)
-                parameter("broadcaster_id", broadcasterId)
-                parameter("user_id", userId)
-            }
-            Result.Success(Unit)
-        } catch (e: Exception) {
-            Napier.e("Failed to add VIP: ${e.message}", e, tag = TAG)
-            Result.Error(e)
+    suspend fun addVip(accessToken: String, broadcasterId: String, userId: String): Result<Unit> =
+        channelRoleCall("add VIP") {
+            httpClient.post("$baseUrl/channels/vips") { roleRequest(accessToken, broadcasterId, userId) }
         }
-    }
 
     suspend fun removeVip(
         accessToken: String,
         broadcasterId: String,
         userId: String
-    ): Result<Unit> {
-        return try {
-            httpClient.delete("$baseUrl/channels/vips") {
-                header("Authorization", "Bearer $accessToken")
-                header("Client-Id", clientId)
-                parameter("broadcaster_id", broadcasterId)
-                parameter("user_id", userId)
-            }
+    ): Result<Unit> = channelRoleCall("remove VIP") {
+        httpClient.delete("$baseUrl/channels/vips") { roleRequest(accessToken, broadcasterId, userId) }
+    }
+
+    private fun HttpRequestBuilder.roleRequest(accessToken: String, broadcasterId: String, userId: String) {
+        header("Authorization", "Bearer $accessToken")
+        header("Client-Id", clientId)
+        parameter("broadcaster_id", broadcasterId)
+        parameter("user_id", userId)
+    }
+
+    private suspend fun channelRoleCall(action: String, request: suspend () -> HttpResponse): Result<Unit> = try {
+        val response = request()
+        if (response.status.isSuccess()) {
             Result.Success(Unit)
-        } catch (e: Exception) {
-            Napier.e("Failed to remove VIP: ${e.message}", e, tag = TAG)
-            Result.Error(e)
+        } else {
+            val body = response.bodyAsText()
+            val reason = runCatching {
+                kotlinx.serialization.json.Json.parseToJsonElement(body).jsonObject["message"]?.jsonPrimitive?.content
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: "HTTP ${response.status.value}"
+            Napier.w("Failed to $action: ${response.status.value} $reason", tag = TAG)
+            Result.Error(Exception(reason))
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Napier.e("Failed to $action: ${e.message}", e, tag = TAG)
+        Result.Error(e)
     }
 
     suspend fun getChatSettings(

@@ -22,7 +22,7 @@ import androidx.compose.ui.input.pointer.isTertiaryPressed
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.presentation.settings.SettingsState
-import kotlinx.datetime.Instant
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.max

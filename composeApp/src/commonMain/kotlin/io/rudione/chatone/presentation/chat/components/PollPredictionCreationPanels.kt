@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -23,10 +26,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -64,7 +65,7 @@ private fun DurationChipsRow(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(100))
-                    .background(bg)
+                    .drawBehind { drawRect(bg) }
                     .clickable { onSelect(secs) }
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
@@ -184,7 +185,7 @@ private fun SubmitButton(label: String, accent: Color, enabled: Boolean, onClick
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(bg)
+            .drawBehind { drawRect(bg) }
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },

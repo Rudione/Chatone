@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.stream
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -28,12 +31,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,7 +69,7 @@ fun StreamPlayerView(
     isFullscreen: Boolean,
     pictureInPicture: PictureInPictureController,
     onToggleFullscreen: () -> Unit,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     modifier: Modifier = Modifier,
     ambience: StreamAmbience? = null,
     overlay: (@Composable BoxScope.() -> Unit)? = null
@@ -89,13 +90,14 @@ fun StreamPlayerView(
         }
     }
 
-    val callbacks = remember(host, onToggleFullscreen, pictureInPicture) {
+    val hasBack = onBack != null
+    val callbacks = remember(host, onToggleFullscreen, pictureInPicture, hasBack) {
         StreamControlsCallbacks(
             onEvent = { event ->
                 interactionTick++
                 host.onEvent(event)
             },
-            onBack = { currentOnBack() },
+            onBack = if (hasBack) ({ currentOnBack?.invoke() }) else null,
             onToggleFullscreen = {
                 interactionTick++
                 onToggleFullscreen()
@@ -297,7 +299,7 @@ internal fun StreamVideoFrame(
 
         val viewportWidth = constraints.maxWidth
         val viewportHeight = if (constraints.hasBoundedHeight) constraints.maxHeight else (constraints.maxWidth / ratio).toInt()
-        LaunchedEffect(viewportWidth, viewportHeight) {
+        SideEffect(viewportWidth, viewportHeight) {
             latestViewport(viewportWidth, viewportHeight)
         }
     }

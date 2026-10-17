@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.stream
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
@@ -44,12 +47,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -127,7 +128,7 @@ internal fun OverlayChatWindow(
     content: @Composable (Modifier) -> Unit
 ) {
     var local by remember { mutableStateOf(bounds.sanitized()) }
-    LaunchedEffect(bounds) { local = bounds.sanitized() }
+    SideEffect(bounds) { local = bounds.sanitized() }
     val commit by rememberUpdatedState(onBoundsCommitted)
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
     val widthPx by rememberUpdatedState(containerSize.width.coerceAtLeast(1))

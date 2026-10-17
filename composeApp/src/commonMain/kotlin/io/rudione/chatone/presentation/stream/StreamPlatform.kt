@@ -47,11 +47,22 @@ expect fun rememberStreamOrientationController(active: Boolean): StreamOrientati
 interface PictureInPictureController {
     val isSupported: Boolean
     val isActive: Boolean
-    fun enter()
+    fun enter(): Boolean
 }
 
 @Composable
 expect fun rememberPictureInPictureController(): PictureInPictureController
+
+@Stable
+fun interface AppBackgroundController {
+    fun moveToBackground()
+}
+
+@Composable
+expect fun rememberAppBackgroundController(): AppBackgroundController
+
+@Composable
+expect fun PictureInPictureDismissEffect(controller: PictureInPictureController, onDismissed: () -> Unit)
 
 @Immutable
 data class PictureInPicturePlayback(val playing: Boolean, val muted: Boolean)

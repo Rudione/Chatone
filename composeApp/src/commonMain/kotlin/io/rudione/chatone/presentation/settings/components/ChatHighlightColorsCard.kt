@@ -25,7 +25,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -34,10 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.domain.model.ChatRuleType
 import io.rudione.chatone.domain.model.ChatoneColorTokens
 import io.rudione.chatone.presentation.components.ChatoneFieldLabel
 import io.rudione.chatone.presentation.components.ChatoneTextField
@@ -242,17 +241,11 @@ private fun ColorPickerDialog(
                     placeholder = "FF7C4DFF",
                     modifier = Modifier.fillMaxWidth()
                 )
-                val palette = listOf(
-                    0xFFFF6B6B, 0xFFFFD700, 0xFF4FC3F7, 0xFF9B59B6,
-                    0xFF2ECC71, 0xFFFF8C00, 0xFF7B2FBE, 0xFF00BCD4,
-                    0xFFE91E63, 0xFF607D8B, 0xFF8BC34A, 0xFFFF5722
-                )
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 2.dp)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(palette.size) { i ->
-                        val c = palette[i]
+                    HighlightPalette.forEach { c ->
                         Box(
                             Modifier.size(30.dp).clip(CircleShape).background(Color(c))
                                 .border(
@@ -269,6 +262,12 @@ private fun ColorPickerDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text(s.cancel) } }
     )
 }
+
+private val HighlightPalette = listOf(
+    0xFFFF6B6B, 0xFFFFD700, 0xFF4FC3F7, 0xFF9B59B6,
+    0xFF2ECC71, 0xFFFF8C00, 0xFF7B2FBE, 0xFF00BCD4,
+    0xFFE91E63, 0xFF607D8B, 0xFF8BC34A, 0xFFFF5722
+)
 
 private fun Long.toHex(): String = toString(16).uppercase().padStart(8, '0')
 private fun String.fromHex(): Long = trimStart('#').toLong(16).let {

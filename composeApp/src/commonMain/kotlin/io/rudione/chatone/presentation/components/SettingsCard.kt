@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.components
 
+import io.rudione.chatone.presentation.settings.settingsAnchor
 import io.rudione.chatone.presentation.components.expressive.HelpHint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,7 +29,7 @@ fun SettingsCard(
     help: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.settingsAnchor(title).fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(bottom = 6.dp, start = 4.dp),
             verticalAlignment = Alignment.CenterVertically

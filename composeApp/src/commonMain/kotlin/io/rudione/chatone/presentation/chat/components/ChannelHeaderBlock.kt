@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,11 +27,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.rudione.chatone.data.remote.dto.ChannelData
+import io.rudione.chatone.data.repository.StreamerModeController
 import io.rudione.chatone.presentation.components.expressive.ClosingTap
 import io.rudione.chatone.presentation.components.onSecondaryClick
 import io.rudione.chatone.presentation.stream.LocalStreamPlayerHost
@@ -48,7 +50,14 @@ import io.rudione.chatone.util.platform.currentFormFactor
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
 import org.koin.compose.koinInject
-import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import io.rudione.chatone.presentation.channelmenu.ChannelMenuItem
+import io.rudione.chatone.presentation.channelmenu.ChannelMenuModel
+import io.rudione.chatone.presentation.channelmenu.ChannelOptionsMenu
+import io.rudione.chatone.icons.lucide.Globe
+import io.rudione.chatone.icons.lucide.Link
+import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.MessagesSquare
+import io.rudione.chatone.icons.lucide.Play
 
 internal fun formatStreamUptime(
     startedAt: String,
@@ -56,7 +65,7 @@ internal fun formatStreamUptime(
     minuteUnit: String
 ): String {
     return try {
-        val start = kotlinx.datetime.Instant.parse(startedAt)
+        val start = kotlin.time.Instant.parse(startedAt)
         val elapsed = Clock.System.now() - start
         val h = elapsed.inWholeHours
         val m = elapsed.inWholeMinutes % 60
@@ -72,14 +81,16 @@ private val LiveRed = Color(0xFFE91916)
 internal fun ChannelHeaderBlock(
     channelLogin: String,
     channelDisplayName: String,
-    liveStream: io.rudione.chatone.data.remote.dto.ChannelData?,
+    liveStream: ChannelData?,
     connectionStatus: String,
     isConnected: Boolean,
+    channelMenu: ChannelMenuModel,
     singleLine: Boolean = false,
     compactLatency: Boolean = false
 ) {
     var showStreamMenu by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
+    val clipboard = LocalClipboardManager.current
     val isLive = liveStream != null
     val s = LocalStrings.current
     val phoneStyle = remember { currentFormFactor() == DeviceFormFactor.PHONE }
@@ -140,7 +151,7 @@ internal fun ChannelHeaderBlock(
         if (isLive && !phoneStyle) {
             LiquidGlassRichTooltipBox(
                 tooltipContent = {
-                    val streamerModeState by koinInject<io.rudione.chatone.data.repository.StreamerModeController>()
+                    val streamerModeState by koinInject<StreamerModeController>()
                         .state.collectAsState()
                     val hideThumbs = streamerModeState.enabled && streamerModeState.options.hideThumbnails
                     StreamInfoContent(
@@ -169,25 +180,29 @@ internal fun ChannelHeaderBlock(
             )
         }
 
-        ChatoneDropdownMenu(
+        ChannelOptionsMenu(
             expanded = showStreamMenu,
-            onDismissRequest = { showStreamMenu = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text(s.streamOpenInBrowser, style = MaterialTheme.typography.bodySmall) },
-                onClick = {
-                    showStreamMenu = false
-                    uriHandler.openUri("https://twitch.tv/$channelLogin")
-                }
-            )
+            onDismissRequest = { showStreamMenu = false },
+            model = channelMenu
+        ) { close ->
+            val login = channelLogin.lowercase()
+            ChannelMenuItem(s.streamOpenInBrowser, Lucide.Globe) {
+                close()
+                uriHandler.openUri("https://www.twitch.tv/$login")
+            }
+            ChannelMenuItem(s.screenChat.menuPopoutChat, Lucide.MessagesSquare) {
+                close()
+                uriHandler.openUri("https://www.twitch.tv/popout/$login/chat?popout=")
+            }
+            ChannelMenuItem(s.screenChat.menuCopyLink, Lucide.Link) {
+                close()
+                clipboard.setText(AnnotatedString("https://www.twitch.tv/$login"))
+            }
             StreamOpenQuality.entries.forEach { quality ->
-                DropdownMenuItem(
-                    text = { Text(s.streamPlayerQuality.replace("{0}", quality.label), style = MaterialTheme.typography.bodySmall) },
-                    onClick = {
-                        showStreamMenu = false
-                        streamLauncher.open(channelLogin, quality)
-                    }
-                )
+                ChannelMenuItem(s.streamPlayerQuality.replace("{0}", quality.label), Lucide.Play) {
+                    close()
+                    streamLauncher.open(channelLogin, quality)
+                }
             }
         }
     }
@@ -248,7 +263,7 @@ private fun PhoneChannelHeader(
 @Composable
 private fun DesktopChannelHeader(
     title: String,
-    liveStream: io.rudione.chatone.data.remote.dto.ChannelData?,
+    liveStream: ChannelData?,
     connectionStatus: String,
     isConnected: Boolean,
     modifier: Modifier

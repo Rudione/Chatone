@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.automod
 
+import androidx.compose.runtime.getValue
+import io.rudione.chatone.presentation.components.layoutHeight
+import io.rudione.chatone.presentation.components.layoutWidth
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -15,114 +19,27 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
 import io.rudione.chatone.presentation.components.interactiveIcon
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 internal val DividerHitWidth = 12.dp
-
-@Composable
-internal fun <T> AutomodTabRow(
-    tabs: List<Triple<T, String, Int>>,
-    selected: T,
-    onSelect: (T) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        tabs.forEach { (value, label, count) ->
-            val isSelected = value == selected
-            val interaction = remember { MutableInteractionSource() }
-            val hovered by interaction.collectIsHoveredAsState()
-            val background by animateColorAsState(
-                when {
-                    isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
-                    hovered -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-                    else -> Color.Transparent
-                },
-                tween(200),
-                label = "tabBg"
-            )
-            val content by animateColorAsState(
-                when {
-                    isSelected -> MaterialTheme.colorScheme.primary
-                    hovered -> MaterialTheme.colorScheme.onSurface
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                tween(200),
-                label = "tabFg"
-            )
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(background)
-                    .clickable(interactionSource = interaction, indication = null) { onSelect(value) }
-                    .pointerHoverIcon(PointerIcon.Hand)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = content,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (count > 0) {
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(content.copy(alpha = 0.16f))
-                            .padding(horizontal = 6.dp, vertical = 1.dp)
-                    ) {
-                        Text(
-                            count.toString(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = content,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 @Composable
 internal fun AutomodActionButton(
@@ -150,7 +67,7 @@ internal fun AutomodActionButton(
         modifier = modifier
             .size(buttonSize)
             .clip(RoundedCornerShape(9.dp))
-            .background(container)
+            .drawBehind { drawRect(container) }
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -212,14 +129,14 @@ internal fun AutomodPaneDivider(
     ) {
         Box(
             Modifier
-                .width(lineWidth)
+                .layoutWidth { lineWidth }
                 .fillMaxHeight()
-                .background(lineColor)
+                .drawBehind { drawRect(lineColor) }
         )
         Box(
             Modifier
                 .width(4.dp)
-                .height(gripHeight)
+                .layoutHeight { gripHeight }
                 .clip(RoundedCornerShape(2.dp))
                 .background(
                     if (active) MaterialTheme.colorScheme.primary

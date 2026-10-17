@@ -170,7 +170,7 @@ fun MonitorFeedScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp)
             ) {
-                items(lines, key = { it.id }) { line -> MonitorRow(line) }
+                items(lines, key = { it.id }, contentType = { "line" }) { line -> MonitorRow(line) }
             }
         }
 

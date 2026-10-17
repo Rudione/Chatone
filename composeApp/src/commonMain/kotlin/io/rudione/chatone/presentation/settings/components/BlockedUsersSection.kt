@@ -168,7 +168,7 @@ fun BlockedUsersSection(
                         .heightIn(max = 240.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    items(blockedUsernames, key = { it }) { username ->
+                    items(blockedUsernames, key = { it }, contentType = { "user" }) { username ->
                         BlockedUserRow(
                             username = username,
                             onUnblock = { onUnblockUser(username) }

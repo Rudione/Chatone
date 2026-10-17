@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,8 +46,8 @@ fun MainScreenChatRouter(
     val panelManager: ChatPanelManager = koinInject()
     val panels by panelManager.panels.collectAsState()
 
-    val extraPanels = panels.filter {
-        !it.channelLogin.equals(activeChannel, ignoreCase = true)
+    val extraPanels = remember(panels, activeChannel) {
+        panels.filter { !it.channelLogin.equals(activeChannel, ignoreCase = true) }
     }
 
     if (extraPanels.isEmpty()) {

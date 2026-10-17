@@ -68,7 +68,7 @@ fun ChatCommandsSection(
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().heightIn(min = 36.dp, max = maxHeight)
             ) {
-                items(state.chatCommands, key = { it.id }) { cmd ->
+                items(state.chatCommands, key = { it.id }, contentType = { "command" }) { cmd ->
                     CommandTableRow(
                         command = cmd,
                         macroName = cmd.macroId?.let { id -> state.macros.firstOrNull { it.id == id }?.name },

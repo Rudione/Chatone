@@ -9,6 +9,12 @@ import io.rudione.chatone.presentation.theme.i18n.LaunchStrings
 import io.rudione.chatone.presentation.theme.i18n.LaunchStringsEn
 import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStrings
 import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStringsEn
+import io.rudione.chatone.presentation.theme.i18n.ModSliderStrings
+import io.rudione.chatone.presentation.theme.i18n.ModSliderStringsEn
+import io.rudione.chatone.presentation.theme.i18n.ScreenChatStrings
+import io.rudione.chatone.presentation.theme.i18n.ScreenChatStringsEn
+import io.rudione.chatone.presentation.theme.i18n.SettingsHubStrings
+import io.rudione.chatone.presentation.theme.i18n.SettingsHubStringsEn
 import io.rudione.chatone.presentation.theme.i18n.BrowseStringsEn
 import io.rudione.chatone.presentation.theme.i18n.EventBannerStrings
 import io.rudione.chatone.presentation.theme.i18n.EventBannerStringsEn
@@ -105,6 +111,11 @@ object StringsEn : AppStrings {
     override val settingsLanguageDesc = "App UI language"
     override val settingsWindow = "Window"
     override val settingsAlwaysOnTopDesc = "Keep window above other windows"
+    override val settingsAlwaysOnTopMode = "Stay above"
+    override val settingsAlwaysOnTopModeDesc = "Which windows the chat stays above. Settings and profiles still open above the chat"
+    override val settingsAlwaysOnTopExceptSystem = "All except system"
+    override val settingsAlwaysOnTopAllWindows = "All windows"
+    override val settingsAlwaysOnTopBrowser = "Browser only"
     override val settingsHideSidebar = "Hide sidebar"
     override val settingsHideSidebarDesc = "Always use the compact layout at any window width, channels open from the menu"
     override val settingsSizeSmall = "Small"
@@ -132,7 +143,7 @@ object StringsEn : AppStrings {
     override val sectionActions = "Actions"
     override val actionsHint = "Viewer automations: timed messages, auto-replies, sound alerts and point claiming."
     override val actionsAutomations = "Automations"
-    override val actionsAutomationsHint = "Timers run while the named channel is open. Interval and text are slightly varied to stay clear of Twitch filters."
+    override val actionsAutomationsHint = "Timers post while the channel is open: at most every 5 minutes and only when people are chatting."
     override val actionsEmpty = "No automations yet"
     override val actionsKindTimer = "Timer"
     override val actionsKindReply = "Auto-reply"
@@ -149,7 +160,7 @@ object StringsEn : AppStrings {
     override val actionsListEvery = "every {0}m: {1}"
     override val actionsListSound = "sound on «{0}»"
     override val actionsAdd = "Add"
-    override val actionsSafetyNote = "Replies go out with a human-like delay and cooldown - no spam."
+    override val actionsSafetyNote = "Auto-replies go out as you, after a typing pause, at most every 30 seconds. If Twitch blocks a message, the chat shows why."
     override val actionsAutoClaim = "Auto-claim bonus points"
     override val actionsAutoClaimHint = "Claim the points chest automatically. May not work: Twitch blocks this for third-party clients."
     override val actionsMutedPhrases = "Muted phrases"
@@ -791,8 +802,6 @@ object StringsEn : AppStrings {
     override val profileDossierUnavailable = "Dossier is unavailable"
     override val profileDossierAccountAge = "Account"
     override val profileDossierFollowers = "Followers"
-    override val profileDossierWithUs = "With us"
-    override val profileDossierNotFollowing = "Not following"
     override val profileDossierPartner = "Partner"
     override val profileDossierAffiliate = "Affiliate"
     override val profileDossierSubTier = "Sub Tier {0}"
@@ -885,17 +894,18 @@ object StringsEn : AppStrings {
     override val gifNoResults = "No GIFs found"
     override val gifTrending = "Trending"
     override val gifFavorites = "Favorites"
-    override val gifKeyMissingTitle = "GIPHY key required"
+    override val gifKeyMissingTitle = "No GIPHY key"
     override val gifKeyMissingBody =
-        "GIF search runs through GIPHY. Paste a free API key in Settings → Chat to enable it."
+        "Twitch usually provides one, but it didn't this time. Sign in again or paste your own free key in Settings → Images."
     override val gifKeyMissingAction = "Get a free key"
     override val gifTierHint = "Sending GIFs requires a Tier 2 or Tier 3 sub to this channel"
     override val gifLoadFailed = "Could not load GIFs"
+    override val gifChannelDisabled = "GIFs are turned off in this channel"
     override val gifPoweredBy = "Powered by GIPHY"
     override val settingsShowChatGifs = "Show GIFs in chat"
     override val settingsShowChatGifsDesc = "Render GIFs sent by Tier 2/3 subscribers"
     override val settingsGiphyApiKey = "GIPHY API key"
-    override val settingsGiphyApiKeyDesc = "Needed to search and send GIFs; stored encrypted"
+    override val settingsGiphyApiKeyDesc = "Optional: Twitch provides a key. Useful if GIFs don't load. Stored encrypted"
     override val emoteNoEmojiFound = "No emoji found"
 
     override val automodLocalTitle = "Local Automod"
@@ -1407,6 +1417,7 @@ object StringsEn : AppStrings {
     override val secretHide = "Hide"
     override val pinReasonNotPinnable = "message is no longer pinnable"
     override val pinReasonNotConnected = "not connected to the channel"
+    override val chatMessageNotSent = "Message not sent"
     override val pinReasonUnknown = "unknown error"
     override fun pinFailed(reason: String) = "Pin failed: $reason"
     override fun noRecentMessageToPin(login: String) = "No recent message from @$login to pin."
@@ -1418,4 +1429,7 @@ object StringsEn : AppStrings {
     override val timeline: ChatTimelineStrings = ChatTimelineStringsEn
     override val launch: LaunchStrings = LaunchStringsEn
     override val insights: ProfileInsightStrings = ProfileInsightStringsEn
+    override val modSlider: ModSliderStrings = ModSliderStringsEn
+    override val screenChat: ScreenChatStrings = ScreenChatStringsEn
+    override val settingsHub: SettingsHubStrings = SettingsHubStringsEn
 }

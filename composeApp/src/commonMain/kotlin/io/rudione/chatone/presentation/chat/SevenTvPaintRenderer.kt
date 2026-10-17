@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.InlineTextContent
@@ -31,7 +35,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.takeOrElse
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -188,6 +191,8 @@ fun registerPaintedNick(
         val brush = rememberSevenTvPaintBrushProvider(paint, userColor)
         val shadow = remember(paint, density) { sevenTvPaintShadow(paint, density.density) }
         val fallback = remember(userColor) { SolidColor(userColor.takeOrElse { Color.White }) }
+        val click by rememberUpdatedState(onClick)
+        val rightClick by rememberUpdatedState(onRightClick)
         Spacer(
             Modifier
                 .fillMaxSize()
@@ -199,14 +204,16 @@ fun registerPaintedNick(
                     )
                 }
                 .pointerInput(name) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Press && event.changes.none { it.isConsumed }) {
-                                if (event.buttons.isSecondaryPressed) onRightClick() else onClick()
-                                event.changes.forEach { it.consume() }
-                            }
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        down.consume()
+                        if (currentEvent.buttons.isSecondaryPressed) {
+                            rightClick()
+                            return@awaitEachGesture
                         }
+                        val up = waitForUpOrCancellation() ?: return@awaitEachGesture
+                        up.consume()
+                        click()
                     }
                 }
         )

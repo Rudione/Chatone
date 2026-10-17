@@ -9,6 +9,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.DisplayMessage
+import io.rudione.chatone.presentation.chat.AutoModMsgItem
+import io.rudione.chatone.presentation.chat.ModerationMsgItem
+import io.rudione.chatone.presentation.chat.PrivMsgItem
+import io.rudione.chatone.presentation.chat.SystemMsgItem
+import io.rudione.chatone.presentation.chat.UserNoticeMsgItem
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.chat.MessageToken
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -60,13 +65,13 @@ private fun PreviewSurface(content: @Composable () -> Unit) {
 @Preview
 @Composable
 private fun PrivMsgPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.PrivMsgItem(message = samplePrivMsg())
+    PrivMsgItem(message = samplePrivMsg())
 }
 
 @Preview
 @Composable
 private fun PrivMsgMentionPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.PrivMsgItem(
+    PrivMsgItem(
         message = samplePrivMsg(
             username = "friend",
             text = "@you check this out",
@@ -78,7 +83,7 @@ private fun PrivMsgMentionPreview() = PreviewSurface {
 @Preview
 @Composable
 private fun PrivMsgActionPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.PrivMsgItem(
+    PrivMsgItem(
         message = samplePrivMsg(
             text = "waves hello",
             isAction = true
@@ -89,7 +94,7 @@ private fun PrivMsgActionPreview() = PreviewSurface {
 @Preview
 @Composable
 private fun PrivMsgFirstMessagePreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.PrivMsgItem(
+    PrivMsgItem(
         message = samplePrivMsg(
             username = "newbie",
             isFirstMessage = true
@@ -100,7 +105,7 @@ private fun PrivMsgFirstMessagePreview() = PreviewSurface {
 @Preview
 @Composable
 private fun PrivMsgDeletedPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.PrivMsgItem(
+    PrivMsgItem(
         message = samplePrivMsg(
             text = "this got removed",
             isDeleted = true
@@ -111,7 +116,7 @@ private fun PrivMsgDeletedPreview() = PreviewSurface {
 @Preview
 @Composable
 private fun SystemMsgPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.SystemMsgItem(
+    SystemMsgItem(
         DisplayMessage.SystemMsg(
             id = "sys",
             timestamp = 1_700_000_000_000L,
@@ -124,7 +129,7 @@ private fun SystemMsgPreview() = PreviewSurface {
 @Preview
 @Composable
 private fun UserNoticeSubPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.UserNoticeMsgItem(
+    UserNoticeMsgItem(
         DisplayMessage.UserNoticeMsg(
             id = "un1",
             timestamp = 1_700_000_000_000L,
@@ -138,7 +143,7 @@ private fun UserNoticeSubPreview() = PreviewSurface {
 @Preview
 @Composable
 private fun UserNoticeAnnouncementPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.UserNoticeMsgItem(
+    UserNoticeMsgItem(
         DisplayMessage.UserNoticeMsg(
             id = "un2",
             timestamp = 1_700_000_000_000L,
@@ -157,7 +162,7 @@ private fun UserNoticeAnnouncementPreview() = PreviewSurface {
 @Preview
 @Composable
 private fun ModerationBanPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.ModerationMsgItem(
+    ModerationMsgItem(
         DisplayMessage.ModerationMsg(
             id = "mod1",
             timestamp = 1_700_000_000_000L,
@@ -173,7 +178,7 @@ private fun ModerationBanPreview() = PreviewSurface {
 @Preview
 @Composable
 private fun ModerationTimeoutPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.ModerationMsgItem(
+    ModerationMsgItem(
         DisplayMessage.ModerationMsg(
             id = "mod2",
             timestamp = 1_700_000_000_000L,
@@ -190,7 +195,7 @@ private fun ModerationTimeoutPreview() = PreviewSurface {
 @Preview
 @Composable
 private fun ModerationDeletePreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.ModerationMsgItem(
+    ModerationMsgItem(
         DisplayMessage.ModerationMsg(
             id = "mod3",
             timestamp = 1_700_000_000_000L,
@@ -206,7 +211,7 @@ private fun ModerationDeletePreview() = PreviewSurface {
 @Preview
 @Composable
 private fun AutoModPendingPreview() = PreviewSurface {
-    _root_ide_package_.io.rudione.chatone.presentation.chat.AutoModMsgItem(
+    AutoModMsgItem(
         message = DisplayMessage.AutoModMsg(
             id = "am1",
             timestamp = 1_700_000_000_000L,

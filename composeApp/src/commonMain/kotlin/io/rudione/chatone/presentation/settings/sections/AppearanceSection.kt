@@ -1,121 +1,48 @@
 package io.rudione.chatone.presentation.settings.sections
 
-import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import io.rudione.chatone.presentation.components.ChatoneSlider
+import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
+import io.rudione.chatone.presentation.components.rows.SettingsRowMetrics
+import io.rudione.chatone.presentation.settings.settingsAnchor
 import io.rudione.chatone.presentation.components.rows.DropdownRow
 import io.rudione.chatone.presentation.components.rows.ListRow
 import io.rudione.chatone.presentation.components.rows.RowDivider
 import io.rudione.chatone.presentation.components.rows.SwitchRow
+import io.rudione.chatone.presentation.settings.AlwaysOnTopMode
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.settings.TitleBarMode
-import io.rudione.chatone.presentation.settings.UiScaleRow
 import io.rudione.chatone.presentation.settings.components.AccentColorPaletteRow
 import io.rudione.chatone.presentation.settings.components.FontSettingsCard
 import io.rudione.chatone.presentation.settings.components.SettingsGroup
 import io.rudione.chatone.presentation.settings.components.SettingsPair
 import io.rudione.chatone.presentation.theme.DEFAULT_ACCENT_INDEX
 import io.rudione.chatone.presentation.theme.i18n.AppLocale
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
-import io.rudione.chatone.util.platform.rememberInputCapabilities
 import io.rudione.chatone.util.system.isDesktopPlatform
-
-internal fun LazyListScope.appearanceLazyItems(
-    state: SettingsState,
-    onThemeChanged: (Boolean) -> Unit,
-    vm: SettingsViewModel,
-    onOpenThemeCreator: (seedColor: Int?) -> Unit = {},
-) {
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsTheme) {
-            RowDivider()
-
-            AccentColorPaletteRow(
-                selectedIndex = state.accentColorIndex,
-                state = state,
-                onOpenThemeCreator = onOpenThemeCreator,
-                onReset = {
-                    vm.sendEvent(SettingsEvent.OnAccentColorChanged(DEFAULT_ACCENT_INDEX))
-                    vm.sendEvent(SettingsEvent.OnCustomThemeApplied(null))
-                },
-                onSelect = { vm.sendEvent(SettingsEvent.OnAccentColorChanged(it)) }
-            )
-        }
-    }
-
-    item {
-        val s = LocalStrings.current
-        SettingsGroup(s.settingsDisplay) {
-            ListRow(
-                s.settingsFontSize,
-                s.sizeLabel(state.fontSize.ordinal),
-                SettingsState.FontSize.entries.map { s.sizeLabel(it.ordinal) }
-            ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
-            UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
-            RowDivider()
-            ListRow(
-                s.settingsEmoteSize,
-                s.sizeLabel(state.emoteSize.ordinal),
-                SettingsState.EmoteSize.entries.map { s.sizeLabel(it.ordinal) }
-            ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
-            if (!isPhoneFormFactor) {
-                RowDivider()
-                ListRow(
-                    s.settingsChannelNavigation,
-                    when (state.channelNavigation) {
-                        SettingsState.ChannelNavigation.TAB_BAR -> s.settingsTabBar
-                        SettingsState.ChannelNavigation.MINI_RAIL -> s.settingsMiniRail
-                        SettingsState.ChannelNavigation.BOTH -> s.settingsBoth
-                    },
-                    listOf(s.settingsTabBar, s.settingsMiniRail, s.settingsBoth)
-                ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
-            }
-            RowDivider()
-            ListRow(
-                s.settingsMessageSpacing,
-                s.spacingLabel(state.messageSpacing.ordinal),
-                SettingsState.MessageSpacing.entries.map { s.spacingLabel(it.ordinal) }
-            ) { vm.sendEvent(SettingsEvent.OnMessageSpacingChanged(SettingsState.MessageSpacing.entries[it])) }
-        }
-    }
-    item {
-        val s = LocalStrings.current
-        SettingsPair(
-            first = { FontSettingsCard(state = state, vm = vm) },
-            second = {
-                SettingsGroup(s.settingsLinks) {
-                    ListRow(
-                        s.settingsOpenLinks,
-                        when (state.linkOpenMode) {
-                            SettingsState.LinkOpenMode.DEFAULT -> s.settingsDefaultBrowser
-                            SettingsState.LinkOpenMode.INCOGNITO -> s.settingsIncognitoMode
-                        },
-                        listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
-                    ) {
-                        vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it]))
-                    }
-                }
-            }
-        )
-    }
-    item { WindowSettingsGroup(state, vm) }
-}
 
 @Composable
 internal fun AppearanceContent(
     state: SettingsState,
-    onThemeChanged: (Boolean) -> Unit,
     vm: SettingsViewModel,
-    onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
+    onOpenThemeCreator: (seedColor: Int?) -> Unit
 ) {
     val s = LocalStrings.current
     SettingsGroup(s.settingsTheme) {
-        RowDivider()
         AccentColorPaletteRow(
             selectedIndex = state.accentColorIndex,
             onSelect = { vm.sendEvent(SettingsEvent.OnAccentColorChanged(it)) },
@@ -127,19 +54,29 @@ internal fun AppearanceContent(
             }
         )
     }
+    InterfaceGroup(state, vm)
+    SettingsPair(
+        first = { FontSettingsCard(state = state, vm = vm) },
+        second = if (isDesktopPlatform || isPhoneFormFactor) {
+            { WindowSettingsGroup(state, vm) }
+        } else null
+    )
+}
 
-    SettingsGroup(s.settingsDisplay) {
-        ListRow(
-            s.settingsFontSize, s.sizeLabel(state.fontSize.ordinal),
-            SettingsState.FontSize.entries.map { s.sizeLabel(it.ordinal) }
-        ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
+@Composable
+private fun InterfaceGroup(state: SettingsState, vm: SettingsViewModel) {
+    val s = LocalStrings.current
+    SettingsGroup(s.settingsHub.groupInterface) {
         UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
         RowDivider()
-        ListRow(
-            s.settingsEmoteSize,
-            s.sizeLabel(state.emoteSize.ordinal),
-            SettingsState.EmoteSize.entries.map { s.sizeLabel(it.ordinal) }
-        ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
+        val locales = AppLocale.all
+        DropdownRow(
+            label = s.settingsLanguage,
+            description = s.settingsLanguageDesc,
+            options = locales.map { it.displayName },
+            selected = locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0),
+            onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
+        )
         if (!isPhoneFormFactor) {
             RowDivider()
             ListRow(
@@ -151,80 +88,90 @@ internal fun AppearanceContent(
                 },
                 listOf(s.settingsTabBar, s.settingsMiniRail, s.settingsBoth)
             ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
+            RowDivider()
+            SwitchRow(s.settingsNavigationHidden, s.settingsNavigationHiddenDesc, state.navigationHidden) {
+                vm.sendEvent(SettingsEvent.OnNavigationHiddenChanged(it))
+            }
         }
     }
-    FontSettingsCard(state = state, vm = vm)
-    SettingsGroup(s.settingsLinks) {
-        ListRow(
-            s.settingsOpenLinks,
-            when (state.linkOpenMode) {
-                SettingsState.LinkOpenMode.DEFAULT -> s.settingsDefaultBrowser
-                SettingsState.LinkOpenMode.INCOGNITO -> s.settingsIncognitoMode
-            },
-            listOf(s.settingsDefaultBrowser, s.settingsIncognitoMode)
-        ) { vm.sendEvent(SettingsEvent.OnLinkOpenModeChanged(SettingsState.LinkOpenMode.entries[it])) }
-    }
-    WindowSettingsGroup(state, vm)
 }
 
 @Composable
 private fun WindowSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
     val s = LocalStrings.current
-    val input = rememberInputCapabilities()
     SettingsGroup(s.settingsWindow) {
         if (isDesktopPlatform) {
             SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
                 vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
             }
-            RowDivider()
-        }
-        if (isDesktopPlatform || isPhoneFormFactor) {
-            SwitchRow(s.settingsHideSidebar, s.settingsHideSidebarDesc, state.hideSidebar) {
-                vm.sendEvent(SettingsEvent.OnHideSidebarChanged(it))
+            if (state.alwaysOnTop) {
+                RowDivider()
+                val modes = AlwaysOnTopMode.entries
+                DropdownRow(
+                    label = s.settingsAlwaysOnTopMode,
+                    description = s.settingsAlwaysOnTopModeDesc,
+                    options = modes.map {
+                        when (it) {
+                            AlwaysOnTopMode.EXCEPT_SYSTEM -> s.settingsAlwaysOnTopExceptSystem
+                            AlwaysOnTopMode.ALL_WINDOWS -> s.settingsAlwaysOnTopAllWindows
+                            AlwaysOnTopMode.BROWSER -> s.settingsAlwaysOnTopBrowser
+                        }
+                    },
+                    selected = modes.indexOf(state.alwaysOnTopMode).coerceAtLeast(0),
+                    onSelected = { vm.sendEvent(SettingsEvent.OnAlwaysOnTopModeChanged(modes[it])) }
+                )
             }
             RowDivider()
         }
+        SwitchRow(s.settingsHideSidebar, s.settingsHideSidebarDesc, state.hideSidebar) {
+            vm.sendEvent(SettingsEvent.OnHideSidebarChanged(it))
+        }
         if (isDesktopPlatform) {
+            RowDivider()
             val titleBarModes = listOf(TitleBarMode.DARK, TitleBarMode.LIGHT, TitleBarMode.ADAPTIVE, TitleBarMode.SYSTEM)
             DropdownRow(
                 label = s.settingsTitleBarMode,
                 description = s.settingsTitleBarModeDesc,
-                options = listOf(s.settingsTitleBarDark, s.settingsTitleBarLight, s.settingsTitleBarAdaptive, s.settingsTitleBarSystem),
+                options = listOf(
+                    s.settingsTitleBarDark,
+                    s.settingsTitleBarLight,
+                    s.settingsTitleBarAdaptive,
+                    s.settingsTitleBarSystem
+                ),
                 selected = titleBarModes.indexOf(state.titleBarMode).coerceAtLeast(0),
                 onSelected = { vm.sendEvent(SettingsEvent.OnTitleBarModeChanged(titleBarModes[it])) }
             )
-            RowDivider()
-        }
-        val locales = AppLocale.all
-        DropdownRow(
-            label = s.settingsLanguage,
-            description = s.settingsLanguageDesc,
-            options = locales.map { it.displayName },
-            selected = locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0),
-            onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
-        )
-        if (input.hardwareKeyboard) {
-            RowDivider()
-            SwitchRow(s.settingsBlockScroll, s.settingsBlockScrollDesc, state.disableScrollOnAlt) {
-                vm.sendEvent(SettingsEvent.OnDisableScrollOnAltChanged(it))
-            }
         }
     }
 }
 
-private val isPhoneFormFactor: Boolean by lazy { currentFormFactor() == DeviceFormFactor.PHONE }
+@Composable
+private fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
+    val title = LocalStrings.current.settingsUiScale
+    Row(
+        modifier = Modifier
+            .settingsAnchor(title)
+            .fillMaxWidth()
+            .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            HighlightedSettingsText(
+                "${(currentScale * 100).toInt()}%",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        ChatoneSlider(
+            value = currentScale,
+            onValueChange = onScaleChanged,
+            valueRange = 0.7f..2.0f,
+            steps = 12,
+            modifier = Modifier.width(180.dp)
+        )
+    }
+}
 
-private fun AppStrings.sizeLabel(index: Int): String =
-    listOf(
-        settingsSizeSmall,
-        settingsSizeMedium,
-        settingsSizeLarge
-    ).getOrElse(index) { settingsSizeMedium }
-
-private fun AppStrings.spacingLabel(index: Int): String =
-    listOf(
-        settingsSpacingNone,
-        settingsSpacingLow,
-        settingsSpacingMedium,
-        settingsSpacingHigh
-    ).getOrElse(index) { settingsSpacingLow }
+internal val isPhoneFormFactor: Boolean by lazy { currentFormFactor() == DeviceFormFactor.PHONE }

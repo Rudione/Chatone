@@ -7,39 +7,41 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.rudione.chatone.data.remote.dto.GiphyGif
 import io.rudione.chatone.data.remote.dto.GiphyResponse
+import io.rudione.chatone.domain.model.GifSearchConfig
 import io.rudione.chatone.domain.model.GifSearchItem
 import io.rudione.chatone.domain.model.GifSearchPage
 import io.rudione.chatone.util.Result
+import io.rudione.chatone.util.media.GiphyMedia
+import kotlinx.coroutines.CancellationException
 
 class GiphyApiClient(private val httpClient: HttpClient) {
 
     companion object {
         private const val TAG = "Giphy"
         private const val BASE_URL = "https://api.giphy.com/v1/gifs"
-        private const val RATING = "pg-13"
         const val PAGE_SIZE = 30
         const val SIGNUP_URL = "https://developers.giphy.com/dashboard/"
     }
 
-    suspend fun trending(apiKey: String, offset: Int = 0): Result<GifSearchPage> =
-        request(apiKey, "$BASE_URL/trending", query = null, offset = offset)
+    suspend fun trending(config: GifSearchConfig, offset: Int = 0): Result<GifSearchPage> =
+        request(config, "$BASE_URL/trending", query = null, offset = offset)
 
-    suspend fun search(apiKey: String, query: String, offset: Int = 0): Result<GifSearchPage> =
-        request(apiKey, "$BASE_URL/search", query = query, offset = offset)
+    suspend fun search(config: GifSearchConfig, query: String, offset: Int = 0): Result<GifSearchPage> =
+        request(config, "$BASE_URL/search", query = query, offset = offset)
 
     private suspend fun request(
-        apiKey: String,
+        config: GifSearchConfig,
         url: String,
         query: String?,
         offset: Int
     ): Result<GifSearchPage> {
-        if (apiKey.isBlank()) return Result.Error(GiphyKeyMissingException())
+        if (config.apiKey.isBlank()) return Result.Error(GiphyKeyMissingException())
         return try {
             val response: GiphyResponse = httpClient.get(url) {
-                parameter("api_key", apiKey)
+                parameter("api_key", config.apiKey)
                 parameter("limit", PAGE_SIZE)
                 parameter("offset", offset)
-                parameter("rating", RATING)
+                parameter("rating", config.rating)
                 parameter("bundle", "messaging_non_clips")
                 if (query != null) parameter("q", query)
             }.body()
@@ -58,20 +60,24 @@ class GiphyApiClient(private val httpClient: HttpClient) {
                     nextOffset = if (items.size < PAGE_SIZE) null else offset + response.data.size
                 )
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Napier.w("Giphy request error: ${e.message}", tag = TAG)
+            Napier.w("Giphy request error: ${e::class.simpleName}", tag = TAG)
             Result.Error(e)
         }
     }
 
     private fun GiphyGif.toSearchItem(): GifSearchItem? {
         val send = images.original?.url?.takeIf { it.isNotBlank() } ?: return null
-        val preview = images.fixedHeightSmall?.url?.takeIf { it.isNotBlank() }
-            ?: images.fixedWidthSmall?.url?.takeIf { it.isNotBlank() }
-            ?: images.fixedHeight?.url?.takeIf { it.isNotBlank() }
-            ?: images.fixedWidth?.url?.takeIf { it.isNotBlank() }
-            ?: images.fixedHeightDownsampled?.url?.takeIf { it.isNotBlank() }
-            ?: send
+        val previewImage = listOfNotNull(
+            images.fixedHeightSmall,
+            images.fixedWidthSmall,
+            images.fixedHeight,
+            images.fixedWidth,
+            images.fixedHeightDownsampled
+        ).firstOrNull { it.url.isNotBlank() }
+        val preview = previewImage?.let { GiphyMedia.preferWebp(it.url, it.webp) } ?: send
         if (id.isBlank()) return null
         return GifSearchItem(
             id = id,

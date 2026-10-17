@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.window
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,12 +22,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,9 +36,10 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onLayoutRectChanged
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.window.WindowDraggableArea
@@ -47,7 +48,7 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import io.rudione.chatone.util.system.WindowsTitleBar
 
-private val TITLE_BAR_HEIGHT = 32.dp
+private val TITLE_BAR_HEIGHT = 24.dp
 
 @Composable
 fun FrameWindowScope.ChatoneTitleBar(
@@ -72,7 +73,7 @@ fun FrameWindowScope.ChatoneTitleBar(
     var nativeMaximizeHovered by remember { mutableStateOf(false) }
 
     val toggleMaximizeLatest by rememberUpdatedState(onToggleMaximize)
-    DisposableEffect(window, nativeCaption) {
+    SideEffect(window, nativeCaption) {
         if (nativeCaption) {
             WindowsTitleBar.setCaptionCallbacks(
                 window = window,
@@ -80,10 +81,9 @@ fun FrameWindowScope.ChatoneTitleBar(
                 onMaximizeHoverChanged = { nativeMaximizeHovered = it }
             )
         }
-        onDispose { }
     }
 
-    DisposableEffect(window, nativeCaption, captionHeightPx, maximizeRect, buttonsRect) {
+    SideEffect(window, nativeCaption, captionHeightPx, maximizeRect, buttonsRect) {
         if (nativeCaption && captionHeightPx > 0) {
             WindowsTitleBar.setCaptionLayout(
                 window = window,
@@ -94,7 +94,6 @@ fun FrameWindowScope.ChatoneTitleBar(
                 )
             )
         }
-        onDispose { }
     }
 
     Box(
@@ -102,22 +101,20 @@ fun FrameWindowScope.ChatoneTitleBar(
             .fillMaxWidth()
             .height(TITLE_BAR_HEIGHT)
             .background(background)
-            .onGloballyPositioned { coords ->
-                captionHeightPx = coords.boundsInWindow().height.toInt()
-            }
+            .onSizeChanged { captionHeightPx = it.height }
     ) {
         val titleRow: @Composable () -> Unit = {
             Row(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(start = 10.dp),
+                modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(start = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (icon != null) {
                     Image(
                         painter = icon,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(12.dp)
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                 }
                 Text(
                     text = title,
@@ -163,15 +160,7 @@ fun FrameWindowScope.ChatoneTitleBar(
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
                 .padding(end = 4.dp)
-                .onGloballyPositioned { coords ->
-                    val bounds = coords.boundsInWindow()
-                    buttonsRect = java.awt.Rectangle(
-                        bounds.left.toInt(),
-                        bounds.top.toInt(),
-                        bounds.width.toInt(),
-                        bounds.height.toInt()
-                    )
-                },
+                .onLayoutRectChanged { bounds -> buttonsRect = bounds.boundsInWindow.toAwtRectangle() },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -193,15 +182,8 @@ fun FrameWindowScope.ChatoneTitleBar(
                 else
                     CaptionKind.Maximize,
                 forceHovered = nativeMaximizeHovered,
-                modifier = Modifier.onGloballyPositioned { coords ->
-                    if (!nativeCaption) return@onGloballyPositioned
-                    val bounds = coords.boundsInWindow()
-                    maximizeRect = java.awt.Rectangle(
-                        bounds.left.toInt(),
-                        bounds.top.toInt(),
-                        bounds.width.toInt(),
-                        bounds.height.toInt()
-                    )
+                modifier = Modifier.onLayoutRectChanged { bounds ->
+                    if (nativeCaption) maximizeRect = bounds.boundsInWindow.toAwtRectangle()
                 }
             )
             CaptionButton(
@@ -234,15 +216,15 @@ private fun CaptionButton(
     val glyphColor = if (hovered) hoverFg else fg
     Box(
         modifier = modifier
-            .padding(vertical = 4.dp)
-            .size(width = 38.dp, height = 24.dp)
-            .clip(RoundedCornerShape(7.dp))
+            .padding(vertical = 3.dp)
+            .size(width = 28.5.dp, height = 18.dp)
+            .clip(RoundedCornerShape(5.dp))
             .background(if (hovered) hoverBg else Color.Transparent)
             .hoverable(interaction)
             .then(if (clickable) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.size(10.dp)) {
+        Canvas(modifier = Modifier.size(7.5.dp)) {
             val stroke = 1.2f
             val s = size
             when (kind) {
@@ -298,3 +280,5 @@ private fun CaptionButton(
         }
     }
 }
+
+private fun IntRect.toAwtRectangle(): java.awt.Rectangle = java.awt.Rectangle(left, top, width, height)

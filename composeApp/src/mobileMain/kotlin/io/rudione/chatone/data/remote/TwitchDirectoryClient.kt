@@ -112,13 +112,31 @@ class TwitchDirectoryClient(
             val items = (root["data"] as? JsonArray).orEmpty()
                 .mapNotNull { (it as? JsonObject)?.toHelixStream() }
             val next = root.obj("pagination")?.string("cursor")?.takeIf { it.isNotEmpty() }
-            BrowsePage(items, next)
+            BrowsePage(items.withAvatars(), next)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Napier.w("Followed streams request failed: ${e::class.simpleName}", tag = TAG)
             null
         }
+    }
+
+    private suspend fun List<BrowseStream>.withAvatars(): List<BrowseStream> {
+        val missing = filter { it.avatarUrl.isEmpty() }.map { it.login }.distinct().take(MAX_AVATAR_LOOKUP)
+        if (missing.isEmpty()) return this
+        val data = query(USER_AVATARS_QUERY) {
+            putJsonArray("logins") { missing.forEach { add(it) } }
+        } ?: return this
+        val avatars = (data["users"] as? JsonArray).orEmpty()
+            .mapNotNull { it as? JsonObject }
+            .mapNotNull { user ->
+                val login = user.string("login")?.lowercase() ?: return@mapNotNull null
+                val avatar = user.string("profileImageURL").httpsOrEmpty()
+                if (avatar.isEmpty()) null else login to avatar
+            }
+            .toMap()
+        if (avatars.isEmpty()) return this
+        return map { stream -> avatars[stream.login]?.let { stream.copy(avatarUrl = it) } ?: stream }
     }
 
     override suspend fun search(query: String): BrowseSearchResult? {
@@ -273,6 +291,7 @@ class TwitchDirectoryClient(
         const val CATEGORY_PAGE_SIZE = 30
         const val STREAM_PAGE_SIZE = 24
         const val SEARCH_PAGE_SIZE = 10
+        const val MAX_AVATAR_LOOKUP = 100
         const val MAX_QUERY_LENGTH = 100
         const val MAX_TAG_LENGTH = 25
         const val MAX_TEXT_LENGTH = 200
@@ -301,6 +320,10 @@ class TwitchDirectoryClient(
                     "previewImageURL(width: 440, height: 248) freeformTags { name } " +
                     "broadcaster { login displayName profileImageURL(width: 70) } } } " +
                     "pageInfo { hasNextPage } } } }"
+
+        const val USER_AVATARS_QUERY =
+            "query ChatoneUserAvatars(\$logins: [String!]) { " +
+                    "users(logins: \$logins) { login profileImageURL(width: 70) } }"
 
         const val SEARCH_QUERY =
             "query ChatoneBrowseSearch(\$query: String!, \$first: Int) { " +

@@ -8,6 +8,7 @@ import io.rudione.chatone.domain.stream.StreamErrorKind
 import io.rudione.chatone.domain.stream.StreamManifest
 import io.rudione.chatone.domain.stream.StreamManifestResult
 import io.rudione.chatone.domain.stream.StreamManifestSource
+import io.rudione.chatone.domain.stream.StreamMediaInfo
 import io.rudione.chatone.domain.stream.StreamPhase
 import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 import io.rudione.chatone.domain.stream.StreamPlaybackEngineFactory
@@ -237,6 +238,7 @@ class StreamPlayerViewModelTest {
 
     @Test
     fun goingToBackgroundPausesAndComingBackJumpsToLive() = runTest(dispatcher) {
+        preferences.save(preferences.load().copy(backgroundAudio = false))
         withViewModel { viewModel ->
             viewModel.onEvent(StreamPlayerEvent.Open("streamer"))
             runCurrent()
@@ -249,6 +251,71 @@ class StreamPlayerViewModelTest {
             viewModel.onEvent(StreamPlayerEvent.AppVisibilityChanged(true))
             assertTrue(engine.playbackRequested)
             assertEquals(1, engine.seekedToLive)
+        }
+    }
+
+    @Test
+    fun closingPictureInPicturePausesDespiteBackgroundAudioAndReturnResumes() = runTest(dispatcher) {
+        preferences.save(preferences.load().copy(backgroundAudio = true))
+        withViewModel { viewModel ->
+            viewModel.onEvent(StreamPlayerEvent.Open("streamer"))
+            runCurrent()
+            val engine = factory.created.single()
+            engine.status.value = PlaybackStatus(phase = StreamPhase.PLAYING)
+            runCurrent()
+
+            viewModel.onEvent(StreamPlayerEvent.AppVisibilityChanged(false))
+            assertTrue(engine.playbackRequested)
+            viewModel.onEvent(StreamPlayerEvent.PictureInPictureDismissed)
+            assertFalse(engine.playbackRequested)
+            advanceTimeBy(30_000)
+            runCurrent()
+            assertTrue(engine.selections.isEmpty())
+
+            viewModel.onEvent(StreamPlayerEvent.AppVisibilityChanged(true))
+            assertTrue(engine.playbackRequested)
+            assertEquals(1, engine.seekedToLive)
+        }
+    }
+
+    @Test
+    fun pictureInPictureDismissalBeforeStopStillPausesOnce() = runTest(dispatcher) {
+        preferences.save(preferences.load().copy(backgroundAudio = true))
+        withViewModel { viewModel ->
+            viewModel.onEvent(StreamPlayerEvent.Open("streamer"))
+            runCurrent()
+            val engine = factory.created.single()
+            engine.status.value = PlaybackStatus(phase = StreamPhase.PLAYING)
+            runCurrent()
+
+            viewModel.onEvent(StreamPlayerEvent.PictureInPictureDismissed)
+            viewModel.onEvent(StreamPlayerEvent.AppVisibilityChanged(false))
+            assertFalse(engine.playbackRequested)
+            advanceTimeBy(30_000)
+            runCurrent()
+            assertTrue(engine.selections.isEmpty())
+
+            viewModel.onEvent(StreamPlayerEvent.AppVisibilityChanged(true))
+            assertTrue(engine.playbackRequested)
+        }
+    }
+
+    @Test
+    fun closingPictureInPictureKeepsAManuallyPausedStreamPaused() = runTest(dispatcher) {
+        withViewModel { viewModel ->
+            viewModel.onEvent(StreamPlayerEvent.Open("streamer"))
+            runCurrent()
+            val engine = factory.created.single()
+            engine.status.value = PlaybackStatus(phase = StreamPhase.PLAYING)
+            runCurrent()
+            viewModel.onEvent(StreamPlayerEvent.TogglePlayback)
+            engine.status.value = PlaybackStatus(phase = StreamPhase.PAUSED)
+            runCurrent()
+
+            viewModel.onEvent(StreamPlayerEvent.AppVisibilityChanged(false))
+            viewModel.onEvent(StreamPlayerEvent.PictureInPictureDismissed)
+            viewModel.onEvent(StreamPlayerEvent.AppVisibilityChanged(true))
+            assertFalse(engine.playbackRequested)
         }
     }
 
@@ -482,6 +549,8 @@ class StreamPlayerViewModelTest {
         }
 
         override fun setMuted(muted: Boolean) = Unit
+
+        override fun setMediaInfo(info: StreamMediaInfo) = Unit
 
         override fun seekToLive() {
             seekedToLive++

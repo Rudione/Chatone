@@ -23,7 +23,7 @@ plugins {
 val appVersion: String = providers.gradleProperty("app.version").get()
 val appVersionCode: Int = providers.gradleProperty("app.versionCode").get().toInt()
 
-val generateBuildConfig by tasks.registering {
+val generateBuildConfig = tasks.register("generateBuildConfig") {
     val outputDir = layout.buildDirectory.dir("generated/source/buildConfig/commonMain/kotlin")
     val appVersionValue = appVersion
     val appVersionCodeValue = appVersionCode
@@ -56,7 +56,7 @@ kotlin {
 
     android {
         namespace = "io.rudione.chatone.shared"
-        compileSdk = 36
+        compileSdk = 37
         minSdk = 24
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
         androidResources { enable = true }
@@ -64,8 +64,8 @@ kotlin {
     }
 
     jvm("desktop") {
-        @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+        @OptIn(ExperimentalKotlinGradlePluginApi::class)
         mainRun {
             mainClass.set("io.rudione.chatone.MainKt")
         }
@@ -79,9 +79,9 @@ kotlin {
     }
 
     sourceSets {
-        val desktopMain by getting
+        val desktopMain = getByName("desktopMain")
 
-        val mobileMain by creating {
+        val mobileMain = create("mobileMain") {
             dependsOn(commonMain.get())
             dependencies {
                 implementation(libs.androidx.paging.common)
@@ -96,12 +96,12 @@ kotlin {
         }
 
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.ui)
-            implementation(compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.ui)
+            implementation(libs.compose.components.resources)
+            implementation(libs.compose.components.uiToolingPreview)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.client.serialization)
@@ -122,7 +122,7 @@ kotlin {
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
             implementation(libs.coil.svg)
-            implementation("org.jetbrains.kotlinx:atomicfu:0.27.0")
+            implementation(libs.kotlinx.atomicfu)
             implementation(projects.core.icons)
         }
 
@@ -132,7 +132,7 @@ kotlin {
             implementation(libs.ktor.client.mock)
         }
 
-        val androidHostTest by getting {
+        getByName("androidHostTest") {
             dependencies {
                 implementation(libs.androidx.paging.testing)
             }
@@ -154,7 +154,7 @@ kotlin {
             implementation(libs.media3.datasource.okhttp)
             implementation(libs.media3.session)
             implementation(libs.androidx.work.runtime)
-            implementation("androidx.browser:browser:1.8.0")
+            implementation(libs.androidx.browser)
         }
 
         iosMain.dependencies {
@@ -172,9 +172,6 @@ kotlin {
             implementation(libs.ktor.server.cio)
             implementation(libs.jna)
             implementation(libs.jna.platform)
-        }
-        all {
-            languageSettings.enableLanguageFeature("BreakContinueInInlineLambdas")
         }
     }
 }

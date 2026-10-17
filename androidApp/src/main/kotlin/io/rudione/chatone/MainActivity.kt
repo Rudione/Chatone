@@ -16,20 +16,15 @@ import androidx.annotation.RequiresApi
 import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.rudione.chatone.data.auth.LoginReturnIntents
-import io.rudione.chatone.splash.playChatoneExit
 import io.rudione.chatone.util.media.AndroidFilePicker
 import io.rudione.chatone.util.system.AndroidNotifier
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
-import io.rudione.chatone.util.system.LaunchGate
 import io.rudione.chatone.util.system.NotificationAccess
 import io.rudione.chatone.util.system.NotificationLaunches
 import io.rudione.chatone.util.system.NotificationTarget
 import io.rudione.chatone.util.system.setAppForeground
-import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
-
-    private val launchGate: LaunchGate by inject()
 
     private val filePickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -43,10 +38,8 @@ class MainActivity : ComponentActivity() {
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
-        val splashScreen = installSplashScreen()
+        installSplashScreen()
         super.onCreate(savedInstanceState)
-        splashScreen.setKeepOnScreenCondition { launchGate.isHolding }
-        splashScreen.setOnExitAnimationListener { provider -> provider.playChatoneExit() }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
