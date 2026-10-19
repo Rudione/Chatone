@@ -22,7 +22,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
+import io.rudione.chatone.util.platform.setText
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -83,7 +87,7 @@ internal fun UsercardTab(
     noteText: String,
     isNoteLoaded: Boolean,
     noteRepository: UserNoteRepository,
-    clipboardManager: androidx.compose.ui.platform.ClipboardManager,
+    clipboard: Clipboard,
     showModActions: Boolean,
     isBroadcaster: Boolean,
     isModerator: Boolean,
@@ -108,6 +112,7 @@ internal fun UsercardTab(
     username: String = "",
     mentionMuteRepository: MentionMuteRepository? = null
 ) {
+    val scope = rememberCoroutineScope()
     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
         if (fetchedCreatedAt.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -253,7 +258,7 @@ internal fun UsercardTab(
                 Spacer(Modifier.weight(1f))
                 if (localTab == 0 && noteText.isNotEmpty()) {
                     ChatoneIconButton(
-                        onClick = { clipboardManager.setText(AnnotatedString(noteText)) },
+                        onClick = { scope.launch { clipboard.setText(noteText) } },
                         modifier = Modifier.size(22.dp)
                     ) {
                         Icon(
@@ -686,7 +691,8 @@ internal fun MessageHistoryItem(message: DisplayMessage.PrivMsg, nameColor: Colo
         }
     }
     var showCopyMenu by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     Box {
         Row(
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
@@ -725,7 +731,7 @@ internal fun MessageHistoryItem(message: DisplayMessage.PrivMsg, nameColor: Colo
                 },
                 onClick = {
                     showCopyMenu = false
-                    clipboard.setText(AnnotatedString(rawText))
+                    scope.launch { clipboard.setText(rawText) }
                 }
             )
             DropdownMenuItem(
@@ -737,7 +743,7 @@ internal fun MessageHistoryItem(message: DisplayMessage.PrivMsg, nameColor: Colo
                 },
                 onClick = {
                     showCopyMenu = false
-                    clipboard.setText(AnnotatedString(message.displayName))
+                    scope.launch { clipboard.setText(message.displayName) }
                 }
             )
         }

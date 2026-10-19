@@ -1,12 +1,9 @@
 package io.rudione.chatone.util.chat
 
 import androidx.compose.runtime.SideEffect
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.ExperimentalComposeUiApi
 import io.rudione.chatone.util.EmoteAnimationCache
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -15,9 +12,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import io.rudione.chatone.domain.model.GenericEmote
 import io.rudione.chatone.presentation.chat.AnimatedEmoteImageCore
 import io.rudione.chatone.presentation.chat.EmoteTooltip
+import io.rudione.chatone.presentation.components.HoverTooltipBox
 import kotlin.time.Clock
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 actual fun EmoteImageWithTooltip(
     emote: GenericEmote,
@@ -32,10 +29,10 @@ actual fun EmoteImageWithTooltip(
         val firstTiming = EmoteAnimationCache.getTooltipTiming(emote.id)
         val now = Clock.System.now().toEpochMilliseconds()
         val elapsed = now - firstTiming
-        (400 - elapsed).coerceAtLeast(0).toInt()
+        (400 - elapsed).coerceAtLeast(0)
     }
 
-    TooltipArea(
+    HoverTooltipBox(
         tooltip = { DisableSelection { EmoteTooltip(emote = emote) } },
         delayMillis = syncedDelay
     ) {
@@ -50,7 +47,8 @@ actual fun EmoteImageWithTooltip(
                             val event = awaitPointerEvent(PointerEventPass.Initial)
                             if (event.type == PointerEventType.Press ||
                                 event.type == PointerEventType.Move ||
-                                event.type == PointerEventType.Enter) {
+                                event.type == PointerEventType.Enter
+                            ) {
                                 event.changes.forEach { it.consume() }
                             }
                         }

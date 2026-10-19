@@ -614,7 +614,6 @@ object StringsRu : AppStrings {
     override val aiNewChat = "Новый чат"
     override val aiHistory = "История"
     override val aiHistoryEmpty = "История пуста"
-    override val aiConnectError = "Не удалось подключиться к ИИ-серверу. Убедитесь, что локальный сервер запущен (см. Настройки → ИИ Ассистент)."
     override val aiGreetingTitle = "Привет! Я ассистент Чатоне."
     override val aiGreetingBody = "Спросите что угодно или используйте быстрые действия ниже - я могу читать и анализировать открытый чат."
     override val aiClose = "Закрыть"
@@ -1463,4 +1462,6 @@ object StringsRu : AppStrings {
     override val modSlider: ModSliderStrings = ModSliderStringsRu
     override val screenChat: ScreenChatStrings = ScreenChatStringsRu
     override val settingsHub: SettingsHubStrings = SettingsHubStringsRu
+    override val aiAssist: AiAssistStrings = AiAssistStringsRu
+    override val streamChannel: StreamChannelStrings = StreamChannelStringsRu
 }

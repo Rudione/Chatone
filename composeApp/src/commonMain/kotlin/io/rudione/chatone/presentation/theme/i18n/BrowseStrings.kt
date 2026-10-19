@@ -100,7 +100,7 @@ object BrowseStringsEn : BrowseStrings {
     override fun aiStreamPrompt(streamer: String, title: String, category: String, tags: String, language: String, viewers: String, uptime: String) =
         "In 3-4 sentences, tell me what $streamer's live stream is about right now and whether it's worth joining. " +
             "Title: \"$title\". Category: $category. Tags: $tags. Language: $language. Viewers: $viewers. Live for: $uptime. " +
-            "Rely only on these details and say so if they are not enough."
+            "Based on the data provided to you, the chat, chat activity, or any information you can find"
 }
 
 object BrowseStringsRu : BrowseStrings {
@@ -153,7 +153,7 @@ object BrowseStringsRu : BrowseStrings {
     override fun aiStreamPrompt(streamer: String, title: String, category: String, tags: String, language: String, viewers: String, uptime: String) =
         "Кратко, в 3–4 предложениях, расскажи, про что сейчас стрим $streamer и стоит ли заходить. " +
             "Название: «$title». Категория: $category. Теги: $tags. Язык: $language. Зрителей: $viewers. В эфире: $uptime. " +
-            "Опирайся только на эти данные и честно скажи, если их мало."
+            "Опираясь на данные которые тебе даны, чат, активность чата либpо же инфу которую найдешь"
 
     private fun plural(count: Int, one: String, few: String, many: String): String {
         if (count >= 1_000) return many

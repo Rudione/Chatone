@@ -53,6 +53,7 @@ class MobileStreamUi internal constructor(
     val landscape: Boolean,
     val floating: FloatingStreamPlayerHost,
     val ambience: StreamAmbience,
+    val chrome: StreamChromeState,
     private val playerContent: @Composable (Modifier, Boolean, StreamLiveInfo?, (@Composable BoxScope.() -> Unit)?) -> Unit
 ) {
     @Composable
@@ -115,9 +116,10 @@ fun rememberMobileStreamUi(
     val floating =
         remember(host, pictureInPicture) { FloatingStreamPlayerHost(host, pictureInPicture) }
     val ambience = rememberStreamAmbience(host)
+    val chrome = remember(host) { StreamChromeState() }
     val liveInfo = rememberStreamLiveInfo(openChannel)
     val chatChannelLive = rememberStreamLiveInfo(channelLogin) != null
-    val playerContent = remember(host, controls, ambience) {
+    val playerContent = remember(host, controls, ambience, chrome) {
         movableContentOf {
             playerModifier: Modifier,
             fullscreen: Boolean,
@@ -135,6 +137,7 @@ fun rememberMobileStreamUi(
                 },
                 onBack = navigateBack,
                 modifier = playerModifier,
+                chrome = chrome,
                 ambience = ambience,
                 overlay = overlay
             )
@@ -159,6 +162,7 @@ fun rememberMobileStreamUi(
         landscape = fullLayout,
         floating = floating,
         ambience = ambience,
+        chrome = chrome,
         playerContent = playerContent
     )
 }

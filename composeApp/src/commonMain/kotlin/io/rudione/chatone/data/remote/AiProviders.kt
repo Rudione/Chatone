@@ -5,7 +5,8 @@ data class AiCloudProvider(
     val baseUrl: String,
     val defaultModel: String,
     val keyUrl: String,
-    val needsKey: Boolean = true
+    val needsKey: Boolean = true,
+    val overloadFallbackModel: String? = null
 )
 
 data class AiLocalModel(
@@ -24,8 +25,9 @@ object AiProviders {
         AiCloudProvider(
             "Gemini (free)",
             "https://generativelanguage.googleapis.com/v1beta/openai",
-            "gemini-2.0-flash",
-            "https://aistudio.google.com/apikey"
+            "gemini-3.8-flash",
+            "https://aistudio.google.com/apikey",
+            overloadFallbackModel = "gemini-3.5-flash-lite"
         ),
         AiCloudProvider(
             "ChatGPT (OpenAI)",
@@ -60,6 +62,27 @@ object AiProviders {
     )
 
     const val LOCAL_BASE_URL = "http://localhost:11434/v1"
+
+    private val loopbackHosts = setOf("localhost", "127.0.0.1", "0.0.0.0", "[::1]")
+
+    fun isLocal(baseUrl: String): Boolean = hostOf(baseUrl) in loopbackHosts
+
+    fun providerFor(baseUrl: String): AiCloudProvider? {
+        val host = hostOf(baseUrl)
+        return cloud.firstOrNull { hostOf(it.baseUrl) == host }
+    }
+
+    fun label(baseUrl: String): String =
+        if (isLocal(baseUrl)) LOCAL_LABEL
+        else providerFor(baseUrl)?.name?.substringBefore(" (") ?: hostOf(baseUrl).ifEmpty { baseUrl }
+
+    fun overloadFallback(baseUrl: String, model: String): String? =
+        providerFor(baseUrl)?.overloadFallbackModel?.takeIf { !it.equals(model, ignoreCase = true) }
+
+    private fun hostOf(url: String): String =
+        url.substringAfter("://").substringBefore('/').substringBeforeLast(':').lowercase()
+
+    private const val LOCAL_LABEL = "Ollama"
 
     val local = listOf(
         AiLocalModel("llama3.2:1b", "~1.3 GB"),

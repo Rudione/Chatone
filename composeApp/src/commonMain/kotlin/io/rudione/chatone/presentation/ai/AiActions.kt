@@ -26,7 +26,19 @@ data class AiRuleProposal(
     val messageMaxLength: Int? = null
 )
 
+@Serializable
+data class AiHighlightProposal(
+    val tool: String = "",
+    val criteria: String = "",
+    val label: String = ""
+)
+
 object AiActions {
+    private const val HIGHLIGHT_TOOL = "highlight_messages"
+    private const val RULE_TOOL = "add_automod_rule"
+    private const val MAX_CRITERIA_LENGTH = 400
+    private const val MAX_LABEL_LENGTH = 40
+
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
     private val BLOCK_RE =
         Regex("```(?:chatone-action|json)?\\s*(\\{.*?\\})\\s*```", RegexOption.DOT_MATCHES_ALL)
@@ -41,13 +53,26 @@ object AiActions {
         setOf(ChatRuleAction.DELETE, ChatRuleAction.TIMEOUT, ChatRuleAction.BAN)
 
     fun parse(text: String): AiRuleProposal? {
-        val raw = BLOCK_RE.find(text)?.groupValues?.getOrNull(1) ?: return null
+        val raw = actionBlock(text) ?: return null
         val proposal =
             runCatching { json.decodeFromString<AiRuleProposal>(raw) }.getOrNull() ?: return null
-        if (proposal.tool != "add_automod_rule") return null
+        if (proposal.tool != RULE_TOOL) return null
         if (runCatching { ChatRuleType.valueOf(proposal.type) }.getOrNull() !in ALLOWED_TYPES) return null
         return proposal
     }
+
+    fun parseHighlight(text: String): AiHighlightProposal? {
+        val raw = actionBlock(text) ?: return null
+        val proposal =
+            runCatching { json.decodeFromString<AiHighlightProposal>(raw) }.getOrNull() ?: return null
+        if (proposal.tool != HIGHLIGHT_TOOL || proposal.criteria.isBlank()) return null
+        return proposal.copy(
+            criteria = proposal.criteria.trim().take(MAX_CRITERIA_LENGTH),
+            label = proposal.label.trim().take(MAX_LABEL_LENGTH)
+        )
+    }
+
+    private fun actionBlock(text: String): String? = BLOCK_RE.find(text)?.groupValues?.getOrNull(1)
 
     fun strip(text: String): String = BLOCK_RE.replace(text, "").trim()
 

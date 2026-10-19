@@ -41,9 +41,11 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
+import io.rudione.chatone.util.platform.readText
+import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -64,6 +66,7 @@ import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -272,9 +275,9 @@ internal fun MessageInput(
 
     val s = LocalStrings.current
 
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val translationClient: TranslationClient = koinInject()
-    val translateScope = rememberCoroutineScope()
+    val inputScope = rememberCoroutineScope()
     var isTranslatingInput by remember { mutableStateOf(false) }
     var showInputContextMenu by remember { mutableStateOf(false) }
     var inputContextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
@@ -283,7 +286,7 @@ internal fun MessageInput(
         val text = tfv.text
         if (text.isBlank() || isTranslatingInput) return
         isTranslatingInput = true
-        translateScope.launch {
+        inputScope.launch {
             val result = translationClient.translate(text, translationTargetLang)
             if (result is Result.Success && result.data.text.isNotBlank()) {
                 onValueChange(result.data.text)
@@ -297,7 +300,7 @@ internal fun MessageInput(
 
     fun proceedSend(keepText: Boolean) {
         if (autoTranslateEnabled && tfv.text.isNotBlank()) {
-            translateScope.launch {
+            inputScope.launch {
                 val result = translationClient.translate(tfv.text, translationTargetLang)
                 if (result is Result.Success && result.data.text.isNotBlank()) {
                     onValueChange(result.data.text)
@@ -490,7 +493,9 @@ internal fun MessageInput(
                                         onValueChange(updated.text)
                                     },
                                     onTranslate = { translateInputInPlace() },
-                                    onDismiss = { showInputContextMenu = false }
+                                    onDismiss = { showInputContextMenu = false },
+                                    clipboard = clipboard,
+                                    scope = inputScope
                                 )
                             }
 
@@ -914,10 +919,11 @@ private fun MessageInputContextMenu(
     onToggleAutoTranslate: (Boolean) -> Unit,
     onTfvChange: (TextFieldValue) -> Unit,
     onTranslate: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    clipboard: Clipboard,
+    scope: CoroutineScope
 ) {
     val s = LocalStrings.current
-    val clipboardManager = LocalClipboardManager.current
     PortalPopup(
         alignment = Alignment.TopStart,
         offset = offset + IntOffset(8, 8),
@@ -946,13 +952,13 @@ private fun MessageInputContextMenu(
                         onDismiss()
                         val selection = tfv.selection
                         if (!selection.collapsed) {
-                            clipboardManager.setText(
-                                AnnotatedString(tfv.text.substring(selection.min, selection.max))
-                            )
+                            scope.launch {
+                                clipboard.setText(tfv.text.substring(selection.min, selection.max))
+                            }
                             val newText = tfv.text.removeRange(selection.min, selection.max)
                             onTfvChange(TextFieldValue(newText, TextRange(selection.min)))
                         } else if (tfv.text.isNotEmpty()) {
-                            clipboardManager.setText(AnnotatedString(tfv.text))
+                            scope.launch { clipboard.setText(tfv.text) }
                             onTfvChange(TextFieldValue("", TextRange(0)))
                         }
                     }
@@ -970,7 +976,7 @@ private fun MessageInputContextMenu(
                             tfv.text
                         }
                         if (textToCopy.isNotEmpty()) {
-                            clipboardManager.setText(AnnotatedString(textToCopy))
+                            scope.launch { clipboard.setText(textToCopy) }
                         }
                     }
                 )
@@ -980,14 +986,16 @@ private fun MessageInputContextMenu(
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = {
                         onDismiss()
-                        val clip = clipboardManager.getText()?.text
-                        if (!clip.isNullOrEmpty()) {
-                            val selection = tfv.selection
-                            val newText =
-                                tfv.text.replaceRange(selection.min, selection.max, clip)
-                            onTfvChange(
-                                TextFieldValue(newText, TextRange(selection.min + clip.length))
-                            )
+                        scope.launch {
+                            val clip = clipboard.readText()
+                            if (!clip.isNullOrEmpty()) {
+                                val selection = tfv.selection
+                                val newText =
+                                    tfv.text.replaceRange(selection.min, selection.max, clip)
+                                onTfvChange(
+                                    TextFieldValue(newText, TextRange(selection.min + clip.length))
+                                )
+                            }
                         }
                     }
                 )

@@ -33,8 +33,10 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
+import io.rudione.chatone.util.platform.setText
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -186,7 +188,7 @@ fun UserProfilePopup(
     var noteText by remember { mutableStateOf("") }
     var isNoteLoaded by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
 
     var moderationHistory by remember(userId) { mutableStateOf(ModerationHistory.Empty) }
     var isModerationHistoryLoading by remember(userId) { mutableStateOf(false) }
@@ -426,7 +428,7 @@ fun UserProfilePopup(
                         noteText = noteText,
                         isNoteLoaded = isNoteLoaded,
                         noteRepository = noteRepository,
-                        clipboardManager = clipboardManager,
+                        clipboard = clipboard,
                         showModActions = showModActions,
                         isBroadcaster = isBroadcaster,
                         isModerator = isModerator,
@@ -555,7 +557,8 @@ fun UserProfileHeader(
     onDismiss: (() -> Unit)? = null,
     showIconDetached: Boolean = true
 ) {
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var showCopied by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
     val sevenTv = rememberSevenTvCosmetic(userId)
@@ -615,7 +618,7 @@ fun UserProfileHeader(
                     Spacer(Modifier.width(4.dp))
                     ChatoneIconButton(
                         onClick = {
-                            clipboardManager.setText(AnnotatedString(username))
+                            scope.launch { clipboard.setText(username) }
                             showCopied = true
                         },
                         modifier = Modifier.size(22.dp)

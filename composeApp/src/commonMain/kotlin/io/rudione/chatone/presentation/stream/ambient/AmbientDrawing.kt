@@ -16,6 +16,8 @@ import androidx.compose.ui.graphics.LinearGradientShader
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.isSpecified
 
 private const val VIGNETTE_ALPHA = 0.35f
 private val GlowMaskColors = listOf(Color.Black, Color.Black.copy(alpha = 0.45f), Color.Transparent)
@@ -64,28 +66,35 @@ internal fun Modifier.ambientBars(ambience: StreamAmbience, videoWidth: Float, v
     }
 
 @Composable
-internal fun AmbientGlow(ambience: StreamAmbience, modifier: Modifier = Modifier) {
+internal fun AmbientGlow(ambience: StreamAmbience, modifier: Modifier = Modifier, alpha: () -> Float = { 1f }) {
     DisposableEffect(ambience) {
         ambience.attachGlow()
         onDispose { ambience.detachGlow() }
     }
     val darkBackground = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    Spacer(
-        modifier.drawWithCache {
-            val mask = LinearGradientShader(Offset.Zero, Offset(0f, size.height), GlowMaskColors, GlowMaskStops)
-            val blendMode = if (darkBackground) BlendMode.Screen else BlendMode.Multiply
-            onDrawBehind {
-                val intensity = ambience.visibleIntensity()
-                if (intensity <= 0f) return@onDrawBehind
-                val tint = LinearGradientShader(
-                    from = Offset.Zero,
-                    to = Offset(size.width, 0f),
-                    colors = ambience.glowColors(AmbientEdge.BOTTOM, intensity, darkBackground)
-                )
-                drawRect(ShaderBrush(CompositeShader(tint, mask, BlendMode.DstIn)), blendMode = blendMode)
-            }
-        }
-    )
+    Spacer(modifier.ambientGlow(ambience, darkBackground, alpha = alpha))
+}
+
+internal fun Modifier.ambientGlow(
+    ambience: StreamAmbience,
+    darkBackground: Boolean,
+    reach: Dp = Dp.Unspecified,
+    alpha: () -> Float = { 1f }
+): Modifier = drawWithCache {
+    val glowHeight = if (reach.isSpecified) reach.toPx().coerceAtMost(size.height) else size.height
+    val glowSize = Size(size.width, glowHeight)
+    val mask = LinearGradientShader(Offset.Zero, Offset(0f, glowHeight), GlowMaskColors, GlowMaskStops)
+    val blendMode = if (darkBackground) BlendMode.Screen else BlendMode.Multiply
+    onDrawBehind {
+        val intensity = ambience.visibleIntensity() * alpha().coerceIn(0f, 1f)
+        if (intensity <= 0f || glowHeight <= 0f) return@onDrawBehind
+        val tint = LinearGradientShader(
+            from = Offset.Zero,
+            to = Offset(size.width, 0f),
+            colors = ambience.glowColors(AmbientEdge.BOTTOM, intensity, darkBackground)
+        )
+        drawRect(ShaderBrush(CompositeShader(tint, mask, BlendMode.DstIn)), size = glowSize, blendMode = blendMode)
+    }
 }
 
 private class Vignette(val topLeft: Offset, val size: Size, val brush: Brush)

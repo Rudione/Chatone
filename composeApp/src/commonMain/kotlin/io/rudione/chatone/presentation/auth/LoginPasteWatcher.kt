@@ -1,28 +1,33 @@
 package io.rudione.chatone.presentation.auth
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.text.AnnotatedString
 import io.rudione.chatone.data.auth.LoginPayloadCodec
 import io.rudione.chatone.data.repository.LoginFailure
 import io.rudione.chatone.util.platform.DeviceFormFactor
+import io.rudione.chatone.util.platform.clear
 import io.rudione.chatone.util.platform.currentFormFactor
+import io.rudione.chatone.util.platform.readText
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 
 @Stable
 class LoginPasteWatcher internal constructor(
-    private val clipboard: ClipboardManager,
+    private val clipboard: Clipboard,
+    private val scope: CoroutineScope,
     private val submit: (String, Boolean) -> Unit
 ) {
     var manualPayload by mutableStateOf("")
@@ -41,15 +46,17 @@ class LoginPasteWatcher internal constructor(
         codeAccepted = true
         manualPayload = ""
         submit(trimmed, true)
-        runCatching { clipboard.setText(AnnotatedString("")) }
+        scope.launch { clipboard.clear() }
         return true
     }
 
     fun pasteFromClipboard() {
-        val text = readClipboard()
-        if (!accept(text)) {
-            submit(text, false)
-            if (text.isNotBlank()) runCatching { clipboard.setText(AnnotatedString("")) }
+        scope.launch {
+            val text = readClipboard()
+            if (!accept(text)) {
+                submit(text, false)
+                if (text.isNotBlank()) clipboard.clear()
+            }
         }
     }
 
@@ -62,7 +69,7 @@ class LoginPasteWatcher internal constructor(
         manualPayload = ""
     }
 
-    internal fun readClipboard(): String = runCatching { clipboard.getText()?.text }.getOrNull().orEmpty()
+    internal suspend fun readClipboard(): String = clipboard.readText().orEmpty()
 }
 
 @Composable
@@ -72,11 +79,14 @@ fun rememberLoginPasteWatcher(
     failure: LoginFailure?,
     onSubmitPayload: (String, Boolean) -> Unit
 ): LoginPasteWatcher {
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     val windowFocused = LocalWindowInfo.current.isWindowFocused
     val pollsClipboard = remember { currentFormFactor() == DeviceFormFactor.DESKTOP }
     val submit by rememberUpdatedState(onSubmitPayload)
-    val watcher = remember(clipboard) { LoginPasteWatcher(clipboard) { payload, auto -> submit(payload, auto) } }
+    val watcher = remember(clipboard, scope) {
+        LoginPasteWatcher(clipboard, scope) { payload, auto -> submit(payload, auto) }
+    }
 
     LaunchedEffect(watcher, awaitingPaste, windowFocused, busy) {
         if (!awaitingPaste || !windowFocused || busy) return@LaunchedEffect

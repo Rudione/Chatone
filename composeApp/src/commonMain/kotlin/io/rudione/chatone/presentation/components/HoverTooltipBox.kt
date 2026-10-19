@@ -26,44 +26,54 @@ private val TooltipProperties = PopupProperties(focusable = false)
 @Composable
 fun HoverTooltipBox(
     tooltip: @Composable () -> Unit,
+    delayMillis: Long = SHOW_DELAY_MS,
     content: @Composable () -> Unit
 ) {
     val positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider()
     if (LocalPopupPortal.current == null) {
-        TooltipBox(positionProvider = positionProvider, tooltip = { tooltip() }, state = rememberTooltipState()) {
+        TooltipBox(
+            positionProvider = positionProvider,
+            tooltip = { tooltip() },
+            state = rememberTooltipState()
+        ) {
             content()
         }
         return
     }
     var visible by remember { mutableStateOf(false) }
-    Box(Modifier.hoverReveal { visible = it }) {
+    Box(Modifier.hoverReveal(delayMillis) { visible = it }) {
         content()
-        if (visible) PortalPopup(positionProvider, properties = TooltipProperties, content = tooltip)
+        if (visible) PortalPopup(
+            positionProvider,
+            properties = TooltipProperties,
+            content = tooltip
+        )
     }
 }
 
-private fun Modifier.hoverReveal(onVisibleChange: (Boolean) -> Unit): Modifier = pointerInput(Unit) {
-    coroutineScope {
-        var pending: Job? = null
-        awaitPointerEventScope {
-            while (true) {
-                when (awaitPointerEvent().type) {
-                    PointerEventType.Enter -> {
-                        pending?.cancel()
-                        pending = launch {
-                            delay(SHOW_DELAY_MS)
-                            onVisibleChange(true)
+private fun Modifier.hoverReveal(delayMillis: Long, onVisibleChange: (Boolean) -> Unit): Modifier =
+    pointerInput(delayMillis) {
+        coroutineScope {
+            var pending: Job? = null
+            awaitPointerEventScope {
+                while (true) {
+                    when (awaitPointerEvent().type) {
+                        PointerEventType.Enter -> {
+                            pending?.cancel()
+                            pending = launch {
+                                delay(delayMillis)
+                                onVisibleChange(true)
+                            }
                         }
-                    }
 
-                    PointerEventType.Exit, PointerEventType.Press, PointerEventType.Scroll -> {
-                        pending?.cancel()
-                        onVisibleChange(false)
-                    }
+                        PointerEventType.Exit, PointerEventType.Press, PointerEventType.Scroll -> {
+                            pending?.cancel()
+                            onVisibleChange(false)
+                        }
 
-                    else -> Unit
+                        else -> Unit
+                    }
                 }
             }
         }
     }
-}

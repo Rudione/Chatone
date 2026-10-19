@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.LocalWindowExceptionHandlerFactory
 import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
@@ -24,6 +26,7 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.window.AppWindowLayer
 import io.rudione.chatone.presentation.window.AppWindowLayerEffect
 import io.rudione.chatone.presentation.window.ChatoneTitleBar
+import io.rudione.chatone.presentation.window.ChatoneWindowExceptionHandlerFactory
 import io.rudione.chatone.presentation.window.RegisterAppWindow
 import io.rudione.chatone.presentation.window.UpdateAvailableOverlay
 import io.rudione.chatone.presentation.window.MIN_CHAT_WINDOW_HEIGHT
@@ -51,6 +54,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import io.rudione.chatone.presentation.notifications.startNotificationServices
 import org.koin.core.context.startKoin
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val WIN_X = "win_x"
 private const val WIN_Y = "win_y"
@@ -58,7 +62,7 @@ private const val WIN_W = "win_w"
 private const val WIN_H = "win_h"
 private const val WIN_MAX = "win_maximized"
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalComposeUiApi::class)
 fun main() {
     System.setProperty("apple.awt.application.appearance", "system")
     System.setProperty("apple.awt.application.name", "Chatone")
@@ -109,20 +113,20 @@ fun main() {
                 )
             }
                 .distinctUntilChanged()
-                .debounce(350)
+                .debounce(350.milliseconds)
                 .collect { snap ->
-                if (snap.placement == WindowPlacement.Maximized) {
-                    settings.putBoolean(WIN_MAX, true)
-                } else {
-                    settings.putBoolean(WIN_MAX, false)
-                    settings.putFloat(WIN_W, snap.width)
-                    settings.putFloat(WIN_H, snap.height)
-                    (snap.position as? WindowPosition.Absolute)?.let { pos ->
-                        settings.putFloat(WIN_X, pos.x.value)
-                        settings.putFloat(WIN_Y, pos.y.value)
+                    if (snap.placement == WindowPlacement.Maximized) {
+                        settings.putBoolean(WIN_MAX, true)
+                    } else {
+                        settings.putBoolean(WIN_MAX, false)
+                        settings.putFloat(WIN_W, snap.width)
+                        settings.putFloat(WIN_H, snap.height)
+                        (snap.position as? WindowPosition.Absolute)?.let { pos ->
+                            settings.putFloat(WIN_X, pos.x.value)
+                            settings.putFloat(WIN_Y, pos.y.value)
+                        }
                     }
                 }
-            }
         }
 
         val initialSettings = remember {
@@ -153,82 +157,103 @@ fun main() {
             }
         )
 
-        Window(
-            onCloseRequest = { exitApplication() },
-            title = "Chatone",
-            state = windowState,
-            alwaysOnTop = AppWindowLayer.alwaysOnTop,
-            undecorated = useCustomTitleBar,
-            icon = appIcon,
-            onPreviewKeyEvent = { GlobalKeyDispatcher.dispatch(it) }
-        ) {
-            DisposableEffect(window) {
-                val initialDark = isDarkTheme
-                fun applyChrome() {
-                    window.background = NATIVE_WINDOW_BG
-                    window.contentPane.background = NATIVE_WINDOW_BG
-                    window.applyMinimumSize(height = MIN_CHAT_WINDOW_HEIGHT)
-                    loadAppIconImage()?.let { WindowsTitleBar.applyHighQualityIcons(window, it) }
-                    if (isWindowsOs && useCustomTitleBar) {
-                        WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
-                    }
-                    runCatching {
-                        window.rootPane.putClientProperty(
-                            "apple.awt.windowAppearance",
-                            "NSAppearanceNameDarkAqua"
-                        )
-                    }
-                    if (!useCustomTitleBar) {
-                        val (captionColor, useDark) = resolveTitleBar(
-                            initialSettings.titleBarMode, initialDark, null
-                        )
-                        WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
-                    }
-                }
-                if (window.isDisplayable) applyChrome()
-                val listener = object : java.awt.event.WindowAdapter() {
-                    override fun windowOpened(e: java.awt.event.WindowEvent) {
-                        applyChrome()
-                    }
-                }
-                window.addWindowListener(listener)
-                DesktopMainWindow.frame = window
-                onDispose {
-                    window.removeWindowListener(listener)
-                    if (DesktopMainWindow.frame === window) DesktopMainWindow.frame = null
-                }
-            }
-
-            RegisterAppWindow(window, primary = true)
-
-            LaunchedEffect(isDarkTheme, themeTopBarColor, titleBarMode) {
-                TitleBarState.mode = titleBarMode
-                TitleBarState.isDarkTheme = isDarkTheme
-                TitleBarState.themeTopBarColor = themeTopBarColor
-                val (captionColor, useDark) = resolveTitleBar(titleBarMode, isDarkTheme, themeTopBarColor)
-                WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
-            }
-
-            PopupPortalHost {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    if (useCustomTitleBar) {
-                        val captionColor = TitleBarState.captionColor
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            ChatoneTitleBar(
-                                title = "Chatone",
-                                icon = appIcon,
-                                background = captionColor,
-                                windowState = windowState,
-                                onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
-                                onToggleMaximize = {
-                                    windowState.placement =
-                                        if (windowState.placement == WindowPlacement.Maximized)
-                                            WindowPlacement.Floating
-                                        else
-                                            WindowPlacement.Maximized
-                                },
-                                onClose = { exitApplication() }
+        CompositionLocalProvider(LocalWindowExceptionHandlerFactory provides ChatoneWindowExceptionHandlerFactory) {
+            Window(
+                onCloseRequest = { exitApplication() },
+                title = "Chatone",
+                state = windowState,
+                alwaysOnTop = AppWindowLayer.alwaysOnTop,
+                undecorated = useCustomTitleBar,
+                icon = appIcon,
+                onPreviewKeyEvent = { GlobalKeyDispatcher.dispatch(it) }
+            ) {
+                DisposableEffect(window) {
+                    val initialDark = isDarkTheme
+                    fun applyChrome() {
+                        window.background = NATIVE_WINDOW_BG
+                        window.contentPane.background = NATIVE_WINDOW_BG
+                        window.applyMinimumSize(height = MIN_CHAT_WINDOW_HEIGHT)
+                        loadAppIconImage()?.let {
+                            WindowsTitleBar.applyHighQualityIcons(
+                                window,
+                                it
                             )
+                        }
+                        if (isWindowsOs && useCustomTitleBar) {
+                            WindowsTitleBar.enableWindowsSnapAndTaskbar(window)
+                        }
+                        runCatching {
+                            window.rootPane.putClientProperty(
+                                "apple.awt.windowAppearance",
+                                "NSAppearanceNameDarkAqua"
+                            )
+                        }
+                        if (!useCustomTitleBar) {
+                            val (captionColor, useDark) = resolveTitleBar(
+                                initialSettings.titleBarMode, initialDark, null
+                            )
+                            WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
+                        }
+                    }
+                    if (window.isDisplayable) applyChrome()
+                    val listener = object : java.awt.event.WindowAdapter() {
+                        override fun windowOpened(e: java.awt.event.WindowEvent) {
+                            applyChrome()
+                        }
+                    }
+                    window.addWindowListener(listener)
+                    DesktopMainWindow.frame = window
+                    onDispose {
+                        window.removeWindowListener(listener)
+                        if (DesktopMainWindow.frame === window) DesktopMainWindow.frame = null
+                    }
+                }
+
+                RegisterAppWindow(window, primary = true)
+
+                LaunchedEffect(isDarkTheme, themeTopBarColor, titleBarMode) {
+                    TitleBarState.mode = titleBarMode
+                    TitleBarState.isDarkTheme = isDarkTheme
+                    TitleBarState.themeTopBarColor = themeTopBarColor
+                    val (captionColor, useDark) = resolveTitleBar(
+                        titleBarMode,
+                        isDarkTheme,
+                        themeTopBarColor
+                    )
+                    WindowsTitleBar.applyTitleBarColor(window, captionColor, useDark)
+                }
+
+                PopupPortalHost {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (useCustomTitleBar) {
+                            val captionColor = TitleBarState.captionColor
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                ChatoneTitleBar(
+                                    title = "Chatone",
+                                    icon = appIcon,
+                                    background = captionColor,
+                                    windowState = windowState,
+                                    onMinimize = {
+                                        window.extendedState = java.awt.Frame.ICONIFIED
+                                    },
+                                    onToggleMaximize = {
+                                        windowState.placement =
+                                            if (windowState.placement == WindowPlacement.Maximized)
+                                                WindowPlacement.Floating
+                                            else
+                                                WindowPlacement.Maximized
+                                    },
+                                    onClose = { exitApplication() }
+                                )
+                                App(
+                                    onAlwaysOnTopChanged = { AppWindowLayer.alwaysOnTop = it },
+                                    onAlwaysOnTopModeChanged = { AppWindowLayer.mode = it },
+                                    onThemeChanged = { isDarkTheme = it },
+                                    onThemeTopBarColorChanged = { themeTopBarColor = it },
+                                    onTitleBarModeChanged = { titleBarMode = it }
+                                )
+                            }
+                        } else {
                             App(
                                 onAlwaysOnTopChanged = { AppWindowLayer.alwaysOnTop = it },
                                 onAlwaysOnTopModeChanged = { AppWindowLayer.mode = it },
@@ -237,16 +262,8 @@ fun main() {
                                 onTitleBarModeChanged = { titleBarMode = it }
                             )
                         }
-                    } else {
-                        App(
-                            onAlwaysOnTopChanged = { AppWindowLayer.alwaysOnTop = it },
-                            onAlwaysOnTopModeChanged = { AppWindowLayer.mode = it },
-                            onThemeChanged = { isDarkTheme = it },
-                            onThemeTopBarColorChanged = { themeTopBarColor = it },
-                            onTitleBarModeChanged = { titleBarMode = it }
-                        )
+                        ChatoneTheme(darkTheme = isDarkTheme) { UpdateAvailableOverlay() }
                     }
-                    ChatoneTheme(darkTheme = isDarkTheme) { UpdateAvailableOverlay() }
                 }
             }
         }

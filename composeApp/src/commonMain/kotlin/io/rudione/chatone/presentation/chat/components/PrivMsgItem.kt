@@ -112,7 +112,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
+import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -924,7 +925,8 @@ fun PrivMsgItem(
                     }
                 }
 
-                val clipboardManager = LocalClipboardManager.current
+                val clipboard = LocalClipboard.current
+                val scope = rememberCoroutineScope()
                 var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
                 val uriHandler = LocalUriHandler.current
                 var textLayoutResult by remember {
@@ -991,7 +993,7 @@ fun PrivMsgItem(
                                         val rawText = message.tokens.joinToString("") { token ->
                                             token.plainText()
                                         }
-                                        clipboardManager.setText(AnnotatedString(rawText))
+                                        scope.launch { clipboard.setText(rawText) }
                                         true
                                     } else false
                                 }
@@ -1264,7 +1266,7 @@ fun PrivMsgItem(
                                         val rawText = message.tokens.joinToString("") { token ->
                                             token.plainText()
                                         }
-                                        clipboardManager.setText(AnnotatedString(rawText))
+                                        scope.launch { clipboard.setText(rawText) }
                                     }
                                 )
                                 LiquidGlassDropdownItem(

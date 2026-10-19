@@ -46,6 +46,8 @@ import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.ChannelRoleGateway
 import io.rudione.chatone.presentation.screenchat.ScreenChatController
 import io.rudione.chatone.data.repository.ChannelRoleRepository
+import io.rudione.chatone.data.repository.ChannelFollowRepository
+import io.rudione.chatone.domain.follow.ChannelFollowGateway
 import io.rudione.chatone.data.repository.ChatRepositoryImpl
 import io.rudione.chatone.data.repository.AutomodRepository
 import io.rudione.chatone.data.repository.EmoteRepository
@@ -71,6 +73,7 @@ import io.rudione.chatone.data.remote.stream.TwitchAdBreakResolver
 import io.rudione.chatone.data.remote.stream.TwitchPlaybackClient
 import io.rudione.chatone.data.repository.AccountAgeRepository
 import io.rudione.chatone.data.repository.AiAssistantController
+import io.rudione.chatone.data.repository.AiChatScanner
 import io.rudione.chatone.data.repository.ChatMessageScaleRepository
 import io.rudione.chatone.data.repository.EnrichedPersonalEmoteBackfiller
 import io.rudione.chatone.data.repository.FirstPartyDeviceAuthController
@@ -225,6 +228,14 @@ val networkModule = module {
             moderationAuth = get()
         )
     }
+    single<ChannelFollowGateway> {
+        ChannelFollowRepository(
+            gql = get(),
+            accountManager = get(),
+            authRepository = get(),
+            moderationAuth = get()
+        )
+    }
     single { TwitchDeviceAuthClient(httpClient = get()) }
     single {
         FirstPartyDeviceAuthController(
@@ -248,6 +259,7 @@ val networkModule = module {
     single { AiAssistantClient(httpClient = get()) }
     single { OllamaClient(httpClient = get()) }
     single { AiAssistantController(settings = get()) }
+    single { AiChatScanner(client = get(), controller = get()) }
     single(createdAtStart = true) {
         ModelDownloadRepository(
             ollama = get(),
@@ -513,7 +525,7 @@ val viewModelModule = module {
             twitchGqlClient = get(),
             moderationAuthStore = get(),
             aiAssistantController = get(),
-            aiAssistantClient = get(),
+            aiChatScanner = get(),
             mentionMuteRepository = get(),
             messagePersistence = get(),
             persistedSettings = get(),

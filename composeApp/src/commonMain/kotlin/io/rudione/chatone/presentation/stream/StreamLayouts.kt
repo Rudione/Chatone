@@ -6,6 +6,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -46,14 +47,25 @@ import io.rudione.chatone.presentation.stream.ambient.AmbientGlow
 import kotlin.math.roundToInt
 
 @Composable
-fun PortraitStreamPlayer(ui: MobileStreamUi, modifier: Modifier = Modifier, glowHeight: Dp = 0.dp) {
+fun PortraitStreamPlayer(
+    ui: MobileStreamUi,
+    modifier: Modifier = Modifier,
+    glowHeight: Dp = 0.dp,
+    channelPanel: (@Composable (login: String, modifier: Modifier) -> Unit)? = null
+) {
+    val reveal = rememberChannelPanelReveal(ui, enabled = channelPanel != null)
     Box(modifier.zIndex(1f)) {
-        ui.Player(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(StreamPlayerUiState.DEFAULT_ASPECT_RATIO),
-            fullscreen = false
-        )
+        Column {
+            ui.Player(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(StreamPlayerUiState.DEFAULT_ASPECT_RATIO),
+                fullscreen = false
+            )
+            if (channelPanel != null) {
+                ChannelPanelReveal(ui = ui, reveal = reveal, glowing = glowHeight > 0.dp, panel = channelPanel)
+            }
+        }
         if (glowHeight > 0.dp) {
             AmbientGlow(
                 ambience = ui.ambience,
@@ -61,7 +73,8 @@ fun PortraitStreamPlayer(ui: MobileStreamUi, modifier: Modifier = Modifier, glow
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .height(glowHeight)
-                    .offset { IntOffset(0, glowHeight.roundToPx()) }
+                    .offset { IntOffset(0, glowHeight.roundToPx()) },
+                alpha = { 1f - reveal.progress }
             )
         }
     }

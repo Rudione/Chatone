@@ -6,8 +6,6 @@ import io.rudione.chatone.base.BaseViewModel
 import io.rudione.chatone.base.UIEffect
 import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
-import io.rudione.chatone.data.remote.AiAssistantClient
-import io.rudione.chatone.data.remote.AiChatMessage
 import io.rudione.chatone.data.remote.ChatMessageRejectedException
 import io.rudione.chatone.data.remote.GqlChannelPointReward
 import io.rudione.chatone.data.remote.ChatterFame
@@ -79,7 +77,11 @@ import io.rudione.chatone.data.remote.emote.SevenTvApiClient
 import io.rudione.chatone.data.repository.AccountAgeRepository
 import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.data.repository.AiChatLine
+import io.rudione.chatone.data.repository.AiChatScanner
 import io.rudione.chatone.data.repository.AiChatSnapshot
+import io.rudione.chatone.data.repository.AiHighlightWatch
+import io.rudione.chatone.data.repository.AiRuleDigest
+import io.rudione.chatone.data.repository.AiScanLine
 import io.rudione.chatone.data.repository.EnrichedPersonalEmoteBackfiller
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.repository.MessagePersistenceQueue
@@ -375,7 +377,7 @@ class ChatViewModel(
     private val twitchGqlClient: TwitchGqlClient,
     private val moderationAuthStore: ModerationAuthStore,
     private val aiAssistantController: AiAssistantController,
-    private val aiAssistantClient: AiAssistantClient,
+    private val aiChatScanner: AiChatScanner,
     private val mentionMuteRepository: MentionMuteRepository,
     private val messagePersistence: MessagePersistenceQueue,
     private val persistedSettings: com.russhwolf.settings.Settings,
@@ -391,6 +393,10 @@ class ChatViewModel(
 
     companion object {
         private const val TAG = "ChatViewModel"
+        private const val AI_HIGHLIGHT_INITIAL_SCAN = 160
+        private const val AI_HIGHLIGHT_LIVE_SCAN = 80
+        private const val AI_HIGHLIGHT_BATCH = 80
+        private const val AI_HIGHLIGHT_INTERVAL_MS = 10_000L
         private const val MAX_CACHED_CHANNELS = 10
         private const val MAX_HISTORY = 50
         private const val HIDDEN_EVENTS_MEMORY = 50
@@ -972,6 +978,7 @@ class ChatViewModel(
         }
         observeAiSnapshotDemand()
         observeAiAutoMod()
+        observeAiHighlightWatch()
     }
 
     private val aiScannedIds = HashSet<String>()
@@ -1004,54 +1011,63 @@ class ChatViewModel(
         fresh.forEach { aiScannedIds.add(it.id) }
         if (aiScannedIds.size > 4000) aiScannedIds.clear()
 
-        val numbered = fresh.mapIndexed { i, m ->
-            "${i + 1}. ${m.displayName.ifBlank { m.username }}: ${plainTextOf(m)}"
-        }.joinToString("\n")
         val sens = when (cfg.sensitivity) {
             1 -> "only clearly severe content (slurs, threats, scams, coordinated raid spam)"
             3 -> "anything borderline, suspicious, or mildly toxic"
             else -> "clearly toxic, harmful, hateful, scam, or raid content"
         }
-        val prompt = buildString {
-            append("You are a Twitch chat safety filter. From the numbered messages, return ONLY a ")
-            append("JSON array of the message numbers that are dangerous ($sens). ")
-            if (cfg.extraInstructions.isNotBlank()) append(cfg.extraInstructions).append(" ")
-            append("Return [] if none.\n\n")
-            append(numbered)
+        val criteria = buildString {
+            append("dangerous messages: ").append(sens).append('.')
+            if (cfg.extraInstructions.isNotBlank()) append(' ').append(cfg.extraInstructions)
         }
-        val cf = aiAssistantController.config.value
-        val r = aiAssistantClient.complete(
-            baseUrl = cf.baseUrl,
-            model = cf.model,
-            messages = listOf(
-                AiChatMessage(
-                    AiChatMessage.SYSTEM,
-                    "Respond with a JSON array of integers only, no prose."
-                ),
-                AiChatMessage(
-                    AiChatMessage.USER, prompt
-                )
-            ),
-            temperature = 0.0,
-            apiKey = cf.apiKey
-        )
-        if (r !is Result.Success) return
-        val nums = Regex("\\d+").findAll(r.data)
-            .mapNotNull { it.value.toIntOrNull() }
-            .filter { it in 1..fresh.size }
-            .toSet()
-        if (nums.isEmpty()) return
-        val flaggedIds = nums.mapNotNull { fresh.getOrNull(it - 1)?.id }.toSet()
+        val matches = aiChatScanner.matching(fresh.map(::scanLineOf), criteria) ?: return
+        if (matches.isEmpty()) return
+        val flaggedIds = matches.mapNotNull { fresh.getOrNull(it)?.id }.toSet()
         if (flaggedIds.isEmpty()) return
-        update { st ->
-            st.copy(messages = st.messages.map { dm ->
-                if (dm is DisplayMessage.PrivMsg && dm.id in flaggedIds && !dm.isHighlighted)
-                    dm.copy(isHighlighted = true) else dm
-            })
-        }
+        markAiHighlighted(flaggedIds)
         val strings = AppStrings.forLocale(cachedSettings().language)
         systemNotice(s.channelLogin, strings.aiFlaggedMessagesNotice.replace("{0}", flaggedIds.size.toString()))
     }
+
+    private fun observeAiHighlightWatch() {
+        viewModelScope.launch {
+            aiAssistantController.highlightWatch.collectLatest { watch ->
+                if (watch == null) return@collectLatest
+                val scanned = HashSet<String>()
+                var limit = AI_HIGHLIGHT_INITIAL_SCAN
+                while (true) {
+                    if (aiAssistantController.enabled.value) scanForAiHighlight(watch, scanned, limit)
+                    limit = AI_HIGHLIGHT_LIVE_SCAN
+                    delay(AI_HIGHLIGHT_INTERVAL_MS)
+                }
+            }
+        }
+    }
+
+    private suspend fun scanForAiHighlight(watch: AiHighlightWatch, scanned: MutableSet<String>, limit: Int) {
+        val s = state.value
+        if (!s.channelLogin.equals(watch.channelLogin, ignoreCase = true)) return
+        val fresh = s.messages.filterIsInstance<DisplayMessage.PrivMsg>()
+            .filter { !it.isDeleted && it.id !in scanned }
+            .takeLast(limit)
+        for (batch in fresh.chunked(AI_HIGHLIGHT_BATCH)) {
+            val matches = aiChatScanner.matching(batch.map(::scanLineOf), watch.criteria) ?: return
+            batch.forEach { scanned.add(it.id) }
+            val ids = matches.mapNotNull { batch.getOrNull(it)?.id }.toSet()
+            if (ids.isNotEmpty()) markAiHighlighted(ids)
+        }
+    }
+
+    private fun markAiHighlighted(ids: Set<String>) {
+        update { st ->
+            st.copy(messages = st.messages.map { dm ->
+                if (dm is DisplayMessage.PrivMsg && dm.id in ids && !dm.isHighlighted)
+                    dm.copy(isHighlighted = true) else dm
+            })
+        }
+    }
+
+    private fun scanLineOf(m: DisplayMessage.PrivMsg) = AiScanLine(m.displayName.ifBlank { m.username }, plainTextOf(m))
 
     private fun plainTextOf(m: DisplayMessage.PrivMsg): String = m.rawMessage?.message
         ?: m.tokens.joinToString("") { t ->
@@ -1076,7 +1092,11 @@ class ChatViewModel(
 
     private fun publishAiSnapshot(s: ChatState) {
         if (s.channelLogin.isEmpty()) return
-        if (lastAiSnapshotMessages === s.messages) return
+        val rules = AiRuleDigest.lines(
+            automodRepository.chatRulesForChannel(s.channelLogin),
+            automodRepository.rulesForChannel(s.channelLogin)
+        )
+        if (lastAiSnapshotMessages === s.messages && rules == aiAssistantController.snapshot.value.rules) return
         lastAiSnapshotMessages = s.messages
         fun textOf(m: DisplayMessage.PrivMsg): String = m.rawMessage?.message
             ?: m.tokens.joinToString("") { t ->
@@ -1095,7 +1115,8 @@ class ChatViewModel(
                 activeChannel = s.channelLogin,
                 openChannels = listOf(s.channelLogin),
                 recentMessages = lines,
-                mentions = mentions
+                mentions = mentions,
+                rules = rules
             )
         )
     }

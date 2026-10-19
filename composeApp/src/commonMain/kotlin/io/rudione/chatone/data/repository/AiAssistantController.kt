@@ -4,12 +4,14 @@ import com.russhwolf.settings.Settings
 import io.rudione.chatone.util.security.getSecret
 import io.rudione.chatone.util.security.putSecret
 import io.rudione.chatone.data.remote.AiAssistantClient
+import io.rudione.chatone.data.remote.AiProviders
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlin.time.Clock
 
 data class AiChatLine(
     val channel: String,
@@ -23,7 +25,15 @@ data class AiChatSnapshot(
     val activeChannel: String = "",
     val openChannels: List<String> = emptyList(),
     val recentMessages: List<AiChatLine> = emptyList(),
-    val mentions: List<AiChatLine> = emptyList()
+    val mentions: List<AiChatLine> = emptyList(),
+    val rules: List<String> = emptyList()
+)
+
+data class AiHighlightWatch(
+    val id: Long,
+    val channelLogin: String,
+    val criteria: String,
+    val label: String
 )
 
 @Serializable
@@ -83,17 +93,29 @@ class AiAssistantController(private val settings: Settings) {
     fun isReady(localReachable: Boolean): Boolean {
         val c = _config.value
         if (c.baseUrl.isBlank() || c.model.isBlank()) return false
-        return c.apiKey.isNotBlank() || localReachable || !isLoopback(c.baseUrl)
-    }
-
-    private fun isLoopback(url: String): Boolean {
-        val host = url.substringAfter("://").substringBefore('/').substringBeforeLast(':').lowercase()
-        return host == "localhost" || host == "127.0.0.1" || host == "0.0.0.0" || host == "[::1]"
+        return c.apiKey.isNotBlank() || localReachable || !AiProviders.isLocal(c.baseUrl)
     }
 
     private val _snapshot = MutableStateFlow(AiChatSnapshot())
     val snapshot: StateFlow<AiChatSnapshot> = _snapshot.asStateFlow()
     fun publishSnapshot(snapshot: AiChatSnapshot) { _snapshot.value = snapshot }
+
+    private val _highlightWatch = MutableStateFlow<AiHighlightWatch?>(null)
+    val highlightWatch: StateFlow<AiHighlightWatch?> = _highlightWatch.asStateFlow()
+
+    fun startHighlight(channelLogin: String, criteria: String, label: String) {
+        val channel = channelLogin.trim().lowercase()
+        val what = criteria.trim()
+        if (channel.isEmpty() || what.isEmpty()) return
+        _highlightWatch.value = AiHighlightWatch(
+            id = Clock.System.now().toEpochMilliseconds(),
+            channelLogin = channel,
+            criteria = what,
+            label = label.trim().ifEmpty { what.take(MAX_LABEL_LENGTH) }
+        )
+    }
+
+    fun stopHighlight() { _highlightWatch.value = null }
 
     private val _config = MutableStateFlow(loadConfig())
     val config: StateFlow<Config> = _config.asStateFlow()
@@ -150,10 +172,14 @@ class AiAssistantController(private val settings: Settings) {
 
         val legacyG4f = baseUrl == "http://localhost:1337/v1" && model == "gpt-4o-mini"
         val legacyPollinations = baseUrl.contains("pollinations", ignoreCase = true)
+        val legacyGemini = model == "gemini-2.0-flash" || model == "gemini-1.5-flash"
         if (legacyG4f || legacyPollinations) {
             baseUrl = AiAssistantClient.DEFAULT_BASE_URL
             model = AiAssistantClient.DEFAULT_MODEL
             settings.putString(KEY_BASE_URL, baseUrl)
+            settings.putString(KEY_MODEL, model)
+        } else if (legacyGemini) {
+            model = "gemini-3.8-flash"
             settings.putString(KEY_MODEL, model)
         }
         return Config(
@@ -187,5 +213,6 @@ class AiAssistantController(private val settings: Settings) {
         private const val KEY_AM_HOURS = "ai_automod_hours"
         private const val KEY_AM_EXTRA = "ai_automod_extra"
         private const val MAX_THREADS = 40
+        private const val MAX_LABEL_LENGTH = 40
     }
 }

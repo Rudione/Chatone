@@ -19,6 +19,8 @@ import io.rudione.chatone.domain.browse.BrowseStream
 import io.rudione.chatone.domain.browse.StreamDirectory
 import io.rudione.chatone.domain.browse.StreamFilter
 import io.rudione.chatone.domain.browse.StreamSort
+import io.rudione.chatone.domain.channel.ChannelSnapshot
+import io.rudione.chatone.domain.channel.ChannelSnapshotSource
 import io.rudione.chatone.util.settings.AppConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
@@ -41,7 +43,7 @@ import kotlin.time.Instant
 class TwitchDirectoryClient(
     private val httpClient: HttpClient,
     private val clock: Clock = Clock.System
-) : StreamDirectory {
+) : StreamDirectory, ChannelSnapshotSource {
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -137,6 +139,22 @@ class TwitchDirectoryClient(
             .toMap()
         if (avatars.isEmpty()) return this
         return map { stream -> avatars[stream.login]?.let { stream.copy(avatarUrl = it) } ?: stream }
+    }
+
+    override suspend fun snapshot(login: String): ChannelSnapshot? {
+        val normalized = login.trim().lowercase()
+        if (!LOGIN_PATTERN.matches(normalized)) return null
+        val user = query(CHANNEL_SNAPSHOT_QUERY) { put("login", normalized) }?.obj("user") ?: return null
+        val stream = user.obj("stream")
+        val settings = user.obj("broadcastSettings")
+        return ChannelSnapshot(
+            login = user.string("login")?.lowercase() ?: normalized,
+            channelId = user.string("id")?.takeIf { ID_PATTERN.matches(it) }.orEmpty(),
+            displayName = user.string("displayName").orEmpty().take(MAX_TEXT_LENGTH),
+            avatarUrl = user.string("profileImageURL").httpsOrEmpty(),
+            title = (stream?.string("title") ?: settings?.string("title")).orEmpty().take(MAX_TEXT_LENGTH),
+            category = (stream?.obj("game") ?: settings?.obj("game"))?.string("displayName").orEmpty().take(MAX_TEXT_LENGTH)
+        )
     }
 
     override suspend fun search(query: String): BrowseSearchResult? {
@@ -320,6 +338,12 @@ class TwitchDirectoryClient(
                     "previewImageURL(width: 440, height: 248) freeformTags { name } " +
                     "broadcaster { login displayName profileImageURL(width: 70) } } } " +
                     "pageInfo { hasNextPage } } } }"
+
+        const val CHANNEL_SNAPSHOT_QUERY =
+            "query ChatoneChannelSnapshot(\$login: String!) { " +
+                    "user(login: \$login) { id login displayName profileImageURL(width: 70) " +
+                    "stream { title game { displayName } } " +
+                    "broadcastSettings { title game { displayName } } } }"
 
         const val USER_AVATARS_QUERY =
             "query ChatoneUserAvatars(\$logins: [String!]) { " +

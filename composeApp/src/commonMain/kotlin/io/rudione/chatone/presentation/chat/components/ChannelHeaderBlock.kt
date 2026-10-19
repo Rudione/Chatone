@@ -2,8 +2,6 @@ package io.rudione.chatone.presentation.chat.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,18 +23,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalClipboard
+import io.rudione.chatone.util.platform.setText
+import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.data.remote.dto.ChannelData
 import io.rudione.chatone.data.repository.StreamerModeController
-import io.rudione.chatone.presentation.components.expressive.ClosingTap
 import io.rudione.chatone.presentation.components.onSecondaryClick
 import io.rudione.chatone.presentation.stream.LocalStreamPlayerHost
 import io.rudione.chatone.presentation.stream.StreamOpenQuality
@@ -90,7 +87,8 @@ internal fun ChannelHeaderBlock(
 ) {
     var showStreamMenu by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     val isLive = liveStream != null
     val s = LocalStrings.current
     val phoneStyle = remember { currentFormFactor() == DeviceFormFactor.PHONE }
@@ -98,29 +96,15 @@ internal fun ChannelHeaderBlock(
     val streamLauncher = rememberStreamLauncher()
     val streamHint = if (phoneStyle) rememberStreamHeaderHint(channelLogin) else null
     val shownLive = isLive || streamHint?.playerShowsLive == true
-    var infoOpen by remember { mutableStateOf(false) }
-    val closingInfo = remember { ClosingTap() }
-    val infoAvailable = phoneStyle && liveStream != null && streamHint?.watched == true
+    val watching = streamHint?.watched == true
 
     val headerCore: @Composable () -> Unit = {
         val headerModifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .onSecondaryClick { showStreamMenu = true }
-            .pointerInput(closingInfo) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                    closingInfo.pressed()
-                }
-            }
-            .clickable(enabled = isLive || infoAvailable, interactionSource = null, indication = null) {
-                when {
-                    infoAvailable -> {
-                        val wasOpen = infoOpen || closingInfo.consume()
-                        infoOpen = !wasOpen
-                    }
-                    playerHost != null -> playerHost.onEvent(StreamPlayerEvent.Open(channelLogin))
-                    else -> uriHandler.openUri("https://twitch.tv/$channelLogin")
-                }
+            .clickable(enabled = isLive && !watching, interactionSource = null, indication = null) {
+                if (playerHost != null) playerHost.onEvent(StreamPlayerEvent.Open(channelLogin))
+                else uriHandler.openUri("https://twitch.tv/$channelLogin")
             }
             .padding(horizontal = 4.dp, vertical = 1.dp)
         if (phoneStyle) {
@@ -168,18 +152,6 @@ internal fun ChannelHeaderBlock(
             headerCore()
         }
 
-        if (infoOpen && infoAvailable && liveStream != null) {
-            StreamInfoPopup(
-                liveStream = liveStream,
-                onDismiss = {
-                    if (infoOpen) {
-                        infoOpen = false
-                        closingInfo.closed()
-                    }
-                }
-            )
-        }
-
         ChannelOptionsMenu(
             expanded = showStreamMenu,
             onDismissRequest = { showStreamMenu = false },
@@ -196,7 +168,7 @@ internal fun ChannelHeaderBlock(
             }
             ChannelMenuItem(s.screenChat.menuCopyLink, Lucide.Link) {
                 close()
-                clipboard.setText(AnnotatedString("https://www.twitch.tv/$login"))
+                scope.launch { clipboard.setText("https://www.twitch.tv/$login") }
             }
             StreamOpenQuality.entries.forEach { quality ->
                 ChannelMenuItem(s.streamPlayerQuality.replace("{0}", quality.label), Lucide.Play) {

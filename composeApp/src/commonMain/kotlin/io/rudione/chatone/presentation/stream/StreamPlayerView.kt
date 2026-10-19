@@ -32,7 +32,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -70,6 +69,7 @@ fun StreamPlayerView(
     pictureInPicture: PictureInPictureController,
     onToggleFullscreen: () -> Unit,
     onBack: (() -> Unit)?,
+    chrome: StreamChromeState,
     modifier: Modifier = Modifier,
     ambience: StreamAmbience? = null,
     overlay: (@Composable BoxScope.() -> Unit)? = null
@@ -78,28 +78,26 @@ fun StreamPlayerView(
     val engine by host.engine.collectAsState()
     val currentOnBack by rememberUpdatedState(onBack)
     val fullscreenNow by rememberUpdatedState(isFullscreen)
-    var controlsVisible by remember { mutableStateOf(true) }
-    var interactionTick by remember { mutableIntStateOf(0) }
     var chatModeChanges by remember { mutableIntStateOf(0) }
-    val autoHide = state.phase == StreamPhase.PLAYING && !state.settingsVisible
+    val autoHide = state.phase == StreamPhase.PLAYING && !state.settingsVisible && !chrome.held
 
-    LaunchedEffect(controlsVisible, interactionTick, autoHide) {
-        if (controlsVisible && autoHide) {
+    LaunchedEffect(chrome, chrome.controlsVisible, chrome.interactions, autoHide) {
+        if (chrome.controlsVisible && autoHide) {
             delay(CONTROLS_AUTO_HIDE_MS)
-            controlsVisible = false
+            chrome.hide()
         }
     }
 
     val hasBack = onBack != null
-    val callbacks = remember(host, onToggleFullscreen, pictureInPicture, hasBack) {
+    val callbacks = remember(host, chrome, onToggleFullscreen, pictureInPicture, hasBack) {
         StreamControlsCallbacks(
             onEvent = { event ->
-                interactionTick++
+                chrome.touch()
                 host.onEvent(event)
             },
             onBack = if (hasBack) ({ currentOnBack?.invoke() }) else null,
             onToggleFullscreen = {
-                interactionTick++
+                chrome.touch()
                 onToggleFullscreen()
             },
             onEnterPictureInPicture = pictureInPicture::enter
@@ -110,12 +108,9 @@ fun StreamPlayerView(
         modifier = modifier
             .background(Color.Black)
             .clipToBounds()
-            .pointerInput(host) {
+            .pointerInput(host, chrome) {
                 detectTapGestures(
-                    onTap = {
-                        controlsVisible = !controlsVisible
-                        interactionTick++
-                    },
+                    onTap = { chrome.toggle() },
                     onDoubleTap = {
                         if (fullscreenNow) {
                             host.onEvent(StreamPlayerEvent.CycleLandscapeChatMode)
@@ -160,7 +155,7 @@ fun StreamPlayerView(
 
         val overlayChat = isFullscreen && state.preferences.landscapeChatMode == LandscapeChatMode.OVERLAY
         AnimatedVisibility(
-            visible = controlsVisible || state.phase == StreamPhase.PAUSED || state.needsAttention,
+            visible = chrome.controlsVisible || state.forcesControls,
             enter = fadeIn(tween(160)),
             exit = fadeOut(tween(220)),
             modifier = Modifier.fillMaxSize()

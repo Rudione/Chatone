@@ -41,6 +41,8 @@ data class StreamPlayerUiState(
     val needsAttention: Boolean
         get() = phase == StreamPhase.OFFLINE || phase == StreamPhase.ERROR || phase == StreamPhase.ENDED
 
+    val forcesControls: Boolean get() = phase == StreamPhase.PAUSED || needsAttention
+
     companion object {
         const val DEFAULT_ASPECT_RATIO = 16f / 9f
     }

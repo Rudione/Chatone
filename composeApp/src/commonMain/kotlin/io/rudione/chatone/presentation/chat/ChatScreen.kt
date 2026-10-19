@@ -87,8 +87,8 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboard
+import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.text.font.FontWeight
@@ -258,7 +258,8 @@ fun ChatScreen(
     val swipeReplyStyle = remember(replyIcon, replyContainer, replyTint) {
         SwipeReplyStyle(icon = replyIcon, iconTint = replyTint, container = replyContainer)
     }
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     val listState = remember(channelLogin) { LazyListState() }
     val chatScrollActivity =
         rememberScrollActivity(listState)
@@ -1564,7 +1565,7 @@ fun ChatScreen(
                         link = state.uploadedLink,
                         onCopyLink = {
                             state.uploadedLink?.let { link ->
-                                clipboardManager.setText(AnnotatedString(link))
+                                scope.launch { clipboard.setText(link) }
                             }
                         }
                     ),

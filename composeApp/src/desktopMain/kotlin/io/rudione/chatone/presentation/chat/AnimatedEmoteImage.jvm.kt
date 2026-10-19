@@ -5,7 +5,6 @@ import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -190,7 +189,11 @@ fun AnimatedEmoteImageCore(
     }
 
     LaunchedEffect(url, maxDimension) {
-        if (animData != null || AnimatedEmoteLoader.isKnownStatic(url, maxDimension)) return@LaunchedEffect
+        if (animData != null || AnimatedEmoteLoader.isKnownStatic(
+                url,
+                maxDimension
+            )
+        ) return@LaunchedEffect
         animData = AnimatedEmoteLoader.load(url, maxDimension)
     }
 

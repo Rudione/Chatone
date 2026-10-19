@@ -12,6 +12,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import io.rudione.chatone.data.remote.AiAssistantClient
 import io.rudione.chatone.data.remote.AiChatMessage
+import io.rudione.chatone.data.remote.AiFailure
+import io.rudione.chatone.data.remote.AiFailureKind
+import io.rudione.chatone.data.remote.AiRequestException
 import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.data.repository.AiChatLine
 import io.rudione.chatone.data.repository.AiChatSnapshot
@@ -38,7 +41,7 @@ class AiAssistantSession internal constructor(
     var input by mutableStateOf("")
     var sending by mutableStateOf(false)
         private set
-    var error by mutableStateOf<String?>(null)
+    var failure by mutableStateOf<AiFailure?>(null)
         private set
     var showHistory by mutableStateOf(false)
     var showSetup by mutableStateOf(!controller.onboardingSeen() && controller.config.value.apiKey.isBlank())
@@ -48,6 +51,7 @@ class AiAssistantSession internal constructor(
     private val variants = mutableStateMapOf<Int, List<String>>()
     private val variantIndices = mutableStateMapOf<Int, Int>()
     private var currentThreadId = newThreadId()
+    private var retryRequest: (() -> Unit)? = null
 
     fun variantCount(index: Int): Int = variants[index]?.size ?: 1
 
@@ -58,7 +62,7 @@ class AiAssistantSession internal constructor(
         currentThreadId = newThreadId()
         messages = emptyList()
         clearVariants()
-        error = null
+        clearFailure()
         showHistory = false
     }
 
@@ -67,6 +71,7 @@ class AiAssistantSession internal constructor(
         currentThreadId = thread.id
         messages = thread.messages.map { it.toMessage() }
         clearVariants()
+        clearFailure()
         showHistory = false
     }
 
@@ -92,7 +97,7 @@ class AiAssistantSession internal constructor(
     fun send(rawPrompt: String, includeChat: Boolean, useMentions: Boolean) {
         val userText = rawPrompt.trim()
         if (userText.isEmpty() || sending) return
-        error = null
+        clearFailure()
         val snapshot = controller.snapshot.value
         val contextBlock = if (includeChat) snapshotBlock(
             snapshot = snapshot,
@@ -114,7 +119,7 @@ class AiAssistantSession internal constructor(
     fun regenerate(assistantIndex: Int) {
         if (sending || assistantIndex !in messages.indices) return
         if (messages[assistantIndex].role != AiChatMessage.ASSISTANT) return
-        error = null
+        clearFailure()
         val history = messages.subList(0, assistantIndex).toList()
         val contextBlock = if (attachChat) snapshotBlock(controller.snapshot.value, false) else ""
         complete(contextBlock, history) { reply ->
@@ -132,10 +137,23 @@ class AiAssistantSession internal constructor(
         replaceContent(assistantIndex, list[target])
     }
 
+    fun retry() {
+        if (sending) return
+        val request = retryRequest ?: return
+        clearFailure()
+        request()
+    }
+
+    private fun clearFailure() {
+        failure = null
+        retryRequest = null
+    }
+
     private fun complete(contextBlock: String, history: List<AiChatMessage>, onReply: (String) -> Unit) {
         sending = true
         val text = strings()
         val config = controller.config.value
+        val channel = controller.snapshot.value.activeChannel
         scope.launch {
             val payload = buildList {
                 add(AiChatMessage(AiChatMessage.SYSTEM, systemPersona(text.aiPersonaLanguage)))
@@ -146,16 +164,27 @@ class AiAssistantSession internal constructor(
                 when (val result = client.complete(config.baseUrl, config.model, payload, config.temperature, config.apiKey)) {
                     is Result.Success -> {
                         onReply(result.data)
+                        applyHighlight(result.data, channel)
                         persistCurrent()
                     }
 
-                    is Result.Error -> error = text.aiConnectError
+                    is Result.Error -> {
+                        failure = (result.exception as? AiRequestException)?.failure
+                            ?: AiFailure(AiFailureKind.NETWORK, detail = result.exception.message)
+                        retryRequest = { complete(contextBlock, history, onReply) }
+                    }
+
                     else -> Unit
                 }
             } finally {
                 sending = false
             }
         }
+    }
+
+    private fun applyHighlight(reply: String, channel: String) {
+        val proposal = AiActions.parseHighlight(reply) ?: return
+        controller.startHighlight(channel, proposal.criteria, proposal.label)
     }
 
     private fun replaceContent(index: Int, content: String) {
@@ -209,6 +238,17 @@ You are the Chatone AI Assistant, a helpful assistant built into the Chatone Twi
 - A "[USER MESSAGES — login]" block, when present, holds every loaded message from that one chatter.
 - When asked to moderate or flag messages, only describe which messages look risky and why —
   never claim to have banned, timed out, or muted anyone.
+- An "[AUTOMOD RULES]" block, when present, lists the moderation rules already active in this chat.
+  Take them into account and never propose a rule that duplicates one of them.
+
+HIGHLIGHTING: If the user asks you to find, mark, watch for or highlight certain messages in the chat
+(for example "find dangerous messages" or "highlight questions to the streamer"), answer briefly and
+append at the very end exactly one fenced block (and nothing after it):
+```chatone-action
+{"tool":"highlight_messages","criteria":"<precise description of the matching messages, in English>","label":"<2-4 words in the user's language>"}
+```
+- The app then highlights matching messages in the open chat in real time, new ones included, until
+  the user stops it. Say that you will highlight them; do not list every message unless asked.
 
 ACTIONS: Only if the user explicitly asks you to create or add an automod rule, append at the very
 end of your reply exactly one fenced block (and nothing after it):
@@ -288,7 +328,9 @@ private fun snapshotBlock(
     val lines = if (requestedCount != null) source.takeLast(requestedCount) else source
     val header = if (useMentions) "[CHAT CONTEXT — mentions]"
     else "[CHAT CONTEXT — #${snapshot.activeChannel}, ${lines.size} message(s)]"
-    val main = "$header\n${renderLines(lines)}\n[/CHAT CONTEXT]"
+    val chat = "$header\n${renderLines(lines)}\n[/CHAT CONTEXT]"
+    val main = if (snapshot.rules.isEmpty()) chat
+    else "$chat\n\n[AUTOMOD RULES]\n${snapshot.rules.joinToString("\n")}\n[/AUTOMOD RULES]"
 
     if (focusUser == null) return main
     val userLines = snapshot.recentMessages.filter {

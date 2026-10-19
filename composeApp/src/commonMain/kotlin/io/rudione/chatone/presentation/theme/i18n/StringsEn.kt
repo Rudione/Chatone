@@ -1,6 +1,10 @@
 package io.rudione.chatone.util.i18n
 
+import io.rudione.chatone.presentation.theme.i18n.AiAssistStrings
+import io.rudione.chatone.presentation.theme.i18n.AiAssistStringsEn
 import io.rudione.chatone.presentation.theme.i18n.AppStrings
+import io.rudione.chatone.presentation.theme.i18n.StreamChannelStrings
+import io.rudione.chatone.presentation.theme.i18n.StreamChannelStringsEn
 import io.rudione.chatone.util.chat.SlashCommand
 import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
 import io.rudione.chatone.presentation.theme.i18n.ChatTimelineStrings
@@ -633,7 +637,6 @@ object StringsEn : AppStrings {
     override val aiNewChat = "New chat"
     override val aiHistory = "History"
     override val aiHistoryEmpty = "No history yet"
-    override val aiConnectError = "Couldn't reach the AI server. Make sure a local server is running (see Settings → AI Assistant)."
     override val aiGreetingTitle = "Hi! I'm the Chatone assistant."
     override val aiGreetingBody = "Ask me anything, or use a quick action below - I can read and analyze the open chat."
     override val aiClose = "Close"
@@ -1432,4 +1435,6 @@ object StringsEn : AppStrings {
     override val modSlider: ModSliderStrings = ModSliderStringsEn
     override val screenChat: ScreenChatStrings = ScreenChatStringsEn
     override val settingsHub: SettingsHubStrings = SettingsHubStringsEn
+    override val aiAssist: AiAssistStrings = AiAssistStringsEn
+    override val streamChannel: StreamChannelStrings = StreamChannelStringsEn
 }

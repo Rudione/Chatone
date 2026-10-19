@@ -6,10 +6,13 @@ import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.domain.browse.FollowedAccount
 import io.rudione.chatone.domain.browse.FollowedAccountProvider
 import io.rudione.chatone.domain.browse.StreamDirectory
+import io.rudione.chatone.domain.channel.ChannelSnapshotSource
 import io.rudione.chatone.presentation.browse.BrowseViewModel
+import io.rudione.chatone.presentation.stream.channel.StreamChannelViewModel
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModelOf
+import org.koin.dsl.binds
 import org.koin.dsl.module
 
 private class DefaultFollowedAccountProvider(
@@ -26,7 +29,8 @@ private class DefaultFollowedAccountProvider(
 }
 
 actual val platformBrowseModule: Module = module {
-    single<StreamDirectory> { TwitchDirectoryClient(httpClient = get()) }
+    single { TwitchDirectoryClient(httpClient = get()) } binds arrayOf(StreamDirectory::class, ChannelSnapshotSource::class)
     single<FollowedAccountProvider> { DefaultFollowedAccountProvider(get(), get()) }
     viewModelOf(::BrowseViewModel)
+    viewModelOf(::StreamChannelViewModel)
 }

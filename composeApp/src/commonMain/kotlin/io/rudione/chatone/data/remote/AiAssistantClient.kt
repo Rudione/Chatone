@@ -8,9 +8,12 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.rudione.chatone.util.Result
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -39,14 +42,39 @@ class AiAssistantClient(private val httpClient: HttpClient) {
         temperature: Double = 0.7,
         apiKey: String = ""
     ): Result<String> {
-        var last: Result<String> = Result.Error(Exception("AI request failed"))
-        repeat(3) { attempt ->
-            if (attempt > 0) kotlinx.coroutines.delay(2500L * attempt)
+        val primary = completeWithRetries(baseUrl, model, messages, temperature, apiKey, MAX_ATTEMPTS)
+        if (primary.failureKind() != AiFailureKind.OVERLOADED) return primary
+        val fallback = AiProviders.overloadFallback(baseUrl, model) ?: return primary
+        Napier.i("AI model $model is overloaded, asking $fallback", tag = TAG)
+        val reserve = completeWithRetries(baseUrl, fallback, messages, temperature, apiKey, FALLBACK_ATTEMPTS)
+        return if (reserve is Result.Success) reserve else primary
+    }
+
+    private suspend fun completeWithRetries(
+        baseUrl: String,
+        model: String,
+        messages: List<AiChatMessage>,
+        temperature: Double,
+        apiKey: String,
+        attempts: Int
+    ): Result<String> {
+        var last: Result<String> = Result.Error(AiRequestException(AiFailure(AiFailureKind.NETWORK)))
+        for (attempt in 0 until attempts) {
+            if (attempt > 0) delay(retryDelayMs(last, attempt))
             last = completeOnce(baseUrl, model, messages, temperature, apiKey)
-            if (last is Result.Success) return last
+            val retryable = last.failureKind()?.retryable ?: false
+            if (!retryable) return last
         }
         return last
     }
+
+    private fun retryDelayMs(previous: Result<String>, attempt: Int): Long {
+        val requested = ((previous as? Result.Error)?.exception as? AiRequestException)?.retryAfterMs
+        return (requested ?: (RETRY_STEP_MS * attempt)).coerceAtMost(MAX_RETRY_DELAY_MS)
+    }
+
+    private fun Result<String>.failureKind(): AiFailureKind? =
+        ((this as? Result.Error)?.exception as? AiRequestException)?.failure?.kind
 
     private suspend fun completeOnce(
         baseUrl: String,
@@ -82,21 +110,27 @@ class AiAssistantClient(private val httpClient: HttpClient) {
             }
             val text = response.bodyAsText()
             if (!response.status.isSuccess()) {
-                Napier.w("AI HTTP ${response.status.value}: ${text.take(300)}", tag = TAG)
-                return Result.Error(Exception("AI server error ${response.status.value}"))
+                val failure = AiErrorParser.failureFor(response.status.value, text)
+                Napier.w("AI HTTP ${failure.status} (${failure.kind}) for $model: ${failure.detail ?: text.take(300)}", tag = TAG)
+                val retryAfter = AiErrorParser.retryAfterMs(response.headers[HttpHeaders.RetryAfter])
+                return Result.Error(AiRequestException(failure, retryAfter))
             }
-            val content = json.parseToJsonElement(text).jsonObject
-                .get("choices")?.jsonArray?.firstOrNull()?.jsonObject
-                ?.get("message")?.jsonObject
-                ?.get("content")?.jsonPrimitive?.contentOrNull
+            val content = runCatching {
+                json.parseToJsonElement(text).jsonObject
+                    .get("choices")?.jsonArray?.firstOrNull()?.jsonObject
+                    ?.get("message")?.jsonObject
+                    ?.get("content")?.jsonPrimitive?.contentOrNull
+            }.getOrNull()
             if (content.isNullOrBlank()) {
-                Result.Error(Exception("Empty AI response"))
+                Result.Error(AiRequestException(AiFailure(AiFailureKind.EMPTY_REPLY, response.status.value)))
             } else {
                 Result.Success(content.trim())
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.w("AI request failed: ${e.message}", tag = TAG)
-            Result.Error(e)
+            Result.Error(AiRequestException(AiFailure(AiFailureKind.NETWORK, detail = e.message), cause = e))
         }
     }
 
@@ -176,6 +210,10 @@ class AiAssistantClient(private val httpClient: HttpClient) {
 
     companion object {
         private const val TAG = "AiAssistant"
+        private const val MAX_ATTEMPTS = 3
+        private const val FALLBACK_ATTEMPTS = 2
+        private const val RETRY_STEP_MS = 2_500L
+        private const val MAX_RETRY_DELAY_MS = 10_000L
         const val DEFAULT_BASE_URL = AiProviders.LOCAL_BASE_URL
         const val DEFAULT_MODEL = "llama3.2"
     }

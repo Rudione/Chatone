@@ -55,7 +55,6 @@ import io.rudione.chatone.icons.material.filled.Check
 import io.rudione.chatone.icons.material.filled.Close
 import io.rudione.chatone.icons.material.outlined.Delete
 import io.rudione.chatone.icons.material.outlined.History
-import io.rudione.chatone.icons.material.outlined.ErrorOutline
 import io.rudione.chatone.icons.material.outlined.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -75,8 +74,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboard
+import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -159,6 +158,7 @@ internal fun AiAssistantPanel(
     bottomClearance: Dp = 0.dp
 ) {
     val s = LocalStrings.current
+    val scope = rememberCoroutineScope()
     val config by controller.config.collectAsState()
 
     val presets = remember(s) {
@@ -172,12 +172,15 @@ internal fun AiAssistantPanel(
             Preset(s.aiPresetRule, "🛠️", true, false, s.aiPresetRulePrompt)
         )
     }
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val messages = session.messages
     val sending = session.sending
 
-    LaunchedEffect(session, messages.size) {
-        if (messages.isNotEmpty()) session.listState.animateScrollToItem(messages.size - 1)
+    val failureShown = session.failure != null
+    LaunchedEffect(session, messages.size, failureShown) {
+        if (messages.isNotEmpty()) {
+            session.listState.animateScrollToItem(messages.size - 1 + if (failureShown) 1 else 0)
+        }
     }
 
     val pendingPrompt by controller.pendingPrompt.collectAsState()
@@ -270,7 +273,7 @@ internal fun AiAssistantPanel(
                     itemsIndexed(messages, contentType = { _, m -> m.role }) { index, m ->
                         MessageBubble(
                             m = m,
-                            onCopy = { clipboard.setText(AnnotatedString(AiActions.strip(m.content))) },
+                            onCopy = { scope.launch { clipboard.setText(AiActions.strip(m.content)) } },
                             onRegenerate = if (m.role == AiChatMessage.ASSISTANT && index == messages.lastIndex && !sending) {
                                 { session.regenerate(index) }
                             } else null,
@@ -293,44 +296,14 @@ internal fun AiAssistantPanel(
                             }
                         }
                     }
-                    session.error?.let {
+                    session.failure?.let { failure ->
                         item(key = "error", contentType = "error") {
-                            Surface(
-                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    Modifier.padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Outlined.ErrorOutline, null,
-                                            tint = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Text(
-                                            s.aiConnectErrorTitle,
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-                                    Text(
-                                        s.aiConnectErrorHint.replace("{0}", config.baseUrl),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                }
-                            }
+                            AiFailureCard(
+                                failure = failure,
+                                baseUrl = config.baseUrl,
+                                model = config.model,
+                                onRetry = session::retry
+                            )
                         }
                     }
                 }
@@ -595,8 +568,9 @@ private fun MessageBubble(
     if (m.role == AiChatMessage.SYSTEM) return
     val isUser = m.role == AiChatMessage.USER
     val proposal = if (!isUser) remember(m.content) { AiActions.parse(m.content) } else null
+    val highlight = if (!isUser) remember(m.content) { AiActions.parseHighlight(m.content) } else null
     val text =
-        if (proposal != null) remember(m.content) { AiActions.strip(m.content) } else m.content
+        if (proposal != null || highlight != null) remember(m.content) { AiActions.strip(m.content) } else m.content
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         if (text.isNotBlank()) {
@@ -630,6 +604,7 @@ private fun MessageBubble(
             }
         }
         if (proposal != null) AiRuleActionCard(proposal)
+        if (highlight != null) AiHighlightCard(highlight)
         if (!isUser && text.isNotBlank()) {
             AiMessageActions(
                 onCopy = onCopy,

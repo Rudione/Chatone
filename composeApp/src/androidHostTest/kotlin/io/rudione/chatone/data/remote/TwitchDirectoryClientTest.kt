@@ -228,4 +228,38 @@ class TwitchDirectoryClientTest {
         assertNull(withContext(Dispatchers.Default) { directory.topCategories(null) })
         assertNull(withContext(Dispatchers.Default) { directory.search("x") })
     }
+
+    @Test
+    fun channelSnapshotReadsTheLiveStreamAndAvatar() = runTest {
+        val directory = client(
+            """{"data":{"user":{"id":"71092938","login":"Stariy_Bog","displayName":"stariy_bog",
+                "profileImageURL":"https://static-cdn.jtvnw.net/a.png",
+                "stream":{"title":"BIG vs PRIVATE","game":{"displayName":"Counter-Strike"}},
+                "broadcastSettings":{"title":"old","game":{"displayName":"Old"}}}}}"""
+        )
+
+        val snapshot = withContext(Dispatchers.Default) { directory.snapshot("Stariy_Bog") }!!
+
+        assertEquals("stariy_bog", snapshot.login)
+        assertEquals("71092938", snapshot.channelId)
+        assertEquals("https://static-cdn.jtvnw.net/a.png", snapshot.avatarUrl)
+        assertEquals("BIG vs PRIVATE", snapshot.title)
+        assertEquals("Counter-Strike", snapshot.category)
+        assertEquals("stariy_bog", requests.single()["variables"]!!.jsonObject["login"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun offlineChannelFallsBackToBroadcastSettingsAndBadLoginsAreSkipped() = runTest {
+        val directory = client(
+            """{"data":{"user":{"id":"1","login":"x","displayName":"X","profileImageURL":"http://insecure/a.png",
+                "stream":null,"broadcastSettings":{"title":"Last title","game":{"displayName":"Chess"}}}}}"""
+        )
+
+        val snapshot = withContext(Dispatchers.Default) { directory.snapshot("x") }!!
+
+        assertEquals("Last title", snapshot.title)
+        assertEquals("Chess", snapshot.category)
+        assertEquals("", snapshot.avatarUrl)
+        assertNull(withContext(Dispatchers.Default) { directory.snapshot("bad login!") })
+    }
 }

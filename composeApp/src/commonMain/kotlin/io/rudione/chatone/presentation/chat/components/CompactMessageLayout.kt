@@ -110,7 +110,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
+import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -702,7 +703,8 @@ internal fun CompactMessageContentWithIndent(
         }
     }
     var showContextMenu by remember { mutableStateOf(false) }
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
     val uriHandler = LocalUriHandler.current
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -893,10 +895,11 @@ internal fun CompactMessageContentWithIndent(
                             icon = Lucide.Copy,
                             iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                             onClick = {
-                                showContextMenu = false;
+                                showContextMenu = false
                                 val rawText = message.tokens.joinToString("") {
                                     it.plainText()
-                                }; clipboardManager.setText(AnnotatedString(rawText))
+                                }
+                                scope.launch { clipboard.setText(rawText) }
                             })
                         LiquidGlassDropdownItem(
                             text = if (translationStore.states.containsKey(message.id)) "${s.chatTranslate} ✓" else s.chatTranslate,

@@ -137,6 +137,14 @@ fun MainScreen(
         onNavigateBack = returnToBrowse
     )
     val floatingPlayer = streamUi?.floating
+    val streamChannelPanel: @Composable (String, Modifier) -> Unit = { login, panelModifier ->
+        StreamChannelPanelSlot(
+            streamLogin = login,
+            state = state,
+            onEvent = viewModel::sendEvent,
+            modifier = panelModifier
+        )
+    }
 
     val chatOnScreen = state.activeChannelLogin
         ?.let { !state.mentionsChannelActive && !isMonitorLogin(it) } == true
@@ -627,7 +635,7 @@ fun MainScreen(
                                     .chatoneTile(TileTone.Sunken)
                             ) {
                                 if (streamUi != null && streamUi.showPortraitPlayer) {
-                                    PortraitStreamPlayer(ui = streamUi)
+                                    PortraitStreamPlayer(ui = streamUi, channelPanel = streamChannelPanel)
                                 }
                                 if (mentionStripInWide) {
                                     MentionTabsBar(
@@ -897,7 +905,11 @@ fun MainScreen(
                                 }
                             }
                             if (portraitPlayerVisible && streamUi != null) {
-                                PortraitStreamPlayer(ui = streamUi, glowHeight = settingsState.chatTopBarHeight.dp)
+                                PortraitStreamPlayer(
+                                    ui = streamUi,
+                                    glowHeight = settingsState.chatTopBarHeight.dp,
+                                    channelPanel = streamChannelPanel
+                                )
                             }
                             if (state.mentionsChannelActive) {
                                 Box(modifier = Modifier.weight(1f)) {

@@ -22,13 +22,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.GqlUserDossier
@@ -45,6 +45,8 @@ import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Users
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
+import io.rudione.chatone.util.platform.setText
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.painterResource
 
@@ -64,7 +66,8 @@ internal fun ProfileCardHeader(
     onDismiss: () -> Unit
 ) {
     val s = LocalStrings.current
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
     var copiedName by remember { mutableStateOf(false) }
     var copiedId by remember { mutableStateOf(false) }
@@ -132,7 +135,7 @@ internal fun ProfileCardHeader(
                     Spacer(Modifier.width(3.dp))
                     ChatoneIconButton(
                         onClick = {
-                            clipboardManager.setText(AnnotatedString(data.username))
+                            scope.launch { clipboard.setText(data.username) }
                             copiedName = true
                         },
                         modifier = Modifier.size(20.dp)
@@ -183,7 +186,7 @@ internal fun ProfileCardHeader(
                         )
                         ChatoneIconButton(
                             onClick = {
-                                clipboardManager.setText(AnnotatedString(data.userId))
+                                scope.launch { clipboard.setText(data.userId) }
                                 copiedId = true
                             },
                             modifier = Modifier.size(18.dp)

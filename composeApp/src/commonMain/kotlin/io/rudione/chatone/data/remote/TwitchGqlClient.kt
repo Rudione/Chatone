@@ -941,15 +941,64 @@ class TwitchGqlClient(
             }
         }
 
+        val r = firstPartyMutation(SEND_GIF_MUTATION, variables, token, payloadKey = "sendGifMessage")
+        if (r is Result.Error) {
+            return if (r.exception is GqlIntegrityRejectedException) Result.Error(SendGifException(INTEGRITY_FAILED_CODE)) else r
+        }
+        val error = (r as Result.Success).data["error"]
+        if (error != null && error !is kotlinx.serialization.json.JsonNull) {
+            val code = error.jsonPrimitive.contentOrNull ?: "SEND_FAILED"
+            return Result.Error(SendGifException(code))
+        }
+        return Result.Success(Unit)
+    }
+
+    suspend fun isFollowing(channelId: String, token: String): Result<Boolean> {
+        if (channelId.isBlank() || token.isBlank()) return Result.Error(Exception("Missing channel or token"))
+        val r = inlineQuery(FOLLOW_STATE_QUERY, token, buildJsonObject { put("id", channelId) })
+        if (r is Result.Error) return r
+        val node = (r as Result.Success).data.firstDataNode()
+        node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
+        val self = node?.get("data")?.asObjectOrNull()
+            ?.get("user")?.asObjectOrNull()
+            ?.get("self")?.asObjectOrNull()
+            ?: return Result.Error(Exception("No viewer relationship"))
+        return Result.Success(self["follower"] is JsonObject)
+    }
+
+    suspend fun setFollowing(channelId: String, follow: Boolean, token: String): Result<Unit> {
+        if (channelId.isBlank() || token.isBlank()) return Result.Error(Exception("Missing channel or token"))
+        val variables = buildJsonObject {
+            putJsonObject("input") {
+                put("targetID", channelId)
+                if (follow) put("disableNotifications", false)
+            }
+        }
+        val r = if (follow) firstPartyMutation(FOLLOW_MUTATION, variables, token, payloadKey = "followUser")
+        else firstPartyMutation(UNFOLLOW_MUTATION, variables, token, payloadKey = "unfollowUser")
+        if (r is Result.Error) return r
+        val error = (r as Result.Success).data["error"] as? JsonObject
+        if (error != null) {
+            return Result.Error(Exception(error["code"]?.jsonPrimitive?.contentOrNull ?: "FOLLOW_FAILED"))
+        }
+        return Result.Success(Unit)
+    }
+
+    private suspend fun firstPartyMutation(
+        query: String,
+        variables: JsonObject,
+        token: String,
+        payloadKey: String
+    ): Result<JsonObject> {
         var lastError: Result.Error? = null
-        for (profile in GIF_SEND_PROFILES) {
+        for (profile in FIRST_PARTY_MUTATION_PROFILES) {
             val integrity = if (profile.useIntegrity) {
                 integrityToken(profile, token) ?: continue
             } else {
                 null
             }
             val r = inlineProfileQuery(
-                query = SEND_GIF_MUTATION,
+                query = query,
                 token = token,
                 variables = variables,
                 profile = profile,
@@ -961,22 +1010,17 @@ class TwitchGqlClient(
             }
             val node = (r as Result.Success).data.firstDataNode()
             if (node.isIntegrityRejection()) {
-                Napier.w("sendGifMessage: ${profile.label} rejected by the integrity gate", tag = TAG)
-                lastError = Result.Error(SendGifException(INTEGRITY_FAILED_CODE))
+                Napier.w("$payloadKey: ${profile.label} rejected by the integrity gate", tag = TAG)
+                lastError = Result.Error(GqlIntegrityRejectedException())
                 continue
             }
             node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
-            val payload = node?.get("data")?.jsonObject?.get("sendGifMessage")?.jsonObject
-                ?: return Result.Error(Exception("Empty sendGifMessage response"))
-            Napier.d("sendGifMessage: ${profile.label} passed the integrity gate", tag = TAG)
-            val error = payload["error"]
-            if (error != null && error !is kotlinx.serialization.json.JsonNull) {
-                val code = error.jsonPrimitive.contentOrNull ?: "SEND_FAILED"
-                return Result.Error(SendGifException(code))
-            }
-            return Result.Success(Unit)
+            val payload = node?.get("data")?.asObjectOrNull()?.get(payloadKey)?.asObjectOrNull()
+                ?: return Result.Error(Exception("Empty $payloadKey response"))
+            Napier.d("$payloadKey: ${profile.label} passed the integrity gate", tag = TAG)
+            return Result.Success(payload)
         }
-        return lastError ?: Result.Error(SendGifException(INTEGRITY_FAILED_CODE))
+        return lastError ?: Result.Error(GqlIntegrityRejectedException())
     }
 
     private fun kotlinx.serialization.json.JsonObject?.isIntegrityRejection(): Boolean {
@@ -1458,7 +1502,7 @@ class TwitchGqlClient(
         private const val IOS_CLIENT_ID = "851cqzxpb9bqu9z6galvkkzsc5dy24"
         private const val ANDROID_USER_AGENT = "tv.twitch.android.app/24.2.0/2402000 (Linux; U; Android 13)"
         private const val IOS_USER_AGENT = "Twitch/1400 CFNetwork/1494.0.7 Darwin/23.4.0"
-        private val GIF_SEND_PROFILES = listOf(
+        private val FIRST_PARTY_MUTATION_PROFILES = listOf(
             GqlClientProfile("android", ANDROID_CLIENT_ID, ANDROID_USER_AGENT),
             GqlClientProfile("ios", IOS_CLIENT_ID, IOS_USER_AGENT),
             GqlClientProfile("tv", TwitchFirstPartyClient.TV.clientId, TwitchFirstPartyClient.TV.userAgent),
@@ -1474,6 +1518,14 @@ class TwitchGqlClient(
         private const val GIF_PICKER_CONFIG_QUERY =
             "query ChatoneGifPickerConfig(\$channelID: ID!) { " +
                     "gifPickerConfig(channelID: \$channelID) { isEnabled isAllowlisted apiKey contentRating } }"
+        private const val FOLLOW_STATE_QUERY =
+            "query ChatoneFollowState(\$id: ID!) { user(id: \$id) { self { follower { followedAt } } } }"
+        private const val FOLLOW_MUTATION =
+            "mutation ChatoneFollowUser(\$input: FollowUserInput!) { " +
+                    "followUser(input: \$input) { follow { followedAt } error { code } } }"
+        private const val UNFOLLOW_MUTATION =
+            "mutation ChatoneUnfollowUser(\$input: UnfollowUserInput!) { " +
+                    "unfollowUser(input: \$input) { follow { followedAt } } }"
         private const val SEND_GIF_MUTATION =
             "mutation ChatoneSendGif(\$input: SendGifMessageInput!) { " +
                     "sendGifMessage(input: \$input) { error } }"
@@ -1573,3 +1625,5 @@ private data class GqlClientProfile(
 )
 
 class SendGifException(val code: String) : Exception(code)
+
+class GqlIntegrityRejectedException : Exception("Rejected by the Twitch integrity check")

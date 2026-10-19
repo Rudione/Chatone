@@ -647,7 +647,6 @@ interface AppStrings {
     val aiNewChat: String
     val aiHistory: String
     val aiHistoryEmpty: String
-    val aiConnectError: String
     val aiGreetingTitle: String
     val aiGreetingBody: String
     val aiClose: String
@@ -1433,6 +1432,8 @@ interface AppStrings {
     val modSlider: ModSliderStrings
     val screenChat: ScreenChatStrings
     val settingsHub: SettingsHubStrings
+    val aiAssist: AiAssistStrings
+    val streamChannel: StreamChannelStrings
 
     companion object {
         fun forLocale(locale: String): AppStrings = when (locale) {

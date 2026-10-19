@@ -19,12 +19,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,7 +34,9 @@ import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.util.platform.setText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val COPY_FEEDBACK_MS = 1_400L
 
@@ -103,7 +105,8 @@ internal fun ProfileAkaChip(names: List<NameHistoryEntry>) {
 internal fun ProfileColorChip(hex: String?) {
     val color = parseHexColor(hex) ?: return
     val insights = LocalStrings.current.insights
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) {
         if (copied) {
@@ -116,7 +119,7 @@ internal fun ProfileColorChip(hex: String?) {
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
                 .clickable {
-                    clipboard.setText(AnnotatedString(hex.orEmpty().uppercase()))
+                    scope.launch { clipboard.setText(hex.orEmpty().uppercase()) }
                     copied = true
                 }
                 .padding(horizontal = 3.dp, vertical = 1.dp),
