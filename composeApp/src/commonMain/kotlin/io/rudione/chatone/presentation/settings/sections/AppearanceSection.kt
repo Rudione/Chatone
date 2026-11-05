@@ -1,5 +1,34 @@
 package io.rudione.chatone.presentation.settings.sections
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.settings_always_on_top
+import chatone.composeapp.generated.resources.settings_always_on_top_all_windows
+import chatone.composeapp.generated.resources.settings_always_on_top_browser
+import chatone.composeapp.generated.resources.settings_always_on_top_desc
+import chatone.composeapp.generated.resources.settings_always_on_top_except_system
+import chatone.composeapp.generated.resources.settings_always_on_top_mode
+import chatone.composeapp.generated.resources.settings_always_on_top_mode_desc
+import chatone.composeapp.generated.resources.settings_both
+import chatone.composeapp.generated.resources.settings_channel_navigation
+import chatone.composeapp.generated.resources.settings_hide_sidebar
+import chatone.composeapp.generated.resources.settings_hide_sidebar_desc
+import chatone.composeapp.generated.resources.settings_hub_group_interface
+import chatone.composeapp.generated.resources.settings_language
+import chatone.composeapp.generated.resources.settings_language_desc
+import chatone.composeapp.generated.resources.settings_mini_rail
+import chatone.composeapp.generated.resources.settings_navigation_hidden
+import chatone.composeapp.generated.resources.settings_navigation_hidden_desc
+import chatone.composeapp.generated.resources.settings_tab_bar
+import chatone.composeapp.generated.resources.settings_theme
+import chatone.composeapp.generated.resources.settings_title_bar_adaptive
+import chatone.composeapp.generated.resources.settings_title_bar_dark
+import chatone.composeapp.generated.resources.settings_title_bar_light
+import chatone.composeapp.generated.resources.settings_title_bar_mode
+import chatone.composeapp.generated.resources.settings_title_bar_mode_desc
+import chatone.composeapp.generated.resources.settings_title_bar_system
+import chatone.composeapp.generated.resources.settings_ui_scale
+import chatone.composeapp.generated.resources.settings_window
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,7 +59,6 @@ import io.rudione.chatone.presentation.settings.components.SettingsGroup
 import io.rudione.chatone.presentation.settings.components.SettingsPair
 import io.rudione.chatone.presentation.theme.DEFAULT_ACCENT_INDEX
 import io.rudione.chatone.presentation.theme.i18n.AppLocale
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
 import io.rudione.chatone.util.system.isDesktopPlatform
@@ -41,8 +69,7 @@ internal fun AppearanceContent(
     vm: SettingsViewModel,
     onOpenThemeCreator: (seedColor: Int?) -> Unit
 ) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsTheme) {
+    SettingsGroup(stringResource(Res.string.settings_theme)) {
         AccentColorPaletteRow(
             selectedIndex = state.accentColorIndex,
             onSelect = { vm.sendEvent(SettingsEvent.OnAccentColorChanged(it)) },
@@ -65,14 +92,13 @@ internal fun AppearanceContent(
 
 @Composable
 private fun InterfaceGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsHub.groupInterface) {
+    SettingsGroup(stringResource(Res.string.settings_hub_group_interface)) {
         UiScaleRow(state.uiScale) { vm.sendEvent(SettingsEvent.OnUiScaleChanged(it)) }
         RowDivider()
         val locales = AppLocale.all
         DropdownRow(
-            label = s.settingsLanguage,
-            description = s.settingsLanguageDesc,
+            label = stringResource(Res.string.settings_language),
+            description = stringResource(Res.string.settings_language_desc),
             options = locales.map { it.displayName },
             selected = locales.indexOfFirst { it.code == state.language }.coerceAtLeast(0),
             onSelected = { vm.sendEvent(SettingsEvent.OnLanguageChanged(locales[it].code)) }
@@ -80,16 +106,16 @@ private fun InterfaceGroup(state: SettingsState, vm: SettingsViewModel) {
         if (!isPhoneFormFactor) {
             RowDivider()
             ListRow(
-                s.settingsChannelNavigation,
+                stringResource(Res.string.settings_channel_navigation),
                 when (state.channelNavigation) {
-                    SettingsState.ChannelNavigation.TAB_BAR -> s.settingsTabBar
-                    SettingsState.ChannelNavigation.MINI_RAIL -> s.settingsMiniRail
-                    SettingsState.ChannelNavigation.BOTH -> s.settingsBoth
+                    SettingsState.ChannelNavigation.TAB_BAR -> stringResource(Res.string.settings_tab_bar)
+                    SettingsState.ChannelNavigation.MINI_RAIL -> stringResource(Res.string.settings_mini_rail)
+                    SettingsState.ChannelNavigation.BOTH -> stringResource(Res.string.settings_both)
                 },
-                listOf(s.settingsTabBar, s.settingsMiniRail, s.settingsBoth)
+                listOf(stringResource(Res.string.settings_tab_bar), stringResource(Res.string.settings_mini_rail), stringResource(Res.string.settings_both))
             ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
             RowDivider()
-            SwitchRow(s.settingsNavigationHidden, s.settingsNavigationHiddenDesc, state.navigationHidden) {
+            SwitchRow(stringResource(Res.string.settings_navigation_hidden), stringResource(Res.string.settings_navigation_hidden_desc), state.navigationHidden) {
                 vm.sendEvent(SettingsEvent.OnNavigationHiddenChanged(it))
             }
         }
@@ -98,23 +124,22 @@ private fun InterfaceGroup(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun WindowSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsWindow) {
+    SettingsGroup(stringResource(Res.string.settings_window)) {
         if (isDesktopPlatform) {
-            SwitchRow(s.settingsAlwaysOnTop, s.settingsAlwaysOnTopDesc, state.alwaysOnTop) {
+            SwitchRow(stringResource(Res.string.settings_always_on_top), stringResource(Res.string.settings_always_on_top_desc), state.alwaysOnTop) {
                 vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
             }
             if (state.alwaysOnTop) {
                 RowDivider()
                 val modes = AlwaysOnTopMode.entries
                 DropdownRow(
-                    label = s.settingsAlwaysOnTopMode,
-                    description = s.settingsAlwaysOnTopModeDesc,
+                    label = stringResource(Res.string.settings_always_on_top_mode),
+                    description = stringResource(Res.string.settings_always_on_top_mode_desc),
                     options = modes.map {
                         when (it) {
-                            AlwaysOnTopMode.EXCEPT_SYSTEM -> s.settingsAlwaysOnTopExceptSystem
-                            AlwaysOnTopMode.ALL_WINDOWS -> s.settingsAlwaysOnTopAllWindows
-                            AlwaysOnTopMode.BROWSER -> s.settingsAlwaysOnTopBrowser
+                            AlwaysOnTopMode.EXCEPT_SYSTEM -> stringResource(Res.string.settings_always_on_top_except_system)
+                            AlwaysOnTopMode.ALL_WINDOWS -> stringResource(Res.string.settings_always_on_top_all_windows)
+                            AlwaysOnTopMode.BROWSER -> stringResource(Res.string.settings_always_on_top_browser)
                         }
                     },
                     selected = modes.indexOf(state.alwaysOnTopMode).coerceAtLeast(0),
@@ -123,20 +148,20 @@ private fun WindowSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
             }
             RowDivider()
         }
-        SwitchRow(s.settingsHideSidebar, s.settingsHideSidebarDesc, state.hideSidebar) {
+        SwitchRow(stringResource(Res.string.settings_hide_sidebar), stringResource(Res.string.settings_hide_sidebar_desc), state.hideSidebar) {
             vm.sendEvent(SettingsEvent.OnHideSidebarChanged(it))
         }
         if (isDesktopPlatform) {
             RowDivider()
             val titleBarModes = listOf(TitleBarMode.DARK, TitleBarMode.LIGHT, TitleBarMode.ADAPTIVE, TitleBarMode.SYSTEM)
             DropdownRow(
-                label = s.settingsTitleBarMode,
-                description = s.settingsTitleBarModeDesc,
+                label = stringResource(Res.string.settings_title_bar_mode),
+                description = stringResource(Res.string.settings_title_bar_mode_desc),
                 options = listOf(
-                    s.settingsTitleBarDark,
-                    s.settingsTitleBarLight,
-                    s.settingsTitleBarAdaptive,
-                    s.settingsTitleBarSystem
+                    stringResource(Res.string.settings_title_bar_dark),
+                    stringResource(Res.string.settings_title_bar_light),
+                    stringResource(Res.string.settings_title_bar_adaptive),
+                    stringResource(Res.string.settings_title_bar_system)
                 ),
                 selected = titleBarModes.indexOf(state.titleBarMode).coerceAtLeast(0),
                 onSelected = { vm.sendEvent(SettingsEvent.OnTitleBarModeChanged(titleBarModes[it])) }
@@ -147,7 +172,7 @@ private fun WindowSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
-    val title = LocalStrings.current.settingsUiScale
+    val title = stringResource(Res.string.settings_ui_scale)
     Row(
         modifier = Modifier
             .settingsAnchor(title)

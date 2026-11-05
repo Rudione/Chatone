@@ -164,11 +164,27 @@ class TwitchDirectoryClient(
             put("query", trimmed)
             put("first", SEARCH_PAGE_SIZE)
         } ?: return null
+        val channels = data.obj("searchUsers")?.nodes()?.mapNotNull { it.toChannel() }.orEmpty()
+        val channelLogins = channels.mapTo(HashSet()) { it.login }
+        val streams = (titleMatches(data) + data.obj("searchStreams")?.nodes()?.mapNotNull { it.toStream() }.orEmpty())
+            .distinctBy { it.login }
+            .filterNot { it.login in channelLogins }
+            .sortedByDescending { it.viewers }
+            .take(SEARCH_STREAM_LIMIT)
         return BrowseSearchResult(
             categories = data.obj("searchCategories")?.nodes()?.mapNotNull { it.toCategory() }.orEmpty(),
-            channels = data.obj("searchUsers")?.nodes()?.mapNotNull { it.toChannel() }.orEmpty()
+            channels = channels,
+            streams = streams
         )
     }
+
+    private fun titleMatches(data: JsonObject): List<BrowseStream> =
+        (data.obj("searchFor")?.obj("channels")?.get("items") as? JsonArray).orEmpty()
+            .mapNotNull { it as? JsonObject }
+            .mapNotNull { user ->
+                val stream = user.obj("stream") ?: return@mapNotNull null
+                JsonObject(stream + ("broadcaster" to JsonObject(user - "stream"))).toStream()
+            }
 
     private suspend fun query(text: String, variables: JsonObjectBuilder.() -> Unit): JsonObject? = try {
         val payload = buildJsonObject {
@@ -309,6 +325,7 @@ class TwitchDirectoryClient(
         const val CATEGORY_PAGE_SIZE = 30
         const val STREAM_PAGE_SIZE = 24
         const val SEARCH_PAGE_SIZE = 10
+        const val SEARCH_STREAM_LIMIT = 20
         const val MAX_AVATAR_LOOKUP = 100
         const val MAX_QUERY_LENGTH = 100
         const val MAX_TAG_LENGTH = 25
@@ -349,11 +366,19 @@ class TwitchDirectoryClient(
             "query ChatoneUserAvatars(\$logins: [String!]) { " +
                     "users(logins: \$logins) { login profileImageURL(width: 70) } }"
 
+        const val SEARCH_STREAM_FIELDS =
+            "id title viewersCount createdAt language isMature previewImageURL(width: 440, height: 248) freeformTags { name }"
+
         const val SEARCH_QUERY =
             "query ChatoneBrowseSearch(\$query: String!, \$first: Int) { " +
                     "searchCategories(query: \$query, first: \$first) { edges { node { id name displayName " +
                     "viewersCount broadcastersCount boxArtURL(width: 285, height: 380) } } } " +
                     "searchUsers(userQuery: \$query, first: \$first) { edges { node { login displayName " +
-                    "profileImageURL(width: 70) stream { viewersCount game { displayName } } } } } }"
+                    "profileImageURL(width: 70) stream { viewersCount game { displayName } } } } } " +
+                    "searchStreams(userQuery: \$query, first: \$first) { edges { node { $SEARCH_STREAM_FIELDS " +
+                    "broadcaster { login displayName profileImageURL(width: 70) } } } } " +
+                    "searchFor(userQuery: \$query, platform: \"web\") { channels { items { login displayName " +
+                    "profileImageURL(width: 70) stream { $SEARCH_STREAM_FIELDS } } } } }"
+
     }
 }

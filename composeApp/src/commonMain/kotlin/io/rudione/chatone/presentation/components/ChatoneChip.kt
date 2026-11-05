@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.ui.unit.sp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -91,13 +92,12 @@ fun ChatoneChip(
                 modifier = Modifier.size(if (compact) 12.dp else 14.dp)
             )
         }
-        Text(
+        FitText(
             label,
             style = if (compact) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium,
             color = content.copy(alpha = content.alpha * enabledAlpha),
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            minFontSize = 9.sp
         )
     }
 }

@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.settings.search
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.settings_hub_search_open
+import chatone.composeapp.generated.resources.settings_hub_search_try_another
+import chatone.composeapp.generated.resources.settings_search_no_results
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -43,8 +48,6 @@ import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
 import io.rudione.chatone.presentation.settings.ModerationTab
 import io.rudione.chatone.presentation.settings.SettingsSection
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 internal class SettingsSearchGroup(val section: SettingsSection, val hits: List<SettingsSearchHit>)
 
@@ -57,7 +60,6 @@ internal fun List<SettingsSearchGroup>.flatHits(): List<SettingsSearchHit> = fla
 
 @Composable
 internal fun SettingsSearchSectionHeader(section: SettingsSection, count: Int, modifier: Modifier = Modifier) {
-    val s = LocalStrings.current
     Row(
         modifier = modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 10.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -65,7 +67,7 @@ internal fun SettingsSearchSectionHeader(section: SettingsSection, count: Int, m
     ) {
         Icon(section.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
         Text(
-            section.localizedLabel(s),
+            section.localizedLabel(),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
@@ -86,7 +88,6 @@ internal fun SettingsSearchResultRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
     val entry = hit.entry
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -117,7 +118,7 @@ internal fun SettingsSearchResultRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            val trail = breadcrumb(entry, s)
+            val trail = breadcrumb(entry)
             if (trail.isNotEmpty()) {
                 HighlightedSettingsText(
                     trail,
@@ -139,7 +140,7 @@ internal fun SettingsSearchResultRow(
         }
         Icon(
             Lucide.ChevronRight,
-            contentDescription = s.settingsHub.searchOpen,
+            contentDescription = stringResource(Res.string.settings_hub_search_open),
             tint = if (active || hovered) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.size(16.dp)
         )
@@ -148,36 +149,26 @@ internal fun SettingsSearchResultRow(
 
 @Composable
 internal fun SettingsSearchEmpty(modifier: Modifier = Modifier) {
-    val s = LocalStrings.current
     Column(
         modifier = modifier.fillMaxWidth().padding(vertical = 24.dp, horizontal = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            s.settingsSearchNoResults,
+            stringResource(Res.string.settings_search_no_results),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            s.settingsHub.searchTryAnother,
+            stringResource(Res.string.settings_hub_search_try_another),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
-private fun breadcrumb(entry: SettingsSearchEntry, s: AppStrings): String {
-    val tab = entry.tab?.let { tab ->
-        when (tab) {
-            ModerationTab.GENERAL -> s.modSlider.tabGeneral
-            ModerationTab.BUTTONS -> s.modSlider.tabButtons
-            ModerationTab.SLIDER -> s.modSlider.tabSlider
-            ModerationTab.MACROS -> s.modSlider.tabMacros
-        }
-    }
-    return listOfNotNull(tab, entry.group).joinToString(" › ")
-}
+private fun breadcrumb(entry: SettingsSearchEntry): String =
+    listOfNotNull(entry.tabTitle, entry.group).joinToString(" › ")
 
 private val ResultShape = RoundedCornerShape(12.dp)
 

@@ -1,5 +1,7 @@
 package io.rudione.chatone.di
 
+import io.rudione.chatone.presentation.media.AndroidMediaPlaybackFactory
+import io.rudione.chatone.domain.media.MediaPlaybackFactory
 import io.rudione.chatone.domain.stream.StreamPlaybackEngineFactory
 import io.rudione.chatone.presentation.stream.AndroidStreamPlaybackEngineFactory
 import io.rudione.chatone.presentation.stream.StreamMediaSessions
@@ -12,6 +14,7 @@ import org.koin.dsl.module
 @OptIn(UnstableApi::class)
 actual val platformStreamModule: Module = module {
     single { StreamMediaSessions(androidContext()) }
+    single<MediaPlaybackFactory> { AndroidMediaPlaybackFactory(androidContext()) }
     single<StreamPlaybackEngineFactory> {
         AndroidStreamPlaybackEngineFactory(
             context = androidContext(),

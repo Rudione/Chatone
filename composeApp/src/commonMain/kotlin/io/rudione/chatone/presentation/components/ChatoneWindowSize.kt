@@ -11,8 +11,8 @@ import androidx.compose.ui.unit.dp
 enum class ChatoneWindowSize { Compact, Expanded, Large }
 
 object ChatoneBreakpoints {
-    val expanded: Dp = 640.dp
-    val large: Dp = 1000.dp
+    val expanded: Dp = 820.dp
+    val large: Dp = 1300.dp
 
     val minPane: Dp = 200.dp
     val minChatPane: Dp = 400.dp

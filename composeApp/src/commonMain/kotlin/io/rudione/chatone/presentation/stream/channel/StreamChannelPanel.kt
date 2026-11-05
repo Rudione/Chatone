@@ -1,5 +1,21 @@
 package io.rudione.chatone.presentation.stream.channel
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.media_clip
+import chatone.composeapp.generated.resources.media_profile
+import chatone.composeapp.generated.resources.stream_channel_assistant
+import chatone.composeapp.generated.resources.stream_channel_back_to_stream_chat
+import chatone.composeapp.generated.resources.stream_channel_follow
+import chatone.composeapp.generated.resources.stream_channel_follow_blocked
+import chatone.composeapp.generated.resources.stream_channel_follow_failed
+import chatone.composeapp.generated.resources.stream_channel_live_alerts_off
+import chatone.composeapp.generated.resources.stream_channel_live_alerts_on
+import chatone.composeapp.generated.resources.stream_channel_open_on_twitch
+import chatone.composeapp.generated.resources.stream_channel_pin
+import chatone.composeapp.generated.resources.stream_channel_unfollow
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.icons.lucide.Clapperboard
+import io.rudione.chatone.icons.lucide.CircleUser
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -63,14 +79,15 @@ import io.rudione.chatone.icons.lucide.Sparkles
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.components.expressive.pressSquish
 import io.rudione.chatone.presentation.stream.KeepStreamControlsShown
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Immutable
 data class StreamChannelExtras(
     val liveAlerts: Boolean,
     val canPin: Boolean,
     val assistantAvailable: Boolean,
-    val chatElsewhere: Boolean
+    val chatElsewhere: Boolean,
+    val ownChannel: Boolean,
+    val live: Boolean
 )
 
 @Immutable
@@ -80,7 +97,9 @@ class StreamChannelActions(
     val onPin: () -> Unit,
     val onOpenAssistant: () -> Unit,
     val onReturnToStreamChat: () -> Unit,
-    val onOpenOnTwitch: () -> Unit
+    val onOpenOnTwitch: () -> Unit,
+    val onOpenProfile: (() -> Unit)? = null,
+    val onCreateClip: (() -> Unit)? = null
 )
 
 private val AvatarSize = 40.dp
@@ -96,7 +115,6 @@ fun StreamChannelPanel(
     actions: StreamChannelActions,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current.streamChannel
     val channel = state.channel
     var confirming by remember { mutableStateOf(false) }
     Column(
@@ -104,7 +122,11 @@ fun StreamChannelPanel(
             .fillMaxWidth()
             .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.clip(RoundedCornerShape(14.dp))
+                .then(actions.onOpenProfile?.let { Modifier.clickable(onClick = it) } ?: Modifier),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             ChannelAvatar(url = channel.avatarUrl, login = channel.login)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -134,26 +156,32 @@ fun StreamChannelPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (state.canToggleFollow) {
+            if (state.canToggleFollow && !extras.ownChannel) {
                 FollowPill(
                     following = state.follow == FollowStatus.FOLLOWING,
                     busy = state.followBusy,
                     onClick = { confirming = true }
                 )
             }
+            actions.onOpenProfile?.let { open ->
+                ChannelActionButton(icon = Lucide.CircleUser, label = stringResource(Res.string.media_profile), active = false, onClick = open)
+            }
+            actions.onCreateClip?.takeIf { extras.live }?.let { create ->
+                ChannelActionButton(icon = Lucide.Clapperboard, label = stringResource(Res.string.media_clip), active = false, onClick = create)
+            }
             ChannelActionButton(
                 icon = if (extras.liveAlerts) Lucide.Bell else Lucide.BellOff,
-                label = if (extras.liveAlerts) s.liveAlertsOff else s.liveAlertsOn,
+                label = if (extras.liveAlerts) stringResource(Res.string.stream_channel_live_alerts_off) else stringResource(Res.string.stream_channel_live_alerts_on),
                 active = extras.liveAlerts,
                 onClick = actions.onToggleLiveAlerts
             )
             if (extras.canPin) {
-                ChannelActionButton(icon = Lucide.Pin, label = s.pin, active = false, onClick = actions.onPin)
+                ChannelActionButton(icon = Lucide.Pin, label = stringResource(Res.string.stream_channel_pin), active = false, onClick = actions.onPin)
             }
             if (extras.assistantAvailable) {
                 ChannelActionButton(
                     icon = Lucide.Sparkles,
-                    label = s.assistant,
+                    label = stringResource(Res.string.stream_channel_assistant),
                     active = false,
                     accent = true,
                     onClick = actions.onOpenAssistant
@@ -162,7 +190,7 @@ fun StreamChannelPanel(
             if (extras.chatElsewhere) {
                 ChannelActionButton(
                     icon = Lucide.MessageSquareReply,
-                    label = s.backToStreamChat,
+                    label = stringResource(Res.string.stream_channel_back_to_stream_chat),
                     active = false,
                     onClick = actions.onReturnToStreamChat
                 )
@@ -238,10 +266,9 @@ private fun actionColors(active: Boolean, accent: Boolean): Pair<Color, Color> {
 
 @Composable
 private fun FollowPill(following: Boolean, busy: Boolean, onClick: () -> Unit) {
-    val s = LocalStrings.current.streamChannel
     val interaction = remember { MutableInteractionSource() }
     val (container, content) = actionColors(active = following, accent = false)
-    val label = if (following) s.unfollow else s.follow
+    val label = if (following) stringResource(Res.string.stream_channel_unfollow) else stringResource(Res.string.stream_channel_follow)
     Row(
         modifier = Modifier
             .height(ActionSize)
@@ -297,7 +324,6 @@ private fun ChannelActionButton(
 
 @Composable
 private fun FollowFailureLine(failure: FollowFailure?, onOpenOnTwitch: () -> Unit) {
-    val s = LocalStrings.current.streamChannel
     AnimatedVisibility(
         visible = failure != null && failure != FollowFailure.SIGNED_OUT,
         enter = expandVertically() + fadeIn(),
@@ -310,14 +336,14 @@ private fun FollowFailureLine(failure: FollowFailure?, onOpenOnTwitch: () -> Uni
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                if (blocked) s.followBlocked else s.followFailed,
+                if (blocked) stringResource(Res.string.stream_channel_follow_blocked) else stringResource(Res.string.stream_channel_follow_failed),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.weight(1f, fill = false)
             )
             if (blocked) {
                 Text(
-                    s.openOnTwitch,
+                    stringResource(Res.string.stream_channel_open_on_twitch),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,

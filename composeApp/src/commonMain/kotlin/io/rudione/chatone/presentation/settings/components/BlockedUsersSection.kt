@@ -1,5 +1,19 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.blocked_users
+import chatone.composeapp.generated.resources.blocked_users_desc
+import chatone.composeapp.generated.resources.blocked_users_empty
+import chatone.composeapp.generated.resources.blocked_users_empty_hint
+import chatone.composeapp.generated.resources.blocked_users_show_messages
+import chatone.composeapp.generated.resources.blocked_users_show_messages_broadcaster
+import chatone.composeapp.generated.resources.blocked_users_show_messages_mod
+import chatone.composeapp.generated.resources.blocked_users_show_messages_never
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.profile_unblock_confirm_text
+import chatone.composeapp.generated.resources.profile_unblock_confirm_title
+import chatone.composeapp.generated.resources.unblock_user
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,10 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.presentation.theme.i18n.format
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
@@ -35,7 +47,6 @@ fun BlockedUsersSection(
     onUnblockUser: (String) -> Unit,
     onRefresh: () -> Unit,
 ) {
-    val s = LocalStrings.current
     var expanded by remember { mutableStateOf(true) }
 
     Column(
@@ -59,13 +70,13 @@ fun BlockedUsersSection(
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    s.blockedUsers,
+                    stringResource(Res.string.blocked_users),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    s.blockedUsersDesc,
+                    stringResource(Res.string.blocked_users_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -95,15 +106,15 @@ fun BlockedUsersSection(
         Spacer(Modifier.height(12.dp))
 
         Text(
-            s.blockedUsersShowMessages,
+            stringResource(Res.string.blocked_users_show_messages),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 6.dp)
         )
         val modeOptions = listOf(
-            s.blockedUsersShowMessagesNever,
-            s.blockedUsersShowMessagesMod,
-            s.blockedUsersShowMessagesBroadcaster
+            stringResource(Res.string.blocked_users_show_messages_never),
+            stringResource(Res.string.blocked_users_show_messages_mod),
+            stringResource(Res.string.blocked_users_show_messages_broadcaster)
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -149,13 +160,13 @@ fun BlockedUsersSection(
             blockedUsernames.isEmpty() -> {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(
-                        s.blockedUsersEmpty,
+                        stringResource(Res.string.blocked_users_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        s.blockedUsersEmptyHint,
+                        stringResource(Res.string.blocked_users_empty_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
@@ -185,26 +196,25 @@ private fun BlockedUserRow(
     username: String,
     onUnblock: () -> Unit
 ) {
-    val s = LocalStrings.current
     var showConfirm by remember { mutableStateOf(false) }
 
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text(s.profileUnblockConfirmTitle, style = MaterialTheme.typography.titleSmall) },
+            title = { Text(stringResource(Res.string.profile_unblock_confirm_title), style = MaterialTheme.typography.titleSmall) },
             text = {
                 Text(
-                    s.format(s.profileUnblockConfirmText, username),
+                    stringResource(Res.string.profile_unblock_confirm_text, username),
                     style = MaterialTheme.typography.bodySmall
                 )
             },
             confirmButton = {
                 TextButton(onClick = { onUnblock(); showConfirm = false }) {
-                    Text(s.unblockUser, color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(Res.string.unblock_user), color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false }) { Text(s.cancel) }
+                TextButton(onClick = { showConfirm = false }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }

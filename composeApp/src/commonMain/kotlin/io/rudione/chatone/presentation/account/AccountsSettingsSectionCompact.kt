@@ -1,5 +1,30 @@
 package io.rudione.chatone.presentation.account
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.accounts_active
+import chatone.composeapp.generated.resources.accounts_add
+import chatone.composeapp.generated.resources.accounts_custom_settings
+import chatone.composeapp.generated.resources.accounts_none_added
+import chatone.composeapp.generated.resources.accounts_proxy_desc
+import chatone.composeapp.generated.resources.accounts_proxy_host
+import chatone.composeapp.generated.resources.accounts_proxy_invalid
+import chatone.composeapp.generated.resources.accounts_proxy_password
+import chatone.composeapp.generated.resources.accounts_proxy_port
+import chatone.composeapp.generated.resources.accounts_proxy_saved
+import chatone.composeapp.generated.resources.accounts_proxy_title
+import chatone.composeapp.generated.resources.accounts_proxy_type
+import chatone.composeapp.generated.resources.accounts_proxy_type_http
+import chatone.composeapp.generated.resources.accounts_proxy_type_socks5
+import chatone.composeapp.generated.resources.accounts_proxy_username
+import chatone.composeapp.generated.resources.accounts_remove
+import chatone.composeapp.generated.resources.accounts_remove_confirm
+import chatone.composeapp.generated.resources.accounts_set_primary
+import chatone.composeapp.generated.resources.accounts_uses_custom
+import chatone.composeapp.generated.resources.accounts_uses_global
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.ext_rights_connected
+import chatone.composeapp.generated.resources.save
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.data.repository.AccountManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -50,7 +75,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import io.rudione.chatone.domain.model.AccountProxyConfig
 import io.rudione.chatone.domain.model.ProxyType
 import io.rudione.chatone.domain.model.TwitchAccount
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.data.repository.ModerationAuthStore
 import io.rudione.chatone.presentation.components.ChatoneSecretField
 import io.rudione.chatone.presentation.components.ChatoneSwitch
@@ -66,7 +90,6 @@ fun AccountsSettingsSectionCompact(
     onSetPrimary: (TwitchAccount) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val strings = LocalStrings.current
     val moderationAuthStore: ModerationAuthStore = koinInject()
     val activeId by accountManager.activeAccountId.collectAsState()
     var expandedAccount by remember { mutableStateOf<String?>(null) }
@@ -80,7 +103,7 @@ fun AccountsSettingsSectionCompact(
     ) {
         if (accounts.isEmpty()) {
             Text(
-                strings.accountsNoneAdded,
+                stringResource(Res.string.accounts_none_added),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 8.dp)
@@ -107,24 +130,24 @@ fun AccountsSettingsSectionCompact(
             onClick = onAddAccount,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(strings.accountsAdd)
+            Text(stringResource(Res.string.accounts_add))
         }
     }
 
     confirmRemove?.let { acc ->
         AlertDialog(
             onDismissRequest = { confirmRemove = null },
-            title = { Text(strings.accountsRemove) },
-            text = { Text("${strings.accountsRemoveConfirm}\n@${acc.login}") },
+            title = { Text(stringResource(Res.string.accounts_remove)) },
+            text = { Text("${stringResource(Res.string.accounts_remove_confirm)}\n@${acc.login}") },
             confirmButton = {
                 TextButton(onClick = {
                     accountManager.deleteAllPerAccountData(acc.userId)
                     onRemoveAccount(acc)
                     confirmRemove = null
-                }) { Text(strings.accountsRemove) }
+                }) { Text(stringResource(Res.string.accounts_remove)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRemove = null }) { Text(strings.cancel) }
+                TextButton(onClick = { confirmRemove = null }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }
@@ -141,7 +164,6 @@ private fun AccountRowCompact(
     onSetPrimary: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val strings = LocalStrings.current
     val hasProxy = remember(account.userId) {
         accountManager.getProxy(account.userId)?.let { it.enabled && it.isValid } == true
     }
@@ -182,7 +204,7 @@ private fun AccountRowCompact(
                         Spacer(Modifier.width(6.dp))
                         Icon(
                             Icons.Outlined.Star,
-                            contentDescription = strings.accountsActive,
+                            contentDescription = stringResource(Res.string.accounts_active),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp)
                         )
@@ -191,7 +213,7 @@ private fun AccountRowCompact(
                         Spacer(Modifier.width(6.dp))
                         Icon(
                             Icons.Outlined.VerifiedUser,
-                            contentDescription = strings.extRightsConnected,
+                            contentDescription = stringResource(Res.string.ext_rights_connected),
                             tint = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(14.dp)
                         )
@@ -207,7 +229,7 @@ private fun AccountRowCompact(
                         Spacer(Modifier.width(6.dp))
                         Icon(
                             Icons.Outlined.VpnLock,
-                            contentDescription = strings.accountsProxyTitle,
+                            contentDescription = stringResource(Res.string.accounts_proxy_title),
                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                             modifier = Modifier.size(11.dp)
                         )
@@ -216,7 +238,7 @@ private fun AccountRowCompact(
                         Spacer(Modifier.width(4.dp))
                         Icon(
                             Icons.Outlined.Settings,
-                            contentDescription = strings.accountsUsesCustom,
+                            contentDescription = stringResource(Res.string.accounts_uses_custom),
                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                             modifier = Modifier.size(11.dp)
                         )
@@ -238,13 +260,13 @@ private fun AccountRowCompact(
                 if (!isPrimary) {
                     QuickRowButton(
                         icon = Icons.Outlined.StarOutline,
-                        label = strings.accountsSetPrimary,
+                        label = stringResource(Res.string.accounts_set_primary),
                         onClick = onSetPrimary
                     )
                 }
                 ToggleRow(
-                    label = strings.accountsCustomSettings,
-                    sublabel = if (hasCustomSettings) strings.accountsUsesCustom else strings.accountsUsesGlobal,
+                    label = stringResource(Res.string.accounts_custom_settings),
+                    sublabel = if (hasCustomSettings) stringResource(Res.string.accounts_uses_custom) else stringResource(Res.string.accounts_uses_global),
                     checked = hasCustomSettings,
                     onCheckedChange = {
                         hasCustomSettings = it
@@ -258,7 +280,7 @@ private fun AccountRowCompact(
                 Spacer(Modifier.height(4.dp))
                 QuickRowButton(
                     icon = Icons.Outlined.Delete,
-                    label = strings.accountsRemove,
+                    label = stringResource(Res.string.accounts_remove),
                     onClick = onRemove,
                     tint = MaterialTheme.colorScheme.error
                 )
@@ -318,7 +340,8 @@ private fun ProxyExpandableRow(
     userId: String,
     accountManager: AccountManager
 ) {
-    val strings = LocalStrings.current
+    val accountsProxyInvalidText = stringResource(Res.string.accounts_proxy_invalid)
+    val accountsProxySavedText = stringResource(Res.string.accounts_proxy_saved)
     val initial = remember(userId) { accountManager.getProxy(userId) }
     var enabled by remember(userId) { mutableStateOf(initial?.enabled ?: false) }
     var formExpanded by remember(userId) { mutableStateOf(initial != null && initial.isValid) }
@@ -339,9 +362,9 @@ private fun ProxyExpandableRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(strings.accountsProxyTitle, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(Res.string.accounts_proxy_title), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    strings.accountsProxyDesc,
+                    stringResource(Res.string.accounts_proxy_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -360,11 +383,11 @@ private fun ProxyExpandableRow(
         AnimatedVisibility(visible = formExpanded && enabled) {
             Column(modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp)) {
                 val typeLabel = when (type) {
-                    ProxyType.HTTP -> strings.accountsProxyTypeHttp
-                    ProxyType.SOCKS5 -> strings.accountsProxyTypeSocks5
+                    ProxyType.HTTP -> stringResource(Res.string.accounts_proxy_type_http)
+                    ProxyType.SOCKS5 -> stringResource(Res.string.accounts_proxy_type_socks5)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(strings.accountsProxyType + ":", modifier = Modifier.padding(end = 6.dp))
+                    Text(stringResource(Res.string.accounts_proxy_type) + ":", modifier = Modifier.padding(end = 6.dp))
                     TextButton(onClick = {
                         type = if (type == ProxyType.HTTP) ProxyType.SOCKS5 else ProxyType.HTTP
                     }) { Text(typeLabel) }
@@ -373,7 +396,7 @@ private fun ProxyExpandableRow(
                     ChatoneTextField(
                         value = host,
                         onValueChange = { host = it },
-                        label = strings.accountsProxyHost,
+                        label = stringResource(Res.string.accounts_proxy_host),
                         modifier = Modifier.weight(2f),
                         singleLine = true
                     )
@@ -381,7 +404,7 @@ private fun ProxyExpandableRow(
                     ChatoneTextField(
                         value = port,
                         onValueChange = { port = it.filter { ch -> ch.isDigit() }.take(5) },
-                        label = strings.accountsProxyPort,
+                        label = stringResource(Res.string.accounts_proxy_port),
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true
@@ -392,7 +415,7 @@ private fun ProxyExpandableRow(
                     ChatoneTextField(
                         value = username,
                         onValueChange = { username = it },
-                        label = strings.accountsProxyUsername,
+                        label = stringResource(Res.string.accounts_proxy_username),
                         modifier = Modifier.weight(1f),
                         singleLine = true
                     )
@@ -400,7 +423,7 @@ private fun ProxyExpandableRow(
                     ChatoneSecretField(
                         value = password,
                         onValueChange = { password = it },
-                        label = strings.accountsProxyPassword,
+                        label = stringResource(Res.string.accounts_proxy_password),
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -409,7 +432,7 @@ private fun ProxyExpandableRow(
                     onClick = {
                         val portInt = port.toIntOrNull()
                         if (host.isBlank() || portInt == null || portInt !in 1..65535) {
-                            saveHint = strings.accountsProxyInvalid
+                            saveHint = accountsProxyInvalidText
                             return@Button
                         }
                         accountManager.saveProxy(
@@ -421,15 +444,15 @@ private fun ProxyExpandableRow(
                                 enabled = enabled
                             )
                         )
-                        saveHint = strings.accountsProxySaved
+                        saveHint = accountsProxySavedText
                     },
                     modifier = Modifier.fillMaxWidth()
-                ) { Text(strings.save) }
+                ) { Text(stringResource(Res.string.save)) }
                 saveHint?.let { hint ->
                     Text(
                         hint,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (hint == strings.accountsProxyInvalid)
+                        color = if (hint == stringResource(Res.string.accounts_proxy_invalid))
                             MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 2.dp)

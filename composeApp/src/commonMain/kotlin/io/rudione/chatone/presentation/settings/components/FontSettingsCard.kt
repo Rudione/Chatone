@@ -1,5 +1,14 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.settings_font_family
+import chatone.composeapp.generated.resources.settings_font_italic
+import chatone.composeapp.generated.resources.settings_font_preview
+import chatone.composeapp.generated.resources.settings_font_remove
+import chatone.composeapp.generated.resources.settings_font_reset
+import chatone.composeapp.generated.resources.settings_font_strikethrough
+import chatone.composeapp.generated.resources.settings_font_underline
+import chatone.composeapp.generated.resources.settings_typography
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -43,30 +52,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.bell_filled
-import chatone.composeapp.generated.resources.bell_outlined
-import chatone.composeapp.generated.resources.chatbubbles
-import chatone.composeapp.generated.resources.chatbubbles_outline
-import chatone.composeapp.generated.resources.icon
-import chatone.composeapp.generated.resources.images
-import chatone.composeapp.generated.resources.images_outline
-import chatone.composeapp.generated.resources.key_outline
-import chatone.composeapp.generated.resources.ic_sword
-import chatone.composeapp.generated.resources.sparkle_filled
-import chatone.composeapp.generated.resources.keyboard_24_filled
-import chatone.composeapp.generated.resources.keyboard_24_regular
-import chatone.composeapp.generated.resources.musical_notes_outline
-import chatone.composeapp.generated.resources.palette_fill_16
-import chatone.composeapp.generated.resources.palette_stroke_12
-import chatone.composeapp.generated.resources.panel_left_key_16_regular
-import chatone.composeapp.generated.resources.person_filled
-import chatone.composeapp.generated.resources.shield_filled
-import chatone.composeapp.generated.resources.shield_outlined
-import chatone.composeapp.generated.resources.star_filled
-import chatone.composeapp.generated.resources.star_outlined
-import chatone.composeapp.generated.resources.unfold_more
-import chatone.composeapp.generated.resources.wallpaper_filled
-import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
@@ -91,9 +76,6 @@ import io.rudione.chatone.util.system.HotkeyAction
 import io.rudione.chatone.util.system.comboFor
 import io.rudione.chatone.util.media.NotificationSoundPlayer
 import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.presentation.theme.i18n.AppLocale
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsEvent
@@ -141,7 +123,7 @@ fun FontSettingsCard(
     var fontDropdownExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    SettingsGroup(LocalStrings.current.settingsTypography) {
+    SettingsGroup(stringResource(Res.string.settings_typography)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -152,7 +134,7 @@ fun FontSettingsCard(
             ) {
 
                 Text(
-                    LocalStrings.current.settingsFontFamily,
+                    stringResource(Res.string.settings_font_family),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -240,7 +222,7 @@ fun FontSettingsCard(
                                         ) {
                                             Icon(
                                                 Icons.Default.Close,
-                                                contentDescription = LocalStrings.current.settingsFontRemove,
+                                                contentDescription = stringResource(Res.string.settings_font_remove),
                                                 modifier = Modifier.size(12.dp),
                                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                                             )
@@ -294,21 +276,21 @@ fun FontSettingsCard(
                         label = "I",
                         active = state.fontStyleItalic,
                         fontStyle = FontStyle.Italic,
-                        tooltip = LocalStrings.current.settingsFontItalic,
+                        tooltip = stringResource(Res.string.settings_font_italic),
                         onClick = { vm.sendEvent(SettingsEvent.OnFontItalicChanged(!state.fontStyleItalic)) }
                     )
                     FontStyleChip(
                         label = "U",
                         active = state.fontUnderline,
                         textDecoration = TextDecoration.Underline,
-                        tooltip = LocalStrings.current.settingsFontUnderline,
+                        tooltip = stringResource(Res.string.settings_font_underline),
                         onClick = { vm.sendEvent(SettingsEvent.OnFontUnderlineChanged(!state.fontUnderline)) }
                     )
                     FontStyleChip(
                         label = "S",
                         active = state.fontStrikethrough,
                         textDecoration = TextDecoration.LineThrough,
-                        tooltip = LocalStrings.current.settingsFontStrikethrough,
+                        tooltip = stringResource(Res.string.settings_font_strikethrough),
                         onClick = { vm.sendEvent(SettingsEvent.OnFontStrikethroughChanged(!state.fontStrikethrough)) }
                     )
                 }
@@ -319,7 +301,7 @@ fun FontSettingsCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    LocalStrings.current.settingsFontPreview,
+                    stringResource(Res.string.settings_font_preview),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -371,7 +353,7 @@ fun FontSettingsCard(
                     modifier = Modifier.height(20.dp)
                 ) {
                     Text(
-                        LocalStrings.current.settingsFontReset,
+                        stringResource(Res.string.settings_font_reset),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )

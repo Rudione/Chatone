@@ -36,6 +36,12 @@ class StreamPlayerPreferencesRepositoryTest {
             sideChatFraction = 0.4f,
             overlayBounds = OverlayChatBounds(0.1f, 0.2f, 0.3f, 0.5f),
             overlayOpacity = 0.3f,
+            overlayBackdrop = true,
+            overlayBackdropOpacity = 0.6f,
+            overlayScale = 1.3f,
+            overlayHideDelaySeconds = 7,
+            overlayAutoLockSeconds = 25,
+            latencyOnVideo = false,
             autoPictureInPicture = false
         )
         repository.save(saved)
@@ -57,5 +63,16 @@ class StreamPlayerPreferencesRepositoryTest {
         assertEquals(StreamPlayerPreferences.MAX_OVERLAY_OPACITY, loaded.overlayOpacity)
         assertEquals(OverlayChatBounds.MIN_WIDTH, loaded.overlayBounds.width)
         assertEquals(1f - OverlayChatBounds.MIN_WIDTH, loaded.overlayBounds.x)
+    }
+
+    @Test
+    fun overlayLookValuesAreClampedOnLoad() {
+        settings.putFloat("stream_player_overlay_scale", 9f)
+        settings.putFloat("stream_player_overlay_backdrop_opacity", Float.NaN)
+        settings.putInt("stream_player_overlay_hide_delay", 99)
+        val loaded = repository.load()
+        assertEquals(StreamPlayerPreferences.MAX_OVERLAY_SCALE, loaded.overlayScale)
+        assertEquals(StreamPlayerPreferences.DEFAULT_OVERLAY_BACKDROP_OPACITY, loaded.overlayBackdropOpacity)
+        assertEquals(StreamPlayerPreferences.MAX_OVERLAY_HIDE_DELAY_SECONDS, loaded.overlayHideDelaySeconds)
     }
 }

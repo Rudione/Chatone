@@ -1,5 +1,18 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.gif_channel_disabled
+import chatone.composeapp.generated.resources.gif_favorites
+import chatone.composeapp.generated.resources.gif_key_missing_action
+import chatone.composeapp.generated.resources.gif_key_missing_body
+import chatone.composeapp.generated.resources.gif_key_missing_title
+import chatone.composeapp.generated.resources.gif_load_failed
+import chatone.composeapp.generated.resources.gif_no_results
+import chatone.composeapp.generated.resources.gif_powered_by
+import chatone.composeapp.generated.resources.gif_search_placeholder
+import chatone.composeapp.generated.resources.gif_tier_hint
+import chatone.composeapp.generated.resources.gif_trending
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
@@ -55,7 +68,6 @@ import io.rudione.chatone.domain.model.GifSearchConfig
 import io.rudione.chatone.domain.model.GifSearchItem
 import io.rudione.chatone.presentation.chat.rendering.LocalScrollActivity
 import io.rudione.chatone.presentation.chat.rendering.rememberScrollActivity
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
@@ -120,7 +132,6 @@ internal fun GifPickerTab(
     sendError: String?,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
     val repository: GifRepository = koinInject()
     val uriHandler = LocalUriHandler.current
 
@@ -170,17 +181,17 @@ internal fun GifPickerTab(
                 value = query,
                 onValueChange = { query = it; showFavorites = false },
                 modifier = Modifier.weight(1f),
-                placeholder = s.gifSearchPlaceholder
+                placeholder = stringResource(Res.string.gif_search_placeholder)
             )
             Spacer(Modifier.width(8.dp))
             GifFilterChip(
-                label = if (showFavorites) s.gifFavorites else s.gifTrending,
+                label = if (showFavorites) stringResource(Res.string.gif_favorites) else stringResource(Res.string.gif_trending),
                 selected = showFavorites,
                 onClick = { showFavorites = !showFavorites }
             )
         }
 
-        if (!canSendGifs) GifNotice(text = s.gifTierHint, isError = false)
+        if (!canSendGifs) GifNotice(text = stringResource(Res.string.gif_tier_hint), isError = false)
         sendError?.let { GifNotice(text = it, isError = true) }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
@@ -193,12 +204,12 @@ internal fun GifPickerTab(
                 onRecheck = onRefreshAccess
             )
 
-            !showFavorites && access == GifAccess.Disabled -> GifCenteredBox { GifMessage(s.gifChannelDisabled) }
+            !showFavorites && access == GifAccess.Disabled -> GifCenteredBox { GifMessage(stringResource(Res.string.gif_channel_disabled)) }
 
             shown.isEmpty() && results.loading -> GifCenteredBox { GifSpinner() }
 
             shown.isEmpty() -> GifCenteredBox {
-                GifMessage(if (results.failed && !showFavorites) s.gifLoadFailed else s.gifNoResults)
+                GifMessage(if (results.failed && !showFavorites) stringResource(Res.string.gif_load_failed) else stringResource(Res.string.gif_no_results))
             }
 
             else -> CompositionLocalProvider(LocalScrollActivity provides scrollActivity) {
@@ -229,7 +240,7 @@ internal fun GifPickerTab(
                     }
                     item(key = "attribution", span = { GridItemSpan(maxLineSpan) }, contentType = "attribution") {
                         Text(
-                            s.gifPoweredBy,
+                            stringResource(Res.string.gif_powered_by),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                             modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -340,7 +351,6 @@ private fun GifNotice(text: String, isError: Boolean) {
 
 @Composable
 private fun GifApiKeyPrompt(onOpenSignup: () -> Unit, onRecheck: () -> Unit) {
-    val s = LocalStrings.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -350,14 +360,14 @@ private fun GifApiKeyPrompt(onOpenSignup: () -> Unit, onRecheck: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            s.gifKeyMissingTitle,
+            stringResource(Res.string.gif_key_missing_title),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            s.gifKeyMissingBody,
+            stringResource(Res.string.gif_key_missing_body),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
             textAlign = TextAlign.Center
@@ -365,7 +375,7 @@ private fun GifApiKeyPrompt(onOpenSignup: () -> Unit, onRecheck: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onOpenSignup) {
-                Text(s.gifKeyMissingAction, fontSize = 12.sp)
+                Text(stringResource(Res.string.gif_key_missing_action), fontSize = 12.sp)
             }
             TextButton(onClick = onRecheck) {
                 Icon(Lucide.RefreshCw, contentDescription = null, modifier = Modifier.size(16.dp))

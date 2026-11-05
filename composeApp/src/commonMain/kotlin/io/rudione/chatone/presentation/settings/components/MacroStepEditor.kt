@@ -1,5 +1,57 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.mod_action
+import chatone.composeapp.generated.resources.mod_add_step
+import chatone.composeapp.generated.resources.mod_channel_to_raid
+import chatone.composeapp.generated.resources.mod_clear_warning
+import chatone.composeapp.generated.resources.mod_disable
+import chatone.composeapp.generated.resources.mod_duration_minutes
+import chatone.composeapp.generated.resources.mod_edit_step
+import chatone.composeapp.generated.resources.mod_enable
+import chatone.composeapp.generated.resources.mod_message_text
+import chatone.composeapp.generated.resources.mod_message_to_pin
+import chatone.composeapp.generated.resources.mod_repeat
+import chatone.composeapp.generated.resources.mod_repeat_duplicate_hint
+import chatone.composeapp.generated.resources.mod_repeat_times
+import chatone.composeapp.generated.resources.mod_save_changes
+import chatone.composeapp.generated.resources.mod_select_action_type
+import chatone.composeapp.generated.resources.mod_slow_mode_seconds
+import chatone.composeapp.generated.resources.mod_step_desc_clear
+import chatone.composeapp.generated.resources.mod_step_desc_delay
+import chatone.composeapp.generated.resources.mod_step_desc_emote_disable
+import chatone.composeapp.generated.resources.mod_step_desc_emote_enable
+import chatone.composeapp.generated.resources.mod_step_desc_follow_disable
+import chatone.composeapp.generated.resources.mod_step_desc_follow_enable
+import chatone.composeapp.generated.resources.mod_step_desc_insert
+import chatone.composeapp.generated.resources.mod_step_desc_insert_multi
+import chatone.composeapp.generated.resources.mod_step_desc_pin
+import chatone.composeapp.generated.resources.mod_step_desc_r9k_disable
+import chatone.composeapp.generated.resources.mod_step_desc_r9k_enable
+import chatone.composeapp.generated.resources.mod_step_desc_raid
+import chatone.composeapp.generated.resources.mod_step_desc_send
+import chatone.composeapp.generated.resources.mod_step_desc_send_multi
+import chatone.composeapp.generated.resources.mod_step_desc_slow_disable
+import chatone.composeapp.generated.resources.mod_step_desc_slow_enable
+import chatone.composeapp.generated.resources.mod_step_desc_sub_disable
+import chatone.composeapp.generated.resources.mod_step_desc_sub_enable
+import chatone.composeapp.generated.resources.mod_step_type_clear
+import chatone.composeapp.generated.resources.mod_step_type_delay
+import chatone.composeapp.generated.resources.mod_step_type_emote
+import chatone.composeapp.generated.resources.mod_step_type_followers
+import chatone.composeapp.generated.resources.mod_step_type_insert
+import chatone.composeapp.generated.resources.mod_step_type_pin
+import chatone.composeapp.generated.resources.mod_step_type_r9k
+import chatone.composeapp.generated.resources.mod_step_type_raid
+import chatone.composeapp.generated.resources.mod_step_type_send
+import chatone.composeapp.generated.resources.mod_step_type_slow
+import chatone.composeapp.generated.resources.mod_step_type_sub
+import chatone.composeapp.generated.resources.mod_text_to_insert
+import chatone.composeapp.generated.resources.mod_wait_seconds
+import chatone.composeapp.generated.resources.unit_minutes_label
+import chatone.composeapp.generated.resources.unit_seconds_label
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,8 +98,6 @@ import io.rudione.chatone.presentation.components.ChatoneListItem
 import io.rudione.chatone.presentation.components.ChatoneNumberField
 import io.rudione.chatone.presentation.components.ChatoneSegmentedControl
 import io.rudione.chatone.presentation.components.ChatoneTextField
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 private val SLOW_MODE_SECONDS_RANGE = 3..120
 private val FOLLOWER_MINUTES_RANGE = 0..129_600
@@ -84,18 +134,19 @@ internal enum class MacroStepKind(val icon: ImageVector) {
     }
 }
 
-internal fun MacroStepKind.label(s: AppStrings): String = when (this) {
-    MacroStepKind.SEND -> s.modStepTypeSend
-    MacroStepKind.INSERT -> s.modStepTypeInsert
-    MacroStepKind.SUB -> s.modStepTypeSub
-    MacroStepKind.EMOTE -> s.modStepTypeEmote
-    MacroStepKind.SLOW -> s.modStepTypeSlow
-    MacroStepKind.FOLLOWERS -> s.modStepTypeFollowers
-    MacroStepKind.R9K -> s.modStepTypeR9k
-    MacroStepKind.RAID -> s.modStepTypeRaid
-    MacroStepKind.PIN -> s.modStepTypePin
-    MacroStepKind.DELAY -> s.modStepTypeDelay
-    MacroStepKind.CLEAR -> s.modStepTypeClear
+@Composable
+internal fun MacroStepKind.label(): String = when (this) {
+    MacroStepKind.SEND -> stringResource(Res.string.mod_step_type_send)
+    MacroStepKind.INSERT -> stringResource(Res.string.mod_step_type_insert)
+    MacroStepKind.SUB -> stringResource(Res.string.mod_step_type_sub)
+    MacroStepKind.EMOTE -> stringResource(Res.string.mod_step_type_emote)
+    MacroStepKind.SLOW -> stringResource(Res.string.mod_step_type_slow)
+    MacroStepKind.FOLLOWERS -> stringResource(Res.string.mod_step_type_followers)
+    MacroStepKind.R9K -> stringResource(Res.string.mod_step_type_r9k)
+    MacroStepKind.RAID -> stringResource(Res.string.mod_step_type_raid)
+    MacroStepKind.PIN -> stringResource(Res.string.mod_step_type_pin)
+    MacroStepKind.DELAY -> stringResource(Res.string.mod_step_type_delay)
+    MacroStepKind.CLEAR -> stringResource(Res.string.mod_step_type_clear)
 }
 
 internal data class MacroStepForm(
@@ -142,34 +193,35 @@ internal data class MacroStepForm(
     }
 }
 
-internal fun macroStepDescription(step: MacroStep, s: AppStrings): String = when (step) {
+@Composable
+internal fun macroStepDescription(step: MacroStep): String = when (step) {
     is MacroStep.SendMessage -> if (step.repeatCount > 1) {
-        s.modStepDescSendMulti.replace("{0}", step.repeatCount.toString()).replace("{1}", step.text)
+        stringResource(Res.string.mod_step_desc_send_multi, step.repeatCount, (step.text))
     } else {
-        s.modStepDescSend.replace("{0}", step.text)
+        stringResource(Res.string.mod_step_desc_send, (step.text))
     }
     is MacroStep.InsertText -> if (step.repeatCount > 1) {
-        s.modStepDescInsertMulti.replace("{0}", step.repeatCount.toString()).replace("{1}", step.text)
+        stringResource(Res.string.mod_step_desc_insert_multi, step.repeatCount, (step.text))
     } else {
-        s.modStepDescInsert.replace("{0}", step.text)
+        stringResource(Res.string.mod_step_desc_insert, (step.text))
     }
-    is MacroStep.SubMode -> if (step.enable) s.modStepDescSubEnable else s.modStepDescSubDisable
-    is MacroStep.EmoteMode -> if (step.enable) s.modStepDescEmoteEnable else s.modStepDescEmoteDisable
+    is MacroStep.SubMode -> if (step.enable) stringResource(Res.string.mod_step_desc_sub_enable) else stringResource(Res.string.mod_step_desc_sub_disable)
+    is MacroStep.EmoteMode -> if (step.enable) stringResource(Res.string.mod_step_desc_emote_enable) else stringResource(Res.string.mod_step_desc_emote_disable)
     is MacroStep.SlowMode -> if (step.enable) {
-        s.modStepDescSlowEnable.replace("{0}", step.seconds.toString())
+        stringResource(Res.string.mod_step_desc_slow_enable, step.seconds)
     } else {
-        s.modStepDescSlowDisable
+        stringResource(Res.string.mod_step_desc_slow_disable)
     }
     is MacroStep.FollowerMode -> if (step.enable) {
-        s.modStepDescFollowEnable.replace("{0}", step.minutes.toString())
+        stringResource(Res.string.mod_step_desc_follow_enable, step.minutes)
     } else {
-        s.modStepDescFollowDisable
+        stringResource(Res.string.mod_step_desc_follow_disable)
     }
-    is MacroStep.R9KMode -> if (step.enable) s.modStepDescR9kEnable else s.modStepDescR9kDisable
-    is MacroStep.StartRaid -> s.modStepDescRaid.replace("{0}", step.targetLogin)
-    is MacroStep.PinMessage -> s.modStepDescPin.replace("{0}", step.message)
-    is MacroStep.Delay -> s.modStepDescDelay.replace("{0}", (step.seconds * step.repeatCount.coerceAtLeast(1)).toString())
-    is MacroStep.ClearChat -> s.modStepDescClear
+    is MacroStep.R9KMode -> if (step.enable) stringResource(Res.string.mod_step_desc_r9k_enable) else stringResource(Res.string.mod_step_desc_r9k_disable)
+    is MacroStep.StartRaid -> stringResource(Res.string.mod_step_desc_raid, (step.targetLogin))
+    is MacroStep.PinMessage -> stringResource(Res.string.mod_step_desc_pin, (step.message))
+    is MacroStep.Delay -> stringResource(Res.string.mod_step_desc_delay, (step.seconds * step.repeatCount.coerceAtLeast(1)))
+    is MacroStep.ClearChat -> stringResource(Res.string.mod_step_desc_clear)
 }
 
 @Composable
@@ -193,19 +245,18 @@ internal fun MacroStepDialog(
     onConfirm: (MacroStep) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     var kind by remember { mutableStateOf(initialStep?.let(MacroStepKind::of)) }
     var form by remember { mutableStateOf(MacroStepForm.from(initialStep)) }
     val draft = kind?.let(form::toStep)
 
     ChatoneDialog(
         onDismissRequest = onDismiss,
-        title = if (initialStep == null) s.modAddStep else s.modEditStep,
+        title = if (initialStep == null) stringResource(Res.string.mod_add_step) else stringResource(Res.string.mod_edit_step),
         maxWidth = 520.dp,
         actions = {
-            ChatoneButton(text = s.cancel, onClick = onDismiss, tone = ChatoneButtonTone.Neutral)
+            ChatoneButton(text = stringResource(Res.string.cancel), onClick = onDismiss, tone = ChatoneButtonTone.Neutral)
             ChatoneButton(
-                text = if (initialStep == null) s.modAddStep else s.modSaveChanges,
+                text = if (initialStep == null) stringResource(Res.string.mod_add_step) else stringResource(Res.string.mod_save_changes),
                 onClick = { draft?.let(onConfirm) },
                 enabled = draft != null
             )
@@ -217,7 +268,7 @@ internal fun MacroStepDialog(
         ) {
             MacroStepKind.entries.forEach { option ->
                 ChatoneChip(
-                    label = option.label(s),
+                    label = option.label(),
                     onClick = { kind = option },
                     selected = kind == option,
                     leadingIcon = option.icon,
@@ -229,7 +280,7 @@ internal fun MacroStepDialog(
         val selectedKind = kind
         if (selectedKind == null) {
             Text(
-                s.modSelectActionType,
+                stringResource(Res.string.mod_select_action_type),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -240,7 +291,7 @@ internal fun MacroStepDialog(
         if (draft != null) {
             ChatoneListItem(leading = { MacroStepBadge(MacroStepKind.of(draft)) }) {
                 Text(
-                    macroStepDescription(draft, s),
+                    macroStepDescription(draft),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 3,
@@ -257,21 +308,20 @@ private fun MacroStepFields(
     form: MacroStepForm,
     onFormChange: (MacroStepForm) -> Unit
 ) {
-    val s = LocalStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (kind) {
             MacroStepKind.SEND, MacroStepKind.INSERT -> {
                 ChatoneTextField(
                     value = form.text,
                     onValueChange = { onFormChange(form.copy(text = it)) },
-                    label = if (kind == MacroStepKind.SEND) s.modMessageText else s.modTextToInsert,
+                    label = if (kind == MacroStepKind.SEND) stringResource(Res.string.mod_message_text) else stringResource(Res.string.mod_text_to_insert),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 RepeatField(form = form, onFormChange = onFormChange)
                 if (kind == MacroStepKind.SEND && form.repeatCount > 1) {
                     Text(
-                        s.modRepeatDuplicateHint,
+                        stringResource(Res.string.mod_repeat_duplicate_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -287,9 +337,9 @@ private fun MacroStepFields(
                     ChatoneNumberField(
                         value = form.slowSeconds,
                         onValueChange = { onFormChange(form.copy(slowSeconds = it)) },
-                        label = s.modSlowModeSeconds,
+                        label = stringResource(Res.string.mod_slow_mode_seconds),
                         range = SLOW_MODE_SECONDS_RANGE,
-                        suffix = s.unitSecondsLabel,
+                        suffix = stringResource(Res.string.unit_seconds_label),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -301,9 +351,9 @@ private fun MacroStepFields(
                     ChatoneNumberField(
                         value = form.followerMinutes,
                         onValueChange = { onFormChange(form.copy(followerMinutes = it)) },
-                        label = s.modDurationMinutes,
+                        label = stringResource(Res.string.mod_duration_minutes),
                         range = FOLLOWER_MINUTES_RANGE,
-                        suffix = s.unitMinutesLabel,
+                        suffix = stringResource(Res.string.unit_minutes_label),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -312,7 +362,7 @@ private fun MacroStepFields(
             MacroStepKind.RAID -> ChatoneTextField(
                 value = form.raidTarget,
                 onValueChange = { onFormChange(form.copy(raidTarget = it)) },
-                label = s.modChannelToRaid,
+                label = stringResource(Res.string.mod_channel_to_raid),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -320,7 +370,7 @@ private fun MacroStepFields(
             MacroStepKind.PIN -> ChatoneTextField(
                 value = form.pinMessage,
                 onValueChange = { onFormChange(form.copy(pinMessage = it)) },
-                label = s.modMessageToPin,
+                label = stringResource(Res.string.mod_message_to_pin),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -329,16 +379,16 @@ private fun MacroStepFields(
                 ChatoneNumberField(
                     value = form.delaySeconds,
                     onValueChange = { onFormChange(form.copy(delaySeconds = it)) },
-                    label = s.modWaitSeconds,
+                    label = stringResource(Res.string.mod_wait_seconds),
                     range = DELAY_SECONDS_RANGE,
-                    suffix = s.unitSecondsLabel,
+                    suffix = stringResource(Res.string.unit_seconds_label),
                     modifier = Modifier.fillMaxWidth()
                 )
                 RepeatField(form = form, onFormChange = onFormChange)
             }
 
             MacroStepKind.CLEAR -> Text(
-                s.modClearWarning,
+                stringResource(Res.string.mod_clear_warning),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )
@@ -348,11 +398,10 @@ private fun MacroStepFields(
 
 @Composable
 private fun ToggleField(form: MacroStepForm, onFormChange: (MacroStepForm) -> Unit) {
-    val s = LocalStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        ChatoneFieldLabel(s.modAction)
+        ChatoneFieldLabel(stringResource(Res.string.mod_action))
         ChatoneSegmentedControl(
-            options = listOf(true to s.modEnable, false to s.modDisable),
+            options = listOf(true to stringResource(Res.string.mod_enable), false to stringResource(Res.string.mod_disable)),
             selected = form.enabled,
             onSelect = { onFormChange(form.copy(enabled = it)) }
         )
@@ -361,13 +410,12 @@ private fun ToggleField(form: MacroStepForm, onFormChange: (MacroStepForm) -> Un
 
 @Composable
 private fun RepeatField(form: MacroStepForm, onFormChange: (MacroStepForm) -> Unit) {
-    val s = LocalStrings.current
     ChatoneNumberField(
         value = form.repeatCount,
         onValueChange = { onFormChange(form.copy(repeatCount = it)) },
-        label = s.modRepeat,
+        label = stringResource(Res.string.mod_repeat),
         range = REPEAT_RANGE,
-        suffix = s.modRepeatTimes,
+        suffix = stringResource(Res.string.mod_repeat_times),
         modifier = Modifier.width(180.dp)
     )
 }

@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings
 
+import io.rudione.chatone.presentation.theme.i18n.applyAppLocale
 import androidx.lifecycle.viewModelScope
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
@@ -24,6 +25,7 @@ import io.rudione.chatone.presentation.theme.CustomThemeConfig
 import io.rudione.chatone.presentation.settings.theme_settings.ThemeCreatorSection
 import io.rudione.chatone.presentation.theme.DEFAULT_ACCENT_INDEX
 import io.rudione.chatone.presentation.theme.ExpressivePalettes
+import io.rudione.chatone.presentation.theme.TWITCH_PALETTE_INDEX
 import io.rudione.chatone.presentation.theme.WallpaperDisplayConfig
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.util.system.AppDataCleaner
@@ -367,6 +369,7 @@ class SettingsViewModel(
         private const val KEY_DISABLE_SCROLL_ON_ALT = "disable_scroll_on_alt"
         private const val KEY_LINK_OPEN_MODE = "link_open_mode"
         private const val KEY_ACCENT_COLOR_INDEX = "accent_color_index"
+        private const val TWITCH_PALETTE_SCHEMA_BEFORE = 4
         private const val KEY_ACCENT_PALETTE_SCHEMA = "accent_palette_schema"
         private const val KEY_TITLE_BAR_MODE = "title_bar_mode"
         private const val KEY_SHOW_BLOCKED_MODE = "show_blocked_mode"
@@ -402,7 +405,7 @@ class SettingsViewModel(
         private val _macrosLive = MutableStateFlow<List<Macro>?>(null)
         val macrosLive: StateFlow<List<Macro>?> = _macrosLive.asStateFlow()
 
-        fun currentLanguage(): String = settings.getString(KEY_LANGUAGE, "en")
+        fun currentLanguage(): String = settings.getString(KEY_LANGUAGE, "en").also(::applyAppLocale)
 
         fun isTrustedUploaderHost(host: String): Boolean =
             settings.getStringOrNull(KEY_IMAGE_UPLOADER_TRUSTED_HOST).equals(host, ignoreCase = true)
@@ -436,8 +439,13 @@ class SettingsViewModel(
         private fun migrateAccentPalette() {
             val stored = settings.getInt(KEY_ACCENT_PALETTE_SCHEMA, 0)
             if (stored >= ACCENT_PALETTE_SCHEMA_VERSION) return
-            settings.putInt(KEY_ACCENT_COLOR_INDEX, DEFAULT_ACCENT_INDEX)
-            settings.putString(KEY_ACTIVE_THEME_ID, "")
+            if (stored == TWITCH_PALETTE_SCHEMA_BEFORE) {
+                val index = settings.getInt(KEY_ACCENT_COLOR_INDEX, DEFAULT_ACCENT_INDEX)
+                if (index >= TWITCH_PALETTE_INDEX) settings.putInt(KEY_ACCENT_COLOR_INDEX, index + 1)
+            } else {
+                settings.putInt(KEY_ACCENT_COLOR_INDEX, DEFAULT_ACCENT_INDEX)
+                settings.putString(KEY_ACTIVE_THEME_ID, "")
+            }
             settings.putInt(KEY_ACCENT_PALETTE_SCHEMA, ACCENT_PALETTE_SCHEMA_VERSION)
         }
 
@@ -746,7 +754,13 @@ class SettingsViewModel(
             }
 
             is SettingsEvent.OnActiveCustomThemeIdChanged -> {
-                update { it.copy(activeCustomThemeId = event.themeId) }
+                settings.putString(KEY_ACTIVE_THEME_ID, event.themeId.orEmpty())
+                update { s ->
+                    s.copy(
+                        activeCustomThemeId = event.themeId,
+                        activeCustomTheme = event.themeId?.let { id -> s.customThemes.find { it.id == id } }
+                    )
+                }
             }
 
             is SettingsEvent.OnCustomThemesJsonChanged -> {
@@ -924,6 +938,7 @@ class SettingsViewModel(
 
             is SettingsEvent.OnLanguageChanged -> {
                 settings.putString(KEY_LANGUAGE, event.code)
+                applyAppLocale(event.code)
                 update { it.copy(language = event.code) }
             }
 

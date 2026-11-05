@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.text.asString
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.event_label_pinned
+import chatone.composeapp.generated.resources.event_label_poll
+import chatone.composeapp.generated.resources.event_label_prediction
+import chatone.composeapp.generated.resources.event_label_raid
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.points.rememberWatchStreak
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +28,6 @@ import io.rudione.chatone.presentation.chat.components.PinnedMessageBar
 import io.rudione.chatone.presentation.chat.components.RaidBanner
 import io.rudione.chatone.presentation.components.DockHost
 import io.rudione.chatone.presentation.components.insetBottom
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Instant
 
 @Composable
@@ -33,7 +40,6 @@ internal fun BoxScope.ChatEventOverlaysSection(
     bottomInsetPx: () -> Int
 ) {
     var predictionResolveDetached by remember { mutableStateOf(false) }
-    val strings = LocalStrings.current
     fun isoToMs(iso: String?): Long? =
         iso?.let { runCatching { Instant.parse(it).toEpochMilliseconds() }.getOrNull() }
     val pollHidden = state.livePoll?.id in state.hiddenEventIds
@@ -44,7 +50,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
             add(
                 io.rudione.chatone.presentation.chat.components.EventBannerItem(
                     key = "pin",
-                    label = strings.eventLabelPinned,
+                    label = stringResource(Res.string.event_label_pinned),
                     endsAtMs = state.pinEndsAtMs,
                     totalDurationMs = null
                 ) {
@@ -64,7 +70,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
             add(
                 io.rudione.chatone.presentation.chat.components.EventBannerItem(
                     key = "poll",
-                    label = strings.eventLabelPoll,
+                    label = stringResource(Res.string.event_label_poll),
                     endsAtMs = ends?.takeIf { poll.status == "ACTIVE" },
                     totalDurationMs = poll.duration * 1000L
                 ) {
@@ -83,7 +89,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
             add(
                 io.rudione.chatone.presentation.chat.components.EventBannerItem(
                     key = "prediction",
-                    label = strings.eventLabelPrediction,
+                    label = stringResource(Res.string.event_label_prediction),
                     endsAtMs = ends?.takeIf { pred.status == "ACTIVE" },
                     totalDurationMs = pred.predictionWindow * 1000L
                 ) {
@@ -102,7 +108,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
             add(
                 io.rudione.chatone.presentation.chat.components.EventBannerItem(
                     key = "raid",
-                    label = strings.eventLabelRaid,
+                    label = stringResource(Res.string.event_label_raid),
                     endsAtMs = state.pendingRaidStartedAt + 90_000L,
                     totalDurationMs = 90_000L
                 ) {
@@ -223,6 +229,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
     }
 
     if (state.showPointsBitsPanel && dockHost == null) {
+        ChatSpillRequest(key = "points")
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -235,11 +242,12 @@ internal fun BoxScope.ChatEventOverlaysSection(
                 bitsCount = 0L,
                 rewards = state.channelRewards,
                 isLoading = state.pointsBitsLoading,
-                error = state.pointsBitsError,
+                error = state.pointsBitsError?.asString(),
                 onRedeem = { reward, text ->
                     viewModel.sendEvent(ChatEvent.OnRedeemReward(reward, text))
                 },
-                onClose = { viewModel.sendEvent(ChatEvent.OnClosePointsBitsPanel) }
+                onClose = { viewModel.sendEvent(ChatEvent.OnClosePointsBitsPanel) },
+                streak = rememberWatchStreak(state.channelLogin).value
             )
         }
     }

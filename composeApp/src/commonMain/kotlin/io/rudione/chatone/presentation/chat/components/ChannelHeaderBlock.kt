@@ -1,5 +1,16 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_offline
+import chatone.composeapp.generated.resources.screen_chat_menu_copy_link
+import chatone.composeapp.generated.resources.screen_chat_menu_popout_chat
+import chatone.composeapp.generated.resources.stream_open_in_browser
+import chatone.composeapp.generated.resources.stream_player_quality
+import chatone.composeapp.generated.resources.stream_tooltip_hint
+import chatone.composeapp.generated.resources.unit_hour_short
+import chatone.composeapp.generated.resources.unit_minute_short
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.profile.PageNavigator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -44,7 +55,6 @@ import io.rudione.chatone.presentation.stream.streamLatencyText
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.channelmenu.ChannelMenuItem
@@ -90,7 +100,6 @@ internal fun ChannelHeaderBlock(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val isLive = liveStream != null
-    val s = LocalStrings.current
     val phoneStyle = remember { currentFormFactor() == DeviceFormFactor.PHONE }
     val playerHost = LocalStreamPlayerHost.current
     val streamLauncher = rememberStreamLauncher()
@@ -98,19 +107,24 @@ internal fun ChannelHeaderBlock(
     val shownLive = isLive || streamHint?.playerShowsLive == true
     val watching = streamHint?.watched == true
 
+    val profiles: PageNavigator = koinInject()
+    val opensProfile = phoneStyle && profiles.isSupported
     val headerCore: @Composable () -> Unit = {
         val headerModifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .onSecondaryClick { showStreamMenu = true }
-            .clickable(enabled = isLive && !watching, interactionSource = null, indication = null) {
-                if (playerHost != null) playerHost.onEvent(StreamPlayerEvent.Open(channelLogin))
-                else uriHandler.openUri("https://twitch.tv/$channelLogin")
+            .clickable(enabled = opensProfile || (isLive && !watching), interactionSource = null, indication = null) {
+                when {
+                    opensProfile -> profiles.openChannel(channelLogin)
+                    playerHost != null -> playerHost.onEvent(StreamPlayerEvent.Open(channelLogin))
+                    else -> uriHandler.openUri("https://twitch.tv/$channelLogin")
+                }
             }
             .padding(horizontal = 4.dp, vertical = 1.dp)
         if (phoneStyle) {
             val secondary = streamHint?.latencySeconds?.let { streamLatencyText(it, compactLatency) }
                 ?: liveStream?.startedAt?.takeIf { it.isNotEmpty() }
-                    ?.let { formatStreamUptime(it, s.unitHourShort, s.unitMinuteShort) }
+                    ?.let { formatStreamUptime(it, stringResource(Res.string.unit_hour_short), stringResource(Res.string.unit_minute_short)) }
                     ?.takeIf { it.isNotEmpty() }
             PhoneChannelHeader(
                 title = "#${channelDisplayName.ifBlank { channelLogin }}",
@@ -141,7 +155,7 @@ internal fun ChannelHeaderBlock(
                     StreamInfoContent(
                         liveStream = liveStream,
                         showPreview = !hideThumbs,
-                        footer = s.streamTooltipHint,
+                        footer = stringResource(Res.string.stream_tooltip_hint),
                         modifier = Modifier.width(280.dp)
                     )
                 }
@@ -158,20 +172,20 @@ internal fun ChannelHeaderBlock(
             model = channelMenu
         ) { close ->
             val login = channelLogin.lowercase()
-            ChannelMenuItem(s.streamOpenInBrowser, Lucide.Globe) {
+            ChannelMenuItem(stringResource(Res.string.stream_open_in_browser), Lucide.Globe) {
                 close()
                 uriHandler.openUri("https://www.twitch.tv/$login")
             }
-            ChannelMenuItem(s.screenChat.menuPopoutChat, Lucide.MessagesSquare) {
+            ChannelMenuItem(stringResource(Res.string.screen_chat_menu_popout_chat), Lucide.MessagesSquare) {
                 close()
                 uriHandler.openUri("https://www.twitch.tv/popout/$login/chat?popout=")
             }
-            ChannelMenuItem(s.screenChat.menuCopyLink, Lucide.Link) {
+            ChannelMenuItem(stringResource(Res.string.screen_chat_menu_copy_link), Lucide.Link) {
                 close()
                 scope.launch { clipboard.setText("https://www.twitch.tv/$login") }
             }
             StreamOpenQuality.entries.forEach { quality ->
-                ChannelMenuItem(s.streamPlayerQuality.replace("{0}", quality.label), Lucide.Play) {
+                ChannelMenuItem(stringResource(Res.string.stream_player_quality, (quality.label)), Lucide.Play) {
                     close()
                     streamLauncher.open(channelLogin, quality)
                 }
@@ -240,7 +254,6 @@ private fun DesktopChannelHeader(
     isConnected: Boolean,
     modifier: Modifier
 ) {
-    val s = LocalStrings.current
     val isLive = liveStream != null
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -270,7 +283,7 @@ private fun DesktopChannelHeader(
             )
             Spacer(Modifier.width(2.dp))
             Text(
-                if (isLive) "LIVE" else s.chatOffline,
+                if (isLive) "LIVE" else stringResource(Res.string.chat_offline),
                 fontSize = 8.sp,
                 lineHeight = 10.sp,
                 fontWeight = if (isLive) FontWeight.Bold else FontWeight.Normal,
@@ -280,7 +293,7 @@ private fun DesktopChannelHeader(
             if (liveStream != null && liveStream.startedAt.isNotEmpty()) {
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    formatStreamUptime(liveStream.startedAt, s.unitHourShort, s.unitMinuteShort),
+                    formatStreamUptime(liveStream.startedAt, stringResource(Res.string.unit_hour_short), stringResource(Res.string.unit_minute_short)),
                     fontSize = 8.sp,
                     lineHeight = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)

@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.multi_chat_close_panel
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.ChatPanel
 import io.rudione.chatone.domain.model.PanelLayoutMode
 import io.rudione.chatone.domain.model.layoutMode
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
@@ -43,7 +45,6 @@ fun MultiChatHost(
     val panels by panelManager.panels.collectAsState()
     val mode = panels.layoutMode()
     val isCompact = mode == PanelLayoutMode.COMPACT
-    val strings = LocalStrings.current
 
     if (panels.isEmpty()) {
         Box(modifier = modifier)
@@ -66,7 +67,7 @@ fun MultiChatHost(
                         title = panel.channelLogin,
                         onClose = { panelManager.closePanel(panel.panelId) },
                         compact = isCompact,
-                        closeLabel = strings.multiChatClosePanel
+                        closeLabel = stringResource(Res.string.multi_chat_close_panel)
                     )
                     Spacer(Modifier.height(2.dp))
                 }

@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.os.Handler
 import android.os.SystemClock
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.Timeline
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.util.UnstableApi
@@ -19,8 +20,11 @@ import androidx.media3.exoplayer.trackselection.ExoTrackSelection
 import androidx.media3.exoplayer.trackselection.TrackSelectionUtil
 import androidx.media3.exoplayer.upstream.BandwidthMeter
 import io.rudione.chatone.domain.stream.AdaptiveQualityPolicy
+import io.rudione.chatone.domain.stream.StreamQualityResolver
+import io.rudione.chatone.domain.stream.StreamVariant
 import io.rudione.chatone.domain.stream.TransferSample
 import io.rudione.chatone.domain.stream.TransferSampler
+import io.rudione.chatone.domain.stream.VariantTrack
 
 internal class NetworkCapacityMemory {
     @Volatile
@@ -37,6 +41,9 @@ internal class AutoQualityController(
 
     @Volatile
     private var loadingBitrate = 0L
+
+    @Volatile
+    private var pinned: StreamVariant? = null
 
     val capacityBps: Long get() = synchronized(lock) { policy.capacityBps }
 
@@ -57,8 +64,13 @@ internal class AutoQualityController(
         synchronized(lock) { policy.onRebuffer(loadingBitrate, now()) }
     }
 
-    fun select(bitrates: IntArray, current: Int, isAllowed: (Int) -> Boolean): Int {
-        val selected = synchronized(lock) { policy.select(bitrates, current, isAllowed, now()) }
+    fun pin(variant: StreamVariant?) {
+        pinned = variant
+    }
+
+    fun select(tracks: List<VariantTrack>, bitrates: IntArray, current: Int, bufferedUs: Long, isAllowed: (Int) -> Boolean): Int {
+        val pinnedIndex = pinned?.let { StreamQualityResolver.trackFor(it, tracks) }?.takeIf(isAllowed)
+        val selected = pinnedIndex ?: synchronized(lock) { policy.select(bitrates, current, bufferedUs, isAllowed, now()) }
         loadingBitrate = bitrates.getOrNull(selected)?.toLong() ?: 0L
         return selected
     }
@@ -77,7 +89,7 @@ internal class AutoQualityController(
     private companion object {
         const val DEFAULT_HINT_BPS = 5_000_000L
         const val MIN_HINT_BPS = 1_500_000L
-        const val MAX_HINT_BPS = 12_000_000L
+        const val MAX_HINT_BPS = 6_000_000L
         const val LINK_SHARE = 0.25
     }
 }
@@ -142,8 +154,9 @@ private class AutoQualityTrackSelection(
     private val quality: AutoQualityController
 ) : BaseTrackSelection(group, tracks, type) {
 
+    private val variantTracks = List(length) { getFormat(it).toVariantTrack() }
     private val bitrates = IntArray(length) { getFormat(it).bitrate.coerceAtLeast(0) }
-    private var selected = quality.select(bitrates, C.INDEX_UNSET) { true }
+    private var selected = quality.select(variantTracks, bitrates, C.INDEX_UNSET, 0L) { true }
     private var reason = C.SELECTION_REASON_INITIAL
 
     override fun getSelectedIndex(): Int = selected
@@ -160,7 +173,7 @@ private class AutoQualityTrackSelection(
         mediaChunkIterators: Array<out MediaChunkIterator>
     ) {
         val nowMs = SystemClock.elapsedRealtime()
-        val next = quality.select(bitrates, selected) { !isTrackExcluded(it, nowMs) }
+        val next = quality.select(variantTracks, bitrates, selected, bufferedDurationUs) { !isTrackExcluded(it, nowMs) }
         if (next != selected) {
             selected = next
             reason = C.SELECTION_REASON_ADAPTIVE
@@ -171,3 +184,6 @@ private class AutoQualityTrackSelection(
         quality.onRebuffer()
     }
 }
+
+private fun Format.toVariantTrack(): VariantTrack =
+    VariantTrack(height = height, frameRate = frameRate, bitrate = bitrate.toLong())

@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.ai
 
+import chatone.composeapp.generated.resources.ai_default_chat_title
+import chatone.composeapp.generated.resources.ai_persona_language
+import chatone.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
+import androidx.compose.runtime.Immutable
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -20,8 +25,6 @@ import io.rudione.chatone.data.repository.AiChatLine
 import io.rudione.chatone.data.repository.AiChatSnapshot
 import io.rudione.chatone.data.repository.AiPersistMessage
 import io.rudione.chatone.data.repository.AiThread
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -32,7 +35,7 @@ class AiAssistantSession internal constructor(
     private val controller: AiAssistantController,
     private val client: AiAssistantClient,
     private val scope: CoroutineScope,
-    private val strings: () -> AppStrings
+    private val texts: () -> AiSessionTexts
 ) {
     var threads by mutableStateOf(controller.loadThreads())
         private set
@@ -123,7 +126,8 @@ class AiAssistantSession internal constructor(
         val history = messages.subList(0, assistantIndex).toList()
         val contextBlock = if (attachChat) snapshotBlock(controller.snapshot.value, false) else ""
         complete(contextBlock, history) { reply ->
-            val updated = (variants[assistantIndex] ?: listOf(messages[assistantIndex].content)) + reply
+            val updated =
+                (variants[assistantIndex] ?: listOf(messages[assistantIndex].content)) + reply
             variants[assistantIndex] = updated
             variantIndices[assistantIndex] = updated.lastIndex
             replaceContent(assistantIndex, reply)
@@ -149,19 +153,34 @@ class AiAssistantSession internal constructor(
         retryRequest = null
     }
 
-    private fun complete(contextBlock: String, history: List<AiChatMessage>, onReply: (String) -> Unit) {
+    private fun complete(
+        contextBlock: String,
+        history: List<AiChatMessage>,
+        onReply: (String) -> Unit
+    ) {
         sending = true
-        val text = strings()
+        val text = texts()
         val config = controller.config.value
         val channel = controller.snapshot.value.activeChannel
         scope.launch {
             val payload = buildList {
-                add(AiChatMessage(AiChatMessage.SYSTEM, systemPersona(text.aiPersonaLanguage)))
-                if (contextBlock.isNotEmpty()) add(AiChatMessage(AiChatMessage.SYSTEM, contextBlock))
+                add(AiChatMessage(AiChatMessage.SYSTEM, systemPersona(text.personaLanguage)))
+                if (contextBlock.isNotEmpty()) add(
+                    AiChatMessage(
+                        AiChatMessage.SYSTEM,
+                        contextBlock
+                    )
+                )
                 addAll(history)
             }
             try {
-                when (val result = client.complete(config.baseUrl, config.model, payload, config.temperature, config.apiKey)) {
+                when (val result = client.complete(
+                    config.baseUrl,
+                    config.model,
+                    payload,
+                    config.temperature,
+                    config.apiKey
+                )) {
                     is Result.Success -> {
                         onReply(result.data)
                         applyHighlight(result.data, channel)
@@ -193,7 +212,7 @@ class AiAssistantSession internal constructor(
 
     private fun persistCurrent() {
         if (messages.isEmpty()) return
-        val fallbackTitle = strings().aiDefaultChatTitle
+        val fallbackTitle = texts().defaultChatTitle
         val title = messages.firstOrNull { it.role == AiChatMessage.USER }?.content?.take(40)
             ?.ifBlank { fallbackTitle } ?: fallbackTitle
         val thread = AiThread(
@@ -220,11 +239,19 @@ fun rememberAiAssistantSession(
     client: AiAssistantClient
 ): AiAssistantSession {
     val scope = rememberCoroutineScope()
-    val strings by rememberUpdatedState(LocalStrings.current)
+    val texts by rememberUpdatedState(
+        AiSessionTexts(
+            personaLanguage = stringResource(Res.string.ai_persona_language),
+            defaultChatTitle = stringResource(Res.string.ai_default_chat_title)
+        )
+    )
     return remember(controller, client, scope) {
-        AiAssistantSession(controller, client, scope) { strings }
+        AiAssistantSession(controller, client, scope) { texts }
     }
 }
+
+@Immutable
+class AiSessionTexts(val personaLanguage: String, val defaultChatTitle: String)
 
 internal fun systemPersona(languageRule: String): String = """
 You are the Chatone AI Assistant, a helpful assistant built into the Chatone Twitch client.
@@ -282,7 +309,10 @@ internal fun parseRequestedCount(prompt: String): Int? = explicitCountPatterns
 
 private val focusUserPatterns = listOf(
     Regex("""@([A-Za-z0-9_]{2,25})"""),
-    Regex("""(?:от|у)\s+(?:юзера|пользователя|чаттера)?\s*([A-Za-z0-9_]{2,25})""", RegexOption.IGNORE_CASE),
+    Regex(
+        """(?:от|у)\s+(?:юзера|пользователя|чаттера)?\s*([A-Za-z0-9_]{2,25})""",
+        RegexOption.IGNORE_CASE
+    ),
     Regex("""(?:юзера|пользователя|чаттера)\s+([A-Za-z0-9_]{2,25})""", RegexOption.IGNORE_CASE),
     Regex("""(?:from|by|of)\s+(?:user\s+)?([A-Za-z0-9_]{2,25})""", RegexOption.IGNORE_CASE),
     Regex("""user\s+([A-Za-z0-9_]{2,25})""", RegexOption.IGNORE_CASE)

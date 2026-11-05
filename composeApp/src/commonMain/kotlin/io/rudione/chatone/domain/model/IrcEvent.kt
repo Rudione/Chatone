@@ -79,15 +79,27 @@ sealed class IrcEvent {
         val color: String? = null,
         val reasonCategory: String? = null,
         val reasonLevel: Int? = null,
-        val flaggedFragments: List<String> = emptyList()
+        val flaggedFragments: List<String> = emptyList(),
+        val badges: List<Badge> = emptyList(),
+        val emotes: List<Emote> = emptyList(),
+        val channelLogin: String = "",
+        val heldAtMs: Long = 0L
     ) : IrcEvent()
 
     data class AutoModResolved(
         val channel: String,
         val msgId: String,
         val resolvedBy: String,
-        val action: String
-    ) : IrcEvent()
+        val action: String,
+        val authorLogin: String? = null,
+        val channelLogin: String = ""
+    ) : IrcEvent() {
+        companion object {
+            const val ALLOWED = "ALLOWED"
+            const val DENIED = "DENIED"
+            const val EXPIRED = "EXPIRED"
+        }
+    }
 
     data class Connected(val channel: String) : IrcEvent()
 
@@ -132,6 +144,8 @@ sealed class IrcEvent {
     ) : IrcEvent()
 
     data class PointsClaimAvailable(val channelId: String, val claimId: String) : IrcEvent()
+
+    data class RewardRedeemed(val redemption: io.rudione.chatone.domain.points.RewardRedemption) : IrcEvent()
 
     data class PollUpdated(
         val channelId: String,

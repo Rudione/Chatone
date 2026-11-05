@@ -1,7 +1,15 @@
 package io.rudione.chatone.presentation.chat
 
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import io.rudione.chatone.presentation.chat.timeline.rememberTimelineSource
+import io.rudione.chatone.presentation.chat.timeline.profileAuthor
+import io.rudione.chatone.presentation.chat.timeline.isBrowsingSeparately
+import io.rudione.chatone.presentation.chat.timeline.RemoteHistoryPager
+import io.rudione.chatone.presentation.chat.timeline.ProfileTimelineFeed
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.profile_note_placeholder
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -24,7 +32,6 @@ import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.presentation.chat.roles.UserRolesTab
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import androidx.compose.foundation.layout.fillMaxSize
 import org.koin.compose.koinInject
 
@@ -55,7 +62,8 @@ internal data class ProfileCardCallbacks(
     val onWhisper: () -> Unit,
     val onOpenChannel: (String) -> Unit,
     val onDetach: (() -> Unit)?,
-    val onDismiss: () -> Unit
+    val onDismiss: () -> Unit,
+    val onEditProfile: (() -> Unit)? = null
 )
 
 @Composable
@@ -75,7 +83,6 @@ internal fun UserProfileDesktopCard(
     onTogglePin: () -> Unit,
     callbacks: ProfileCardCallbacks
 ) {
-    val s = LocalStrings.current
     var selectedTab by remember(data.userId) { mutableStateOf(ProfileCardTab.Messages) }
     val showHistory = canModerate &&
             (profileState.isModerationHistoryLoading || profileState.moderationHistory.totalActions > 0)
@@ -126,7 +133,8 @@ internal fun UserProfileDesktopCard(
                 isPinned = isPinned,
                 onTogglePin = onTogglePin,
                 onDetach = callbacks.onDetach,
-                onDismiss = callbacks.onDismiss
+                onDismiss = callbacks.onDismiss,
+                onEdit = callbacks.onEditProfile
             )
 
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
@@ -164,7 +172,7 @@ internal fun UserProfileDesktopCard(
                             if (updated.isNotBlank()) noteRepository.saveNote(data.userId, updated)
                             else noteRepository.deleteNote(data.userId)
                         },
-                        placeholder = s.profileNotePlaceholder,
+                        placeholder = stringResource(Res.string.profile_note_placeholder),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -223,26 +231,31 @@ internal fun UserProfileDesktopCard(
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.35f))
             ) {
                 when (activeTab) {
-                    ProfileCardTab.Messages -> if (profileState.archive.isActive) {
+                    ProfileCardTab.Messages -> if (profileState.archive.isBrowsingSeparately) {
                         ProfileArchiveFeed(
                             archive = profileState.archive,
                             displayName = data.displayName,
                             nameColor = rememberNickColors().of(data.color, data.username),
                             modifier = Modifier.fillMaxSize()
                         )
-                    } else ProfileMessageFeed(
-                        sessionMessages = sessionMessages,
-                        localHistory = profileState.localHistory,
-                        remoteHistory = profileState.remoteHistory,
-                        displayName = data.displayName,
-                        userColor = data.color,
-                        login = data.username,
-                        isHistoryLoading = profileState.isHistoryLoading,
-                        hasMoreHistory = profileState.hasMoreHistory,
-                        onLoadHistory = { profileState.loadMoreHistory() }
-                            .takeIf { profileState.canLoadHistory },
-                        highlightRules = highlightRules,
-                        chatFontSizeSp = feedFontSize,
+                    } else ProfileTimelineFeed(
+                        source = rememberTimelineSource(
+                            session = sessionMessages,
+                            local = profileState.localHistory,
+                            remote = profileState.remoteHistory,
+                            pager = RemoteHistoryPager(
+                                canLoad = profileState.canLoadHistory,
+                                hasMore = profileState.hasMoreHistory,
+                                isLoading = profileState.isHistoryLoading,
+                                loadMore = profileState::loadMoreHistory
+                            ),
+                            archive = profileState.archive
+                        ),
+                        author = remember(sessionMessages, data.userId) {
+                            profileAuthor(sessionMessages, data.userId, data.username, data.displayName, data.color, profileState.channelLogin)
+                        },
+                        nameColor = rememberNickColors().of(data.color, data.username),
+                        fontSizeSp = feedFontSize,
                         modifier = Modifier.fillMaxSize()
                     )
 

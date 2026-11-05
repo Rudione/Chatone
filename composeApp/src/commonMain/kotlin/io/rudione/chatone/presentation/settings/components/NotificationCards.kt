@@ -1,5 +1,16 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.musical_notes_outline
+import chatone.composeapp.generated.resources.settings_browse_sound
+import chatone.composeapp.generated.resources.settings_change_sound
+import chatone.composeapp.generated.resources.settings_custom_sound
+import chatone.composeapp.generated.resources.settings_enable_mention_sound
+import chatone.composeapp.generated.resources.settings_enable_mention_sound_desc
+import chatone.composeapp.generated.resources.settings_mention_sound
+import chatone.composeapp.generated.resources.settings_sound_default
+import chatone.composeapp.generated.resources.settings_sound_supported
+import chatone.composeapp.generated.resources.settings_volume
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -43,30 +54,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.bell_filled
-import chatone.composeapp.generated.resources.bell_outlined
-import chatone.composeapp.generated.resources.chatbubbles
-import chatone.composeapp.generated.resources.chatbubbles_outline
-import chatone.composeapp.generated.resources.icon
-import chatone.composeapp.generated.resources.images
-import chatone.composeapp.generated.resources.images_outline
-import chatone.composeapp.generated.resources.key_outline
-import chatone.composeapp.generated.resources.ic_sword
-import chatone.composeapp.generated.resources.sparkle_filled
-import chatone.composeapp.generated.resources.keyboard_24_filled
-import chatone.composeapp.generated.resources.keyboard_24_regular
-import chatone.composeapp.generated.resources.musical_notes_outline
-import chatone.composeapp.generated.resources.palette_fill_16
-import chatone.composeapp.generated.resources.palette_stroke_12
-import chatone.composeapp.generated.resources.panel_left_key_16_regular
-import chatone.composeapp.generated.resources.person_filled
-import chatone.composeapp.generated.resources.shield_filled
-import chatone.composeapp.generated.resources.shield_outlined
-import chatone.composeapp.generated.resources.star_filled
-import chatone.composeapp.generated.resources.star_outlined
-import chatone.composeapp.generated.resources.unfold_more
-import chatone.composeapp.generated.resources.wallpaper_filled
-import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
@@ -91,9 +78,6 @@ import io.rudione.chatone.util.system.HotkeyAction
 import io.rudione.chatone.util.system.comboFor
 import io.rudione.chatone.util.media.NotificationSoundPlayer
 import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.presentation.theme.i18n.AppLocale
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsEvent
@@ -116,13 +100,12 @@ import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 internal fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
     SettingsSurface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                s.settingsMentionSound,
+                stringResource(Res.string.settings_mention_sound),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -132,9 +115,9 @@ internal fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) 
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(s.settingsEnableMentionSound, style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(Res.string.settings_enable_mention_sound), style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        s.settingsEnableMentionSoundDesc,
+                        stringResource(Res.string.settings_enable_mention_sound_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -150,7 +133,7 @@ internal fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) 
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            s.settingsVolume,
+                            stringResource(Res.string.settings_volume),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -173,14 +156,13 @@ internal fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) 
 
 @Composable
 internal fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
     val scope = rememberCoroutineScope()
     SettingsSurface(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                s.settingsCustomSound,
+                stringResource(Res.string.settings_custom_sound),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
@@ -246,7 +228,7 @@ internal fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
                     )
                 ) {
                     Text(
-                        if (state.customMentionSoundPath.isBlank()) s.settingsBrowseSound else s.settingsChangeSound,
+                        if (state.customMentionSoundPath.isBlank()) stringResource(Res.string.settings_browse_sound) else stringResource(Res.string.settings_change_sound),
                         style = MaterialTheme.typography.labelMedium
                     )
                 }
@@ -265,7 +247,7 @@ internal fun CustomSoundCard(state: SettingsState, vm: SettingsViewModel) {
                 ) { Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(18.dp)) }
             }
             Text(
-                text = if (state.customMentionSoundPath.isBlank()) s.settingsSoundDefault else s.settingsSoundSupported,
+                text = if (state.customMentionSoundPath.isBlank()) stringResource(Res.string.settings_sound_default) else stringResource(Res.string.settings_sound_supported),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )

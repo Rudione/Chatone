@@ -61,9 +61,7 @@ fun ChatoneFieldLabel(
         style = MaterialTheme.typography.labelMedium.copy(
             color = color,
             fontWeight = FontWeight.Medium
-        ),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+        )
     )
 }
 

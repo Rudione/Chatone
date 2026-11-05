@@ -1,7 +1,23 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.ic_bttv
+import chatone.composeapp.generated.resources.ic_ffz
+import chatone.composeapp.generated.resources.ic_gif
+import chatone.composeapp.generated.resources.ic_seventv
+import chatone.composeapp.generated.resources.ic_twitch
+import chatone.composeapp.generated.resources.emote_clear_search
+import chatone.composeapp.generated.resources.emote_no_emoji_found
+import chatone.composeapp.generated.resources.emote_no_favorites
+import chatone.composeapp.generated.resources.emote_no_loaded
+import chatone.composeapp.generated.resources.emote_no_match
+import chatone.composeapp.generated.resources.emote_picker_add_favorite
+import chatone.composeapp.generated.resources.emote_picker_favorites_section
+import chatone.composeapp.generated.resources.emote_picker_remove_favorite
+import chatone.composeapp.generated.resources.emote_search_placeholder
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabRow
+import io.rudione.chatone.presentation.components.expressive.SwipeDismissSheet
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -43,7 +59,6 @@ import io.rudione.chatone.domain.model.ChannelEmotes
 import io.rudione.chatone.domain.model.EmoteProvider
 import io.rudione.chatone.domain.model.GenericEmote
 import io.rudione.chatone.domain.model.lockedTwitchEmoteIds
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -59,11 +74,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.ic_bttv
-import chatone.composeapp.generated.resources.ic_ffz
-import chatone.composeapp.generated.resources.ic_gif
-import chatone.composeapp.generated.resources.ic_seventv
-import chatone.composeapp.generated.resources.ic_twitch
 import io.rudione.chatone.domain.model.GifAccess
 import io.rudione.chatone.domain.model.GifSearchItem
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
@@ -999,118 +1009,91 @@ fun EmotePickerSheet(
         allEmotes.filter { "${it.provider}_${it.id}" in favoriteIds }
     }
 
-    val backdropSource = remember { MutableInteractionSource() }
     var searchQuery by remember { mutableStateOf("") }
 
-    val sheetShape =
-        if (docked) RoundedCornerShape(0.dp)
-        else RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-
-    if (!docked) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.35f))
-                .clickable(indication = null, interactionSource = backdropSource) { onDismiss() }
+    val pickerBody: @Composable () -> Unit = {
+        EmoteTab(
+            channelEmotes = channelEmotes,
+            personalEmotes = personalEmotes,
+            allEmotes = allEmotes,
+            favoriteEmotes = favoriteEmotes,
+            favoriteIds = favoriteIds,
+            favoriteEmojis = favoriteEmojis,
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            onEmoteSelected = onEmoteSelected,
+            onToggleFavorite = { toggleFavorite(it) },
+            onFavoriteAll = { emotes ->
+                val newKeys = emotes.map { "${it.provider}_${it.id}" }.toSet()
+                favoriteIds = favoriteIds + newKeys
+                settings.putString("favorite_emotes", favoriteIds.joinToString(","))
+            },
+            onEmojiSelected = onEmojiSelected,
+            onToggleFavoriteEmoji = { toggleFavoriteEmoji(it) },
+            onGifSelected = onGifSelected,
+            canSendGifs = canSendGifs,
+            gifSendError = gifSendError,
+            gifAccess = gifAccess,
+            onRefreshGifAccess = onRefreshGifAccess
         )
+        Spacer(Modifier.height(8.dp))
     }
 
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (docked) Modifier.fillMaxHeight() else Modifier.wrapContentHeight())
-                .then(
-                    if (docked) Modifier else Modifier.shadow(
-                        24.dp, sheetShape,
-                        ambientColor = Color.Black.copy(alpha = 0.3f),
-                        spotColor = Color.Black.copy(alpha = 0.4f)
-                    )
-                )
-                .clip(sheetShape)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        )
-                    )
-                )
-                .then(
-                    if (docked) Modifier else Modifier.border(
-                        1.dp,
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.18f),
-                                Color.White.copy(alpha = 0.04f)
-                            )
-                        ),
-                        sheetShape
-                    )
-                )
-                .then(
-                    if (closeOnMouseLeave) Modifier.pointerInput(Unit) {
-                        delay(500)
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                when (event.type) {
-                                    PointerEventType.Enter -> {
-                                        dismissJob?.cancel(); dismissJob = null
-                                    }
+    val surfaceBrush = Brush.verticalGradient(
+        listOf(
+            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.97f),
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+    )
 
-                                    PointerEventType.Exit -> {
-                                        dismissJob = scope.launch { delay(250); onDismiss() }
-                                    }
+    if (docked) {
+        Column(modifier = Modifier.fillMaxSize().background(surfaceBrush)) {
+            Spacer(Modifier.height(8.dp))
+            pickerBody()
+        }
+        return
+    }
+
+    val sheetShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    SwipeDismissSheet(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
+        surface = Modifier
+            .shadow(
+                24.dp, sheetShape,
+                ambientColor = Color.Black.copy(alpha = 0.3f),
+                spotColor = Color.Black.copy(alpha = 0.4f)
+            )
+            .clip(sheetShape)
+            .background(surfaceBrush)
+            .border(
+                1.dp,
+                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.04f))),
+                sheetShape
+            )
+            .then(
+                if (closeOnMouseLeave) Modifier.pointerInput(Unit) {
+                    delay(500)
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            when (event.type) {
+                                PointerEventType.Enter -> {
+                                    dismissJob?.cancel(); dismissJob = null
+                                }
+
+                                PointerEventType.Exit -> {
+                                    dismissJob = scope.launch { delay(250); onDismiss() }
                                 }
                             }
                         }
-                    } else Modifier
-                )
-                .then(if (docked) Modifier else Modifier.heightIn(max = 520.dp))
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }) {}
-        ) {
-            if (!docked) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 10.dp, bottom = 6.dp)
-                        .width(36.dp).height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                        .align(Alignment.CenterHorizontally)
-                )
-            } else {
-                Spacer(Modifier.height(8.dp))
-            }
-
-            EmoteTab(
-                channelEmotes = channelEmotes,
-                personalEmotes = personalEmotes,
-                allEmotes = allEmotes,
-                favoriteEmotes = favoriteEmotes,
-                favoriteIds = favoriteIds,
-                favoriteEmojis = favoriteEmojis,
-                searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
-                onEmoteSelected = onEmoteSelected,
-                onToggleFavorite = { toggleFavorite(it) },
-                onFavoriteAll = { emotes ->
-                    val newKeys = emotes.map { "${it.provider}_${it.id}" }.toSet()
-                    favoriteIds = favoriteIds + newKeys
-                    settings.putString("favorite_emotes", favoriteIds.joinToString(","))
-                },
-                onEmojiSelected = onEmojiSelected,
-                onToggleFavoriteEmoji = { toggleFavoriteEmoji(it) },
-                onGifSelected = onGifSelected,
-                canSendGifs = canSendGifs,
-                gifSendError = gifSendError,
-                gifAccess = gifAccess,
-                onRefreshGifAccess = onRefreshGifAccess
-            )
-            Spacer(Modifier.height(8.dp))
-        }
+                    }
+                } else Modifier
+            ),
+        scrimAlpha = 0.35f,
+        handleColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+    ) {
+        pickerBody()
     }
 }
 
@@ -1185,7 +1168,7 @@ internal fun CompactEmoteSearchBar(
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     if (value.isEmpty()) {
                         Text(
-                            placeholder ?: LocalStrings.current.emoteSearchPlaceholder,
+                            placeholder ?: stringResource(Res.string.emote_search_placeholder),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             maxLines = 1
@@ -1532,12 +1515,11 @@ fun EmptyEmoteState(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            val sl = LocalStrings.current
             Text(
                 text = when {
-                    searchQuery.isNotBlank() -> sl.emoteNoMatch.replace("{0}", searchQuery)
-                    isFavoritesTab -> sl.emoteNoFavorites
-                    else -> sl.emoteNoLoaded
+                    searchQuery.isNotBlank() -> stringResource(Res.string.emote_no_match, searchQuery)
+                    isFavoritesTab -> stringResource(Res.string.emote_no_favorites)
+                    else -> stringResource(Res.string.emote_no_loaded)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
@@ -1546,7 +1528,7 @@ fun EmptyEmoteState(
             if (searchQuery.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 TextButton(onClick = onClearSearch) {
-                    Text(LocalStrings.current.emoteClearSearch, fontSize = 12.sp)
+                    Text(stringResource(Res.string.emote_clear_search), fontSize = 12.sp)
                 }
             }
         }
@@ -1595,7 +1577,7 @@ private fun EmojiTab(
 
         if (!showOnlyFavorites && favoriteEmojis.isNotEmpty() && searchQuery.isBlank()) {
             Text(
-                "★ ${LocalStrings.current.emotePickerFavoritesSection}",
+                "★ ${stringResource(Res.string.emote_picker_favorites_section)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = Color(0xFFFFD700),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -1645,7 +1627,7 @@ private fun EmojiTab(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    LocalStrings.current.emoteNoEmojiFound,
+                    stringResource(Res.string.emote_no_emoji_found),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -1686,7 +1668,6 @@ private fun EmojiGridItem(
 ) {
     val interactionSource = remember(emoji) { MutableInteractionSource() }
     var showMenu by remember { mutableStateOf(false) }
-    val strings = LocalStrings.current
 
     Box(
         modifier = Modifier
@@ -1709,8 +1690,8 @@ private fun EmojiGridItem(
             DropdownMenuItem(
                 text = {
                     Text(
-                        if (isFavorite) strings.emotePickerRemoveFavorite
-                        else strings.emotePickerAddFavorite,
+                        if (isFavorite) stringResource(Res.string.emote_picker_remove_favorite)
+                        else stringResource(Res.string.emote_picker_add_favorite),
                         style = MaterialTheme.typography.bodySmall
                     )
                 },

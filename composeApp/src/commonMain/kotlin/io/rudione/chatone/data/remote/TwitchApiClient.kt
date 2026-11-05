@@ -35,6 +35,11 @@ import kotlinx.coroutines.CancellationException
 
 class ChatMessageRejectedException(val code: String, reason: String) : Exception(reason)
 
+class HelixModerationException(val status: Int, reason: String) : Exception(reason) {
+    val isAlreadyBanned: Boolean
+        get() = status == 400 && message.orEmpty().contains("already banned", ignoreCase = true)
+}
+
 class TwitchApiClient(
     private val httpClient: HttpClient,
     private val clientId: String
@@ -302,7 +307,7 @@ class TwitchApiClient(
                 put("reason", JsonPrimitive(reason ?: ""))
             }
             val body = buildJsonObject { put("data", dataBody) }
-            httpClient.post("$baseUrl/moderation/bans") {
+            val response = httpClient.post("$baseUrl/moderation/bans") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 parameter("broadcaster_id", broadcasterId)
@@ -310,11 +315,22 @@ class TwitchApiClient(
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
-            Result.Success(Unit)
+            moderationResult("ban user", response)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("Failed to ban user: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
+    }
+
+    private suspend fun moderationResult(action: String, response: HttpResponse): Result<Unit> {
+        if (response.status.isSuccess()) return Result.Success(Unit)
+        val reason = runCatching {
+            kotlinx.serialization.json.Json.parseToJsonElement(response.bodyAsText()).jsonObject["message"]?.jsonPrimitive?.content
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: "HTTP ${response.status.value}"
+        Napier.w("Failed to $action: ${response.status.value} $reason", tag = TAG)
+        return Result.Error(HelixModerationException(response.status.value, reason))
     }
 
     suspend fun unbanUser(
@@ -324,14 +340,16 @@ class TwitchApiClient(
         userId: String
     ): Result<Unit> {
         return try {
-            httpClient.delete("$baseUrl/moderation/bans") {
+            val response = httpClient.delete("$baseUrl/moderation/bans") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 parameter("broadcaster_id", broadcasterId)
                 parameter("moderator_id", moderatorId)
                 parameter("user_id", userId)
             }
-            Result.Success(Unit)
+            moderationResult("unban user", response)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("Failed to unban user: ${e.message}", e, tag = TAG)
             Result.Error(e)
@@ -913,13 +931,16 @@ class TwitchApiClient(
                     put("session_id", JsonPrimitive(sessionId))
                 })
             }
-            httpClient.post("$baseUrl/eventsub/subscriptions") {
+            val response = httpClient.post("$baseUrl/eventsub/subscriptions") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
-            Result.Success(Unit)
+            if (response.status == HttpStatusCode.Conflict) Result.Success(Unit)
+            else moderationResult("create EventSub subscription [$type]", response)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("Failed to create EventSub subscription [$type]: ${e.message}", e, tag = TAG)
             Result.Error(e)
@@ -999,13 +1020,14 @@ class TwitchApiClient(
         color: String
     ): Result<Unit> {
         return try {
-            httpClient.put("$baseUrl/chat/color") {
+            val response = httpClient.put("$baseUrl/chat/color") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 parameter("user_id", userId)
                 parameter("color", color)
             }
-            Result.Success(Unit)
+            if (response.status.isSuccess()) Result.Success(Unit)
+            else Result.Error(Exception("Failed to update chat color: ${response.status}"))
         } catch (e: Exception) {
             Napier.e("Failed to update chat color: ${e.message}", e, tag = TAG)
             Result.Error(e)
@@ -1227,7 +1249,7 @@ class TwitchApiClient(
         action: String
     ): Result<Unit> {
         return try {
-            httpClient.post("$baseUrl/moderation/automod/message") {
+            val response = httpClient.post("$baseUrl/moderation/automod/message") {
                 header("Authorization", "Bearer $accessToken")
                 header("Client-Id", clientId)
                 contentType(ContentType.Application.Json)
@@ -1237,7 +1259,9 @@ class TwitchApiClient(
                     put("action", JsonPrimitive(action))
                 })
             }
-            Result.Success(Unit)
+            moderationResult("manage automod message", response)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("Failed to manage automod message: ${e.message}", e, tag = TAG)
             Result.Error(e)

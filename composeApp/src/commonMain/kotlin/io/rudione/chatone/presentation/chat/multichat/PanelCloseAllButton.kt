@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ui_close_extra_panels
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,7 +34,7 @@ fun PanelCloseAllButton(
     ) {
         Icon(
             Lucide.Minimize2,
-            contentDescription = "Close extra panels",
+            contentDescription = stringResource(Res.string.ui_close_extra_panels),
             modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )

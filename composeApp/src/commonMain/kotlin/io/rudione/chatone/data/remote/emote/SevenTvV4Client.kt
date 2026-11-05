@@ -98,7 +98,7 @@ class SevenTvV4Client(private val httpClient: HttpClient) {
         )
     }
 
-    private fun parsePaint(node: JsonObject): SevenTvCosmetics.Paint? {
+    internal fun parsePaint(node: JsonObject): SevenTvCosmetics.Paint? {
         val id = node["id"]?.jsonPrimitive?.contentOrNull ?: return null
         val name = node["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
         val data = node["data"]?.asObject()
@@ -156,7 +156,7 @@ class SevenTvV4Client(private val httpClient: HttpClient) {
             .orEmpty()
     }
 
-    private fun parseBadge(node: JsonObject): SevenTvCosmetics.Badge? {
+    internal fun parseBadge(node: JsonObject): SevenTvCosmetics.Badge? {
         val id = node["id"]?.jsonPrimitive?.contentOrNull ?: return null
         val images = decodableImages(node["images"]?.asArray())
             .sortedBy { it.width }
@@ -217,6 +217,16 @@ class SevenTvV4Client(private val httpClient: HttpClient) {
         private val SUPPORTED_MIMES = listOf("image/webp", "image/png", "image/gif")
         private const val PAINT_TARGET_WIDTH = 128
 
+        internal const val PAINT_FIELDS =
+            "id name data { layers { opacity ty { __typename " +
+                    "... on PaintLayerTypeLinearGradient { angle repeating stops { at color { hex } } } " +
+                    "... on PaintLayerTypeRadialGradient { repeating stops { at color { hex } } } " +
+                    "... on PaintLayerTypeSingleColor { color { hex } } " +
+                    "... on PaintLayerTypeImage { images { url width mime frameCount } } } } " +
+                    "shadows { color { hex } offsetX offsetY blur } }"
+
+        internal const val BADGE_FIELDS = "id name description images { url width mime }"
+
         private val USER_QUERY = """
             query ChatoneSevenTvUser(${'$'}id: String!) {
               users {
@@ -227,28 +237,8 @@ class SevenTvV4Client(private val httpClient: HttpClient) {
                   connections { platform platformUsername platformDisplayName }
                   style {
                     activeEmoteSetId
-                    activePaint {
-                      id
-                      name
-                      data {
-                        layers {
-                          opacity
-                          ty {
-                            __typename
-                            ... on PaintLayerTypeLinearGradient {
-                              angle repeating stops { at color { hex } }
-                            }
-                            ... on PaintLayerTypeRadialGradient {
-                              repeating stops { at color { hex } }
-                            }
-                            ... on PaintLayerTypeSingleColor { color { hex } }
-                            ... on PaintLayerTypeImage { images { url width mime frameCount } }
-                          }
-                        }
-                        shadows { color { hex } offsetX offsetY blur }
-                      }
-                    }
-                    activeBadge { id name description images { url width mime } }
+                    activePaint { $PAINT_FIELDS }
+                    activeBadge { $BADGE_FIELDS }
                   }
                 }
               }

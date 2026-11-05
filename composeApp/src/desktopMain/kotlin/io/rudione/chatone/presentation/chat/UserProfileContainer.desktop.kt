@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ui_usercard
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.components.PopupPortalHost
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -126,7 +129,7 @@ actual fun UserProfileContainer(
     Window(
         onCloseRequest = onDismiss,
         state = windowState,
-        title = "Usercard",
+        title = stringResource(Res.string.ui_usercard),
         undecorated = true,
         transparent = false,
         resizable = true,

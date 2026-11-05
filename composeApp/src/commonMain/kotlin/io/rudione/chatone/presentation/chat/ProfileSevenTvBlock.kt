@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ui_subscriber
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -226,7 +229,7 @@ internal fun SevenTvIdentityBlock(profile: SevenTvProfile, compact: Boolean) {
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             if (profile.isSubscriber) {
-                SevenTvTag(text = "Subscriber", icon = Lucide.Star)
+                SevenTvTag(text = stringResource(Res.string.ui_subscriber), icon = Lucide.Star)
             }
             roles.filterNot { it.equals("Subscriber", ignoreCase = true) }.forEach { role ->
                 SevenTvTag(text = role, icon = null)

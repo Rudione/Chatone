@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.screenchat
 
+import chatone.composeapp.generated.resources.icon
+import chatone.composeapp.generated.resources.screen_chat_settings_window_title
+import chatone.composeapp.generated.resources.screen_chat_window_title
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.components.PopupPortalHost
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -34,7 +38,6 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.icon
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.domain.model.ScreenChatLayer
 import io.rudione.chatone.domain.model.ScreenChatSettings
@@ -44,7 +47,6 @@ import io.rudione.chatone.presentation.chat.ChatSessions
 import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.components.ScreenChatSettingsContent
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.window.ChatoneDetachedWindow
 import io.rudione.chatone.presentation.window.LocalDraggableWindow
 import io.rudione.chatone.presentation.window.MIN_TOOL_WINDOW_HEIGHT
@@ -114,7 +116,7 @@ private fun ScreenChatSettingsWindow(
 ) {
     ChatoneDetachedWindow(
         windowId = "screen_chat_settings",
-        title = LocalStrings.current.screenChat.settingsWindowTitle,
+        title = stringResource(Res.string.screen_chat_settings_window_title),
         defaultWidth = SETTINGS_WIDTH,
         defaultHeight = SETTINGS_HEIGHT,
         minWidth = MIN_TOOL_WINDOW_WIDTH,
@@ -157,7 +159,7 @@ private fun ScreenChatWindow(
         DisplayedChatChannels.acquire(channel)
         onDispose { DisplayedChatChannels.release(channel) }
     }
-    val title = LocalStrings.current.screenChat.windowTitle.replace("{0}", channel)
+    val title = stringResource(Res.string.screen_chat_window_title, channel)
     Window(
         onCloseRequest = onClose,
         state = windowState,

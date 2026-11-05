@@ -47,6 +47,7 @@ object AppConfig {
         "moderator:read:suspicious_users",
         "user:read:moderated_channels",
         "user:read:emotes",
+        "user:read:follows",
         "user:manage:blocked_users",
         "user:manage:chat_color",
         "user:manage:whispers",

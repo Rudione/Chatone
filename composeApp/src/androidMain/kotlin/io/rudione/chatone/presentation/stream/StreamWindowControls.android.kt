@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_mute
+import chatone.composeapp.generated.resources.player_pause
+import chatone.composeapp.generated.resources.player_play
+import chatone.composeapp.generated.resources.player_unmute
+import org.jetbrains.compose.resources.stringResource
 import android.app.Activity
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
@@ -36,7 +42,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.shared.R
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -152,12 +157,11 @@ actual fun PictureInPictureAutoEnterEffect(
 ) {
     val androidController = controller as? AndroidPictureInPictureController ?: return
     val shouldAutoEnter = androidController.isSupported && enabled
-    val strings = LocalStrings.current.player
     val buttons = PictureInPictureButtons(
         playing = playback.playing,
         muted = playback.muted,
-        playbackLabel = if (playback.playing) strings.pause else strings.play,
-        soundLabel = if (playback.muted) strings.unmute else strings.mute
+        playbackLabel = if (playback.playing) stringResource(Res.string.player_pause) else stringResource(Res.string.player_play),
+        soundLabel = if (playback.muted) stringResource(Res.string.player_unmute) else stringResource(Res.string.player_mute)
     )
     LaunchedEffect(androidController, shouldAutoEnter, aspectRatio, buttons) {
         androidController.updateParams(autoEnter = shouldAutoEnter, aspectRatio = aspectRatio, buttons = buttons)

@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.ui_menu
+import chatone.composeapp.generated.resources.ui_mod_mode
+import chatone.composeapp.generated.resources.ui_mod_panel
+import chatone.composeapp.generated.resources.ui_refresh
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_macro_tooltip
+import chatone.composeapp.generated.resources.main_channel_badges_bits
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import io.rudione.chatone.presentation.components.animatedBorder
@@ -64,8 +72,6 @@ import io.rudione.chatone.presentation.channelmenu.ChannelOptionsMenu
 import io.rudione.chatone.presentation.channelmenu.busChannelMenu
 import io.rudione.chatone.presentation.settings.components.MacroIcon
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.presentation.stream.StreamWatchButton
@@ -167,7 +173,7 @@ internal fun ChatTopBar(
                     ChatoneIconButton(onClick = onBack, modifier = Modifier.size(metrics.button)) {
                         Icon(
                             Lucide.Menu,
-                            contentDescription = "Menu",
+                            contentDescription = stringResource(Res.string.ui_menu),
                             tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(metrics.icon + 2.dp)
                         )
@@ -251,7 +257,6 @@ private fun TopBarActions(
     callbacks: TopBarActionCallbacks,
     modifier: Modifier
 ) {
-    val s = LocalStrings.current
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -279,17 +284,17 @@ private fun TopBarActions(
         ) {
             Icon(
                 Lucide.RefreshCw,
-                contentDescription = "Refresh",
+                contentDescription = stringResource(Res.string.ui_refresh),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(metrics.icon).graphicsLayer { rotationZ = refreshRotation.value }
             )
         }
         ChatTopBarAddPanelButton(currentChannel = channelLogin)
-        LiquidGlassTooltipBox(tooltip = s.mainChannelBadgesBits) {
+        LiquidGlassTooltipBox(tooltip = stringResource(Res.string.main_channel_badges_bits)) {
             ChatoneIconButton(onClick = callbacks.onOpenPointsBits, modifier = Modifier.size(metrics.button)) {
                 Icon(
                     TwitchPointsIcon,
-                    contentDescription = s.mainChannelBadgesBits,
+                    contentDescription = stringResource(Res.string.main_channel_badges_bits),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(metrics.icon)
                 )
@@ -304,7 +309,7 @@ private fun TopBarActions(
             ) {
                 pinnedMacros.forEach { macro ->
                     LiquidGlassTooltipBox(
-                        tooltip = s.format(s.chatMacroTooltip, macro.name.ifBlank { macro.icon })
+                        tooltip = stringResource(Res.string.chat_macro_tooltip, macro.name.ifBlank { macro.icon })
                     ) {
                         MacroQuickButton(
                             macro = macro,
@@ -330,7 +335,7 @@ private fun TopBarActions(
             ) {
                 Icon(
                     imageVector = Lucide.Swords,
-                    contentDescription = "Mod Mode",
+                    contentDescription = stringResource(Res.string.ui_mod_mode),
                     modifier = Modifier.size(metrics.icon)
                 )
             }
@@ -349,7 +354,7 @@ private fun TopBarActions(
             ) {
                 Icon(
                     Lucide.Wrench,
-                    contentDescription = "Mod Panel",
+                    contentDescription = stringResource(Res.string.ui_mod_panel),
                     modifier = Modifier.size(metrics.icon)
                 )
             }

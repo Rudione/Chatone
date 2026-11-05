@@ -1,5 +1,33 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.ui_announcement_message
+import chatone.composeapp.generated.resources.ui_channel_to_shoutout
+import chatone.composeapp.generated.resources.ui_close
+import chatone.composeapp.generated.resources.ui_cost
+import chatone.composeapp.generated.resources.ui_delete_reward
+import chatone.composeapp.generated.resources.ui_message_to_pin_via_pin
+import chatone.composeapp.generated.resources.ui_new_reward_title
+import chatone.composeapp.generated.resources.ui_option
+import chatone.composeapp.generated.resources.ui_refresh_rewards
+import chatone.composeapp.generated.resources.ui_remove_option
+import chatone.composeapp.generated.resources.ui_title
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.create
+import chatone.composeapp.generated.resources.panel_color
+import chatone.composeapp.generated.resources.panel_moderation
+import chatone.composeapp.generated.resources.poll_cancel
+import chatone.composeapp.generated.resources.poll_choices_label
+import chatone.composeapp.generated.resources.poll_duration_label
+import chatone.composeapp.generated.resources.poll_end
+import chatone.composeapp.generated.resources.poll_option_placeholder
+import chatone.composeapp.generated.resources.poll_start
+import chatone.composeapp.generated.resources.prediction_lock
+import chatone.composeapp.generated.resources.prediction_outcomes_label
+import chatone.composeapp.generated.resources.prediction_start
+import chatone.composeapp.generated.resources.prediction_window_label
+import chatone.composeapp.generated.resources.prediction_winner
+import chatone.composeapp.generated.resources.raid_channel_placeholder
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -44,7 +72,6 @@ import io.rudione.chatone.presentation.components.ChatoneWindowSize
 import io.rudione.chatone.presentation.components.LocalWindowSize
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Bot
 import io.rudione.chatone.icons.lucide.Coins
@@ -137,7 +164,7 @@ fun ModerationPanel(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    LocalStrings.current.panelModeration,
+                    stringResource(Res.string.panel_moderation),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -145,7 +172,7 @@ fun ModerationPanel(
                 ChatoneIconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Lucide.X,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(Res.string.ui_close),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -307,7 +334,7 @@ fun ModerationPanel(
                 ModPanelInputRow(
                     value = pinText,
                     onValueChange = { pinText = it },
-                    placeholder = "Message to pin via /pin …",
+                    placeholder = stringResource(Res.string.ui_message_to_pin_via_pin),
                     sendColor = MaterialTheme.colorScheme.secondary,
                     onSend = {
                         if (pinText.isNotBlank()) {
@@ -327,7 +354,7 @@ fun ModerationPanel(
                 ModPanelInputRow(
                     value = shoutoutTarget,
                     onValueChange = { shoutoutTarget = it },
-                    placeholder = "Channel to shoutout…",
+                    placeholder = stringResource(Res.string.ui_channel_to_shoutout),
                     sendColor = MaterialTheme.colorScheme.tertiary,
                     onSend = {
                         if (shoutoutTarget.isNotBlank()) {
@@ -352,7 +379,7 @@ fun ModerationPanel(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            LocalStrings.current.panelColor,
+                            stringResource(Res.string.panel_color),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
@@ -382,7 +409,7 @@ fun ModerationPanel(
                     ModPanelInputRow(
                         value = announcementText,
                         onValueChange = { announcementText = it },
-                        placeholder = "Announcement message…",
+                        placeholder = stringResource(Res.string.ui_announcement_message),
                         sendColor = MaterialTheme.colorScheme.primary,
                         onSend = {
                             if (announcementText.isNotBlank()) {
@@ -405,7 +432,7 @@ fun ModerationPanel(
                 ModPanelInputRow(
                     value = raidTarget,
                     onValueChange = { raidTarget = it },
-                    placeholder = LocalStrings.current.raidChannelPlaceholder,
+                    placeholder = stringResource(Res.string.raid_channel_placeholder),
                     sendColor = MaterialTheme.colorScheme.secondary,
                     sendIcon = Lucide.Rocket,
                     onSend = {
@@ -429,11 +456,11 @@ fun ModerationPanel(
                         onTitleChange = { pollTitle = it },
                         duration = pollDurationSec,
                         onDurationChange = { pollDurationSec = it.filter { c -> c.isDigit() }.take(4) },
-                        durationLabel = LocalStrings.current.pollDurationLabel,
+                        durationLabel = stringResource(Res.string.poll_duration_label),
                         options = pollChoicesText,
                         onOptionsChange = { pollChoicesText = it },
-                        optionsLabel = LocalStrings.current.pollChoicesLabel,
-                        submitLabel = LocalStrings.current.pollStart,
+                        optionsLabel = stringResource(Res.string.poll_choices_label),
+                        submitLabel = stringResource(Res.string.poll_start),
                         submitColor = MaterialTheme.colorScheme.secondary,
                         onSubmit = {
                             val duration = pollDurationSec.toIntOrNull()?.coerceIn(15, 1800) ?: 60
@@ -451,11 +478,11 @@ fun ModerationPanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TextButton(onClick = { onSendRawCommand("/endpoll") }) {
-                            Text(LocalStrings.current.pollEnd, style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(Res.string.poll_end), style = MaterialTheme.typography.labelSmall)
                         }
                         TextButton(onClick = { onSendRawCommand("/cancelpoll") }) {
                             Text(
-                                LocalStrings.current.pollCancel,
+                                stringResource(Res.string.poll_cancel),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -475,11 +502,11 @@ fun ModerationPanel(
                         onTitleChange = { predictionTitle = it },
                         duration = predictionWindowSec,
                         onDurationChange = { predictionWindowSec = it.filter { c -> c.isDigit() }.take(4) },
-                        durationLabel = LocalStrings.current.predictionWindowLabel,
+                        durationLabel = stringResource(Res.string.prediction_window_label),
                         options = predictionOutcomesText,
                         onOptionsChange = { predictionOutcomesText = it },
-                        optionsLabel = LocalStrings.current.predictionOutcomesLabel,
-                        submitLabel = LocalStrings.current.predictionStart,
+                        optionsLabel = stringResource(Res.string.prediction_outcomes_label),
+                        submitLabel = stringResource(Res.string.prediction_start),
                         submitColor = MaterialTheme.colorScheme.tertiary,
                         onSubmit = {
                             val window = predictionWindowSec.toIntOrNull()?.coerceIn(30, 1800) ?: 120
@@ -497,13 +524,13 @@ fun ModerationPanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TextButton(onClick = { onSendRawCommand("/lockprediction") }) {
-                            Text(LocalStrings.current.predictionLock, style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(Res.string.prediction_lock), style = MaterialTheme.typography.labelSmall)
                         }
                         TextButton(onClick = { onSendRawCommand("/completeprediction 1") }) {
-                            Text(LocalStrings.current.predictionWinner.replace("{0}", "1"), style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(Res.string.prediction_winner, "1"), style = MaterialTheme.typography.labelSmall)
                         }
                         TextButton(onClick = { onSendRawCommand("/completeprediction 2") }) {
-                            Text(LocalStrings.current.predictionWinner.replace("{0}", "2"), style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(Res.string.prediction_winner, "2"), style = MaterialTheme.typography.labelSmall)
                         }
                         TextButton(onClick = { onSendRawCommand("/cancelprediction") }) {
                             Text(
@@ -669,7 +696,7 @@ private fun ChannelPointsSection(
                         ) {
                             Icon(
                                 Lucide.X,
-                                contentDescription = "Delete reward",
+                                contentDescription = stringResource(Res.string.ui_delete_reward),
                                 modifier = Modifier.size(13.dp),
                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                             )
@@ -688,13 +715,13 @@ private fun ChannelPointsSection(
             CompactModField(
                 value = newTitle,
                 onValueChange = { newTitle = it.take(45) },
-                placeholder = "New reward title",
+                placeholder = stringResource(Res.string.ui_new_reward_title),
                 modifier = Modifier.weight(1f)
             )
             CompactModField(
                 value = newCost,
                 onValueChange = { newCost = it.filter { c -> c.isDigit() }.take(7) },
-                placeholder = "Cost",
+                placeholder = stringResource(Res.string.ui_cost),
                 modifier = Modifier.width(76.dp),
                 numeric = true
             )
@@ -718,12 +745,12 @@ private fun ChannelPointsSection(
                 modifier = Modifier.height(32.dp),
                 contentPadding = PaddingValues(horizontal = 10.dp)
             ) {
-                Text(LocalStrings.current.create, style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(Res.string.create), style = MaterialTheme.typography.labelSmall)
             }
             ChatoneIconButton(onClick = { reload() }, modifier = Modifier.size(26.dp)) {
                 Icon(
                     Lucide.RefreshCw,
-                    contentDescription = "Refresh rewards",
+                    contentDescription = stringResource(Res.string.ui_refresh_rewards),
                     modifier = Modifier.size(15.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -827,7 +854,7 @@ private fun PollPredictionForm(
             CompactModField(
                 value = title,
                 onValueChange = onTitleChange,
-                placeholder = "Title",
+                placeholder = stringResource(Res.string.ui_title),
                 modifier = Modifier.weight(1f),
                 accent = submitColor
             )
@@ -851,7 +878,7 @@ private fun PollPredictionForm(
                         rows[idx] = v
                         onOptionsChange(rows.joinToString("\n"))
                     },
-                    placeholder = "Option ${idx + 1}",
+                    placeholder = stringResource(Res.string.ui_option, idx + 1),
                     modifier = Modifier.weight(1f),
                     accent = submitColor
                 )
@@ -865,7 +892,7 @@ private fun PollPredictionForm(
                     ) {
                         Icon(
                             Lucide.X,
-                            contentDescription = "Remove option",
+                            contentDescription = stringResource(Res.string.ui_remove_option),
                             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                             modifier = Modifier.size(14.dp)
                         )
@@ -889,7 +916,7 @@ private fun PollPredictionForm(
                 ) {
                     Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(LocalStrings.current.pollOptionPlaceholder, style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(Res.string.poll_option_placeholder), style = MaterialTheme.typography.labelSmall)
                 }
             }
             FilledTonalButton(

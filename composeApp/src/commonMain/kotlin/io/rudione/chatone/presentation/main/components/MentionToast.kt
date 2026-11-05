@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.main.components
 
+import chatone.composeapp.generated.resources.ui_dismiss
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.mention_in_channel
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,7 +26,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.ChatoneIconButton
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.AtSign
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.MessageCircle
@@ -66,7 +69,7 @@ fun MentionToast(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (isWhisper) "💬 $fromDisplayName"
-                    else "@$fromDisplayName ${LocalStrings.current.mentionInChannel.replace("{0}", channelLogin)}",
+                    else "@$fromDisplayName ${stringResource(Res.string.mention_in_channel, channelLogin)}",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -88,7 +91,7 @@ fun MentionToast(
             ) {
                 Icon(
                     Lucide.X,
-                    contentDescription = "Dismiss",
+                    contentDescription = stringResource(Res.string.ui_dismiss),
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )

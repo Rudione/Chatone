@@ -24,6 +24,7 @@ data class ChatScreenOptions(
 @Stable
 class ChatScreenCallbacks(
     val onNavigateBack: () -> Unit = {},
+    val onOpenSidebar: () -> Unit = onNavigateBack,
     val onMentionDetected: (String) -> Unit = {},
     val onMentionReceived: (MentionEntry) -> Unit = {},
     val onOpenWhisper: OpenWhisperCallback = { _, _, _, _, _ -> },

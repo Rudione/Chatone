@@ -16,7 +16,9 @@ import androidx.annotation.RequiresApi
 import androidx.compose.ui.input.key.KeyEvent as ComposeKeyEvent
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.rudione.chatone.data.auth.LoginReturnIntents
+import io.rudione.chatone.tv.TvAppScreens
 import io.rudione.chatone.util.media.AndroidFilePicker
+import io.rudione.chatone.util.platform.currentFormFactor
 import io.rudione.chatone.util.system.AndroidNotifier
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
 import io.rudione.chatone.util.system.NotificationAccess
@@ -25,6 +27,8 @@ import io.rudione.chatone.util.system.NotificationTarget
 import io.rudione.chatone.util.system.setAppForeground
 
 class MainActivity : ComponentActivity() {
+
+    private val leanBack by lazy { currentFormFactor().isLeanBack }
 
     private val filePickerLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -50,11 +54,11 @@ class MainActivity : ComponentActivity() {
             notificationPermissionLauncher.launch(POST_NOTIFICATIONS)
         }
 
-        requestNotificationPermissionIfNeeded()
+        if (!leanBack) requestNotificationPermissionIfNeeded()
         if (savedInstanceState == null && !LoginReturnIntents.consume(intent)) openNotificationTarget(intent)
 
         setContent {
-            App()
+            App(screens = if (leanBack) TvAppScreens else null)
         }
     }
 

@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.presentation.text.resolve
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.main_expand_mini_rail
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.profile.editor.ProfileEditorHost
+import io.rudione.chatone.presentation.profile.PageOverlay
 import io.rudione.chatone.domain.model.ChannelTab
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
@@ -35,8 +41,10 @@ import io.rudione.chatone.presentation.startup.LaunchStage
 import io.rudione.chatone.presentation.startup.ReportLaunchStage
 import io.rudione.chatone.presentation.components.ChatoneBreakpoints
 import io.rudione.chatone.presentation.components.ChatoneWindowSize
-import io.rudione.chatone.presentation.components.SwipeDirection
-import io.rudione.chatone.presentation.components.directionalSwipe
+import io.rudione.chatone.presentation.components.expressive.ExpressiveDrawerState
+import io.rudione.chatone.presentation.components.expressive.ExpressiveModalDrawer
+import io.rudione.chatone.presentation.components.expressive.LocalModalDrawer
+import io.rudione.chatone.presentation.components.expressive.rememberExpressiveDrawerState
 import io.rudione.chatone.presentation.components.ChatoneTileDefaults
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.TileTone
@@ -59,7 +67,6 @@ import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.util.media.WallpaperLoader
 import io.rudione.chatone.util.system.NotificationLaunches
 import kotlinx.coroutines.flow.filterNotNull
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -113,7 +120,6 @@ fun MainScreen(
     val state by viewModel.state.collectAsState()
     val settingsViewModel: SettingsViewModel = koinViewModel()
     val settingsState by settingsViewModel.state.collectAsState()
-    val s = LocalStrings.current
     val isPhone = remember { currentFormFactor() == DeviceFormFactor.PHONE }
     val isHandheld = remember { currentFormFactor().isHandheld }
     val openBrowse: (() -> Unit)? = if (isHandheld) {
@@ -142,6 +148,7 @@ fun MainScreen(
             streamLogin = login,
             state = state,
             onEvent = viewModel::sendEvent,
+            playerHost = streamHost,
             modifier = panelModifier
         )
     }
@@ -165,6 +172,7 @@ fun MainScreen(
     )
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val drawer = rememberExpressiveDrawerState()
     val wallpaperController = LocalWallpaperController.current
     var isWideScreenForSettings by remember { mutableStateOf(false) }
     val wallpaper by remember { derivedStateOf { wallpaperController.state } }
@@ -250,7 +258,7 @@ fun MainScreen(
         viewModel.effect.collect { effect ->
             when (effect) {
                 MainEffect.NavigateToAuth -> onNavigateToAuth()
-                is MainEffect.ShowError -> scope.launch { snackbarHostState.showSnackbar(effect.message) }
+                is MainEffect.ShowError -> scope.launch { snackbarHostState.showSnackbar(effect.message.resolve()) }
                 is MainEffect.IncomingWhisper -> {
                     mentionToastData = Triple(
                         effect.fromDisplayName,
@@ -433,6 +441,7 @@ fun MainScreen(
                         val callbacks = remember(wide, sharedChatCallbacks) {
                             ChatScreenCallbacks(
                                 onNavigateBack = { if (!wide) viewModel.sendEvent(MainEvent.ToggleSidebar) },
+                                onOpenSidebar = { if (!wide) viewModel.sendEvent(MainEvent.OpenSidebar) },
                                 onMentionDetected = sharedChatCallbacks.onMentionDetected,
                                 onMentionReceived = sharedChatCallbacks.onMentionReceived,
                                 onOpenWhisper = sharedChatCallbacks.onOpenWhisper,
@@ -492,6 +501,7 @@ fun MainScreen(
 
                 CompositionLocalProvider(
                     LocalWindowSize provides windowSize,
+                    LocalModalDrawer provides drawer,
                     LocalDockHost provides if (isLarge) dockHost else null
                 ) {
                     if (streamUi != null && streamUi.showLandscapeLayout && streamChannel != null) {
@@ -510,6 +520,7 @@ fun MainScreen(
                             }
                         )
                         CompactChannelDrawer(
+                            drawer = drawer,
                             state = state,
                             viewModel = viewModel,
                             wallpaperActive = wallpaper.isActive,
@@ -830,12 +841,11 @@ fun MainScreen(
                                     else Modifier.consumeWindowInsets(PaddingValues(top = phoneTopInset))
                                 )
                         ) {
-                            if (!chatOwnsTop && phoneTopInset > 0.dp) {
+                            if (!chatOwnsTop && !portraitPlayerVisible && phoneTopInset > 0.dp) {
                                 Spacer(
                                     Modifier
                                         .fillMaxWidth()
                                         .height(phoneTopInset)
-                                        .background(if (portraitPlayerVisible) Color.Black else Color.Transparent)
                                 )
                             }
                             if (mentionsPanelShowing && !isPhone) {
@@ -907,7 +917,8 @@ fun MainScreen(
                             if (portraitPlayerVisible && streamUi != null) {
                                 PortraitStreamPlayer(
                                     ui = streamUi,
-                                    glowHeight = settingsState.chatTopBarHeight.dp,
+                                    topInset = phoneTopInset,
+                                    glowHeight = (settingsState.chatTopBarHeight * PLAYER_GLOW_SCALE).dp.coerceAtLeast(PlayerGlowMinHeight),
                                     channelPanel = streamChannelPanel
                                 )
                             }
@@ -1058,7 +1069,7 @@ fun MainScreen(
                                     ) {
                                         Icon(
                                             Lucide.ChevronRight,
-                                            contentDescription = LocalStrings.current.mainExpandMiniRail,
+                                            contentDescription = stringResource(Res.string.main_expand_mini_rail),
                                             tint = MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -1068,6 +1079,7 @@ fun MainScreen(
                         }
 
                         CompactChannelDrawer(
+                            drawer = drawer,
                             state = state,
                             viewModel = viewModel,
                             wallpaperActive = wallpaper.isActive,
@@ -1219,7 +1231,13 @@ fun MainScreen(
                 }
                 viewModel.sendEvent(MainEvent.HideAddChannelDialog)
             },
-            onDismiss = { viewModel.sendEvent(MainEvent.HideAddChannelDialog) }
+            onDismiss = { viewModel.sendEvent(MainEvent.HideAddChannelDialog) },
+            openLogins = remember(state.openChannels) { state.openChannels.mapTo(HashSet()) { it.login } },
+            onFollowedSelected = { picked ->
+                viewModel.sendEvent(
+                    MainEvent.AddChannels(picked.map { MainEvent.AddChannel(it.login, it.avatarUrl, it.displayName) })
+                )
+            }
         )
     }
 
@@ -1264,6 +1282,16 @@ fun MainScreen(
                 },
                 onReturnToStream = { viewModel.sendEvent(MainEvent.ReturnToStream) }
             )
+            PageOverlay(
+                onOpenChat = { login, displayName, avatarUrl ->
+                    viewModel.sendEvent(MainEvent.AddChannel(login, avatarUrl, displayName))
+                },
+                onWatch = { login ->
+                    viewModel.sendEvent(MainEvent.AddChannel(login))
+                    streamHost?.onEvent(StreamPlayerEvent.Open(login))
+                },
+                onPageOpened = { viewModel.sendEvent(MainEvent.CloseSidebar) }
+            )
         }
     }
 
@@ -1272,6 +1300,8 @@ fun MainScreen(
             AiAssistantOverlay()
         }
     }
+
+    ProfileEditorHost()
 
     if (streamUi != null && streamUi.inPictureInPicture) {
         Box(Modifier.fillMaxSize().zIndex(1000f)) {
@@ -1284,6 +1314,7 @@ private const val ASSISTANT_Z_INDEX = 70f
 
 @Composable
 private fun BoxScope.CompactChannelDrawer(
+    drawer: ExpressiveDrawerState,
     state: MainState,
     viewModel: MainViewModel,
     wallpaperActive: Boolean,
@@ -1291,31 +1322,12 @@ private fun BoxScope.CompactChannelDrawer(
     dominantColor: Color,
     onOpenBrowse: (() -> Unit)?
 ) {
-    AnimatedVisibility(
-        visible = state.sidebarExpanded,
-        enter = fadeIn(tween(200)),
-        exit = fadeOut(tween(200)),
-        modifier = Modifier.fillMaxSize()
+    ExpressiveModalDrawer(
+        state = drawer,
+        open = state.sidebarExpanded,
+        onOpenChange = { open -> viewModel.sendEvent(if (open) MainEvent.OpenSidebar else MainEvent.CloseSidebar) }
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.4f))
-                .directionalSwipe(SwipeDirection.Left) { viewModel.sendEvent(MainEvent.CloseSidebar) }
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                ) { viewModel.sendEvent(MainEvent.CloseSidebar) }
-        )
-    }
-
-    AnimatedVisibility(
-        visible = state.sidebarExpanded,
-        enter = slideInHorizontally(tween(250)) + fadeIn(tween(200)),
-        exit = slideOutHorizontally(tween(250)) + fadeOut(tween(200)),
-        modifier = Modifier.align(Alignment.TopStart)
-    ) {
-        Box(Modifier.directionalSwipe(SwipeDirection.Left) { viewModel.sendEvent(MainEvent.CloseSidebar) }) {
+        Box {
             ChannelSidebar(
                 state = state,
                 onEvent = { event: MainEvent -> viewModel.sendEvent(event) },
@@ -1333,3 +1345,6 @@ private fun BoxScope.CompactChannelDrawer(
         }
     }
 }
+
+private const val PLAYER_GLOW_SCALE = 2.2f
+private val PlayerGlowMinHeight = 96.dp

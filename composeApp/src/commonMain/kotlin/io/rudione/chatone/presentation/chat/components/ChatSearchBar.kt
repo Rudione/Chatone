@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ui_close_search
+import chatone.composeapp.generated.resources.ui_next_match
+import chatone.composeapp.generated.resources.ui_previous_match
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -134,7 +139,7 @@ fun ChatSearchBar(
             ) {
                 Icon(
                     Lucide.ChevronUp,
-                    contentDescription = "Previous match",
+                    contentDescription = stringResource(Res.string.ui_previous_match),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -146,7 +151,7 @@ fun ChatSearchBar(
             ) {
                 Icon(
                     Lucide.ChevronDown,
-                    contentDescription = "Next match",
+                    contentDescription = stringResource(Res.string.ui_next_match),
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -158,7 +163,7 @@ fun ChatSearchBar(
             ) {
                 Icon(
                     Lucide.X,
-                    contentDescription = "Close search",
+                    contentDescription = stringResource(Res.string.ui_close_search),
                     modifier = Modifier.size(16.dp)
                 )
             }

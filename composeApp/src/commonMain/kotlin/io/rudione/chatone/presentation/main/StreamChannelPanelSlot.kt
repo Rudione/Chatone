@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.presentation.profile.PageNavigator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -16,7 +17,10 @@ import io.rudione.chatone.presentation.stream.channel.StreamChannelEvent
 import io.rudione.chatone.presentation.stream.channel.StreamChannelExtras
 import io.rudione.chatone.presentation.stream.channel.StreamChannelPanel
 import io.rudione.chatone.presentation.stream.channel.StreamChannelViewModel
+import io.rudione.chatone.domain.stream.StreamPhase
+import io.rudione.chatone.presentation.stream.StreamPlayerHost
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -26,6 +30,7 @@ internal fun StreamChannelPanelSlot(
     streamLogin: String,
     state: MainState,
     onEvent: (MainEvent) -> Unit,
+    playerHost: StreamPlayerHost?,
     modifier: Modifier = Modifier,
     viewModel: StreamChannelViewModel = koinViewModel(),
     assistant: AiAssistantController = koinInject()
@@ -50,24 +55,44 @@ internal fun StreamChannelPanelSlot(
     val pinned = state.openChannels.firstOrNull { it.login == login }
     val tab = pinned ?: state.recentChannels.firstOrNull { it.login == login }
     val hint = remember(chatHint, tab, login) {
-        val fromTab = ChannelSnapshot(login = login, displayName = tab?.displayName.orEmpty(), avatarUrl = tab?.profileImageUrl.orEmpty())
+        val fromTab = ChannelSnapshot(
+            login = login,
+            displayName = tab?.displayName.orEmpty(),
+            avatarUrl = tab?.profileImageUrl.orEmpty()
+        )
         chatHint?.let(fromTab::mergedWith) ?: fromTab
     }
-    LaunchedEffect(viewModel, login, hint) { viewModel.sendEvent(StreamChannelEvent.Bind(login, hint)) }
+    LaunchedEffect(viewModel, login, hint) {
+        viewModel.sendEvent(
+            StreamChannelEvent.Bind(
+                login,
+                hint
+            )
+        )
+    }
 
+    val offline by remember(playerHost, login) {
+        playerHost?.state
+            ?.map { it.channelLogin == login && (it.phase == StreamPhase.OFFLINE || it.phase == StreamPhase.ENDED) }
+            ?.distinctUntilChanged()
+            ?: flowOf(false)
+    }.collectAsState(false)
     val channelState by viewModel.state.collectAsState()
     val assistantEnabled by assistant.enabled.collectAsState()
     val extras = StreamChannelExtras(
         liveAlerts = login in state.liveNotifyChannels,
         canPin = pinned == null && tab != null,
         assistantAvailable = assistantEnabled,
-        chatElsewhere = !state.activeChannelLogin.equals(login, ignoreCase = true)
+        chatElsewhere = !state.activeChannelLogin.equals(login, ignoreCase = true),
+        ownChannel = state.selectedAccount?.login.equals(login, ignoreCase = true),
+        live = !offline
     )
 
     val uriHandler = LocalUriHandler.current
     val sendMain by rememberUpdatedState(onEvent)
     val channel by rememberUpdatedState(channelState.channel)
-    val actions = remember(viewModel, assistant, uriHandler, login) {
+    val pages: PageNavigator = koinInject()
+    val actions = remember(viewModel, assistant, uriHandler, login, pages) {
         StreamChannelActions(
             onToggleFollow = { viewModel.sendEvent(StreamChannelEvent.ToggleFollow) },
             onToggleLiveAlerts = { sendMain(MainEvent.ToggleLiveNotify(login)) },
@@ -76,8 +101,15 @@ internal fun StreamChannelPanelSlot(
             onReturnToStreamChat = {
                 sendMain(MainEvent.OpenRecentChannel(login, channel.displayName, channel.avatarUrl))
             },
-            onOpenOnTwitch = { uriHandler.openUri("https://www.twitch.tv/$login") }
+            onOpenOnTwitch = { uriHandler.openUri("https://www.twitch.tv/$login") },
+            onOpenProfile = { pages.openChannel(login) }.takeIf { pages.isSupported },
+            onCreateClip = { pages.createClip(login) }.takeIf { pages.isSupported }
         )
     }
-    StreamChannelPanel(state = channelState, extras = extras, actions = actions, modifier = modifier)
+    StreamChannelPanel(
+        state = channelState,
+        extras = extras,
+        actions = actions,
+        modifier = modifier
+    )
 }

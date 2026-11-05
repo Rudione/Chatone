@@ -3,7 +3,9 @@ package io.rudione.chatone.data.repository
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.data.local.ChatoneDatabase
 import io.rudione.chatone.data.local.TwitchAccountEntity
+import io.rudione.chatone.data.remote.TokenRefreshResult
 import io.rudione.chatone.data.remote.TwitchApiClient
+import io.rudione.chatone.data.remote.TwitchDeviceAuthClient
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.util.map
@@ -20,7 +22,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 interface AuthRepository {
-    suspend fun authenticateWithToken(accessToken: String): Result<TwitchAccount>
+    suspend fun authenticateWithToken(accessToken: String, refreshToken: String = ""): Result<TwitchAccount>
+    suspend fun refreshAccount(account: TwitchAccount): TokenRefreshOutcome
     suspend fun validateToken(account: TwitchAccount): Result<Boolean>
     suspend fun revokeToken(account: TwitchAccount): Result<Unit>
     suspend fun saveAccount(account: TwitchAccount)
@@ -30,10 +33,17 @@ interface AuthRepository {
     suspend fun getFirstValidAccount(): TwitchAccount?
 }
 
+sealed interface TokenRefreshOutcome {
+    data class Refreshed(val account: TwitchAccount) : TokenRefreshOutcome
+    data object Rejected : TokenRefreshOutcome
+    data object Unreachable : TokenRefreshOutcome
+}
+
 class AuthRepositoryImpl(
     private val apiClient: TwitchApiClient,
     private val database: ChatoneDatabase,
-    private val clientId: String
+    private val clientId: String,
+    private val deviceAuth: TwitchDeviceAuthClient
 ) : AuthRepository {
 
     companion object {
@@ -78,7 +88,7 @@ class AuthRepositoryImpl(
         }
     }
 
-    override suspend fun authenticateWithToken(accessToken: String): Result<TwitchAccount> {
+    override suspend fun authenticateWithToken(accessToken: String, refreshToken: String): Result<TwitchAccount> {
         return try {
 
             val validateResult = apiClient.validateToken(accessToken)
@@ -106,7 +116,7 @@ class AuthRepositoryImpl(
                 displayName = userData.displayName,
                 profileImageUrl = userData.profileImageUrl,
                 accessToken = accessToken,
-                refreshToken = "",
+                refreshToken = refreshToken,
                 expiresAt = expiresAt,
                 scopes = validateData.scopes
             )
@@ -118,6 +128,24 @@ class AuthRepositoryImpl(
         } catch (e: Exception) {
             Napier.e("Authentication failed: ${e.message}", e, tag = TAG)
             Result.Error(e)
+        }
+    }
+
+    override suspend fun refreshAccount(account: TwitchAccount): TokenRefreshOutcome {
+        if (account.refreshToken.isBlank()) return TokenRefreshOutcome.Rejected
+        return when (val result = deviceAuth.refreshAccountToken(account.refreshToken)) {
+            is TokenRefreshResult.Refreshed -> {
+                val refreshed = account.copy(
+                    accessToken = result.token.accessToken,
+                    refreshToken = result.token.refreshToken,
+                    expiresAt = Clock.System.now().toEpochMilliseconds() + result.token.expiresInSeconds * 1000L
+                )
+                saveAccount(refreshed)
+                TokenRefreshOutcome.Refreshed(refreshed)
+            }
+
+            TokenRefreshResult.Rejected -> TokenRefreshOutcome.Rejected
+            TokenRefreshResult.Unreachable -> TokenRefreshOutcome.Unreachable
         }
     }
 
@@ -200,6 +228,8 @@ class AuthRepositoryImpl(
                         )
                         return account
                     }
+                    val refreshed = refreshAccount(account) as? TokenRefreshOutcome.Refreshed
+                    if (refreshed != null) return refreshed.account
                     Napier.w("Token for ${account.login} rejected by Twitch, trying next account", tag = TAG)
                 }
                 else -> return account

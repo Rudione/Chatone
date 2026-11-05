@@ -11,23 +11,60 @@ data class AccentPalette(
     val name: String,
     val accent: Color,
     val base: Color,
-    val gradient: List<Color>? = null
+    val surfaces: PaletteSurfaces? = null
 ) {
     val previewColor: Color get() = accent
 }
 
-val ChatoneBrandGradient = listOf(
-    Color(0xFFC77DFF),
-    Color(0xFF7C3AED),
-    Color(0xFF2B7FFF)
+data class PaletteSurfaces(
+    val lowest: Color,
+    val background: Color,
+    val low: Color,
+    val base: Color,
+    val variant: Color,
+    val high: Color,
+    val highest: Color,
+    val onSurface: Color,
+    val onSurfaceMuted: Color,
+    val outline: Color,
+    val outlineVariant: Color,
+    val secondary: Color,
+    val tertiary: Color
 )
+
+private val TwitchSurfaces = PaletteSurfaces(
+    lowest = Color(0xFF000000),
+    background = Color(0xFF0E0E10),
+    low = Color(0xFF0E0E10),
+    base = Color(0xFF0E0E10),
+    variant = Color(0xFF18181B),
+    high = Color(0xFF1F1F23),
+    highest = Color(0xFF2F2F35),
+    onSurface = Color(0xFFEFEFF1),
+    onSurfaceMuted = Color(0xFFADADB8),
+    outline = Color(0xFF53535F),
+    outlineVariant = Color(0xFF2F2F35),
+    secondary = Color(0xFFBF94FF),
+    tertiary = Color(0xFFA970FF)
+)
+
+object ChatoneBrand {
+    val Accent = Color(0xFF8083D9)
+    val Night = Color(0xFF403EA6)
+    val Orbit = Color(0xFFE2E3FF)
+}
 
 val ExpressivePalettes = listOf(
     AccentPalette(
         "Chatone",
-        accent = Color(0xFF8B8DE4),
-        base = Color(0xFF16131E),
-        gradient = ChatoneBrandGradient
+        accent = ChatoneBrand.Accent,
+        base = Color(0xFF16131E)
+    ),
+    AccentPalette(
+        "Twitch",
+        accent = Color(0xFF9147FF),
+        base = Color(0xFF0E0E10),
+        surfaces = TwitchSurfaces
     ),
     AccentPalette("Cosmic", accent = Color(0xFFB3AECB), base = Color(0xFF23212C)),
     AccentPalette("Lavender", accent = Color(0xFFD2C3F6), base = Color(0xFF191424)),
@@ -43,7 +80,9 @@ val ExpressivePalettes = listOf(
 
 const val DEFAULT_ACCENT_INDEX = 0
 
-const val ACCENT_PALETTE_SCHEMA_VERSION = 4
+const val ACCENT_PALETTE_SCHEMA_VERSION = 5
+
+const val TWITCH_PALETTE_INDEX = 1
 
 fun accentPaletteAt(index: Int): AccentPalette =
     ExpressivePalettes.getOrElse(index) { ExpressivePalettes[DEFAULT_ACCENT_INDEX] }
@@ -88,12 +127,17 @@ internal fun Color.withLightness(lightness: Float): Color {
 internal fun Color.rotateHue(degrees: Float, saturationScale: Float, lightness: Float): Color {
     val hsl = toHslValues()
     val hue = ((hsl.hue + degrees) % 360f + 360f) % 360f
-    return Color.hsl(hue, (hsl.saturation * saturationScale).coerceIn(0f, 1f), lightness.coerceIn(0f, 1f))
+    return Color.hsl(
+        hue,
+        (hsl.saturation * saturationScale).coerceIn(0f, 1f),
+        lightness.coerceIn(0f, 1f)
+    )
 }
 
 internal fun surfaceLevel(base: Color, level: Int): Color {
     val hsl = base.toHslValues()
-    val lightness = (hsl.lightness * SurfaceLevelScale[level] + SurfaceLevelLift[level]).coerceIn(0f, 1f)
+    val lightness =
+        (hsl.lightness * SurfaceLevelScale[level] + SurfaceLevelLift[level]).coerceIn(0f, 1f)
     val saturation = min(hsl.saturation, MAX_SURFACE_SATURATION) * (1f - 0.30f * level / 6f)
     return Color.hsl(hsl.hue, saturation.coerceIn(0f, 1f), lightness)
 }
@@ -104,6 +148,7 @@ private fun normalizedAccent(accent: Color): Color {
 }
 
 fun accentColorScheme(palette: AccentPalette): ColorScheme {
+    palette.surfaces?.let { return fixedColorScheme(palette.accent, it) }
     val accent = normalizedAccent(palette.accent)
     val base = palette.base
 
@@ -165,6 +210,55 @@ fun accentColorScheme(palette: AccentPalette): ColorScheme {
 
         inverseSurface = onSurface,
         inverseOnSurface = container,
+        scrim = Color(0xCC000000)
+    )
+}
+
+private fun fixedColorScheme(accent: Color, tones: PaletteSurfaces): ColorScheme {
+    val onAccent = if (accent.relativeLuminance() > 0.45f) tones.lowest else Color.White
+    return darkColorScheme(
+        primary = accent,
+        onPrimary = onAccent,
+        primaryContainer = accent.copy(alpha = 0.24f).compositeOver(tones.high),
+        onPrimaryContainer = lerp(accent, Color.White, 0.55f),
+        inversePrimary = accent.withLightness(0.42f),
+
+        secondary = tones.secondary,
+        onSecondary = tones.lowest,
+        secondaryContainer = tones.secondary.copy(alpha = 0.18f).compositeOver(tones.high),
+        onSecondaryContainer = lerp(tones.secondary, Color.White, 0.42f),
+
+        tertiary = tones.tertiary,
+        onTertiary = onAccent,
+        tertiaryContainer = tones.tertiary.copy(alpha = 0.18f).compositeOver(tones.high),
+        onTertiaryContainer = lerp(tones.tertiary, Color.White, 0.42f),
+
+        error = ChatoneColors.Error,
+        onError = Color.White,
+        errorContainer = ChatoneColors.Error.copy(alpha = 0.22f).compositeOver(tones.high),
+        onErrorContainer = lerp(ChatoneColors.Error, Color.White, 0.42f),
+
+        background = tones.background,
+        onBackground = tones.onSurface,
+        surface = tones.base,
+        onSurface = tones.onSurface,
+        surfaceVariant = tones.variant,
+        onSurfaceVariant = tones.onSurfaceMuted,
+        surfaceTint = accent,
+
+        surfaceBright = tones.highest,
+        surfaceDim = tones.lowest,
+        surfaceContainerLowest = tones.lowest,
+        surfaceContainerLow = tones.low,
+        surfaceContainer = tones.base,
+        surfaceContainerHigh = tones.high,
+        surfaceContainerHighest = tones.highest,
+
+        outline = tones.outline,
+        outlineVariant = tones.outlineVariant,
+
+        inverseSurface = tones.onSurface,
+        inverseOnSurface = tones.base,
         scrim = Color(0xCC000000)
     )
 }

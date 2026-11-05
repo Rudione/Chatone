@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.main.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.browse_entry_title
+import chatone.composeapp.generated.resources.main_add_channel_title
+import chatone.composeapp.generated.resources.main_login_to_twitch
+import chatone.composeapp.generated.resources.main_no_channels_hint
+import chatone.composeapp.generated.resources.main_swipe_for_channels
+import chatone.composeapp.generated.resources.no_channels_open
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -39,14 +47,13 @@ import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.MessagesSquare
 import io.rudione.chatone.icons.lucide.Plus
 import io.rudione.chatone.icons.lucide.User
-import io.rudione.chatone.presentation.components.SwipeDirection
-import io.rudione.chatone.presentation.components.directionalSwipe
+import io.rudione.chatone.presentation.components.expressive.LocalModalDrawer
+import io.rudione.chatone.presentation.components.expressive.openDrawerSwipe
 import io.rudione.chatone.presentation.components.expressive.PillButton
 import io.rudione.chatone.presentation.components.expressive.PillTone
 import io.rudione.chatone.presentation.components.expressive.ScallopBadge
 import io.rudione.chatone.presentation.components.expressive.ambientHaze
 import io.rudione.chatone.presentation.components.expressive.touchHaze
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.system.isDesktopPlatform
 
 @Composable
@@ -57,14 +64,17 @@ internal fun EmptyState(
     onBrowse: (() -> Unit)? = null,
     onOpenChannels: (() -> Unit)? = null
 ) {
-    val s = LocalStrings.current
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .ambientHaze(base = Color.Transparent, strength = HAZE_STRENGTH, animated = !isDesktopPlatform)
+            .ambientHaze(
+                base = Color.Transparent,
+                strength = HAZE_STRENGTH,
+                animated = !isDesktopPlatform
+            )
             .touchHaze(tint = MaterialTheme.colorScheme.primary, strength = HAZE_STRENGTH)
             .then(
-                if (onOpenChannels != null) Modifier.directionalSwipe(SwipeDirection.Right, onOpenChannels)
+                if (onOpenChannels != null) Modifier.openDrawerSwipe(LocalModalDrawer.current, onOpenChannels)
                 else Modifier
             ),
         contentAlignment = Alignment.Center
@@ -80,14 +90,14 @@ internal fun EmptyState(
             ScallopBadge(icon = Lucide.MessagesSquare, size = 136.dp, animated = !isDesktopPlatform)
             Spacer(Modifier.height(28.dp))
             Text(
-                s.noChannelsOpen,
+                stringResource(Res.string.no_channels_open),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center
             )
             Text(
-                s.mainNoChannelsHint,
+                stringResource(Res.string.main_no_channels_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -95,14 +105,14 @@ internal fun EmptyState(
             )
             Spacer(Modifier.height(28.dp))
             PillButton(
-                text = s.mainAddChannelTitle,
+                text = stringResource(Res.string.main_add_channel_title),
                 onClick = onAddChannel,
                 icon = Lucide.Plus,
                 modifier = Modifier.fillMaxWidth()
             )
             if (onBrowse != null) {
                 PillButton(
-                    text = s.explore.entryTitle,
+                    text = stringResource(Res.string.browse_entry_title),
                     onClick = onBrowse,
                     icon = Lucide.Compass,
                     tone = PillTone.Tonal,
@@ -111,7 +121,7 @@ internal fun EmptyState(
             }
             if (isGuest) {
                 PillButton(
-                    text = s.mainLoginToTwitch,
+                    text = stringResource(Res.string.main_login_to_twitch),
                     onClick = onLogin,
                     icon = Lucide.User,
                     tone = PillTone.Ghost,
@@ -147,12 +157,17 @@ private fun SwipeHint(onClick: () -> Unit, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
-            LocalStrings.current.mainSwipeForChannels,
+            stringResource(Res.string.main_swipe_for_channels),
             style = MaterialTheme.typography.labelMedium,
             color = tint.copy(alpha = 0.8f)
         )
         Box(Modifier.graphicsLayer { translationX = nudge * 6.dp.toPx() }) {
-            Icon(Lucide.ChevronRight, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+            Icon(
+                Lucide.ChevronRight,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }

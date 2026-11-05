@@ -1,5 +1,141 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.chat_vm_gif_failed
+import chatone.composeapp.generated.resources.chat_vm_gif_tier
+import chatone.composeapp.generated.resources.chat_vm_gif_disabled
+import chatone.composeapp.generated.resources.chat_vm_gif_cooldown
+import chatone.composeapp.generated.resources.chat_vm_gif_integrity
+import chatone.composeapp.generated.resources.chat_vm_gif_failed_code
+import chatone.composeapp.generated.resources.chat_vm_history_failed
+import chatone.composeapp.generated.resources.chat_vm_chat_cleared
+import chatone.composeapp.generated.resources.chat_vm_message_deleted_from
+import chatone.composeapp.generated.resources.chat_vm_message_deleted
+import chatone.composeapp.generated.resources.chat_vm_by_moderator
+import chatone.composeapp.generated.resources.chat_vm_unpinned_by
+import chatone.composeapp.generated.resources.chat_vm_pin_removed
+import chatone.composeapp.generated.resources.chat_vm_raid_started
+import chatone.composeapp.generated.resources.chat_vm_raid_cancelled
+import chatone.composeapp.generated.resources.chat_vm_marker_created
+import chatone.composeapp.generated.resources.chat_vm_channel_still_loading
+import chatone.composeapp.generated.resources.chat_vm_failed_to_load_points
+import chatone.composeapp.generated.resources.chat_vm_gql_token_required
+import chatone.composeapp.generated.resources.chat_vm_authentication_required_to_send_messages
+import chatone.composeapp.generated.resources.chat_vm_automod_action_failed
+import chatone.composeapp.generated.resources.chat_vm_blocked
+import chatone.composeapp.generated.resources.chat_vm_broadcaster_or_lead_moderator_only
+import chatone.composeapp.generated.resources.chat_vm_channel_not_found
+import chatone.composeapp.generated.resources.chat_vm_channel_points_balance
+import chatone.composeapp.generated.resources.chat_vm_could_not_find_the_sent_message
+import chatone.composeapp.generated.resources.chat_vm_failed_to_ban
+import chatone.composeapp.generated.resources.chat_vm_failed_to_ban_user
+import chatone.composeapp.generated.resources.chat_vm_failed_to_block
+import chatone.composeapp.generated.resources.chat_vm_failed_to_cancel_poll
+import chatone.composeapp.generated.resources.chat_vm_failed_to_cancel_prediction
+import chatone.composeapp.generated.resources.chat_vm_failed_to_cancel_raid
+import chatone.composeapp.generated.resources.chat_vm_failed_to_change_color
+import chatone.composeapp.generated.resources.chat_vm_failed_to_clear_chat
+import chatone.composeapp.generated.resources.chat_vm_failed_to_complete_prediction
+import chatone.composeapp.generated.resources.chat_vm_failed_to_create_stream_marker
+import chatone.composeapp.generated.resources.chat_vm_failed_to_delete_message
+import chatone.composeapp.generated.resources.chat_vm_failed_to_disable_emote_only
+import chatone.composeapp.generated.resources.chat_vm_failed_to_disable_follower_mode
+import chatone.composeapp.generated.resources.chat_vm_failed_to_disable_shield_mode
+import chatone.composeapp.generated.resources.chat_vm_failed_to_disable_slow_mode
+import chatone.composeapp.generated.resources.chat_vm_failed_to_disable_sub_only
+import chatone.composeapp.generated.resources.chat_vm_failed_to_disable_unique_chat
+import chatone.composeapp.generated.resources.chat_vm_failed_to_enable_emote_only
+import chatone.composeapp.generated.resources.chat_vm_failed_to_enable_shield_mode
+import chatone.composeapp.generated.resources.chat_vm_failed_to_enable_sub_only
+import chatone.composeapp.generated.resources.chat_vm_failed_to_enable_unique_chat
+import chatone.composeapp.generated.resources.chat_vm_failed_to_end_poll
+import chatone.composeapp.generated.resources.chat_vm_failed_to_fetch_channel_point_rewards
+import chatone.composeapp.generated.resources.chat_vm_failed_to_fetch_channel_points_balance
+import chatone.composeapp.generated.resources.chat_vm_failed_to_join_channel
+import chatone.composeapp.generated.resources.chat_vm_failed_to_lock_prediction
+import chatone.composeapp.generated.resources.chat_vm_failed_to_monitor_user
+import chatone.composeapp.generated.resources.chat_vm_failed_to_place_prediction
+import chatone.composeapp.generated.resources.chat_vm_failed_to_reconnect
+import chatone.composeapp.generated.resources.chat_vm_failed_to_redeem
+import chatone.composeapp.generated.resources.chat_vm_failed_to_resolve_user_for_raid
+import chatone.composeapp.generated.resources.chat_vm_failed_to_restrict_user
+import chatone.composeapp.generated.resources.chat_vm_failed_to_send
+import chatone.composeapp.generated.resources.chat_vm_failed_to_send_announcement
+import chatone.composeapp.generated.resources.chat_vm_failed_to_send_command
+import chatone.composeapp.generated.resources.chat_vm_failed_to_send_message
+import chatone.composeapp.generated.resources.chat_vm_failed_to_send_raid_now
+import chatone.composeapp.generated.resources.chat_vm_failed_to_send_shoutout
+import chatone.composeapp.generated.resources.chat_vm_failed_to_send_whisper
+import chatone.composeapp.generated.resources.chat_vm_failed_to_set_follower_mode
+import chatone.composeapp.generated.resources.chat_vm_failed_to_set_slow_mode
+import chatone.composeapp.generated.resources.chat_vm_failed_to_start_poll
+import chatone.composeapp.generated.resources.chat_vm_failed_to_start_prediction
+import chatone.composeapp.generated.resources.chat_vm_failed_to_start_raid
+import chatone.composeapp.generated.resources.chat_vm_failed_to_start_raid_alt
+import chatone.composeapp.generated.resources.chat_vm_failed_to_timeout
+import chatone.composeapp.generated.resources.chat_vm_failed_to_timeout_user
+import chatone.composeapp.generated.resources.chat_vm_failed_to_unban
+import chatone.composeapp.generated.resources.chat_vm_failed_to_unban_user
+import chatone.composeapp.generated.resources.chat_vm_failed_to_unblock
+import chatone.composeapp.generated.resources.chat_vm_failed_to_unmonitor_user
+import chatone.composeapp.generated.resources.chat_vm_failed_to_unrestrict_user
+import chatone.composeapp.generated.resources.chat_vm_failed_to_update_chat_settings
+import chatone.composeapp.generated.resources.chat_vm_failed_to_vote
+import chatone.composeapp.generated.resources.chat_vm_failed_to_warn_user
+import chatone.composeapp.generated.resources.chat_vm_invalid_regex
+import chatone.composeapp.generated.resources.chat_vm_mod_only_command
+import chatone.composeapp.generated.resources.chat_vm_no_active_poll
+import chatone.composeapp.generated.resources.chat_vm_no_active_prediction
+import chatone.composeapp.generated.resources.chat_vm_no_spam_running
+import chatone.composeapp.generated.resources.chat_vm_not_connected_to_chat
+import chatone.composeapp.generated.resources.chat_vm_nuke_banned_user_s
+import chatone.composeapp.generated.resources.chat_vm_nuke_deleted_message_s_matching
+import chatone.composeapp.generated.resources.chat_vm_nuke_no_messages_matched_in_the
+import chatone.composeapp.generated.resources.chat_vm_nuke_timed_out_user_s_for
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_can_cancel_a
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_can_cancel_a_alt
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_can_complete_a
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_can_end_a
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_can_lock_a
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_can_start_a
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_can_start_a_alt
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_or_a_channel
+import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_or_a_channel_alt
+import chatone.composeapp.generated.resources.chat_vm_outcome_not_found_try_a_number
+import chatone.composeapp.generated.resources.chat_vm_poll_started_s
+import chatone.composeapp.generated.resources.chat_vm_prediction_started_s
+import chatone.composeapp.generated.resources.chat_vm_redeemed
+import chatone.composeapp.generated.resources.chat_vm_redeemed_balance
+import chatone.composeapp.generated.resources.chat_vm_reward_not_found
+import chatone.composeapp.generated.resources.chat_vm_reward_unavailable
+import chatone.composeapp.generated.resources.chat_vm_spam_already_running_use_spam_stop
+import chatone.composeapp.generated.resources.chat_vm_spam_cancelled
+import chatone.composeapp.generated.resources.chat_vm_supported_commands
+import chatone.composeapp.generated.resources.chat_vm_this_reward_needs_text_input_redeem
+import chatone.composeapp.generated.resources.chat_vm_unblocked
+import chatone.composeapp.generated.resources.chat_vm_unknown_command_type_help_for_a
+import chatone.composeapp.generated.resources.chat_vm_usage
+import chatone.composeapp.generated.resources.chat_vm_usage_pin_id_user_text_5m
+import chatone.composeapp.generated.resources.chat_vm_user_not_found
+import chatone.composeapp.generated.resources.chat_vm_user_not_found_plain
+import chatone.composeapp.generated.resources.chat_vm_you_must_be_the_broadcaster_or
+import chatone.composeapp.generated.resources.chat_vm_you_must_be_the_broadcaster_or_alt
+import chatone.composeapp.generated.resources.chat_vm_you_must_be_the_broadcaster_to
+import io.rudione.chatone.presentation.text.resolve
+import io.rudione.chatone.presentation.text.uiText
+import io.rudione.chatone.presentation.text.UiText
+import chatone.composeapp.generated.resources.pin_reason_unknown
+import chatone.composeapp.generated.resources.pin_reason_not_connected
+import chatone.composeapp.generated.resources.pin_reason_not_pinnable
+import chatone.composeapp.generated.resources.chat_message_not_sent
+import org.jetbrains.compose.resources.StringResource
+import chatone.composeapp.generated.resources.no_recent_message_to_pin
+import chatone.composeapp.generated.resources.pin_failed
+import chatone.composeapp.generated.resources.actions_auto_claim_failed
+import chatone.composeapp.generated.resources.chat_viewer_left
+import chatone.composeapp.generated.resources.chat_viewer_joined
+import chatone.composeapp.generated.resources.ai_flagged_messages_notice
+import chatone.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.getString
 import androidx.lifecycle.viewModelScope
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.base.BaseViewModel
@@ -21,7 +157,15 @@ import io.rudione.chatone.data.repository.AutomodRepository
 import io.rudione.chatone.data.repository.BadgeRepository
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.EmoteRepository
+import io.rudione.chatone.data.repository.AutoModHub
+import io.rudione.chatone.data.repository.ChannelBanGateway
 import io.rudione.chatone.data.repository.ChannelRoleGateway
+import io.rudione.chatone.data.repository.ModerationActor
+import io.rudione.chatone.presentation.chat.moderation.AutoModCards
+import io.rudione.chatone.presentation.chat.moderation.ChannelTimeouts
+import kotlinx.coroutines.async
+import io.rudione.chatone.presentation.chat.moderation.TimeoutOutcome
+import io.rudione.chatone.presentation.chat.moderation.withBanState
 import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.moderation.ChannelRole
 import io.rudione.chatone.domain.moderation.RoleTarget
@@ -32,13 +176,17 @@ import io.rudione.chatone.domain.model.ChatRuleType
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.domain.mention.MentionMatcher
 import io.rudione.chatone.domain.model.supportsReply
-import io.rudione.chatone.presentation.automod.defaultChatRuleReply
+import io.rudione.chatone.presentation.automod.defaultChatRuleReplyRes
 import io.rudione.chatone.util.automod.ChatRuleReplyFormatter
 import io.rudione.chatone.util.automod.ChatRuleReplyThrottle
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.EmoteProvider
 import io.rudione.chatone.domain.model.GenericEmote
 import io.rudione.chatone.domain.model.IrcEvent
+import io.rudione.chatone.domain.mention.MentionInsertion
+import io.rudione.chatone.domain.points.RedemptionRoute
+import io.rudione.chatone.domain.points.RewardRedemption
+import io.rudione.chatone.domain.points.RewardRedemptionRouter
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.MacroStep
 import io.rudione.chatone.domain.model.hasGrandModBadge
@@ -47,8 +195,6 @@ import io.rudione.chatone.domain.model.lockedTwitchEmoteIds
 import io.rudione.chatone.domain.usecase.JoinChannelUseCase
 import io.rudione.chatone.domain.usecase.SendMessageUseCase
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import io.rudione.chatone.util.automod.AutomodEngine
 import io.rudione.chatone.util.automod.AutomodTarget
 import io.rudione.chatone.util.automod.ChatRuleEngine
@@ -173,7 +319,7 @@ data class ChatState(
     val pointsBalance: Long = 0L,
     val channelRewards: List<GqlChannelPointReward> = emptyList(),
     val pointsIconUrl: String? = null,
-    val pointsBitsError: String? = null,
+    val pointsBitsError: UiText? = null,
 
     val sentMessageHistory: List<String> = emptyList(),
     val historyIndex: Int = -1,
@@ -194,7 +340,7 @@ data class ChatState(
     val showBlockedMode: Int = 0,
     val twitchSubscriberEmotes: List<GenericEmote> = emptyList(),
     val ownSubTier: Int = 0,
-    val gifSendError: String? = null,
+    val gifSendError: UiText? = null,
     val gifAccess: GifAccess = GifAccess.Loading,
     val twitchChannelEmotes: List<GenericEmote> = emptyList(),
     val twitchGlobalEmotes: List<GenericEmote> = emptyList(),
@@ -205,7 +351,8 @@ data class ChatState(
     val pendingUploadHost: String? = null,
     val pendingUploadHostIsNew: Boolean = false,
     val warmup: ChatWarmup = ChatWarmup(),
-    val roleOverrides: Map<String, UserRoles> = emptyMap()
+    val roleOverrides: Map<String, UserRoles> = emptyMap(),
+    val bannedUserIds: Set<String> = emptySet()
 ) : UiState {
     val canModerate: Boolean get() = isMod || isBroadcaster
     val canManageRoles: Boolean get() = isBroadcaster || isGrandMod
@@ -263,6 +410,7 @@ sealed class ChatEvent : UiEvent {
     object OnClearChat : ChatEvent()
 
     data class OnReplyToMessage(val message: DisplayMessage.PrivMsg) : ChatEvent()
+    data class OnSendThreadReply(val target: DisplayMessage.PrivMsg, val text: String) : ChatEvent()
     object OnCancelReply : ChatEvent()
 
     data class OnPinMessage(val messageId: String) : ChatEvent()
@@ -315,7 +463,7 @@ sealed class ChatEvent : UiEvent {
 }
 
 sealed class ChatEffect : UIEffect {
-    data class ShowError(val message: String) : ChatEffect()
+    data class ShowError(val message: UiText) : ChatEffect()
     object ScrollToBottom : ChatEffect()
     object HistoryMerged : ChatEffect()
     data class MentionDetected(
@@ -383,7 +531,9 @@ class ChatViewModel(
     private val persistedSettings: com.russhwolf.settings.Settings,
     private val accountAgeRepository: AccountAgeRepository,
     private val channelRoleGateway: ChannelRoleGateway,
-    private val gifRepository: GifRepository
+    private val gifRepository: GifRepository,
+    channelBanGateway: ChannelBanGateway,
+    private val autoModHub: AutoModHub
 ) : BaseViewModel<ChatState, ChatEvent, ChatEffect>(ChatState()) {
 
     private var gifAccessJob: Job? = null
@@ -411,8 +561,6 @@ class ChatViewModel(
         private const val QUIET_CHAT_THRESHOLD = 60
         private const val QUIET_CHAT_BACKFILL_TARGET = 200
         private const val CHANNEL_ID_WAIT_MS = 15_000L
-        private const val GQL_TOKEN_REQUIRED_MSG =
-            "Set up a first-party token in Settings → Account -> twitch extended right"
         private val msgCounter = atomic(0L)
 
         private fun uniqueId(prefix: String): String =
@@ -477,12 +625,14 @@ class ChatViewModel(
         sendAsUser = ::sendAutomatedMessage
     )
 
+    private val channelTimeouts = ChannelTimeouts(channelBanGateway)
+
     private val roleController = ChannelRoleController(
         scope = viewModelScope,
         gateway = channelRoleGateway,
         getState = { state.value },
         update = { transform -> update(transform) },
-        onError = { message -> sendEffect(ChatEffect.ShowError(message)) }
+        onError = { message -> sendEffect(ChatEffect.ShowError(UiText.Raw(message))) }
     )
 
     private fun isPhraseMuted(text: String): Boolean {
@@ -670,7 +820,7 @@ class ChatViewModel(
     private fun votePoll(pollId: String, choiceId: String) {
         val s = state.value
         if (!moderationAuthStore.hasCustomToken()) {
-            sendEffect(ChatEffect.ShowError(GQL_TOKEN_REQUIRED_MSG)); return
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required))); return
         }
         if (s.currentUserId.isBlank()) return
         val poll = s.livePoll
@@ -696,7 +846,7 @@ class ChatViewModel(
                 token = token
             )
             if (r.isError) {
-                sendEffect(ChatEffect.ShowError("Failed to vote: ${(r as Result.Error).exception.message}"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_vote, (r as Result.Error).exception.message)))
             }
         }
     }
@@ -704,7 +854,7 @@ class ChatViewModel(
     private fun placePrediction(eventId: String, outcomeId: String, points: Int) {
         val s = state.value
         if (!moderationAuthStore.hasCustomToken()) {
-            sendEffect(ChatEffect.ShowError(GQL_TOKEN_REQUIRED_MSG)); return
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required))); return
         }
         if (points <= 0) return
         val prediction = s.livePrediction
@@ -726,7 +876,7 @@ class ChatViewModel(
         viewModelScope.launch {
             val r = twitchGqlClient.makePredictionGql(eventId, outcomeId, points, token)
             if (r.isError) {
-                sendEffect(ChatEffect.ShowError("Failed to place prediction: ${(r as Result.Error).exception.message}"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_place_prediction, (r as Result.Error).exception.message)))
             }
         }
     }
@@ -789,25 +939,25 @@ class ChatViewModel(
     private fun resolvePrediction(eventId: String, outcomeId: String) {
         val s = state.value
         if (!s.canModerate) {
-            sendEffect(ChatEffect.ShowError("Mod-only command")); return
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command))); return
         }
         viewModelScope.launch {
             if (moderationAuthStore.hasCustomToken()) {
                 val token = moderationAuthStore.resolveToken(s.currentAccessToken)
                 val r = twitchGqlClient.resolvePredictionGql(eventId, outcomeId, token)
                 if (r.isError) {
-                    sendEffect(ChatEffect.ShowError("Failed to complete prediction"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_complete_prediction)))
                     return@launch
                 }
             } else {
                 if (!s.isBroadcaster) {
-                    sendEffect(ChatEffect.ShowError(GQL_TOKEN_REQUIRED_MSG)); return@launch
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required))); return@launch
                 }
                 val r = apiClient.endPrediction(
                     s.currentAccessToken, s.channelId, eventId, "RESOLVED", outcomeId
                 )
                 if (r.isError) {
-                    sendEffect(ChatEffect.ShowError("Failed to complete prediction"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_complete_prediction)))
                     return@launch
                 }
             }
@@ -826,7 +976,7 @@ class ChatViewModel(
     private fun lockPrediction(eventId: String) {
         val s = state.value
         if (!s.canModerate) {
-            sendEffect(ChatEffect.ShowError("Mod-only command")); return
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command))); return
         }
         viewModelScope.launch {
             val failed = if (moderationAuthStore.hasCustomToken()) {
@@ -834,11 +984,11 @@ class ChatViewModel(
                 twitchGqlClient.lockPredictionGql(eventId, token).isError
             } else {
                 if (!s.isBroadcaster) {
-                    sendEffect(ChatEffect.ShowError(GQL_TOKEN_REQUIRED_MSG)); return@launch
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required))); return@launch
                 }
                 apiClient.endPrediction(s.currentAccessToken, s.channelId, eventId, "LOCKED").isError
             }
-            if (failed) sendEffect(ChatEffect.ShowError("Failed to lock prediction"))
+            if (failed) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_lock_prediction)))
             else update {
                 val p = it.livePrediction
                 if (it.channelId != s.channelId || p == null || p.id != eventId) it
@@ -1025,8 +1175,8 @@ class ChatViewModel(
         val flaggedIds = matches.mapNotNull { fresh.getOrNull(it)?.id }.toSet()
         if (flaggedIds.isEmpty()) return
         markAiHighlighted(flaggedIds)
-        val strings = AppStrings.forLocale(cachedSettings().language)
-        systemNotice(s.channelLogin, strings.aiFlaggedMessagesNotice.replace("{0}", flaggedIds.size.toString()))
+        val channel = s.channelLogin
+        viewModelScope.launch { systemNotice(channel, getString(Res.string.ai_flagged_messages_notice, flaggedIds.size)) }
     }
 
     private fun observeAiHighlightWatch() {
@@ -1176,6 +1326,7 @@ class ChatViewModel(
             }
 
             ChatEvent.OnCancelReply -> update { it.copy(replyingTo = null) }
+            is ChatEvent.OnSendThreadReply -> sendThreadReply(event.target, event.text)
             is ChatEvent.OnPinMessage -> pinMessage(event.messageId)
             ChatEvent.OnUnpinMessage -> unpinMessageRemote()
             ChatEvent.OnOpenPollCreation -> openPollCreation()
@@ -1331,11 +1482,11 @@ class ChatViewModel(
     private fun sendGif(gif: GifSearchItem) {
         val s = state.value
         if (s.channelId.isEmpty()) {
-            update { it.copy(gifSendError = "Channel is still loading, try again") }
+            update { it.copy(gifSendError = uiText(Res.string.chat_vm_channel_still_loading)) }
             return
         }
         if (!moderationAuthStore.hasCustomToken()) {
-            update { it.copy(gifSendError = GQL_TOKEN_REQUIRED_MSG) }
+            update { it.copy(gifSendError = uiText(Res.string.chat_vm_gql_token_required)) }
             return
         }
 
@@ -1350,15 +1501,12 @@ class ChatViewModel(
             if (result is Result.Error) {
                 val code = (result.exception as? SendGifException)?.code
                 val message = when (code) {
-                    null -> result.exception.message ?: "Failed to send GIF"
-                    "USER_NOT_ELIGIBLE", "NOT_SUBSCRIBED", "INSUFFICIENT_TIER" ->
-                        "GIFs require a Tier 2 or Tier 3 subscription to this channel"
-                    "GIFS_DISABLED", "CHANNEL_SETTINGS_DISABLED" ->
-                        "This channel has GIFs turned off"
-                    "RATE_LIMITED", "SLOW_MODE" -> "GIF cooldown is active, wait a moment"
-                    "INTEGRITY_CHECK_FAILED" ->
-                        "Twitch blocked the request (integrity check). Re-link the first-party token in Settings"
-                    else -> "Failed to send GIF ($code)"
+                    null -> result.exception.message?.let { UiText.Raw(it) } ?: uiText(Res.string.chat_vm_gif_failed)
+                    "USER_NOT_ELIGIBLE", "NOT_SUBSCRIBED", "INSUFFICIENT_TIER" -> uiText(Res.string.chat_vm_gif_tier)
+                    "GIFS_DISABLED", "CHANNEL_SETTINGS_DISABLED" -> uiText(Res.string.chat_vm_gif_disabled)
+                    "RATE_LIMITED", "SLOW_MODE" -> uiText(Res.string.chat_vm_gif_cooldown)
+                    "INTEGRITY_CHECK_FAILED" -> uiText(Res.string.chat_vm_gif_integrity)
+                    else -> uiText(Res.string.chat_vm_gif_failed_code, code)
                 }
                 Napier.w("sendGifMessage failed: $message", tag = TAG)
                 update { it.copy(gifSendError = message) }
@@ -1399,13 +1547,133 @@ class ChatViewModel(
         }
     }
 
+    private fun autoModCard(event: IrcEvent.AutoModHeld, channel: String): DisplayMessage.AutoModMsg {
+        val s = state.value
+        val now = Clock.System.now().toEpochMilliseconds()
+        val known = s.messages.lastOrNull {
+            it is DisplayMessage.PrivMsg && (it.userId == event.userId || it.username.equals(event.username, ignoreCase = true))
+        } as? DisplayMessage.PrivMsg
+        val rawBadges = event.badges.ifEmpty { known?.rawMessage?.badges.orEmpty() }
+        val badgeIds = rawBadges.map { it.id.lowercase() }.toSet()
+        val preview = chatMessageToDisplay(
+            ChatMessage(
+                id = "automod_preview_${event.msgId}",
+                channelId = s.channelId,
+                channelName = s.channelLogin,
+                userId = event.userId,
+                username = event.username,
+                displayName = event.displayName,
+                message = event.message,
+                timestamp = now,
+                color = event.color ?: known?.color,
+                badges = rawBadges,
+                emotes = event.emotes,
+                isModerator = "moderator" in badgeIds,
+                isSubscriber = "subscriber" in badgeIds || "founder" in badgeIds,
+                isVip = "vip" in badgeIds,
+                isBroadcaster = "broadcaster" in badgeIds
+            )
+        )
+        return DisplayMessage.AutoModMsg(
+            id = "automod_${event.msgId}",
+            timestamp = now,
+            channel = channel,
+            msgId = event.msgId,
+            userId = event.userId,
+            username = event.username,
+            displayName = event.displayName,
+            text = event.message,
+            color = event.color,
+            reasonCategory = event.reasonCategory,
+            reasonLevel = event.reasonLevel,
+            flaggedFragments = event.flaggedFragments,
+            preview = preview
+        )
+    }
+
+    private fun addAutoModCard(card: DisplayMessage.AutoModMsg) {
+        addMessage(card)
+        val s = state.value
+        val token = moderationAuthStore.resolveToken(s.currentAccessToken)
+        if (token.isBlank() || s.channelId.isEmpty() || card.username.isBlank()) return
+        val channelId = s.channelId
+        viewModelScope.launch {
+            val profile = async { twitchGqlClient.getAutoModProfile(card.username, s.channelLogin, channelId, token) }
+            val logs = async {
+                if (card.userId.isBlank()) null else twitchGqlClient.getModLogSummary(channelId, card.userId, token)
+            }
+            val enriched = AutoModCards.enrich(card, profile.await(), logs.await())
+            update { st ->
+                if (st.channelId != channelId) return@update st
+                st.copy(messages = st.messages.map { dm ->
+                    if (dm is DisplayMessage.AutoModMsg && dm.msgId == card.msgId) {
+                        enriched.copy(status = dm.status)
+                    } else dm
+                })
+            }
+        }
+    }
+
+    private val announcedAutoModIds = LinkedHashSet<String>()
+
+    private fun syncAutoMod(channelId: String) {
+        if (channelId.isEmpty()) return
+        autoModHub.ensureRunning()
+        autoModHub.watch(channelId)
+        viewModelScope.launch {
+            val shown = state.value.messages.filterIsInstance<DisplayMessage.AutoModMsg>()
+            val stale = shown
+                .filter { it.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING && autoModHub.isResolved(it.msgId) }
+                .map { it.msgId }
+                .toSet()
+            if (stale.isNotEmpty()) {
+                update { st ->
+                    st.copy(messages = st.messages.filterNot { it is DisplayMessage.AutoModMsg && it.msgId in stale })
+                }
+            }
+            val shownIds = shown.map { it.msgId }.toSet()
+            autoModHub.pendingFor(channelId)
+                .filter { it.msgId !in shownIds }
+                .forEach { held ->
+                    val current = state.value
+                    if (current.channelId == channelId) addAutoModCard(autoModCard(held, "#${current.channelLogin}"))
+                }
+        }
+    }
+
+    private fun announceAutoModResolution(msgId: String, approved: Boolean, authorLogin: String?, moderatorLogin: String?) {
+        if (!announcedAutoModIds.add(msgId)) return
+        if (announcedAutoModIds.size > 128) announcedAutoModIds.remove(announcedAutoModIds.first())
+        val author = authorLogin?.takeIf { it.isNotBlank() }
+        addMessage(
+            DisplayMessage.ModerationMsg(
+                id = uniqueId("automod_res"),
+                timestamp = Clock.System.now().toEpochMilliseconds(),
+                channel = "#${state.value.channelLogin}",
+                text = buildString {
+                    append(if (approved) "AutoMod: message approved" else "AutoMod: message denied")
+                    if (author != null) append(" · $author")
+                    if (!moderatorLogin.isNullOrBlank()) append(" by $moderatorLogin")
+                },
+                action = if (approved) DisplayMessage.ModerationMsg.ModerationAction.AUTOMOD_ALLOWED
+                else DisplayMessage.ModerationMsg.ModerationAction.AUTOMOD_DENIED,
+                targetUser = author,
+                moderatorLogin = moderatorLogin
+            )
+        )
+    }
+
     private fun handleAutoMod(msgId: String, action: String) {
         val s = state.value
         if (s.currentAccessToken.isEmpty() || s.currentUserId.isEmpty()) return
         viewModelScope.launch {
 
+            val approved = action == "ALLOW"
             val newStatus =
-                if (action == "ALLOW") DisplayMessage.AutoModMsg.AutoModStatus.ALLOWED else DisplayMessage.AutoModMsg.AutoModStatus.DENIED
+                if (approved) DisplayMessage.AutoModMsg.AutoModStatus.ALLOWED else DisplayMessage.AutoModMsg.AutoModStatus.DENIED
+            val author = state.value.messages
+                .firstOrNull { it is DisplayMessage.AutoModMsg && it.msgId == msgId }
+                ?.let { (it as DisplayMessage.AutoModMsg).username }
             update { state ->
                 state.copy(messages = state.messages.map { dm ->
                     if (dm is DisplayMessage.AutoModMsg && dm.msgId == msgId) dm.copy(status = newStatus) else dm
@@ -1415,7 +1683,9 @@ class ChatViewModel(
             val result =
                 apiClient.manageAutoModMessage(s.currentAccessToken, s.currentUserId, msgId, action)
             if (result is Result.Error) {
-                sendEffect(ChatEffect.ShowError("AutoMod action failed: ${result.exception.message}"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_automod_action_failed, result.exception.message)))
+            } else {
+                announceAutoModResolution(msgId, approved, author, s.currentUserLogin)
             }
 
             delay(800L)
@@ -1434,9 +1704,9 @@ class ChatViewModel(
             val result = apiClient.blockUser(s.currentAccessToken, targetUserId)
             if (result is Result.Success) {
                 update { it.copy(blockedUserIds = it.blockedUserIds + targetUserId) }
-                systemNotice(s.channelLogin, "Blocked $targetLogin")
+                systemNotice(s.channelLogin, uiText(Res.string.chat_vm_blocked, targetLogin))
             } else {
-                sendEffect(ChatEffect.ShowError("Failed to block $targetLogin"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_block, targetLogin)))
             }
         }
     }
@@ -1448,9 +1718,9 @@ class ChatViewModel(
             val result = apiClient.unblockUser(s.currentAccessToken, targetUserId)
             if (result is Result.Success) {
                 update { it.copy(blockedUserIds = it.blockedUserIds - targetUserId) }
-                systemNotice(s.channelLogin, "Unblocked $targetLogin")
+                systemNotice(s.channelLogin, uiText(Res.string.chat_vm_unblocked, targetLogin))
             } else {
-                sendEffect(ChatEffect.ShowError("Failed to unblock $targetLogin"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_unblock, targetLogin)))
             }
         }
     }
@@ -1486,7 +1756,7 @@ class ChatViewModel(
                 }
                 sendMessageUseCase(s.channelLogin, text)
             } catch (e: Exception) {
-                sendEffect(ChatEffect.ShowError("Failed to send: ${e.message}"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send, e.message)))
             }
         }
     }
@@ -1590,6 +1860,7 @@ class ChatViewModel(
                 pointsIconUrl = null,
                 isBanned = false,
                 banReason = "",
+                bannedUserIds = emptySet(),
                 currentAccessToken = accessToken.ifEmpty { it.currentAccessToken },
                 currentUserId = userId.ifEmpty { it.currentUserId },
                 currentUserLogin = userLogin.ifEmpty { it.currentUserLogin },
@@ -1777,7 +2048,7 @@ class ChatViewModel(
                     if (it.channelLogin == channelLogin) it.copy(isLoading = false, warmup = ChatWarmup.Complete)
                     else it.copy(isLoading = false)
                 }
-                sendEffect(ChatEffect.ShowError("Failed to join channel: ${e.message}"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_join_channel, e.message)))
             }
         }
     }
@@ -1815,6 +2086,7 @@ class ChatViewModel(
             if (channelId == userId) {
                 update { if (it.channelLogin == channelLogin) it.copy(isBroadcaster = true) else it }
                 retokenizeMessages()
+                syncAutoMod(channelId)
 
                 val token = state.value.currentAccessToken
                 val uid = state.value.currentUserId
@@ -1832,6 +2104,7 @@ class ChatViewModel(
                 channelModCache[key] = isMod
                 writePersistedMod(key, isMod)
                 update { if (it.channelLogin == channelLogin) it.copy(isMod = isMod) else it }
+                if (isMod) syncAutoMod(channelId)
                 if (isMod && !wasMod) {
                     Napier.d("isMod set via /moderation/channels for $channelLogin", tag = TAG)
                     retokenizeMessages()
@@ -1936,6 +2209,44 @@ class ChatViewModel(
 
     private val rewardTitlesByChannel = mutableMapOf<String, Map<String, String>>()
     private val rewardTitlesFetchedAt = mutableMapOf<String, Long>()
+    private val rewardRouter = RewardRedemptionRouter()
+
+    private fun onRewardRedeemed(redemption: RewardRedemption) {
+        val s = state.value
+        if (s.channelId.isEmpty() || (redemption.channelId.isNotEmpty() && redemption.channelId != s.channelId)) return
+        when (val route = rewardRouter.route(redemption)) {
+            is RedemptionRoute.Show -> addMessage(
+                DisplayMessage.RewardRedemptionMsg(
+                    id = "reward_${redemption.id}",
+                    timestamp = redemption.redeemedAtMs,
+                    channel = s.channelLogin,
+                    userId = redemption.userId,
+                    login = redemption.login,
+                    displayName = redemption.displayName,
+                    color = null,
+                    rewardTitle = redemption.rewardTitle.ifBlank { resolveRewardTitle(s.channelLogin, redemption.rewardId).orEmpty() },
+                    cost = redemption.cost,
+                    imageUrl = redemption.imageUrl,
+                    backgroundColor = redemption.backgroundColor
+                )
+            )
+            is RedemptionRoute.TitleOnly -> learnRewardTitle(s.channelLogin, route.rewardId, route.title)
+            RedemptionRoute.Skip -> Unit
+        }
+    }
+
+    private fun learnRewardTitle(channelLogin: String, rewardId: String, title: String) {
+        if (rewardId.isBlank()) return
+        val key = channelLogin.lowercase()
+        if (rewardTitlesByChannel[key]?.get(rewardId) == title) return
+        rewardTitlesByChannel[key] = rewardTitlesByChannel[key].orEmpty() + (rewardId to title)
+        val learned = mapOf(rewardId to title)
+        update { state ->
+            if (!state.channelLogin.equals(key, ignoreCase = true)) return@update state
+            val updated = ChatHistoryEvents.withRewardTitles(state.messages, learned)
+            if (updated === state.messages) state else state.copy(messages = updated)
+        }
+    }
 
     private fun resolveRewardTitle(channelName: String, rewardId: String): String? {
         state.value.channelRewards.firstOrNull { it.id == rewardId }?.title?.let { return it }
@@ -2018,7 +2329,7 @@ class ChatViewModel(
                             id = uniqueId("history_fail"),
                             timestamp = Clock.System.now().toEpochMilliseconds(),
                             channel = "#$channelLogin",
-                            text = "Couldn't load chat history — new messages will still come through.",
+                            text = getString(Res.string.chat_vm_history_failed),
                             type = DisplayMessage.SystemMsg.SystemType.NOTICE
                         )
                     )
@@ -2090,8 +2401,10 @@ class ChatViewModel(
         mergeHistoryResult(channelLogin, older)
     }
 
-    private fun mergeHistoryMessages(channelLogin: String, displayMessages: List<DisplayMessage>) {
-        if (displayMessages.isEmpty()) return
+    private fun mergeHistoryMessages(channelLogin: String, incoming: List<DisplayMessage>) {
+        if (incoming.isEmpty()) return
+        val displayMessages = rewardTitlesByChannel[channelLogin.lowercase()]
+            ?.let { ChatHistoryEvents.withRewardTitles(incoming, it) } ?: incoming
         update { state ->
             if (state.channelLogin != channelLogin) return@update state
 
@@ -2660,13 +2973,12 @@ class ChatViewModel(
                         if (cachedSettings().showViewerJoinLeave
                             && event.channel.equals(channelLogin, ignoreCase = true)
                         ) {
-                            val strings = AppStrings.forLocale(cachedSettings().language)
                             addMessage(
                                 DisplayMessage.SystemMsg(
                                     id = uniqueId("join"),
                                     timestamp = Clock.System.now().toEpochMilliseconds(),
                                     channel = event.channel,
-                                    text = strings.format(strings.chatViewerJoined, event.username),
+                                    text = getString(Res.string.chat_viewer_joined, event.username),
                                     type = DisplayMessage.SystemMsg.SystemType.INFO
                                 )
                             )
@@ -2677,13 +2989,12 @@ class ChatViewModel(
                         if (cachedSettings().showViewerJoinLeave
                             && event.channel.equals(channelLogin, ignoreCase = true)
                         ) {
-                            val strings = AppStrings.forLocale(cachedSettings().language)
                             addMessage(
                                 DisplayMessage.SystemMsg(
                                     id = uniqueId("part"),
                                     timestamp = Clock.System.now().toEpochMilliseconds(),
                                     channel = event.channel,
-                                    text = strings.format(strings.chatViewerLeft, event.username),
+                                    text = getString(Res.string.chat_viewer_left, event.username),
                                     type = DisplayMessage.SystemMsg.SystemType.INFO
                                 )
                             )
@@ -2698,6 +3009,7 @@ class ChatViewModel(
                                 val action =
                                     if (event.banDuration != null) DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT else DisplayMessage.ModerationMsg.ModerationAction.BAN
                                 val targetUserId = event.tags["target-user-id"]
+                                markBanState(state.value.channelId, targetUserId, banned = event.banDuration == null)
                                 val pendingMod = consumePendingModerator(event.targetUser, targetUserId)
                                 val modLogin = event.tags["moderator-login"]
                                     ?: event.tags["created-by"]
@@ -2742,7 +3054,7 @@ class ChatViewModel(
                                     id = uniqueId("clear"),
                                     timestamp = Clock.System.now().toEpochMilliseconds(),
                                     channel = event.channel,
-                                    text = "Chat was cleared by a moderator",
+                                    text = getString(Res.string.chat_vm_chat_cleared),
                                     action = DisplayMessage.ModerationMsg.ModerationAction.CLEAR
                                 )
                             )
@@ -2776,11 +3088,11 @@ class ChatViewModel(
                             val modLogin = consumePendingDeleteModerator(event.targetMessageId)
                             val text = buildString {
                                 if (!targetLogin.isNullOrBlank()) {
-                                    append("Message from $targetLogin was deleted")
+                                    append(getString(Res.string.chat_vm_message_deleted_from, targetLogin))
                                 } else {
-                                    append("A message was deleted")
+                                    append(getString(Res.string.chat_vm_message_deleted))
                                 }
-                                if (!modLogin.isNullOrBlank()) append(" by $modLogin")
+                                if (!modLogin.isNullOrBlank()) append(getString(Res.string.chat_vm_by_moderator, modLogin))
                             }
                             addMessage(
                                 DisplayMessage.ModerationMsg(
@@ -2909,6 +3221,7 @@ class ChatViewModel(
                                 )
                                 retokenizeMessages()
                                 val s2 = state.value
+                                syncAutoMod(s2.channelId)
                                 if (s2.channelId.isNotEmpty() && s2.currentAccessToken.isNotEmpty() && s2.currentUserId.isNotEmpty()) {
                                     pubSubClient.connect(
                                         accessToken = s2.currentAccessToken,
@@ -2943,22 +3256,7 @@ class ChatViewModel(
                                 ignoreCase = true
                             ) && state.value.canModerate
                         ) {
-                            addMessage(
-                                DisplayMessage.AutoModMsg(
-                                    id = "automod_${event.msgId}",
-                                    timestamp = Clock.System.now().toEpochMilliseconds(),
-                                    channel = event.channel,
-                                    msgId = event.msgId,
-                                    userId = event.userId,
-                                    username = event.username,
-                                    displayName = event.displayName,
-                                    text = event.message,
-                                    color = event.color,
-                                    reasonCategory = event.reasonCategory,
-                                    reasonLevel = event.reasonLevel,
-                                    flaggedFragments = event.flaggedFragments
-                                )
-                            )
+                            addAutoModCard(autoModCard(event, event.channel))
                         }
                     }
 
@@ -2984,6 +3282,9 @@ class ChatViewModel(
         viewModelScope.launch {
             eventSubClient.events.collect { handleModerationStreamEvent(it) }
         }
+        viewModelScope.launch {
+            autoModHub.events.collect { handleModerationStreamEvent(it) }
+        }
     }
 
     private suspend fun handleModerationStreamEvent(event: IrcEvent) {
@@ -2997,22 +3298,8 @@ class ChatViewModel(
                             val alreadyShown = s.messages.any {
                                 it is DisplayMessage.AutoModMsg && it.msgId == event.msgId
                             }
-                            if (!alreadyShown) {
-                                addMessage(
-                                    DisplayMessage.AutoModMsg(
-                                        id = "automod_${event.msgId}",
-                                        timestamp = Clock.System.now().toEpochMilliseconds(),
-                                        channel = "#${s.channelLogin}",
-                                        msgId = event.msgId,
-                                        userId = event.userId,
-                                        username = event.username,
-                                        displayName = event.displayName,
-                                        text = event.message,
-                                        color = event.color,
-                                        reasonCategory = event.reasonCategory,
-                                        reasonLevel = event.reasonLevel
-                                    )
-                                )
+                            if (!alreadyShown && !autoModHub.isResolved(event.msgId)) {
+                                addAutoModCard(autoModCard(event, "#${s.channelLogin}"))
                             }
                         }
                     }
@@ -3022,16 +3309,21 @@ class ChatViewModel(
                                 || event.channel.equals(s.channelLogin, ignoreCase = true)
                                 || event.channel.equals("#${s.channelLogin}", ignoreCase = true)
                         if (channelMatch) {
+                            val card = s.messages.firstOrNull { it is DisplayMessage.AutoModMsg && it.msgId == event.msgId }
+                                as? DisplayMessage.AutoModMsg
                             update { st ->
                                 st.copy(messages = st.messages.filter { dm ->
                                     !(dm is DisplayMessage.AutoModMsg && dm.msgId == event.msgId)
                                 })
                             }
-                            val noticeText = if (event.action == "ALLOWED")
-                                "${event.resolvedBy}'s message was approved"
-                            else
-                                "${event.resolvedBy}'s message was denied"
-                            systemNotice(s.channelLogin, noticeText)
+                            if (event.action != IrcEvent.AutoModResolved.EXPIRED) {
+                                announceAutoModResolution(
+                                    msgId = event.msgId,
+                                    approved = event.action == IrcEvent.AutoModResolved.ALLOWED,
+                                    authorLogin = event.authorLogin ?: card?.username,
+                                    moderatorLogin = event.resolvedBy.takeIf { it.isNotBlank() && it != "a moderator" }
+                                )
+                            }
                         }
                     }
 
@@ -3041,6 +3333,8 @@ class ChatViewModel(
                                 || event.channel.equals("#${s.channelLogin}", ignoreCase = true)
                         if (channelMatch) handleModeratorAction(event)
                     }
+
+                    is IrcEvent.RewardRedeemed -> onRewardRedeemed(event.redemption)
 
                     is IrcEvent.PointsClaimAvailable -> {
                         if (cachedSettings().autoClaimPoints && s.currentAccessToken.isNotEmpty()) {
@@ -3057,10 +3351,7 @@ class ChatViewModel(
                                         if (!pointsClaimErrorShown) {
                                             pointsClaimErrorShown = true
                                             sendEffect(
-                                                ChatEffect.ShowError(
-                                                    AppStrings.forLocale(cachedSettings().language)
-                                                        .actionsAutoClaimFailed
-                                                )
+                                                ChatEffect.ShowError(UiText.Raw(getString(Res.string.actions_auto_claim_failed)))
                                             )
                                         }
                                     }
@@ -3088,8 +3379,8 @@ class ChatViewModel(
                                             val who = event.unpinnedBy?.takeIf { it.isNotBlank() }
                                             systemNotice(
                                                 s.channelLogin,
-                                                if (who != null) "$who unpinned the message."
-                                                else "Pinned message was removed."
+                                                if (who != null) uiText(Res.string.chat_vm_unpinned_by, who)
+                                                else uiText(Res.string.chat_vm_pin_removed)
                                             )
                                         }
                                         update {
@@ -3143,6 +3434,14 @@ class ChatViewModel(
             IrcEvent.ModeratorAction.ACTION_TIMEOUT,
             IrcEvent.ModeratorAction.ACTION_UNBAN,
             IrcEvent.ModeratorAction.ACTION_UNTIMEOUT -> {
+                if (event.action != IrcEvent.ModeratorAction.ACTION_UNTIMEOUT) {
+                    val targetId = event.targetUserId?.takeIf { it.isNotBlank() }
+                        ?: state.value.messages
+                            .filterIsInstance<DisplayMessage.PrivMsg>()
+                            .lastOrNull { it.username.equals(event.target, ignoreCase = true) }
+                            ?.userId
+                    markBanState(state.value.channelId, targetId, banned = event.action == IrcEvent.ModeratorAction.ACTION_BAN)
+                }
 
                 if (!event.targetUserId.isNullOrBlank()) {
                     rememberPendingModerator(event.targetUserId, event.moderator, event.reason)
@@ -3532,7 +3831,7 @@ class ChatViewModel(
 
         if (message.isEmpty() || channelLogin.isEmpty()) return
         if (!s.isConnected) {
-            sendEffect(ChatEffect.ShowError("Not connected to chat"))
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_not_connected_to_chat)))
             return
         }
 
@@ -3584,9 +3883,35 @@ class ChatViewModel(
 
             } catch (e: Exception) {
                 Napier.e("Failed to send message: ${e.message}", e, tag = TAG)
-                sendEffect(ChatEffect.ShowError("Failed to send message: ${e.message}"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_message, e.message)))
             } finally {
                 isSendingMessage.getAndSet(false)
+            }
+        }
+    }
+
+    private fun outgoingReplyTo(target: DisplayMessage.PrivMsg): OutgoingReply = OutgoingReply(
+        id = target.id,
+        login = target.username,
+        displayName = target.displayName,
+        body = target.tokens.joinToString("") { it.plainText() },
+        threadRootId = target.rawMessage?.replyThreadParentMsgId ?: target.id
+    )
+
+    private fun sendThreadReply(target: DisplayMessage.PrivMsg, text: String) {
+        val s = state.value
+        val body = text.trim()
+        if (body.isEmpty() || s.channelLogin.isEmpty()) return
+        if (!s.isConnected) {
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_not_connected_to_chat)))
+            return
+        }
+        viewModelScope.launch {
+            try {
+                sendViaHelixOnly(s.channelLogin, body, keepText = true, s, reply = outgoingReplyTo(target))
+            } catch (e: Exception) {
+                Napier.e("Thread reply failed: ${e.message}", e, tag = TAG)
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_message, e.message)))
             }
         }
     }
@@ -3605,6 +3930,10 @@ class ChatViewModel(
         return if (res is Result.Success) {
             res.data.data.firstOrNull()?.id
         } else null
+    }
+
+    private fun systemNotice(channelLogin: String, text: UiText) {
+        viewModelScope.launch { systemNotice(channelLogin, text.resolve()) }
     }
 
     private fun systemNotice(channelLogin: String, text: String) {
@@ -3634,7 +3963,7 @@ class ChatViewModel(
 
         suspend fun requireMod(): Boolean {
             if (s.canModerate) return true
-            sendEffect(ChatEffect.ShowError("Mod-only command"))
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
             return false
         }
 
@@ -3642,7 +3971,7 @@ class ChatViewModel(
             is SlashCommand.Parsed.Ban -> {
                 if (!requireMod()) return
                 val targetId = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found, cmd.targetLogin)))
                 rememberPendingModerator(targetId, s.currentUserLogin)
                 val r = apiClient.banUser(
                     token,
@@ -3652,37 +3981,31 @@ class ChatViewModel(
                     duration = null,
                     reason = cmd.reason
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to ban ${cmd.targetLogin}"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_ban, cmd.targetLogin)))
             }
 
             is SlashCommand.Parsed.Timeout -> {
                 if (!requireMod()) return
                 val targetId = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found, cmd.targetLogin)))
                 rememberPendingModerator(targetId, s.currentUserLogin)
-                val r = apiClient.banUser(
-                    token,
-                    broadcasterId,
-                    moderatorId,
-                    targetId,
-                    duration = cmd.seconds,
-                    reason = cmd.reason
-                )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to timeout ${cmd.targetLogin}"))
+                val r = applyTimeout(s, targetId, cmd.seconds, cmd.reason)
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_timeout, cmd.targetLogin)))
             }
 
             is SlashCommand.Parsed.Unban -> {
                 if (!requireMod()) return
                 val targetId = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found, cmd.targetLogin)))
                 val r = apiClient.unbanUser(token, broadcasterId, moderatorId, targetId)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to unban ${cmd.targetLogin}"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_unban, cmd.targetLogin)))
+                else markBanState(broadcasterId, targetId, banned = false)
             }
 
             is SlashCommand.Parsed.Clear -> {
                 if (!requireMod()) return
                 val r = apiClient.clearChat(token, broadcasterId, moderatorId)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to clear chat"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_clear_chat)))
             }
 
             is SlashCommand.Parsed.Nuke -> {
@@ -3690,7 +4013,7 @@ class ChatViewModel(
                 val regex = if (cmd.isRegex)
                     runCatching { Regex(cmd.phrase, RegexOption.IGNORE_CASE) }.getOrNull() else null
                 if (cmd.isRegex && regex == null)
-                    return sendEffect(ChatEffect.ShowError("Invalid regex: ${cmd.phrase}"))
+                    return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_invalid_regex, cmd.phrase)))
 
                 val cutoff = Clock.System.now().toEpochMilliseconds() - cmd.pastSeconds * 1000L
                 val phraseLower = cmd.phrase.lowercase()
@@ -3707,7 +4030,7 @@ class ChatViewModel(
                     .toList()
 
                 if (matches.isEmpty()) {
-                    systemNotice(channelLogin, "Nuke: no messages matched \"${cmd.phrase}\" in the last ${cmd.pastSeconds}s")
+                    systemNotice(channelLogin, uiText(Res.string.chat_vm_nuke_no_messages_matched_in_the, cmd.phrase, cmd.pastSeconds))
                     return
                 }
 
@@ -3718,7 +4041,7 @@ class ChatViewModel(
                         toDelete.forEach { m ->
                             if (!apiClient.deleteMessage(token, broadcasterId, moderatorId, m.id).isError) ok++
                         }
-                        systemNotice(channelLogin, "Nuke: deleted $ok/${matches.size} message(s) matching \"${cmd.phrase}\"")
+                        systemNotice(channelLogin, uiText(Res.string.chat_vm_nuke_deleted_message_s_matching, ok, matches.size, cmd.phrase))
                     }
                     SlashCommand.NukeAction.TIMEOUT -> {
                         val users = matches.map { it.userId to it.username }.distinctBy { it.first }.take(100)
@@ -3727,7 +4050,7 @@ class ChatViewModel(
                             rememberPendingModerator(uid, s.currentUserLogin)
                             if (!apiClient.banUser(token, broadcasterId, moderatorId, uid, duration = cmd.timeoutSeconds, reason = "Nuke: ${cmd.phrase}").isError) ok++
                         }
-                        systemNotice(channelLogin, "Nuke: timed out $ok/${users.size} user(s) for ${cmd.timeoutSeconds}s")
+                        systemNotice(channelLogin, uiText(Res.string.chat_vm_nuke_timed_out_user_s_for, ok, users.size, cmd.timeoutSeconds))
                     }
                     SlashCommand.NukeAction.BAN -> {
                         val users = matches.map { it.userId to it.username }.distinctBy { it.first }.take(100)
@@ -3736,25 +4059,25 @@ class ChatViewModel(
                             rememberPendingModerator(uid, s.currentUserLogin)
                             if (!apiClient.banUser(token, broadcasterId, moderatorId, uid, duration = null, reason = "Nuke: ${cmd.phrase}").isError) ok++
                         }
-                        systemNotice(channelLogin, "Nuke: banned $ok/${users.size} user(s)")
+                        systemNotice(channelLogin, uiText(Res.string.chat_vm_nuke_banned_user_s, ok, users.size))
                     }
                 }
             }
 
             is SlashCommand.Parsed.Raid -> {
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster (or a channel editor) can start a raid"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_or_a_channel)))
                 val targetId = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("Channel not found: ${cmd.targetLogin}"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_channel_not_found, cmd.targetLogin)))
                 val r = apiClient.startRaid(token, broadcasterId, targetId)
                 if (r.isError) {
-                    sendEffect(ChatEffect.ShowError("Failed to start raid"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_raid)))
                 } else {
                     addMessage(
                         DisplayMessage.SystemMsg(
                             id = uniqueId("raid"),
                             timestamp = Clock.System.now().toEpochMilliseconds(),
                             channel = channelLogin,
-                            text = "Raid started — heading to ${cmd.targetLogin} in 90s. Use /unraid to cancel.",
+                            text = getString(Res.string.chat_vm_raid_started, cmd.targetLogin),
                             type = DisplayMessage.SystemMsg.SystemType.NOTICE
                         )
                     )
@@ -3762,17 +4085,17 @@ class ChatViewModel(
             }
 
             is SlashCommand.Parsed.UnRaid -> {
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster (or a channel editor) can cancel a raid"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_or_a_channel_alt)))
                 val r = apiClient.cancelRaid(token, broadcasterId)
                 if (r.isError) {
-                    sendEffect(ChatEffect.ShowError("Failed to cancel raid"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_cancel_raid)))
                 } else {
                     addMessage(
                         DisplayMessage.SystemMsg(
                             id = uniqueId("raid"),
                             timestamp = Clock.System.now().toEpochMilliseconds(),
                             channel = channelLogin,
-                            text = "Raid cancelled.",
+                            text = getString(Res.string.chat_vm_raid_cancelled),
                             type = DisplayMessage.SystemMsg.SystemType.NOTICE
                         )
                     )
@@ -3784,7 +4107,7 @@ class ChatViewModel(
 
                 val raw = cmd.args.trim()
                 if (raw.isEmpty()) {
-                    sendEffect(ChatEffect.ShowError("Usage: /pin <id|@user|text> [5m|30m|1h|indefinite]"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_usage_pin_id_user_text_5m)))
                     return
                 }
 
@@ -3829,7 +4152,7 @@ class ChatViewModel(
                     cmd.text,
                     cmd.color
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to send announcement"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_announcement)))
             }
 
             is SlashCommand.Parsed.Slow -> {
@@ -3840,7 +4163,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("slow_mode" to true, "slow_mode_wait_time" to cmd.seconds)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to set slow-mode"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_set_slow_mode)))
             }
 
             SlashCommand.Parsed.SlowOff -> {
@@ -3851,7 +4174,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("slow_mode" to false)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable slow-mode"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_disable_slow_mode)))
             }
 
             is SlashCommand.Parsed.Followers -> {
@@ -3862,7 +4185,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("follower_mode" to true, "follower_mode_duration" to cmd.seconds / 60)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to set follower-mode"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_set_follower_mode)))
             }
 
             SlashCommand.Parsed.FollowersOff -> {
@@ -3873,7 +4196,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("follower_mode" to false)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable follower-mode"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_disable_follower_mode)))
             }
 
             SlashCommand.Parsed.SubsOnly -> {
@@ -3884,7 +4207,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("subscriber_mode" to true)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to enable sub-only"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_enable_sub_only)))
             }
 
             SlashCommand.Parsed.SubsOnlyOff -> {
@@ -3895,7 +4218,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("subscriber_mode" to false)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable sub-only"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_disable_sub_only)))
             }
 
             SlashCommand.Parsed.EmoteOnly -> {
@@ -3906,7 +4229,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("emote_mode" to true)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to enable emote-only"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_enable_emote_only)))
             }
 
             SlashCommand.Parsed.EmoteOnlyOff -> {
@@ -3917,7 +4240,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("emote_mode" to false)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable emote-only"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_disable_emote_only)))
             }
 
             SlashCommand.Parsed.UniqueOn -> {
@@ -3928,7 +4251,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("unique_chat_mode" to true)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to enable unique-chat"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_enable_unique_chat)))
             }
 
             SlashCommand.Parsed.UniqueOff -> {
@@ -3939,7 +4262,7 @@ class ChatViewModel(
                     moderatorId,
                     mapOf("unique_chat_mode" to false)
                 )
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable unique-chat"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_disable_unique_chat)))
             }
 
             is SlashCommand.Parsed.Vip -> setRoleByLogin(cmd.targetLogin, ChannelRole.VIP, granted = true)
@@ -3953,83 +4276,83 @@ class ChatViewModel(
             is SlashCommand.Parsed.Shoutout -> {
                 if (!requireMod()) return
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found_plain)))
                 val r = apiClient.sendShoutout(token, broadcasterId, tid, moderatorId)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to send shoutout"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_shoutout)))
             }
 
             is SlashCommand.Parsed.Color -> {
                 val r = apiClient.updateUserChatColor(token, moderatorId, cmd.value)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to change color"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_change_color)))
             }
 
             is SlashCommand.Parsed.Warn -> {
                 if (!requireMod()) return
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found_plain)))
                 val r = apiClient.warnUser(token, broadcasterId, moderatorId, tid, cmd.reason)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to warn user"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_warn_user)))
             }
 
             SlashCommand.Parsed.Shield -> {
                 if (!requireMod()) return
                 val r = apiClient.updateShieldMode(token, broadcasterId, moderatorId, true)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to enable Shield Mode"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_enable_shield_mode)))
             }
 
             SlashCommand.Parsed.ShieldOff -> {
                 if (!requireMod()) return
                 val r = apiClient.updateShieldMode(token, broadcasterId, moderatorId, false)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to disable Shield Mode"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_disable_shield_mode)))
             }
 
             is SlashCommand.Parsed.Monitor -> {
                 if (!requireMod()) return
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found_plain)))
                 val r = apiClient.addSuspiciousUser(token, broadcasterId, moderatorId, tid, restricted = false)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to monitor user"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_monitor_user)))
             }
 
             is SlashCommand.Parsed.Restrict -> {
                 if (!requireMod()) return
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found_plain)))
                 val r = apiClient.addSuspiciousUser(token, broadcasterId, moderatorId, tid, restricted = true)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to restrict user"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_restrict_user)))
             }
 
             is SlashCommand.Parsed.Unmonitor -> {
                 if (!requireMod()) return
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found_plain)))
                 val r = apiClient.removeSuspiciousUser(token, broadcasterId, moderatorId, tid)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to unmonitor user"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_unmonitor_user)))
             }
 
             is SlashCommand.Parsed.Unrestrict -> {
                 if (!requireMod()) return
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found_plain)))
                 val r = apiClient.removeSuspiciousUser(token, broadcasterId, moderatorId, tid)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to unrestrict user"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_unrestrict_user)))
             }
 
             is SlashCommand.Parsed.Marker -> {
                 if (!s.isBroadcaster) {
-                    sendEffect(ChatEffect.ShowError("You must be the broadcaster to create a stream marker."))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_you_must_be_the_broadcaster_to)))
                     return
                 }
                 val r = apiClient.createStreamMarker(token, broadcasterId, cmd.description)
                 if (r.isError) {
-                    sendEffect(ChatEffect.ShowError("Failed to create stream marker"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_create_stream_marker)))
                 } else {
                     addMessage(
                         DisplayMessage.SystemMsg(
                             id = uniqueId("marker"),
                             timestamp = Clock.System.now().toEpochMilliseconds(),
                             channel = "#$channelLogin",
-                            text = "Stream marker created.",
+                            text = getString(Res.string.chat_vm_marker_created),
                             type = DisplayMessage.SystemMsg.SystemType.NOTICE
                         )
                     )
@@ -4043,32 +4366,33 @@ class ChatViewModel(
 
             is SlashCommand.Parsed.Whisper -> {
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found_plain)))
                 val r = apiClient.sendWhisper(token, moderatorId, tid, cmd.text)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to send whisper"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_whisper)))
             }
 
             is SlashCommand.Parsed.Block -> {
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found, cmd.targetLogin)))
                 handleBlockUser(tid, cmd.targetLogin)
             }
 
             is SlashCommand.Parsed.Unblock -> {
                 val tid = resolveUserId(cmd.targetLogin)
-                    ?: return sendEffect(ChatEffect.ShowError("User not found: ${cmd.targetLogin}"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found, cmd.targetLogin)))
                 handleUnblockUser(tid, cmd.targetLogin)
             }
 
             SlashCommand.Parsed.Help -> {
-                val supported =
-                    SlashCommand.ALL.joinToString("\n") { "${it.usage} — ${cachedStrings().slashCommandDescription(it.name)}" }
-                systemNotice(channelLogin, "Supported commands:\n$supported")
+                val supported = SlashCommand.ALL
+                    .map { "${it.usage} — ${slashCommandDescriptionText(it.name)}" }
+                    .joinToString("\n")
+                systemNotice(channelLogin, uiText(Res.string.chat_vm_supported_commands, supported))
             }
 
             is SlashCommand.Parsed.Spam -> {
                 if (spamJob?.isActive == true) {
-                    return sendEffect(ChatEffect.ShowError("Spam already running. Use /spam stop first"))
+                    return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_spam_already_running_use_spam_stop)))
                 }
                 val n = cmd.count.coerceIn(1, SlashCommand.MAX_SPAM_COUNT)
                 val text = cmd.message
@@ -4089,7 +4413,7 @@ class ChatViewModel(
 
             is SlashCommand.Parsed.Poll -> {
                 if (useGqlEvents) {
-                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError("Mod-only command"))
+                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                     when (val r = twitchGqlClient.createPollGql(
                         channelId = broadcasterId,
                         title = cmd.title,
@@ -4101,16 +4425,16 @@ class ChatViewModel(
                         is Result.Success -> {
                             systemNotice(
                                 channelLogin,
-                                "Poll started: \"${cmd.title}\" — ${cmd.choices.joinToString(" | ")} (${cmd.durationSeconds}s)"
+                                uiText(Res.string.chat_vm_poll_started_s, cmd.title, cmd.choices.joinToString(" | "), cmd.durationSeconds)
                             )
                             syncPollAfterCreate(channelLogin, broadcasterId)
                         }
-                        is Result.Error -> sendEffect(ChatEffect.ShowError("Failed to start poll: ${r.exception.message}"))
+                        is Result.Error -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_poll, r.exception.message)))
                         else -> {}
                     }
                     return
                 }
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster can start a poll (set a first-party token in Settings to run polls as a moderator)"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_start_a)))
                 val r = apiClient.createPoll(
                     accessToken = token,
                     broadcasterId = broadcasterId,
@@ -4123,40 +4447,40 @@ class ChatViewModel(
                         update { it.copy(activePollId = r.data.id, livePoll = r.data) }
                         systemNotice(
                             channelLogin,
-                            "Poll started: \"${cmd.title}\" — ${cmd.choices.joinToString(" | ")} (${cmd.durationSeconds}s)"
+                            uiText(Res.string.chat_vm_poll_started_s, cmd.title, cmd.choices.joinToString(" | "), cmd.durationSeconds)
                         )
                         startPollPolling()
                     }
 
-                    is Result.Error -> sendEffect(ChatEffect.ShowError("Failed to start poll: ${r.exception.message}"))
+                    is Result.Error -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_poll, r.exception.message)))
                     else -> {}
                 }
             }
 
             SlashCommand.Parsed.EndPoll -> {
                 if (useGqlEvents) {
-                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError("Mod-only command"))
+                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                     val pollId = s.activePollId
                         ?: twitchGqlClient.getViewablePollGql(channelLogin, gqlEventToken)?.takeIf {
                             it.status.equals("ACTIVE", ignoreCase = true)
                         }?.id
-                        ?: return sendEffect(ChatEffect.ShowError("No active poll"))
+                        ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_poll)))
                     val r = twitchGqlClient.terminatePollGql(pollId, s.currentUserId, gqlEventToken)
-                    if (r.isError) sendEffect(ChatEffect.ShowError("Failed to end poll"))
+                    if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_end_poll)))
                     else {
                         update { it.copy(activePollId = null, livePoll = null) }
                         pollPollingJob?.cancel()
                     }
                     return
                 }
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster can end a poll"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_end_a)))
                 val pollId = s.activePollId ?: run {
                     val active = apiClient.getActivePoll(token, broadcasterId)
                     if (active is Result.Success) active.data?.id else null
                 }
-                if (pollId == null) return sendEffect(ChatEffect.ShowError("No active poll"))
+                if (pollId == null) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_poll)))
                 val r = apiClient.endPoll(token, broadcasterId, pollId, "TERMINATED")
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to end poll"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_end_poll)))
                 else {
                     update { it.copy(activePollId = null, livePoll = null) }
                     pollPollingJob?.cancel()
@@ -4165,26 +4489,26 @@ class ChatViewModel(
 
             SlashCommand.Parsed.CancelPoll -> {
                 if (useGqlEvents) {
-                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError("Mod-only command"))
+                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                     val pollId = s.activePollId
                         ?: twitchGqlClient.getViewablePollGql(channelLogin, gqlEventToken)?.id
-                        ?: return sendEffect(ChatEffect.ShowError("No active poll"))
+                        ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_poll)))
                     val r = twitchGqlClient.archivePollGql(pollId, gqlEventToken)
-                    if (r.isError) sendEffect(ChatEffect.ShowError("Failed to cancel poll"))
+                    if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_cancel_poll)))
                     else {
                         update { it.copy(activePollId = null, livePoll = null) }
                         pollPollingJob?.cancel()
                     }
                     return
                 }
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster can cancel a poll"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_cancel_a)))
                 val pollId = s.activePollId ?: run {
                     val active = apiClient.getActivePoll(token, broadcasterId)
                     if (active is Result.Success) active.data?.id else null
                 }
-                if (pollId == null) return sendEffect(ChatEffect.ShowError("No active poll"))
+                if (pollId == null) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_poll)))
                 val r = apiClient.endPoll(token, broadcasterId, pollId, "ARCHIVED")
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to cancel poll"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_cancel_poll)))
                 else {
                     update { it.copy(activePollId = null, livePoll = null) }
                     pollPollingJob?.cancel()
@@ -4193,7 +4517,7 @@ class ChatViewModel(
 
             is SlashCommand.Parsed.Prediction -> {
                 if (useGqlEvents) {
-                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError("Mod-only command"))
+                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                     when (val r = twitchGqlClient.createPredictionGql(
                         channelId = broadcasterId,
                         title = cmd.title,
@@ -4204,16 +4528,16 @@ class ChatViewModel(
                         is Result.Success -> {
                             systemNotice(
                                 channelLogin,
-                                "Prediction started: \"${cmd.title}\" — ${cmd.outcomes.joinToString(" | ")} (${cmd.windowSeconds}s)"
+                                uiText(Res.string.chat_vm_prediction_started_s, cmd.title, cmd.outcomes.joinToString(" | "), cmd.windowSeconds)
                             )
                             syncPredictionAfterCreate(channelLogin, broadcasterId)
                         }
-                        is Result.Error -> sendEffect(ChatEffect.ShowError("Failed to start prediction: ${r.exception.message}"))
+                        is Result.Error -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_prediction, r.exception.message)))
                         else -> {}
                     }
                     return
                 }
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster can start a prediction (set a first-party token in Settings to run predictions as a moderator)"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_start_a_alt)))
                 val r = apiClient.createPrediction(
                     accessToken = token,
                     broadcasterId = broadcasterId,
@@ -4232,44 +4556,44 @@ class ChatViewModel(
                         }
                         systemNotice(
                             channelLogin,
-                            "Prediction started: \"${cmd.title}\" — ${cmd.outcomes.joinToString(" | ")} (${cmd.windowSeconds}s)"
+                            uiText(Res.string.chat_vm_prediction_started_s, cmd.title, cmd.outcomes.joinToString(" | "), cmd.windowSeconds)
                         )
                         startPredictionPolling()
                     }
 
-                    is Result.Error -> sendEffect(ChatEffect.ShowError("Failed to start prediction: ${r.exception.message}"))
+                    is Result.Error -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_prediction, r.exception.message)))
                     else -> {}
                 }
             }
 
             SlashCommand.Parsed.LockPrediction -> {
                 if (useGqlEvents) {
-                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError("Mod-only command"))
+                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                     val pid = s.activePredictionId
                         ?: twitchGqlClient.getActivePredictionGql(channelLogin, gqlEventToken)?.id
-                        ?: return sendEffect(ChatEffect.ShowError("No active prediction"))
+                        ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_prediction)))
                     val r = twitchGqlClient.lockPredictionGql(pid, gqlEventToken)
-                    if (r.isError) sendEffect(ChatEffect.ShowError("Failed to lock prediction"))
+                    if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_lock_prediction)))
                     return
                 }
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster can lock a prediction"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_lock_a)))
                 val pid = s.activePredictionId ?: run {
                     val active = apiClient.getActivePrediction(token, broadcasterId)
                     if (active is Result.Success) active.data?.id else null
                 }
-                if (pid == null) return sendEffect(ChatEffect.ShowError("No active prediction"))
+                if (pid == null) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_prediction)))
                 val r = apiClient.endPrediction(token, broadcasterId, pid, "LOCKED")
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to lock prediction"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_lock_prediction)))
             }
 
             SlashCommand.Parsed.CancelPrediction -> {
                 if (useGqlEvents) {
-                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError("Mod-only command"))
+                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                     val pid = s.activePredictionId
                         ?: twitchGqlClient.getActivePredictionGql(channelLogin, gqlEventToken)?.id
-                        ?: return sendEffect(ChatEffect.ShowError("No active prediction"))
+                        ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_prediction)))
                     val r = twitchGqlClient.cancelPredictionGql(pid, gqlEventToken)
-                    if (r.isError) sendEffect(ChatEffect.ShowError("Failed to cancel prediction"))
+                    if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_cancel_prediction)))
                     else {
                         update {
                             it.copy(
@@ -4282,14 +4606,14 @@ class ChatViewModel(
                     }
                     return
                 }
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster can cancel a prediction"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_cancel_a_alt)))
                 val pid = s.activePredictionId ?: run {
                     val active = apiClient.getActivePrediction(token, broadcasterId)
                     if (active is Result.Success) active.data?.id else null
                 }
-                if (pid == null) return sendEffect(ChatEffect.ShowError("No active prediction"))
+                if (pid == null) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_prediction)))
                 val r = apiClient.endPrediction(token, broadcasterId, pid, "CANCELED")
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to cancel prediction"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_cancel_prediction)))
                 else {
                     update {
                         it.copy(
@@ -4304,17 +4628,17 @@ class ChatViewModel(
 
             is SlashCommand.Parsed.CompletePrediction -> {
                 if (useGqlEvents) {
-                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError("Mod-only command"))
+                    if (!s.canModerate) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                     val info = twitchGqlClient.getActivePredictionGql(channelLogin, gqlEventToken)
-                        ?: return sendEffect(ChatEffect.ShowError("No active prediction"))
-                    if (info.outcomes.isEmpty()) return sendEffect(ChatEffect.ShowError("No active prediction"))
+                        ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_prediction)))
+                    if (info.outcomes.isEmpty()) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_prediction)))
                     val ref = cmd.outcomeRef.trim()
                     val winning = ref.toIntOrNull()?.let { idx -> info.outcomes.getOrNull(idx - 1)?.id }
                         ?: info.outcomes.firstOrNull { it.title.equals(ref, ignoreCase = true) }?.id
                         ?: info.outcomes.firstOrNull { it.title.startsWith(ref, ignoreCase = true) }?.id
-                    if (winning == null) return sendEffect(ChatEffect.ShowError("Outcome not found: $ref. Try a number (1..${info.outcomes.size}) or exact title."))
+                    if (winning == null) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_outcome_not_found_try_a_number, ref, info.outcomes.size)))
                     val r = twitchGqlClient.resolvePredictionGql(info.id, winning, gqlEventToken)
-                    if (r.isError) sendEffect(ChatEffect.ShowError("Failed to complete prediction"))
+                    if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_complete_prediction)))
                     else {
                         update {
                             it.copy(
@@ -4327,7 +4651,7 @@ class ChatViewModel(
                     }
                     return
                 }
-                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError("Only the broadcaster can complete a prediction"))
+                if (!s.isBroadcaster) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_complete_a)))
                 val (pid, outcomes) = if (s.activePredictionId != null) {
                     s.activePredictionId!! to s.activePredictionOutcomes
                 } else {
@@ -4336,7 +4660,7 @@ class ChatViewModel(
                         active.data.id to active.data.outcomes.map { it.id to it.title }
                     } else "" to emptyList()
                 }
-                if (pid.isEmpty() || outcomes.isEmpty()) return sendEffect(ChatEffect.ShowError("No active prediction"))
+                if (pid.isEmpty() || outcomes.isEmpty()) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_active_prediction)))
                 val ref = cmd.outcomeRef.trim()
                 val winning = ref.toIntOrNull()?.let { idx ->
                     outcomes.getOrNull(idx - 1)?.first
@@ -4346,9 +4670,9 @@ class ChatViewModel(
                         ignoreCase = true
                     )
                 }?.first
-                if (winning == null) return sendEffect(ChatEffect.ShowError("Outcome not found: $ref. Try a number (1..${outcomes.size}) or exact title."))
+                if (winning == null) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_outcome_not_found_try_a_number, ref, outcomes.size)))
                 val r = apiClient.endPrediction(token, broadcasterId, pid, "RESOLVED", winning)
-                if (r.isError) sendEffect(ChatEffect.ShowError("Failed to complete prediction"))
+                if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_complete_prediction)))
                 else {
                     update {
                         it.copy(
@@ -4366,9 +4690,9 @@ class ChatViewModel(
                 if (job?.isActive == true) {
                     job.cancel()
                     spamJob = null
-                    systemNotice(channelLogin, "Spam cancelled.")
+                    systemNotice(channelLogin, uiText(Res.string.chat_vm_spam_cancelled))
                 } else {
-                    sendEffect(ChatEffect.ShowError("No spam running"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_no_spam_running)))
                 }
             }
 
@@ -4391,47 +4715,47 @@ class ChatViewModel(
             }
 
             SlashCommand.Parsed.Points -> {
-                if (!useGqlEvents) return sendEffect(ChatEffect.ShowError(GQL_TOKEN_REQUIRED_MSG))
+                if (!useGqlEvents) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required)))
                 val info = twitchGqlClient.getChannelPointRewardsGql(channelLogin, gqlEventToken)
-                    ?: return sendEffect(ChatEffect.ShowError("Failed to fetch channel points balance"))
-                systemNotice(channelLogin, "Channel points balance: ${info.balance}")
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_fetch_channel_points_balance)))
+                systemNotice(channelLogin, uiText(Res.string.chat_vm_channel_points_balance, info.balance))
             }
 
             is SlashCommand.Parsed.Redeem -> {
-                if (!useGqlEvents) return sendEffect(ChatEffect.ShowError(GQL_TOKEN_REQUIRED_MSG))
+                if (!useGqlEvents) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required)))
                 val info = twitchGqlClient.getChannelPointRewardsGql(channelLogin, gqlEventToken)
-                    ?: return sendEffect(ChatEffect.ShowError("Failed to fetch channel point rewards"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_fetch_channel_point_rewards)))
                 val query = cmd.rewardQuery.trim()
                 val reward = info.rewards.firstOrNull { it.title.equals(query, ignoreCase = true) }
                     ?: info.rewards.firstOrNull { it.title.contains(query, ignoreCase = true) }
-                    ?: return sendEffect(ChatEffect.ShowError("Reward not found: $query"))
+                    ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_reward_not_found, query)))
                 if (!reward.isEnabled || !reward.isInStock) {
-                    return sendEffect(ChatEffect.ShowError("Reward unavailable: ${reward.title}"))
+                    return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_reward_unavailable, reward.title)))
                 }
                 if (reward.isUserInputRequired && cmd.textInput.isBlank()) {
-                    return sendEffect(ChatEffect.ShowError("This reward needs text input: /redeem ${reward.title} | your text"))
+                    return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_this_reward_needs_text_input_redeem, reward.title)))
                 }
                 val r = twitchGqlClient.redeemCustomRewardGql(
                     info.channelId, reward, cmd.textInput, gqlEventToken
                 )
                 when (r) {
                     is Result.Success ->
-                        systemNotice(channelLogin, "Redeemed \"${reward.title}\" — balance: ${r.data.balance}")
+                        systemNotice(channelLogin, uiText(Res.string.chat_vm_redeemed_balance, reward.title, r.data.balance))
                     is Result.Error ->
-                        sendEffect(ChatEffect.ShowError("Failed to redeem: ${r.exception.message}"))
+                        sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_redeem, r.exception.message)))
                     else -> {}
                 }
             }
 
             is SlashCommand.Parsed.Unknown -> {
-                sendEffect(ChatEffect.ShowError("Unknown command: /${cmd.name}. Type /help for a list."))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_unknown_command_type_help_for_a, cmd.name)))
             }
 
             is SlashCommand.Parsed.BadUsage -> {
                 when (cmd.name) {
                     "poll" -> openPollCreation()
                     "prediction" -> openPredictionCreation()
-                    else -> sendEffect(ChatEffect.ShowError("Usage: ${cmd.usage}"))
+                    else -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_usage, cmd.usage)))
                 }
             }
         }
@@ -4443,7 +4767,7 @@ class ChatViewModel(
             Napier.d("Sent IRC command to #$channelLogin: $message", tag = TAG)
         } catch (e: Exception) {
             Napier.e("IRC send failed: ${e.message}", e, tag = TAG)
-            sendEffect(ChatEffect.ShowError("Failed to send command"))
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_command)))
         }
     }
 
@@ -4452,9 +4776,7 @@ class ChatViewModel(
         message: String,
         keepText: Boolean,
         s: ChatState,
-        reply: OutgoingReply? = s.replyingTo?.let { p ->
-            OutgoingReply(p.id, p.username, p.displayName, p.tokens.joinToString("") { t -> t.plainText() })
-        },
+        reply: OutgoingReply? = s.replyingTo?.let(::outgoingReplyTo),
         automated: Boolean = false
     ): Boolean {
         val now = Clock.System.now().toEpochMilliseconds()
@@ -4498,7 +4820,8 @@ class ChatViewModel(
             replyParentMsgId = reply?.id,
             replyParentUserLogin = reply?.login,
             replyParentDisplayName = reply?.displayName,
-            replyParentMsgBody = reply?.body
+            replyParentMsgBody = reply?.body,
+            replyThreadParentMsgId = reply?.threadRootId
         )
         val displayMsg = chatMessageToDisplay(rawMsg)
 
@@ -4562,10 +4885,11 @@ class ChatViewModel(
                         st.copy(messages = st.messages.filterNot { it is DisplayMessage.PrivMsg && it.id == localId })
                     }
                     val reason = error.message?.takeIf { it.isNotBlank() }
+                    val notSent = getString(Res.string.chat_message_not_sent)
                     val text = when {
                         error is ChatMessageRejectedException && !error.code.startsWith("http_") && reason != null -> reason
-                        reason != null -> "${cachedStrings().chatMessageNotSent}: $reason"
-                        else -> cachedStrings().chatMessageNotSent
+                        reason != null -> "$notSent: $reason"
+                        else -> notSent
                     }
                     addNoticeOnce(channelLogin, text)
                 }
@@ -4578,7 +4902,7 @@ class ChatViewModel(
             update { st ->
                 st.copy(messages = st.messages.filterNot { it is DisplayMessage.PrivMsg && it.id == localId })
             }
-            sendEffect(ChatEffect.ShowError("Authentication required to send messages"))
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_authentication_required_to_send_messages)))
         }
         return false
     }
@@ -4638,7 +4962,7 @@ class ChatViewModel(
                 if (channelLogin.isNotEmpty()) joinChannelUseCase(channelLogin)
             } catch (e: Exception) {
                 Napier.e("Failed to reconnect: ${e.message}", e, tag = TAG)
-                sendEffect(ChatEffect.ShowError("Failed to reconnect: ${e.message}"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_reconnect, e.message)))
             }
         }
     }
@@ -4780,19 +5104,32 @@ class ChatViewModel(
         if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
         val reason = cachedSettings().savedTimeoutReason.takeIf { it.isNotBlank() }
         viewModelScope.launch {
-            val result = apiClient.banUser(
-                s.currentAccessToken,
-                s.channelId,
-                s.currentUserId,
-                userId,
-                duration,
-                reason
-            )
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to timeout user"))
+            val result = applyTimeout(s, userId, duration, reason)
+            if (result.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_timeout_user)))
             else {
                 rememberPendingModerator(userId, s.currentUserLogin)
                 denyPendingAutoModFor(userId)
             }
+        }
+    }
+
+    private suspend fun applyTimeout(s: ChatState, userId: String, seconds: Int, reason: String?): Result<TimeoutOutcome> {
+        val result = channelTimeouts.timeout(
+            actor = ModerationActor(s.currentAccessToken, s.channelId, s.currentUserId),
+            userId = userId,
+            seconds = seconds,
+            reason = reason,
+            knownBanned = userId in state.value.bannedUserIds
+        )
+        if (result is Result.Success) markBanState(s.channelId, userId, banned = false)
+        return result
+    }
+
+    private fun markBanState(channelId: String, userId: String?, banned: Boolean) {
+        update { st ->
+            if (st.channelId != channelId) return@update st
+            val next = st.bannedUserIds.withBanState(userId, banned)
+            if (next === st.bannedUserIds) st else st.copy(bannedUserIds = next)
         }
     }
 
@@ -4811,8 +5148,9 @@ class ChatViewModel(
                     null,
                     reason
                 )
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to ban user"))
+            if (result.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_ban_user)))
             else {
+                markBanState(s.channelId, userId, banned = true)
                 rememberPendingModerator(userId, s.currentUserLogin)
                 denyPendingAutoModFor(userId)
             }
@@ -4868,7 +5206,7 @@ class ChatViewModel(
                     (channelMessageCache[cacheKey] ?: emptyList()).map { dm ->
                         if (dm is DisplayMessage.PrivMsg && dm.id == messageId) dm.copy(isDeleted = false) else dm
                     }
-                sendEffect(ChatEffect.ShowError("Failed to delete message"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_delete_message)))
             }
         }
     }
@@ -4880,8 +5218,9 @@ class ChatViewModel(
             val result =
                 apiClient.unbanUser(s.currentAccessToken, s.channelId, s.currentUserId, userId)
             if (result.isError) {
-                sendEffect(ChatEffect.ShowError("Failed to unban user"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_unban_user)))
             } else {
+                markBanState(s.channelId, userId, banned = false)
                 val targetLogin = s.messages
                     .filterIsInstance<DisplayMessage.PrivMsg>()
                     .lastOrNull { it.userId == userId }
@@ -4906,9 +5245,9 @@ class ChatViewModel(
 
     private suspend fun setRoleByLogin(login: String, role: ChannelRole, granted: Boolean) {
         val s = state.value
-        if (!s.canManageRoles) return sendEffect(ChatEffect.ShowError("Broadcaster or lead moderator only"))
+        if (!s.canManageRoles) return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_broadcaster_or_lead_moderator_only)))
         val targetLogin = login.trim().removePrefix("@").lowercase()
-        val targetId = resolveUserId(targetLogin) ?: return sendEffect(ChatEffect.ShowError("User not found"))
+        val targetId = resolveUserId(targetLogin) ?: return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found_plain)))
         roleController.set(RoleTarget(targetId, targetLogin), s.roleOverrides[targetId], role, granted)
     }
 
@@ -4916,22 +5255,15 @@ class ChatViewModel(
         update { it.copy(messageInput = "/w $username ") }
     }
 
-    private fun insertMention(displayName: String) {
+    private fun insertMention(name: String) {
         update { st ->
-            val current = st.messageInput
-            val tag = "@$displayName "
-            val newInput = when {
-                current.isEmpty() -> tag
-                current.endsWith(" ") -> "$current$tag"
-                else -> "$current $tag"
-            }
-
             st.copy(
-                messageInput = newInput,
+                messageInput = MentionInsertion.append(st.messageInput, name),
                 showMentionCompletions = false,
                 mentionCompletions = emptyList()
             )
         }
+        sendEffect(ChatEffect.FocusChatInput)
     }
 
     private fun updateChatSettings(settings: Map<String, Any>) {
@@ -4944,7 +5276,7 @@ class ChatViewModel(
                 s.currentUserId,
                 settings
             )
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to update chat settings"))
+            if (result.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_update_chat_settings)))
         }
     }
 
@@ -5044,11 +5376,11 @@ class ChatViewModel(
             .firstOrNull { it.id == messageId }
 
         if (!SlashCommand.isMessageId(messageId)) {
-            sendEffect(ChatEffect.ShowError(pinFailedText(cachedStrings().pinReasonNotPinnable)))
+            showPinFailed(Res.string.pin_reason_not_pinnable)
             return
         }
         if (s.currentAccessToken.isBlank() || s.channelId.isBlank()) {
-            sendEffect(ChatEffect.ShowError(pinFailedText(cachedStrings().pinReasonNotConnected)))
+            showPinFailed(Res.string.pin_reason_not_connected)
             return
         }
 
@@ -5064,35 +5396,37 @@ class ChatViewModel(
                 is Result.Success -> update { it.copy(pinId = r.data) }
                 is Result.Error -> {
                     update { it.copy(pinnedMessage = previousPinned, pinEndsAtMs = previousEndsAt) }
-                    sendEffect(ChatEffect.ShowError(pinFailedText(r.exception.message ?: cachedStrings().pinReasonUnknown)))
+                    sendEffect(ChatEffect.ShowError(UiText.Raw(pinFailedText(r.exception.message ?: getString(Res.string.pin_reason_unknown)))))
                 }
                 else -> {}
             }
         }
     }
 
-    private fun cachedStrings() = AppStrings.forLocale(cachedSettings().language)
+    private suspend fun pinFailedText(reason: String): String = getString(Res.string.pin_failed, reason)
 
-    private fun pinFailedText(reason: String): String = cachedStrings().pinFailed(reason)
+    private fun showPinFailed(reason: StringResource) {
+        viewModelScope.launch { sendEffect(ChatEffect.ShowError(UiText.Raw(pinFailedText(getString(reason))))) }
+    }
 
     private fun pinLatestModLogMessageFrom(login: String, durationSeconds: Int) {
         val s = state.value
         if (s.currentAccessToken.isBlank() || s.channelId.isBlank()) {
-            sendEffect(ChatEffect.ShowError(cachedStrings().noRecentMessageToPin(login)))
+            viewModelScope.launch { sendEffect(ChatEffect.ShowError(UiText.Raw(getString(Res.string.no_recent_message_to_pin, login)))) }
             return
         }
         viewModelScope.launch {
             val userResult = apiClient.getUsers(s.currentAccessToken, logins = listOf(login))
             val user = (userResult as? Result.Success)?.data?.data?.firstOrNull()
             if (user == null) {
-                sendEffect(ChatEffect.ShowError(cachedStrings().noRecentMessageToPin(login)))
+                sendEffect(ChatEffect.ShowError(UiText.Raw(getString(Res.string.no_recent_message_to_pin, login))))
                 return@launch
             }
             val modLogMsg = twitchGqlClient.getLatestModLogMessageBySender(
                 s.channelId, user.id, moderationAuthStore.resolveToken(s.currentAccessToken)
             )
             if (modLogMsg == null) {
-                sendEffect(ChatEffect.ShowError(cachedStrings().noRecentMessageToPin(login)))
+                sendEffect(ChatEffect.ShowError(UiText.Raw(getString(Res.string.no_recent_message_to_pin, login))))
                 return@launch
             }
             val synthetic = syntheticPrivMsg(
@@ -5129,7 +5463,7 @@ class ChatViewModel(
                     return@launch
                 }
             }
-            sendEffect(ChatEffect.ShowError("Could not find the sent message to pin. Try again."))
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_could_not_find_the_sent_message)))
         }
     }
 
@@ -5154,7 +5488,7 @@ class ChatViewModel(
         if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) return
         viewModelScope.launch {
             val result = apiClient.clearChat(s.currentAccessToken, s.channelId, s.currentUserId)
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to clear chat"))
+            if (result.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_clear_chat)))
         }
     }
 
@@ -5169,7 +5503,7 @@ class ChatViewModel(
                 message,
                 color
             )
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to send announcement"))
+            if (result.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_announcement)))
         }
     }
 
@@ -5189,17 +5523,17 @@ class ChatViewModel(
         viewModelScope.launch {
             val usersResult = apiClient.getUsers(s.currentAccessToken, logins = listOf(targetLogin))
             if (usersResult !is Result.Success) {
-                sendEffect(ChatEffect.ShowError("Failed to resolve user for raid"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_resolve_user_for_raid)))
                 return@launch
             }
             val targetId = usersResult.data.data.firstOrNull()?.id
             if (targetId == null) {
-                sendEffect(ChatEffect.ShowError("User not found: $targetLogin"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_user_not_found, targetLogin)))
                 return@launch
             }
             if (s.isBroadcaster) {
                 val result = apiClient.startRaid(s.currentAccessToken, s.channelId, targetId)
-                if (result.isError) sendEffect(ChatEffect.ShowError("Failed to start raid"))
+                if (result.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_raid)))
                 else setPendingRaid(targetLogin, targetId)
             } else if (s.isMod) {
                 when (val r = twitchGqlClient.createRaid(
@@ -5207,11 +5541,11 @@ class ChatViewModel(
                 )) {
                     is Result.Success -> setPendingRaid(targetLogin, targetId)
                     is Result.Error ->
-                        sendEffect(ChatEffect.ShowError("Failed to start raid: ${r.exception.message}"))
+                        sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_raid_alt, r.exception.message)))
                     else -> {}
                 }
             } else {
-                sendEffect(ChatEffect.ShowError("You must be the broadcaster or a moderator to start a raid."))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_you_must_be_the_broadcaster_or)))
             }
         }
     }
@@ -5259,7 +5593,7 @@ class ChatViewModel(
         viewModelScope.launch {
             val useGqlEvents = moderationAuthStore.hasCustomToken()
             if (useGqlEvents) {
-                if (!s.canModerate) return@launch sendEffect(ChatEffect.ShowError("Mod-only command"))
+                if (!s.canModerate) return@launch sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                 val gqlEventToken = moderationAuthStore.resolveToken(s.currentAccessToken)
                 when (val r = twitchGqlClient.createPollGql(
                     channelId = s.channelId,
@@ -5273,17 +5607,17 @@ class ChatViewModel(
                         rememberPollHistory(title, choices, durationSeconds)
                         systemNotice(
                             s.channelLogin,
-                            "Poll started: \"$title\" — ${choices.joinToString(" | ")} (${durationSeconds}s)"
+                            uiText(Res.string.chat_vm_poll_started_s, title, choices.joinToString(" | "), durationSeconds)
                         )
                         syncPollAfterCreate(s.channelLogin, s.channelId)
                     }
                     is Result.Error ->
-                        sendEffect(ChatEffect.ShowError("Failed to start poll: ${r.exception.message}"))
+                        sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_poll, r.exception.message)))
                     else -> {}
                 }
                 return@launch
             }
-            if (!s.isBroadcaster) return@launch sendEffect(ChatEffect.ShowError("Only the broadcaster can start a poll (set a first-party token in Settings to run polls as a moderator)"))
+            if (!s.isBroadcaster) return@launch sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_start_a)))
             when (val r = apiClient.createPoll(
                 accessToken = s.currentAccessToken,
                 broadcasterId = s.channelId,
@@ -5296,12 +5630,12 @@ class ChatViewModel(
                     rememberPollHistory(title, choices, durationSeconds)
                     systemNotice(
                         s.channelLogin,
-                        "Poll started: \"$title\" — ${choices.joinToString(" | ")} (${durationSeconds}s)"
+                        uiText(Res.string.chat_vm_poll_started_s, title, choices.joinToString(" | "), durationSeconds)
                     )
                     startPollPolling()
                 }
                 is Result.Error ->
-                    sendEffect(ChatEffect.ShowError("Failed to start poll: ${r.exception.message}"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_poll, r.exception.message)))
                 else -> {}
             }
         }
@@ -5314,7 +5648,7 @@ class ChatViewModel(
         viewModelScope.launch {
             val useGqlEvents = moderationAuthStore.hasCustomToken()
             if (useGqlEvents) {
-                if (!s.canModerate) return@launch sendEffect(ChatEffect.ShowError("Mod-only command"))
+                if (!s.canModerate) return@launch sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
                 val gqlEventToken = moderationAuthStore.resolveToken(s.currentAccessToken)
                 when (val r = twitchGqlClient.createPredictionGql(
                     channelId = s.channelId,
@@ -5327,17 +5661,17 @@ class ChatViewModel(
                         rememberPredictionHistory(title, outcomes, windowSeconds)
                         systemNotice(
                             s.channelLogin,
-                            "Prediction started: \"$title\" — ${outcomes.joinToString(" | ")} (${windowSeconds}s)"
+                            uiText(Res.string.chat_vm_prediction_started_s, title, outcomes.joinToString(" | "), windowSeconds)
                         )
                         syncPredictionAfterCreate(s.channelLogin, s.channelId)
                     }
                     is Result.Error ->
-                        sendEffect(ChatEffect.ShowError("Failed to start prediction: ${r.exception.message}"))
+                        sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_prediction, r.exception.message)))
                     else -> {}
                 }
                 return@launch
             }
-            if (!s.isBroadcaster) return@launch sendEffect(ChatEffect.ShowError("Only the broadcaster can start a prediction (set a first-party token in Settings to run predictions as a moderator)"))
+            if (!s.isBroadcaster) return@launch sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_start_a_alt)))
             val r = apiClient.createPrediction(
                 accessToken = s.currentAccessToken,
                 broadcasterId = s.channelId,
@@ -5357,12 +5691,12 @@ class ChatViewModel(
                     rememberPredictionHistory(title, outcomes, windowSeconds)
                     systemNotice(
                         s.channelLogin,
-                        "Prediction started: \"$title\" — ${outcomes.joinToString(" | ")} (${windowSeconds}s)"
+                        uiText(Res.string.chat_vm_prediction_started_s, title, outcomes.joinToString(" | "), windowSeconds)
                     )
                     startPredictionPolling()
                 }
                 is Result.Error ->
-                    sendEffect(ChatEffect.ShowError("Failed to start prediction: ${r.exception.message}"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_prediction, r.exception.message)))
                 else -> {}
             }
         }
@@ -5375,7 +5709,7 @@ class ChatViewModel(
             update {
                 it.copy(
                     pointsBitsLoading = false,
-                    pointsBitsError = GQL_TOKEN_REQUIRED_MSG
+                    pointsBitsError = uiText(Res.string.chat_vm_gql_token_required)
                 )
             }
             return
@@ -5387,7 +5721,7 @@ class ChatViewModel(
                 update {
                     it.copy(
                         pointsBitsLoading = false,
-                        pointsBitsError = "Failed to load channel points"
+                        pointsBitsError = uiText(Res.string.chat_vm_failed_to_load_points)
                     )
                 }
             } else {
@@ -5407,7 +5741,7 @@ class ChatViewModel(
         val s = state.value
         if (!reward.isRedeemableInApp) return
         if (!moderationAuthStore.hasCustomToken()) {
-            return sendEffect(ChatEffect.ShowError(GQL_TOKEN_REQUIRED_MSG))
+            return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required)))
         }
         viewModelScope.launch {
             val gqlToken = moderationAuthStore.resolveToken(s.currentAccessToken)
@@ -5418,10 +5752,10 @@ class ChatViewModel(
             when (val r = twitchGqlClient.redeemCustomRewardGql(s.channelId, reward, textInput, gqlToken)) {
                 is Result.Success -> {
                     update { it.copy(pointsBalance = r.data.balance) }
-                    systemNotice(s.channelLogin, "Redeemed \"${reward.title}\"")
+                    systemNotice(s.channelLogin, uiText(Res.string.chat_vm_redeemed, reward.title))
                 }
                 is Result.Error ->
-                    sendEffect(ChatEffect.ShowError("Failed to redeem: ${r.exception.message}"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_redeem, r.exception.message)))
                 else -> {}
             }
         }
@@ -5445,7 +5779,7 @@ class ChatViewModel(
             }
 
             is Result.Error ->
-                sendEffect(ChatEffect.ShowError("Failed to redeem: ${result.exception.message}"))
+                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_redeem, result.exception.message)))
 
             else -> {}
         }
@@ -5463,7 +5797,7 @@ class ChatViewModel(
         val s = state.value
         if (s.currentAccessToken.isBlank() || s.channelId.isBlank()) return
         if (!s.isBroadcaster && !s.isMod) {
-            sendEffect(ChatEffect.ShowError("You must be the broadcaster or a moderator to send the raid now."))
+            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_you_must_be_the_broadcaster_or_alt)))
             return
         }
         viewModelScope.launch {
@@ -5473,7 +5807,7 @@ class ChatViewModel(
                 is Result.Success ->
                     update { it.copy(pendingRaidTarget = null, pendingRaidTargetId = null, pendingRaidStartedAt = 0L) }
                 is Result.Error ->
-                    sendEffect(ChatEffect.ShowError("Failed to send raid now: ${r.exception.message}"))
+                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_raid_now, r.exception.message)))
                 else -> {}
             }
         }
@@ -5489,7 +5823,7 @@ class ChatViewModel(
                 targetUserId,
                 s.currentUserId
             )
-            if (result.isError) sendEffect(ChatEffect.ShowError("Failed to send shoutout"))
+            if (result.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_send_shoutout)))
         }
     }
 
@@ -5859,16 +6193,16 @@ class ChatViewModel(
     private fun replyToRuleViolation(rule: ChatRule, message: ChatMessage, channelLogin: String) {
         if (!rule.replyEnabled || !rule.type.supportsReply) return
         if (!chatRuleReplyThrottle.tryAcquire(channelLogin, rule.id, rule.replyCooldownSeconds)) return
-        val template = rule.replyTemplate.ifBlank {
-            AppStrings.forLocale(cachedSettings().language).defaultChatRuleReply(rule.type)
-        }
-        val text = ChatRuleReplyFormatter.format(
-            template = template,
-            userMention = ChatRuleReplyFormatter.mentionFor(message.displayName, message.username),
-            channelLogin = channelLogin
-        )
-        if (text.isBlank()) return
         viewModelScope.launch {
+            val template = rule.replyTemplate.ifBlank {
+                defaultChatRuleReplyRes(rule.type)?.let { getString(it) }.orEmpty()
+            }
+            val text = ChatRuleReplyFormatter.format(
+                template = template,
+                userMention = ChatRuleReplyFormatter.mentionFor(message.displayName, message.username),
+                channelLogin = channelLogin
+            )
+            if (text.isBlank()) return@launch
             delay(nextLong(RULE_REPLY_MIN_DELAY_MS, RULE_REPLY_MAX_DELAY_MS).milliseconds)
             runCatching { sendMacroText(channelLogin, text) }
                 .onFailure { Napier.w("Rule reply failed: ${it.message}", tag = TAG) }
@@ -5880,5 +6214,6 @@ private data class OutgoingReply(
     val id: String,
     val login: String,
     val displayName: String,
-    val body: String
+    val body: String,
+    val threadRootId: String = id
 )

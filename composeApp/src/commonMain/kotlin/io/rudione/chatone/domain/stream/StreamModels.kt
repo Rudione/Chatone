@@ -67,6 +67,21 @@ enum class LandscapeChatMode { SIDE, OVERLAY, HIDDEN }
 
 enum class StreamVideoScale { FIT, FILL }
 
+enum class StreamLatencyLevel {
+    LOW, MEDIUM, HIGH;
+
+    companion object {
+        private const val LOW_LIMIT_SECONDS = 3f
+        private const val MEDIUM_LIMIT_SECONDS = 8f
+
+        fun of(seconds: Float): StreamLatencyLevel = when {
+            seconds <= LOW_LIMIT_SECONDS -> LOW
+            seconds <= MEDIUM_LIMIT_SECONDS -> MEDIUM
+            else -> HIGH
+        }
+    }
+}
+
 enum class StreamPhase { IDLE, LOADING, BUFFERING, PLAYING, PAUSED, OFFLINE, ENDED, ERROR }
 
 enum class StreamErrorKind { NETWORK, FORBIDDEN, GEOBLOCKED, SUBSCRIBERS_ONLY, UNSUPPORTED_CODEC, NOT_FOUND, UNKNOWN }
@@ -107,8 +122,16 @@ data class StreamPlayerPreferences(
     val sideChatFraction: Float = DEFAULT_SIDE_CHAT_FRACTION,
     val overlayBounds: OverlayChatBounds = OverlayChatBounds.DEFAULT,
     val overlayOpacity: Float = DEFAULT_OVERLAY_OPACITY,
+    val overlayIdleOpacity: Float = DEFAULT_OVERLAY_IDLE_OPACITY,
     val overlayMessageOpacity: Float = DEFAULT_OVERLAY_MESSAGE_OPACITY,
     val overlayLocked: Boolean = false,
+    val overlayBackdrop: Boolean = false,
+    val overlayBackdropOpacity: Float = DEFAULT_OVERLAY_BACKDROP_OPACITY,
+    val overlayScale: Float = DEFAULT_OVERLAY_SCALE,
+    val overlayHideDelaySeconds: Int = DEFAULT_OVERLAY_HIDE_DELAY_SECONDS,
+    val overlayAutoLockSeconds: Int = DEFAULT_OVERLAY_AUTO_LOCK_SECONDS,
+    val latencyOnVideo: Boolean = false,
+    val ambientLight: Boolean = true,
     val autoPictureInPicture: Boolean = true,
     val backgroundAudio: Boolean = true,
     val autoOpen: Boolean = true
@@ -122,9 +145,24 @@ data class StreamPlayerPreferences(
         const val DEFAULT_OVERLAY_OPACITY = 0.55f
         const val MIN_OVERLAY_OPACITY = 0.0f
         const val MAX_OVERLAY_OPACITY = 0.9f
+        const val DEFAULT_OVERLAY_IDLE_OPACITY = 0f
+        const val MAX_OVERLAY_IDLE_OPACITY = 0.6f
         const val DEFAULT_OVERLAY_MESSAGE_OPACITY = 0.8f
         const val MIN_OVERLAY_MESSAGE_OPACITY = 0.3f
         const val MAX_OVERLAY_MESSAGE_OPACITY = 1f
+        const val DEFAULT_OVERLAY_BACKDROP_OPACITY = 0.4f
+        const val MIN_OVERLAY_BACKDROP_OPACITY = 0.05f
+        const val MAX_OVERLAY_BACKDROP_OPACITY = 0.95f
+        const val DEFAULT_OVERLAY_SCALE = 1f
+        const val MIN_OVERLAY_SCALE = 0.7f
+        const val MAX_OVERLAY_SCALE = 1.6f
+        const val DEFAULT_OVERLAY_HIDE_DELAY_SECONDS = 2
+        const val MIN_OVERLAY_HIDE_DELAY_SECONDS = 1
+        const val MAX_OVERLAY_HIDE_DELAY_SECONDS = 15
+        const val DEFAULT_OVERLAY_AUTO_LOCK_SECONDS = 10
+        const val MIN_OVERLAY_AUTO_LOCK_SECONDS = 0
+        const val MAX_OVERLAY_AUTO_LOCK_SECONDS = 60
+        const val OVERLAY_AUTO_LOCK_STEP_SECONDS = 5
     }
 }
 

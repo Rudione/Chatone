@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "releases": [
+    {
+      "version": "1.4.0",
+      "upcoming": true,
+      "items": [
+        { "type": "new", "ru": "Приложение для Android TV и Google TV: вход по QR-коду, плеер с чатом, управление пультом", "en": "Android TV and Google TV app: QR sign-in, player with chat, remote-friendly controls" },
+        { "type": "new", "ru": "iPhone и iPad: плеер стримов, клипы и записи, картинка в картинке и звук в фоне", "en": "iPhone and iPad: stream player, clips and VODs, picture-in-picture and background audio" },
+        { "type": "new", "ru": "Клипы прямо в приложении: редактор с последними 30 секундами, просмотр без браузера", "en": "Clips in the app: an editor with the last 30 seconds, and watching without a browser" },
+        { "type": "new", "ru": "Профиль канала на телефоне: эфир, клипы, видео и календарь трансляций", "en": "Channel profile on phones: live now, clips, videos and a stream calendar" },
+        { "type": "new", "ru": "Ветки ответов: вся переписка вокруг сообщения в одном окне", "en": "Reply threads: the whole conversation around a message in one place" },
+        { "type": "new", "ru": "Стрик просмотра как на Twitch и новое окно баллов канала", "en": "Watch streaks like on Twitch and a new channel points window" },
+        { "type": "new", "ru": "Тема «Twitch» и подключение 7TV входом через Twitch", "en": "A Twitch theme, and 7TV sign-in through Twitch" },
+        { "type": "improved", "ru": "Подсветка вокруг плеера заходит под статус-бар и вырез камеры", "en": "Ambient light around the player reaches under the status bar and camera cutout" },
+        { "type": "improved", "ru": "Новый логотип, а тексты интерфейса стали проще и короче", "en": "New logo, and simpler, shorter interface text" },
+        { "type": "improved", "ru": "Мини-профиль: ник целиком, сообщения как в чате, ровная история модерации", "en": "Mini-profile: full nicknames, messages that look like chat, a tidy moderation history" },
+        { "type": "fixed", "ru": "Создание клипов снова работает", "en": "Clip creation works again" },
+        { "type": "fixed", "ru": "Копирование части сообщения на ПК больше не захватывает кусок ника", "en": "Copying part of a message on desktop no longer grabs part of the nickname" },
+        { "type": "fixed", "ru": "Реже вылетает на Android и ПК", "en": "Fewer crashes on Android and desktop" }
+      ]
+    },
+    {
+      "version": "1.3.3",
+      "date": "2026-10-17",
+      "items": [
+        { "type": "new", "ru": "Экранный чат на ПК: прозрачное окно с чатом поверх игры или браузера", "en": "Screen chat on desktop: a see-through chat window over a game or browser" },
+        { "type": "new", "ru": "Слайдер модерации на ПК: потяните сообщение — удалить, мут или бан", "en": "Mod slider on desktop: drag a message to delete, time out or ban" },
+        { "type": "new", "ru": "Поиск по настройкам, который понимает опечатки и другую раскладку", "en": "Settings search that understands typos and the wrong keyboard layout" },
+        { "type": "new", "ru": "Режимы «Поверх всех окон», в том числе только поверх браузера", "en": "Always-on-top modes, including over the browser only" },
+        { "type": "new", "ru": "Стример и лид-модератор выдают модерку и VIP прямо в мини-профиле", "en": "Streamers and lead mods give mod and VIP right in the mini-profile" },
+        { "type": "new", "ru": "Гифки работают без своего ключа GIPHY", "en": "GIFs work without your own GIPHY key" },
+        { "type": "improved", "ru": "Гифки в чате грузятся быстрее и тратят меньше трафика", "en": "GIFs in chat load faster and use less data" },
+        { "type": "improved", "ru": "Настройки разложены по разделам, у модерации появились вкладки", "en": "Settings are better organized, moderation got its own tabs" },
+        { "type": "improved", "ru": "Чат меньше нагружает процессор", "en": "Chat uses less CPU" },
+        { "type": "fixed", "ru": "ПК-версия больше не вылетает при закрытии подсказки или меню", "en": "The desktop app no longer crashes when a tooltip or menu closes" },
+        { "type": "fixed", "ru": "Окна настроек и профиля больше не прячутся под чатом поверх всех окон", "en": "Settings and profile windows no longer hide under an always-on-top chat" },
+        { "type": "fixed", "ru": "Звук упоминания больше не играет дважды", "en": "The mention sound no longer plays twice" }
+      ]
+    },
+    {
+      "version": "1.3.2",
+      "date": "2026-10-10",
+      "items": [
+        { "type": "new", "ru": "Мини-плеер: стрим продолжает играть в маленьком окне", "en": "Mini player: the stream keeps playing in a small window" },
+        { "type": "new", "ru": "Подсветка вокруг видео вместо чёрных полос", "en": "A glow around the video instead of black bars" },
+        { "type": "new", "ru": "Стрим играет в фоне и с выключенным экраном", "en": "Streams keep playing in the background and with the screen off" },
+        { "type": "new", "ru": "Ответ на сообщение свайпом влево", "en": "Swipe left on a message to reply" },
+        { "type": "new", "ru": "Двойной тап в полноэкранном режиме переключает чат: сбоку, поверх, скрыт", "en": "Double tap in fullscreen switches chat: side, overlay, hidden" },
+        { "type": "new", "ru": "Отдельный язык для авто-перевода своих сообщений", "en": "A separate language for auto-translating your messages" },
+        { "type": "new", "ru": "Кнопки паузы и звука в «картинке в картинке»", "en": "Pause and sound buttons in picture-in-picture" },
+        { "type": "improved", "ru": "Задержка стрима стала меньше и больше не растёт", "en": "Stream delay is lower and no longer grows" },
+        { "type": "improved", "ru": "Качество видео подбирается по реальной скорости сети", "en": "Video quality follows your real network speed" },
+        { "type": "improved", "ru": "Каналы в боковом меню телефона двигаются после удержания", "en": "Hold a channel in the phone sidebar to move it" },
+        { "type": "fixed", "ru": "Вылеты на некоторых Samsung во время стрима", "en": "Crashes on some Samsung phones during streams" }
+      ]
+    },
+    {
+      "version": "1.3.1",
+      "date": "2026-10-02",
+      "items": [
+        { "type": "new", "ru": "Вход в один клик: приложение само подхватывает аккаунт после входа на сайте", "en": "One-click sign-in: the app picks up your account after you log in on the site" },
+        { "type": "new", "ru": "Новые экраны входа и загрузки", "en": "New sign-in and loading screens" },
+        { "type": "improved", "ru": "Чат открывается сразу готовым, без лишних заставок", "en": "Chat opens ready to go, without extra splash screens" },
+        { "type": "fixed", "ru": "Курсор больше не прыгает после ответа на сообщение", "en": "The cursor no longer jumps after replying to a message" }
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "date": "2026-09-30",
+      "items": [
+        { "type": "new", "ru": "Новый мини-профиль: прошлые сообщения, досье и роли на других каналах", "en": "New mini-profile: past messages, a dossier and roles on other channels" },
+        { "type": "new", "ru": "Чат показывает, когда заходит или пишет известный стример", "en": "Chat shows when a well-known streamer joins or writes" },
+        { "type": "new", "ru": "Разделители дней и масштаб сообщений", "en": "Day separators and message zoom" },
+        { "type": "new", "ru": "Редакторы тем и макросов", "en": "Theme and macro editors" },
+        { "type": "new", "ru": "Автоответы в правилах своего автомода", "en": "Auto-replies in your own automod rules" },
+        { "type": "improved", "ru": "На macOS токены хранятся в связке ключей", "en": "On macOS, tokens are kept in the Keychain" },
+        { "type": "improved", "ru": "Обновления подписаны и проверяются перед установкой", "en": "Updates are signed and checked before installing" },
+        { "type": "improved", "ru": "Приложение стало меньше весить", "en": "The app got smaller" }
+      ]
+    }
+  ]
+}

@@ -20,12 +20,20 @@ import kotlin.math.abs
 
 enum class SwipeDirection(internal val sign: Float) { Left(-1f), Right(1f) }
 
+interface SwipeDragHandler {
+    fun onSwipeDrag(deltaPx: Float)
+    fun onSwipeRelease(velocityPx: Float)
+}
+
 private val TriggerDistance = 56.dp
 private val FlingVelocity = 700.dp
 private const val DIRECTION_RATIO = 1.3f
 
 fun Modifier.directionalSwipe(direction: SwipeDirection, onSwipe: () -> Unit): Modifier =
     this then DirectionalSwipeElement(direction, onSwipe)
+
+fun Modifier.directionalDrag(direction: SwipeDirection, handler: SwipeDragHandler): Modifier =
+    this then DirectionalDragElement(direction, handler)
 
 internal object SwipeIntent {
     enum class Decision { Undecided, Claim, Reject }
@@ -36,6 +44,13 @@ internal object SwipeIntent {
         val forward = travel.x * sign
         return if (forward >= slop && abs(travel.x) >= abs(travel.y) * DIRECTION_RATIO) Decision.Claim else Decision.Reject
     }
+}
+
+private interface SwipeSink {
+    fun onClaim(travelX: Float)
+    fun onMove(deltaX: Float)
+    fun onEnd(velocityX: Float)
+    fun onCancel()
 }
 
 private data class DirectionalSwipeElement(
@@ -53,55 +68,118 @@ private data class DirectionalSwipeElement(
 private class DirectionalSwipeNode(
     var direction: SwipeDirection,
     var onSwipe: () -> Unit
-) : DelegatingNode() {
+) : DelegatingNode(), SwipeSink {
+    private var travel = 0f
+    private var fired = false
+    private var triggerPx = 0f
+    private var flingPx = 0f
+
     init {
-        delegate(SuspendingPointerInputModifierNode { detectDirectionalSwipe() })
+        delegate(SuspendingPointerInputModifierNode {
+            triggerPx = TriggerDistance.toPx()
+            flingPx = FlingVelocity.toPx()
+            detectClaimedSwipes({ direction.sign }, this@DirectionalSwipeNode)
+        })
     }
 
-    private suspend fun PointerInputScope.detectDirectionalSwipe() {
-        val slop = viewConfiguration.touchSlop
-        val holdTimeout = viewConfiguration.longPressTimeoutMillis
-        val triggerPx = TriggerDistance.toPx()
-        val flingPx = FlingVelocity.toPx()
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-            if (down.type == PointerType.Mouse) return@awaitEachGesture
-            val sign = direction.sign
-            val tracker = VelocityTracker().apply { addPointerInputChange(down) }
-            var travel = Offset.Zero
-            var claimed = false
-            var fired = false
-            while (true) {
-                val event = awaitPointerEvent(PointerEventPass.Initial)
-                if (event.changes.count { it.pressed } > 1) break
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                if (!claimed && change.isConsumed) break
-                if (!change.pressed) {
-                    if (claimed && !fired && tracker.calculateVelocity().x * sign >= flingPx) onSwipe()
-                    break
-                }
-                travel += change.positionChange()
-                tracker.addPointerInputChange(change)
-                if (!claimed) {
-                    val heldTooLong = change.uptimeMillis - down.uptimeMillis > holdTimeout
-                    when (SwipeIntent.decide(travel, sign, slop, heldTooLong)) {
-                        SwipeIntent.Decision.Reject -> break
-                        SwipeIntent.Decision.Undecided -> {
-                            if (claimedBelow(down.id)) break
-                            continue
-                        }
-                        SwipeIntent.Decision.Claim -> claimed = true
-                    }
-                }
-                change.consume()
-                if (!fired && travel.x * sign >= triggerPx) {
-                    fired = true
-                    onSwipe()
-                }
-            }
+    override fun onClaim(travelX: Float) {
+        travel = travelX
+        fired = false
+        checkTrigger()
+    }
+
+    override fun onMove(deltaX: Float) {
+        travel += deltaX
+        checkTrigger()
+    }
+
+    override fun onEnd(velocityX: Float) {
+        if (!fired && velocityX * direction.sign >= flingPx) onSwipe()
+    }
+
+    override fun onCancel() = Unit
+
+    private fun checkTrigger() {
+        if (!fired && travel * direction.sign >= triggerPx) {
+            fired = true
+            onSwipe()
         }
     }
-
-    private suspend fun AwaitPointerEventScope.claimedBelow(pointerId: PointerId): Boolean =
-        awaitPointerEvent(PointerEventPass.Final).changes.any { it.id == pointerId && it.isConsumed }
 }
+
+private data class DirectionalDragElement(
+    val direction: SwipeDirection,
+    val handler: SwipeDragHandler
+) : ModifierNodeElement<DirectionalDragNode>() {
+    override fun create(): DirectionalDragNode = DirectionalDragNode(direction, handler)
+
+    override fun update(node: DirectionalDragNode) {
+        node.direction = direction
+        node.handler = handler
+    }
+}
+
+private class DirectionalDragNode(
+    var direction: SwipeDirection,
+    var handler: SwipeDragHandler
+) : DelegatingNode(), SwipeSink {
+    init {
+        delegate(SuspendingPointerInputModifierNode { detectClaimedSwipes({ direction.sign }, this@DirectionalDragNode) })
+    }
+
+    override fun onClaim(travelX: Float) = handler.onSwipeDrag(travelX)
+
+    override fun onMove(deltaX: Float) = handler.onSwipeDrag(deltaX)
+
+    override fun onEnd(velocityX: Float) = handler.onSwipeRelease(velocityX)
+
+    override fun onCancel() = handler.onSwipeRelease(0f)
+}
+
+private suspend fun PointerInputScope.detectClaimedSwipes(sign: () -> Float, sink: SwipeSink) {
+    val slop = viewConfiguration.touchSlop
+    val holdTimeout = viewConfiguration.longPressTimeoutMillis
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        if (down.type == PointerType.Mouse) return@awaitEachGesture
+        val tracker = VelocityTracker().apply { addPointerInputChange(down) }
+        var travel = Offset.Zero
+        var claimed = false
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            val change = event.changes.firstOrNull { it.id == down.id }
+            if (change == null || event.changes.count { it.pressed } > 1 || (!claimed && change.isConsumed)) {
+                if (claimed) sink.onCancel()
+                break
+            }
+            if (!change.pressed) {
+                if (claimed) sink.onEnd(tracker.calculateVelocity().x)
+                break
+            }
+            val delta = change.positionChange()
+            travel += delta
+            tracker.addPointerInputChange(change)
+            if (!claimed) {
+                val heldTooLong = change.uptimeMillis - down.uptimeMillis > holdTimeout
+                when (SwipeIntent.decide(travel, sign(), slop, heldTooLong)) {
+                    SwipeIntent.Decision.Reject -> break
+                    SwipeIntent.Decision.Undecided -> {
+                        if (claimedBelow(down.id)) break
+                        continue
+                    }
+                    SwipeIntent.Decision.Claim -> {
+                        claimed = true
+                        change.consume()
+                        sink.onClaim(travel.x)
+                        continue
+                    }
+                }
+            }
+            change.consume()
+            sink.onMove(delta.x)
+        }
+    }
+}
+
+private suspend fun AwaitPointerEventScope.claimedBelow(pointerId: PointerId): Boolean =
+    awaitPointerEvent(PointerEventPass.Final).changes.any { it.id == pointerId && it.isConsumed }

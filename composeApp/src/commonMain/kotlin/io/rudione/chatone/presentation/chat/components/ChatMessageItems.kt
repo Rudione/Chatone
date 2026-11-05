@@ -1,5 +1,28 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.mod_row_seconds
+import chatone.composeapp.generated.resources.mod_row_minutes
+import chatone.composeapp.generated.resources.mod_row_hours
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.automod_allow
+import chatone.composeapp.generated.resources.automod_deny
+import chatone.composeapp.generated.resources.chat_automod_panel
+import chatone.composeapp.generated.resources.chat_unban_user
+import chatone.composeapp.generated.resources.mod_row_automod_allowed
+import chatone.composeapp.generated.resources.mod_row_automod_denied
+import chatone.composeapp.generated.resources.mod_row_banned
+import chatone.composeapp.generated.resources.mod_row_by
+import chatone.composeapp.generated.resources.mod_row_cleared
+import chatone.composeapp.generated.resources.mod_row_deleted
+import chatone.composeapp.generated.resources.mod_row_modded
+import chatone.composeapp.generated.resources.mod_row_timed_out
+import chatone.composeapp.generated.resources.mod_row_unbanned
+import chatone.composeapp.generated.resources.mod_row_unmodded
+import chatone.composeapp.generated.resources.mod_row_untimedout
+import chatone.composeapp.generated.resources.mod_row_unvipped
+import chatone.composeapp.generated.resources.mod_row_vipped
+import chatone.composeapp.generated.resources.timeline_announcement
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +41,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
@@ -26,19 +52,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.times
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Check
 import io.rudione.chatone.icons.lucide.CircleCheck
 import io.rudione.chatone.icons.lucide.Info
 import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.Megaphone
 import io.rudione.chatone.icons.lucide.Shield
 import io.rudione.chatone.icons.lucide.X
 
@@ -85,16 +111,37 @@ internal fun UserNoticeMsgItem(message: DisplayMessage.UserNoticeMsg) {
             }
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
-        Text(
-            message.systemText,
-            style = MaterialTheme.typography.bodySmall,
-            color = accent,
-            fontWeight = FontWeight.SemiBold
-        )
+        if (isAnnouncement) {
+            NoticeHeader(icon = Lucide.Megaphone, text = stringResource(Res.string.timeline_announcement), color = accent)
+        }
+        if (message.systemText.isNotBlank()) {
+            Text(
+                message.systemText,
+                style = MaterialTheme.typography.bodySmall,
+                color = accent,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         message.innerMessage?.let {
-            Spacer(modifier = Modifier.height(2.dp));
+            if (isAnnouncement || message.systemText.isNotBlank()) Spacer(modifier = Modifier.height(2.dp))
             PrivMsgItem(message = it)
         }
+    }
+}
+
+@Composable
+internal fun NoticeHeader(icon: ImageVector, text: String, color: Color, modifier: Modifier = Modifier) {
+    Row(modifier = modifier.padding(vertical = 1.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -140,10 +187,11 @@ internal fun ChatEventRow(
     }
 }
 
-private fun formatModDuration(seconds: Int, s: io.rudione.chatone.presentation.theme.i18n.AppStrings): String = when {
-    seconds >= 3600 -> s.format(s.modRowHours, (seconds / 3600).toString())
-    seconds >= 60 -> s.format(s.modRowMinutes, (seconds / 60).toString())
-    else -> s.format(s.modRowSeconds, seconds.toString())
+@Composable
+private fun formatModDuration(seconds: Int): String = when {
+    seconds >= 3600 -> stringResource(Res.string.mod_row_hours, seconds / 3600)
+    seconds >= 60 -> stringResource(Res.string.mod_row_minutes, seconds / 60)
+    else -> stringResource(Res.string.mod_row_seconds, seconds)
 }
 
 @Composable
@@ -153,7 +201,6 @@ internal fun ModerationMsgItem(
     onUsernameClick: ((String) -> Unit)? = null,
     onUnbanByLogin: ((String) -> Unit)? = null
 ) {
-    val s = LocalStrings.current
     val resolvedFontSize = chatFontSizeSp.coerceIn(11f, 16f)
     val rowLineHeight = (resolvedFontSize * 1.35f).sp
     val rowFontSize = (resolvedFontSize * 0.92f).sp
@@ -168,20 +215,26 @@ internal fun ModerationMsgItem(
         DisplayMessage.ModerationMsg.ModerationAction.VIP -> MaterialTheme.colorScheme.primary
         DisplayMessage.ModerationMsg.ModerationAction.UNMOD,
         DisplayMessage.ModerationMsg.ModerationAction.UNVIP -> ChatoneTheme.extraColors.modTimeout
+        DisplayMessage.ModerationMsg.ModerationAction.AUTOMOD_ALLOWED -> ChatoneTheme.extraColors.modUnban
+        DisplayMessage.ModerationMsg.ModerationAction.AUTOMOD_DENIED -> ChatoneTheme.extraColors.modBan
     }
+    val isAutoMod = message.action == DisplayMessage.ModerationMsg.ModerationAction.AUTOMOD_ALLOWED ||
+            message.action == DisplayMessage.ModerationMsg.ModerationAction.AUTOMOD_DENIED
     val targetUser = message.targetUser
     val predicate = when (message.action) {
-        DisplayMessage.ModerationMsg.ModerationAction.BAN -> s.modRowBanned
+        DisplayMessage.ModerationMsg.ModerationAction.BAN -> stringResource(Res.string.mod_row_banned)
         DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT ->
-            s.format(s.modRowTimedOut, formatModDuration(message.duration ?: 0, s))
-        DisplayMessage.ModerationMsg.ModerationAction.DELETE -> s.modRowDeleted
-        DisplayMessage.ModerationMsg.ModerationAction.UNBAN -> s.modRowUnbanned
-        DisplayMessage.ModerationMsg.ModerationAction.UNTIMEOUT -> s.modRowUntimedout
-        DisplayMessage.ModerationMsg.ModerationAction.MOD -> s.modRowModded
-        DisplayMessage.ModerationMsg.ModerationAction.UNMOD -> s.modRowUnmodded
-        DisplayMessage.ModerationMsg.ModerationAction.VIP -> s.modRowVipped
-        DisplayMessage.ModerationMsg.ModerationAction.UNVIP -> s.modRowUnvipped
-        DisplayMessage.ModerationMsg.ModerationAction.CLEAR -> s.modRowCleared
+            stringResource(Res.string.mod_row_timed_out, formatModDuration(message.duration ?: 0))
+        DisplayMessage.ModerationMsg.ModerationAction.DELETE -> stringResource(Res.string.mod_row_deleted)
+        DisplayMessage.ModerationMsg.ModerationAction.UNBAN -> stringResource(Res.string.mod_row_unbanned)
+        DisplayMessage.ModerationMsg.ModerationAction.UNTIMEOUT -> stringResource(Res.string.mod_row_untimedout)
+        DisplayMessage.ModerationMsg.ModerationAction.MOD -> stringResource(Res.string.mod_row_modded)
+        DisplayMessage.ModerationMsg.ModerationAction.UNMOD -> stringResource(Res.string.mod_row_unmodded)
+        DisplayMessage.ModerationMsg.ModerationAction.VIP -> stringResource(Res.string.mod_row_vipped)
+        DisplayMessage.ModerationMsg.ModerationAction.UNVIP -> stringResource(Res.string.mod_row_unvipped)
+        DisplayMessage.ModerationMsg.ModerationAction.CLEAR -> stringResource(Res.string.mod_row_cleared)
+        DisplayMessage.ModerationMsg.ModerationAction.AUTOMOD_ALLOWED -> stringResource(Res.string.mod_row_automod_allowed)
+        DisplayMessage.ModerationMsg.ModerationAction.AUTOMOD_DENIED -> stringResource(Res.string.mod_row_automod_denied)
     }
     val showUnbanButton = message.action == DisplayMessage.ModerationMsg.ModerationAction.BAN
             && targetUser != null && onUnbanByLogin != null
@@ -197,7 +250,7 @@ internal fun ModerationMsgItem(
                 ) {
                     Icon(
                         Lucide.CircleCheck,
-                        contentDescription = "${s.chatUnbanUser} $targetUser",
+                        contentDescription = "${stringResource(Res.string.chat_unban_user)} $targetUser",
                         modifier = Modifier.size(13.dp),
                         tint = ChatoneTheme.extraColors.modUnban.copy(alpha = 0.85f)
                     )
@@ -206,7 +259,7 @@ internal fun ModerationMsgItem(
             }
             message.moderatorLogin?.takeIf { it.isNotBlank() }?.let { mod ->
                 Text(
-                    s.format(s.modRowBy, mod),
+                    stringResource(Res.string.mod_row_by, mod),
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = rowFontSize * 0.9f,
                         lineHeight = rowLineHeight
@@ -219,269 +272,106 @@ internal fun ModerationMsgItem(
             }
         }
     ) {
-        if (targetUser != null && message.action != DisplayMessage.ModerationMsg.ModerationAction.CLEAR) {
-            Text(
-                targetUser,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontSize = rowFontSize,
-                    lineHeight = rowLineHeight
-                ),
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.92f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = if (onUsernameClick != null) {
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onUsernameClick(targetUser) }
-                } else Modifier
-            )
-            Spacer(Modifier.width(6.dp))
-        }
-        Text(
-            predicate,
-            style = MaterialTheme.typography.bodySmall.copy(
+        if (isAutoMod) {
+            AutoModResolutionContent(
+                predicate = predicate,
+                accent = color,
+                author = targetUser,
                 fontSize = rowFontSize,
-                lineHeight = rowLineHeight
+                lineHeight = rowLineHeight,
+                onAuthorClick = onUsernameClick
+            )
+        } else ModerationTargetContent(
+            message = message,
+            predicate = predicate,
+            fontSize = rowFontSize,
+            lineHeight = rowLineHeight,
+            onUsernameClick = onUsernameClick
+        )
+    }
+}
+
+@Composable
+private fun RowScope.ModerationTargetContent(
+    message: DisplayMessage.ModerationMsg,
+    predicate: String,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+    onUsernameClick: ((String) -> Unit)?
+) {
+    val targetUser = message.targetUser
+    if (targetUser != null && message.action != DisplayMessage.ModerationMsg.ModerationAction.CLEAR) {
+        Text(
+            targetUser,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = fontSize,
+                lineHeight = lineHeight
             ),
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f),
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.92f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false)
-        )
-    }
-}
-
-@Composable
-private fun AutomodActionButton(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    accent: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(9.dp)
-    Row(
-        modifier = modifier
-            .clip(shape)
-            .background(accent.copy(alpha = 0.16f))
-            .border(1.dp, accent.copy(alpha = 0.40f), shape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-    ) {
-        Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
-        Spacer(Modifier.width(5.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = accent,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-@Composable
-internal fun AutoModMsgItem(
-    message: DisplayMessage.AutoModMsg,
-    onAllow: () -> Unit,
-    onDeny: () -> Unit,
-    onUsernameClick: () -> Unit = {}
-) {
-    val s = LocalStrings.current
-    val pending = message.status == DisplayMessage.AutoModMsg.AutoModStatus.PENDING
-    val accent = when (message.status) {
-        DisplayMessage.AutoModMsg.AutoModStatus.PENDING -> ChatoneTheme.extraColors.modUnban
-        DisplayMessage.AutoModMsg.AutoModStatus.ALLOWED -> MaterialTheme.colorScheme.primary
-        DisplayMessage.AutoModMsg.AutoModStatus.DENIED -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    val caughtColor = ChatoneTheme.extraColors.modBan
-
-    fun categoryLabel(raw: String?): String? = when (raw?.lowercase()) {
-        "aggression" -> "Aggression"; "bullying" -> "Bullying"; "disability" -> "Disability"
-        "misogyny" -> "Misogyny"; "race_ethnicity_or_religion", "race" -> "Discrimination"
-        "sex_based_terms", "sexuality" -> "Sexual content"; "sexuality_sex_or_gender", "gender" -> "Identity"
-        "swearing" -> "Profanity"; null, "" -> null
-        else -> raw.replaceFirstChar { it.uppercase() }.replace('_', ' ')
-    }
-
-    val nameColor = message.color?.let { hex ->
-        try {
-            val v = hex.removePrefix("#").toLong(16)
-            Color(
-                red = ((v shr 16) and 0xFF) / 255f,
-                green = ((v shr 8) and 0xFF) / 255f,
-                blue = (v and 0xFF) / 255f
-            )
-        } catch (_: Exception) {
-            null
-        }
-    } ?: MaterialTheme.colorScheme.primary
-
-    val msgAlpha = if (message.status == DisplayMessage.AutoModMsg.AutoModStatus.DENIED) 0.45f else 0.92f
-
-    val body = remember(message.text, message.flaggedFragments, caughtColor, msgAlpha) {
-        buildAnnotatedString {
-            val base = message.text
-            if (message.flaggedFragments.isEmpty()) {
-                append(base)
-                return@buildAnnotatedString
-            }
-            var cursor = 0
-            while (cursor < base.length) {
-                val hit = message.flaggedFragments
-                    .filter { it.isNotBlank() }
-                    .mapNotNull { frag ->
-                        val idx = base.indexOf(frag, cursor, ignoreCase = true)
-                        if (idx >= 0) idx to frag else null
-                    }
-                    .minByOrNull { it.first }
-                if (hit == null) {
-                    append(base.substring(cursor))
-                    break
-                }
-                append(base.substring(cursor, hit.first))
-                withStyle(SpanStyle(color = caughtColor, fontWeight = FontWeight.SemiBold)) {
-                    append(base.substring(hit.first, hit.first + hit.second.length))
-                }
-                cursor = hit.first + hit.second.length
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 3.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(accent.copy(alpha = if (pending) 0.10f else 0.06f))
-            .drawWithContent {
-                drawContent()
-                val inset = 6.dp.toPx()
-                val width = 3.dp.toPx()
-                drawRoundRect(
-                    color = accent,
-                    topLeft = Offset(5.dp.toPx(), inset),
-                    size = Size(width, (size.height - inset * 2).coerceAtLeast(0f)),
-                    cornerRadius = CornerRadius(width / 2f, width / 2f)
-                )
-            }
-            .padding(start = 16.dp, end = 12.dp, top = 9.dp, bottom = 9.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Lucide.Shield,
-                contentDescription = null,
-                modifier = Modifier.size(13.dp),
-                tint = accent
-            )
-            Spacer(Modifier.width(5.dp))
-            Text(
-                s.chatAutomodPanel,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = accent,
-                maxLines = 1
-            )
-            categoryLabel(message.reasonCategory)?.let { label ->
-                Spacer(Modifier.width(7.dp))
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(accent.copy(alpha = 0.16f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = accent,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    message.reasonLevel?.let { lvl ->
-                        Spacer(Modifier.width(5.dp))
-                        repeat(4) { i ->
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 0.5.dp)
-                                    .size(4.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(
-                                        if (i < lvl.coerceIn(0, 4)) accent
-                                        else accent.copy(alpha = 0.25f)
-                                    )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(6.dp))
-
-        Row(verticalAlignment = Alignment.Top) {
-            Text(
-                text = message.displayName,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = nameColor.copy(alpha = msgAlpha),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clickable(
+            modifier = if (onUsernameClick != null) {
+                Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onUsernameClick
-                )
-            )
-            Text(
-                text = ": ",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = msgAlpha * 0.6f)
-            )
-            SelectionContainer(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = body,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = msgAlpha)
-                )
-            }
-        }
+                    indication = null
+                ) { onUsernameClick(targetUser) }
+            } else Modifier
+        )
+        Spacer(Modifier.width(6.dp))
+    }
+    Text(
+        predicate,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontSize = fontSize,
+            lineHeight = lineHeight
+        ),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f, fill = false)
+    )
+}
 
-        if (pending) {
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp)
-            ) {
-                AutomodActionButton(
-                    label = s.automodAllow,
-                    icon = Lucide.Check,
-                    accent = ChatoneTheme.extraColors.modUnban,
-                    modifier = Modifier.weight(1f),
-                    onClick = onAllow
-                )
-                AutomodActionButton(
-                    label = s.automodDeny,
-                    icon = Lucide.X,
-                    accent = ChatoneTheme.extraColors.modBan,
-                    modifier = Modifier.weight(1f),
-                    onClick = onDeny
-                )
-            }
-        }
+@Composable
+private fun RowScope.AutoModResolutionContent(
+    predicate: String,
+    accent: Color,
+    author: String?,
+    fontSize: TextUnit,
+    lineHeight: TextUnit,
+    onAuthorClick: ((String) -> Unit)?
+) {
+    Icon(Lucide.Shield, contentDescription = null, tint = accent, modifier = Modifier.size(12.dp))
+    Spacer(Modifier.width(5.dp))
+    Text(
+        predicate,
+        style = MaterialTheme.typography.bodySmall.copy(fontSize = fontSize, lineHeight = lineHeight),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.66f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f, fill = false)
+    )
+    if (author != null) {
+        Text(
+            "  ·  ",
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = fontSize, lineHeight = lineHeight),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+        )
+        Text(
+            author,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = fontSize, lineHeight = lineHeight),
+            fontWeight = FontWeight.Bold,
+            color = rememberNickColors().of(null, author),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = if (onAuthorClick != null) {
+                Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(onClick = { onAuthorClick(author) })
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .padding(horizontal = 2.dp)
+            } else Modifier
+        )
     }
 }

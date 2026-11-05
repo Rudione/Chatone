@@ -1,5 +1,19 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.insights_archive_label
+import chatone.composeapp.generated.resources.insights_archive_search
+import chatone.composeapp.generated.resources.insights_months_short
+import chatone.composeapp.generated.resources.profile_archive_back_to_session
+import chatone.composeapp.generated.resources.profile_archive_filter
+import chatone.composeapp.generated.resources.profile_archive_latest
+import chatone.composeapp.generated.resources.profile_archive_loading
+import chatone.composeapp.generated.resources.profile_archive_months
+import chatone.composeapp.generated.resources.profile_archive_not_logged
+import chatone.composeapp.generated.resources.profile_archive_retry
+import chatone.composeapp.generated.resources.profile_archive_title
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.stringArrayResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -54,9 +68,6 @@ import io.rudione.chatone.icons.lucide.Search
 import io.rudione.chatone.icons.lucide.X
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.presentation.components.ChatoneIconButton
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStrings
 
 internal val PROFILE_CARD_INLINE_SEARCH_WIDTH = 470.dp
 
@@ -82,7 +93,7 @@ internal fun ProfileArchiveControls(
             ChatoneIconButton(onClick = onToggleSearch, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Lucide.Search,
-                    contentDescription = LocalStrings.current.insights.archiveSearch,
+                    contentDescription = stringResource(Res.string.insights_archive_search),
                     modifier = Modifier.size(13.dp),
                     tint = tint
                 )
@@ -115,7 +126,6 @@ private fun ArchiveSearchField(
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null
 ) {
-    val insights = LocalStrings.current.insights
     val accent = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val interactionSource = remember { MutableInteractionSource() }
@@ -144,7 +154,7 @@ private fun ArchiveSearchField(
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                     if (archive.query.isEmpty()) {
                         Text(
-                            insights.archiveSearch,
+                            stringResource(Res.string.insights_archive_search),
                             style = MaterialTheme.typography.labelMedium,
                             color = muted.copy(alpha = 0.5f),
                             maxLines = 1
@@ -173,15 +183,13 @@ private fun ArchiveSearchField(
 
 @Composable
 private fun ArchiveMonthButton(archive: UserLogArchiveState) {
-    val s = LocalStrings.current
-    val insights = s.insights
     var expanded by remember { mutableStateOf(false) }
     val active = archive.isActive
     val accent = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val shownMonth = archive.anchorMonth ?: archive.months.firstOrNull()
-    val label = if (active && !archive.isSearching && shownMonth != null) shortMonthLabel(insights, shownMonth)
-    else insights.archiveLabel
+    val label = if (active && !archive.isSearching && shownMonth != null) shortMonthLabel(shownMonth)
+    else stringResource(Res.string.insights_archive_label)
     Box {
         Row(
             modifier = Modifier
@@ -201,7 +209,7 @@ private fun ArchiveMonthButton(archive: UserLogArchiveState) {
             } else {
                 Icon(
                     Lucide.CalendarDays,
-                    contentDescription = s.profileArchiveFilter,
+                    contentDescription = stringResource(Res.string.profile_archive_filter),
                     modifier = Modifier.size(11.dp),
                     tint = if (active) accent else muted.copy(alpha = 0.75f)
                 )
@@ -217,7 +225,7 @@ private fun ArchiveMonthButton(archive: UserLogArchiveState) {
                 ChatoneIconButton(onClick = archive::close, modifier = Modifier.size(18.dp)) {
                     Icon(
                         Lucide.X,
-                        contentDescription = s.profileArchiveBackToSession,
+                        contentDescription = stringResource(Res.string.profile_archive_back_to_session),
                         modifier = Modifier.size(10.dp),
                         tint = accent.copy(alpha = 0.8f)
                     )
@@ -230,14 +238,14 @@ private fun ArchiveMonthButton(archive: UserLogArchiveState) {
             modifier = Modifier.widthIn(min = 180.dp).heightIn(max = 320.dp)
         ) {
             Text(
-                s.profileArchiveTitle,
+                stringResource(Res.string.profile_archive_title),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = muted.copy(alpha = 0.7f),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
             )
             if (active) {
-                ArchiveMenuRow(s.profileArchiveBackToSession, Lucide.MessageSquare) {
+                ArchiveMenuRow(stringResource(Res.string.profile_archive_back_to_session), Lucide.MessageSquare) {
                     archive.close()
                     expanded = false
                 }
@@ -253,7 +261,6 @@ private fun ArchiveMonthButton(archive: UserLogArchiveState) {
 
 @Composable
 private fun ArchiveMonthsMenuContent(archive: UserLogArchiveState, onPicked: () -> Unit) {
-    val s = LocalStrings.current
     when (archive.availability) {
         UserLogArchiveState.Availability.Unknown,
         UserLogArchiveState.Availability.Loading -> Row(
@@ -262,22 +269,22 @@ private fun ArchiveMonthsMenuContent(archive: UserLogArchiveState, onPicked: () 
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 1.5.dp)
-            Text(s.profileArchiveLoading, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(Res.string.profile_archive_loading), style = MaterialTheme.typography.bodySmall)
         }
 
         UserLogArchiveState.Availability.NotLogged -> Text(
-            s.profileArchiveNotLogged,
+            stringResource(Res.string.profile_archive_not_logged),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         )
 
         UserLogArchiveState.Availability.Failed ->
-            ArchiveMenuRow(s.profileArchiveRetry, Lucide.RefreshCw) { archive.ensureMonths() }
+            ArchiveMenuRow(stringResource(Res.string.profile_archive_retry), Lucide.RefreshCw) { archive.ensureMonths() }
 
         UserLogArchiveState.Availability.Available -> {
             ArchiveMenuRow(
-                text = s.profileArchiveLatest,
+                text = stringResource(Res.string.profile_archive_latest),
                 icon = Lucide.History,
                 selected = archive.isActive && archive.anchorMonth == null && !archive.isSearching
             ) {
@@ -286,7 +293,7 @@ private fun ArchiveMonthsMenuContent(archive: UserLogArchiveState, onPicked: () 
             }
             archive.months.forEach { month ->
                 ArchiveMenuRow(
-                    text = monthLabel(s, month),
+                    text = monthLabel(month),
                     icon = null,
                     selected = archive.isActive && archive.anchorMonth == month && !archive.isSearching
                 ) {
@@ -327,8 +334,10 @@ private fun ArchiveMenuRow(
     }
 }
 
-internal fun monthLabel(s: AppStrings, month: LogMonth): String =
-    "${s.profileArchiveMonths.getOrElse(month.month - 1) { month.month.toString() }} ${month.year}"
+@Composable
+internal fun monthLabel(month: LogMonth): String =
+    "${stringArrayResource(Res.array.profile_archive_months).getOrElse(month.month - 1) { month.month.toString() }} ${month.year}"
 
-internal fun shortMonthLabel(strings: ProfileInsightStrings, month: LogMonth): String =
-    "${strings.monthsShort.getOrElse(month.month - 1) { month.month.toString() }}'${(month.year % 100).toString().padStart(2, '0')}"
+@Composable
+internal fun shortMonthLabel(month: LogMonth): String =
+    "${stringArrayResource(Res.array.insights_months_short).getOrElse(month.month - 1) { month.month.toString() }}'${(month.year % 100).toString().padStart(2, '0')}"

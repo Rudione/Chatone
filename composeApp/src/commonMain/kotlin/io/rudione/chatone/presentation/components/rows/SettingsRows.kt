@@ -1,5 +1,12 @@
 package io.rudione.chatone.presentation.components.rows
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.settings_hotkey_not_set
+import chatone.composeapp.generated.resources.settings_recording
+import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.unit.takeOrElse
+import io.rudione.chatone.presentation.components.FitText
+import androidx.compose.ui.unit.sp
 import io.rudione.chatone.presentation.settings.settingsAnchor
 import io.rudione.chatone.presentation.settings.search.SearchText
 import io.rudione.chatone.presentation.components.ChatoneSlider
@@ -35,7 +42,6 @@ import androidx.compose.ui.draw.clip
 import io.rudione.chatone.presentation.components.expressive.HelpHint
 import io.rudione.chatone.util.system.isDesktopPlatform
 import io.rudione.chatone.presentation.settings.theme_settings.ThinSlider
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.presentation.components.ChatoneSwitch
@@ -57,6 +63,17 @@ fun HighlightedSettingsText(
     overflow: TextOverflow = TextOverflow.Clip
 ) {
     val q = LocalSettingsSearch.current.trim()
+    if (maxLines == 1 && q.length < 2) {
+        FitText(
+            text,
+            modifier = modifier,
+            style = style.copy(letterSpacing = letterSpacing.takeOrElse { style.letterSpacing }),
+            color = color,
+            fontWeight = fontWeight,
+            minFontSize = 10.sp
+        )
+        return
+    }
     val highlight = Color(0xFFFFEE58).copy(alpha = 0.25f)
     val annotated = remember(text, q) {
         val ranges = if (q.length < 2) emptyList() else SearchText.highlightRanges(text, q)
@@ -131,14 +148,23 @@ private fun ValuePill(value: String, trailing: (@Composable () -> Unit)? = null)
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        HighlightedSettingsText(
-            value,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 180.dp)
-        )
+        if (LocalSettingsSearch.current.isBlank()) {
+            FitText(
+                value,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                minFontSize = 10.sp,
+                modifier = Modifier.widthIn(max = 200.dp)
+            )
+        } else {
+            HighlightedSettingsText(
+                value,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 2,
+                modifier = Modifier.widthIn(max = 200.dp)
+            )
+        }
         trailing?.invoke()
     }
 }
@@ -384,10 +410,9 @@ fun HotkeyRow(
                     }
                     .clickable { isRecording = true }
             ) {
-                val sh = LocalStrings.current
                 Text(
                     when {
-                        isRecording -> sh.settingsRecording; currentHotkey.isBlank() -> sh.settingsHotkeyNotSet; else -> currentHotkey.uppercase()
+                        isRecording -> stringResource(Res.string.settings_recording); currentHotkey.isBlank() -> stringResource(Res.string.settings_hotkey_not_set); else -> currentHotkey.uppercase()
                         .replace("+", " + ")
                     },
                     style = MaterialTheme.typography.labelMedium,

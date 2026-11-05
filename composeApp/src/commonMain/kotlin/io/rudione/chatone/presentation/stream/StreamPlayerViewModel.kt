@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.data.repository.StreamPlayerPreferencesRepository
+import io.rudione.chatone.domain.points.WatchActivitySink
 import io.rudione.chatone.domain.stream.LandscapeChatMode
 import io.rudione.chatone.domain.stream.PlaybackStatus
 import io.rudione.chatone.domain.stream.StreamErrorKind
@@ -24,6 +25,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -35,6 +38,7 @@ class StreamPlayerViewModel(
     private val manifestSource: StreamManifestSource,
     private val preferencesRepository: StreamPlayerPreferencesRepository,
     private val engineFactory: StreamPlaybackEngineFactory,
+    private val watchActivity: WatchActivitySink = WatchActivitySink.None,
     private val nowMs: () -> Long = { Clock.System.now().toEpochMilliseconds() }
 ) : ViewModel() {
 
@@ -75,6 +79,14 @@ class StreamPlayerViewModel(
     private var viewportWidth = 0
     private var viewportHeight = 0
 
+    init {
+        viewModelScope.launch {
+            _state.map { it.channelLogin to it.isPlaybackActive }
+                .distinctUntilChanged()
+                .collect { (login, playing) -> watchActivity.onPlayback(login, playing) }
+        }
+    }
+
     fun onEvent(event: StreamPlayerEvent) {
         when (event) {
             is StreamPlayerEvent.Open -> openRequested(event.channelLogin, event.quality)
@@ -84,21 +96,81 @@ class StreamPlayerViewModel(
             StreamPlayerEvent.TogglePlayback -> togglePlayback()
             StreamPlayerEvent.ToggleMute -> setMuted(!_state.value.isMuted)
             is StreamPlayerEvent.SelectQuality -> selectQuality(event.selection)
+            is StreamPlayerEvent.SetPreferredQuality -> updatePreferences { it.copy(preferredQuality = event.quality) }
             is StreamPlayerEvent.SetLowLatency -> setLowLatency(event.enabled)
             is StreamPlayerEvent.SetVideoScale -> updatePreferences { it.copy(videoScale = event.scale) }
             StreamPlayerEvent.ToggleVideoScale -> updatePreferences {
                 it.copy(videoScale = if (it.videoScale == StreamVideoScale.FIT) StreamVideoScale.FILL else StreamVideoScale.FIT)
             }
-            is StreamPlayerEvent.SetLandscapeChatMode -> updatePreferences { it.copy(landscapeChatMode = event.mode) }
+
+            is StreamPlayerEvent.SetLandscapeChatMode -> updatePreferences {
+                it.copy(
+                    landscapeChatMode = event.mode
+                )
+            }
+
             StreamPlayerEvent.CycleLandscapeChatMode -> updatePreferences {
                 it.copy(landscapeChatMode = LandscapeChatMode.entries[(it.landscapeChatMode.ordinal + 1) % LandscapeChatMode.entries.size])
             }
+
             is StreamPlayerEvent.SetSideChatFraction -> updatePreferences { it.copy(sideChatFraction = event.fraction) }
             is StreamPlayerEvent.SetOverlayBounds -> updatePreferences { it.copy(overlayBounds = event.bounds.sanitized()) }
             is StreamPlayerEvent.SetOverlayOpacity -> updatePreferences { it.copy(overlayOpacity = event.opacity) }
-            is StreamPlayerEvent.SetOverlayMessageOpacity -> updatePreferences { it.copy(overlayMessageOpacity = event.opacity) }
+            is StreamPlayerEvent.SetOverlayIdleOpacity -> updatePreferences {
+                it.copy(overlayIdleOpacity = event.opacity.coerceIn(0f, StreamPlayerPreferences.MAX_OVERLAY_IDLE_OPACITY))
+            }
+            is StreamPlayerEvent.SetOverlayMessageOpacity -> updatePreferences {
+                it.copy(
+                    overlayMessageOpacity = event.opacity
+                )
+            }
+
             is StreamPlayerEvent.SetOverlayLocked -> updatePreferences { it.copy(overlayLocked = event.locked) }
-            is StreamPlayerEvent.SetAutoPictureInPicture -> updatePreferences { it.copy(autoPictureInPicture = event.enabled) }
+            is StreamPlayerEvent.SetOverlayBackdrop -> updatePreferences { it.copy(overlayBackdrop = event.enabled) }
+            is StreamPlayerEvent.SetOverlayBackdropOpacity -> updatePreferences {
+                it.copy(
+                    overlayBackdropOpacity = event.opacity.coerceIn(
+                        StreamPlayerPreferences.MIN_OVERLAY_BACKDROP_OPACITY,
+                        StreamPlayerPreferences.MAX_OVERLAY_BACKDROP_OPACITY
+                    )
+                )
+            }
+
+            is StreamPlayerEvent.SetOverlayScale -> updatePreferences {
+                it.copy(
+                    overlayScale = event.scale.coerceIn(
+                        StreamPlayerPreferences.MIN_OVERLAY_SCALE,
+                        StreamPlayerPreferences.MAX_OVERLAY_SCALE
+                    )
+                )
+            }
+
+            is StreamPlayerEvent.SetOverlayHideDelay -> updatePreferences {
+                it.copy(
+                    overlayHideDelaySeconds = event.seconds.coerceIn(
+                        StreamPlayerPreferences.MIN_OVERLAY_HIDE_DELAY_SECONDS,
+                        StreamPlayerPreferences.MAX_OVERLAY_HIDE_DELAY_SECONDS
+                    )
+                )
+            }
+
+            is StreamPlayerEvent.SetOverlayAutoLock -> updatePreferences {
+                it.copy(
+                    overlayAutoLockSeconds = event.seconds.coerceIn(
+                        StreamPlayerPreferences.MIN_OVERLAY_AUTO_LOCK_SECONDS,
+                        StreamPlayerPreferences.MAX_OVERLAY_AUTO_LOCK_SECONDS
+                    )
+                )
+            }
+
+            is StreamPlayerEvent.SetLatencyOnVideo -> updatePreferences { it.copy(latencyOnVideo = event.visible) }
+            is StreamPlayerEvent.SetAmbientLight -> updatePreferences { it.copy(ambientLight = event.enabled) }
+            is StreamPlayerEvent.SetAutoPictureInPicture -> updatePreferences {
+                it.copy(
+                    autoPictureInPicture = event.enabled
+                )
+            }
+
             is StreamPlayerEvent.SetBackgroundAudio -> updatePreferences { it.copy(backgroundAudio = event.enabled) }
             is StreamPlayerEvent.SetMediaInfo -> applyMediaInfo(event.info)
             is StreamPlayerEvent.SetStatsVisible -> setStatsVisible(event.visible)
@@ -111,6 +183,7 @@ class StreamPlayerViewModel(
                 viewportWidth = event.width.coerceAtLeast(0)
                 viewportHeight = event.height.coerceAtLeast(0)
             }
+
             is StreamPlayerEvent.AppVisibilityChanged -> onVisibilityChanged(event.visible)
             StreamPlayerEvent.PictureInPictureDismissed -> onPictureInPictureDismissed()
         }
@@ -142,9 +215,17 @@ class StreamPlayerViewModel(
     private fun openRequested(channelLogin: String, quality: String?) {
         if (!engineFactory.isSupported) return
         dismissedLogin = null
-        updatePreferences { it.copy(autoOpen = true, preferredQuality = quality ?: it.preferredQuality) }
+        updatePreferences {
+            it.copy(
+                autoOpen = true,
+                preferredQuality = quality ?: it.preferredQuality
+            )
+        }
         val currentManifest = manifest
-        if (quality != null && currentManifest != null && _state.value.channelLogin == normalizedLogin(channelLogin)) {
+        if (quality != null && currentManifest != null && _state.value.channelLogin == normalizedLogin(
+                channelLogin
+            )
+        ) {
             selectQuality(StreamQualityResolver.selectionFor(quality, currentManifest.variants))
         }
         open(channelLogin, force = true)
@@ -169,7 +250,10 @@ class StreamPlayerViewModel(
             when (result) {
                 is StreamManifestResult.Ready -> startPlayback(result.manifest)
                 StreamManifestResult.Offline -> showTerminal(StreamPhase.OFFLINE, null)
-                is StreamManifestResult.Failed -> Napier.w("Stream reload kept current session: ${result.kind}", tag = TAG)
+                is StreamManifestResult.Failed -> Napier.w(
+                    "Stream reload kept current session: ${result.kind}",
+                    tag = TAG
+                )
             }
         }
     }
@@ -235,7 +319,12 @@ class StreamPlayerViewModel(
         when {
             !current.isOpen -> target?.let(::autoOpen)
             target != null && current.channelLogin != target -> follow(target)
-            current.phase == StreamPhase.OFFLINE -> current.channelLogin?.let { open(it, force = true) }
+            current.phase == StreamPhase.OFFLINE -> current.channelLogin?.let {
+                open(
+                    it,
+                    force = true
+                )
+            }
         }
     }
 
@@ -285,7 +374,11 @@ class StreamPlayerViewModel(
         _latencySeconds.value = null
         _stats.value = null
         _state.update {
-            StreamPlayerUiState(isSupported = it.isSupported, preferences = it.preferences, isMuted = it.isMuted)
+            StreamPlayerUiState(
+                isSupported = it.isSupported,
+                preferences = it.preferences,
+                isMuted = it.isMuted
+            )
         }
     }
 
@@ -304,7 +397,8 @@ class StreamPlayerViewModel(
     private fun startPlayback(newManifest: StreamManifest) {
         manifest = newManifest
         val preferences = _state.value.preferences
-        val selection = StreamQualityResolver.selectionFor(preferences.preferredQuality, newManifest.variants)
+        val selection =
+            StreamQualityResolver.selectionFor(preferences.preferredQuality, newManifest.variants)
         val playbackEngine = engine ?: engineFactory.create().also { created ->
             engine = created
             _playbackEngine.value = created
@@ -312,7 +406,8 @@ class StreamPlayerViewModel(
             observe(created)
         }
         val keepPlaying = !appVisible && playingInBackground
-        val loadSelection = if (keepPlaying && backgroundAudioOnly) StreamQualitySelection.AudioOnly else selection
+        val loadSelection =
+            if (keepPlaying && backgroundAudioOnly) StreamQualitySelection.AudioOnly else selection
         playbackEngine.setMuted(_state.value.isMuted)
         playbackEngine.load(newManifest, loadSelection, preferences.lowLatency)
         if (!appVisible && !keepPlaying) {
@@ -347,11 +442,13 @@ class StreamPlayerViewModel(
                 onFailure(status.errorKind ?: StreamErrorKind.UNKNOWN)
                 return
             }
+
             StreamPhase.ENDED -> {
                 _state.update { it.copy(phase = StreamPhase.LOADING) }
                 reloadAfter(0L)
                 return
             }
+
             StreamPhase.PLAYING -> retryAttempt = 0
             else -> Unit
         }
@@ -359,10 +456,17 @@ class StreamPlayerViewModel(
         val active = if (current.selection == StreamQualitySelection.AudioOnly) {
             variants.firstOrNull { it.isAudioOnly }
         } else {
-            StreamQualityResolver.activeVariant(status.activeBandwidth, status.activeHeight, variants)
+            StreamQualityResolver.activeVariant(
+                status.activeBandwidth,
+                status.activeHeight,
+                variants
+            )
         }
         val aspect = if (status.videoWidth > 0 && status.videoHeight > 0) {
-            (status.videoWidth.toFloat() / status.videoHeight).coerceIn(MIN_ASPECT_RATIO, MAX_ASPECT_RATIO)
+            (status.videoWidth.toFloat() / status.videoHeight).coerceIn(
+                MIN_ASPECT_RATIO,
+                MAX_ASPECT_RATIO
+            )
         } else {
             current.videoAspectRatio
         }
@@ -384,7 +488,10 @@ class StreamPlayerViewModel(
         if (retryable && retryAttempt < MAX_RETRIES) {
             val backoff = min(BASE_RETRY_DELAY_MS shl retryAttempt, MAX_RETRY_DELAY_MS)
             retryAttempt++
-            Napier.w("Stream playback failed ($kind), retry $retryAttempt for $login in ${backoff}ms", tag = TAG)
+            Napier.w(
+                "Stream playback failed ($kind), retry $retryAttempt for $login in ${backoff}ms",
+                tag = TAG
+            )
             _state.update { it.copy(phase = StreamPhase.LOADING, errorKind = null) }
             reloadAfter(backoff)
             return
@@ -409,7 +516,12 @@ class StreamPlayerViewModel(
         _latencySeconds.value = null
         _stats.value = null
         _state.update {
-            it.copy(phase = phase, errorKind = kind, activeVariant = null, settingsVisible = it.settingsVisible && phase != StreamPhase.OFFLINE)
+            it.copy(
+                phase = phase,
+                errorKind = kind,
+                activeVariant = null,
+                settingsVisible = it.settingsVisible && phase != StreamPhase.OFFLINE
+            )
         }
     }
 
@@ -423,6 +535,7 @@ class StreamPlayerViewModel(
                 playbackEngine.seekToLive()
                 playbackEngine.setPlaying(true)
             }
+
             else -> playbackEngine.setPlaying(false)
         }
     }
@@ -519,7 +632,9 @@ class StreamPlayerViewModel(
         engine?.setMediaInfo(normalized)
     }
 
-    private inline fun updatePreferences(transform: (StreamPlayerPreferences) -> StreamPlayerPreferences) {
+    private inline fun updatePreferences(
+        transform: (StreamPlayerPreferences) -> StreamPlayerPreferences
+    ) {
         val updated = transform(_state.value.preferences)
         if (updated == _state.value.preferences) return
         _state.update { it.copy(preferences = updated) }
@@ -540,7 +655,8 @@ class StreamPlayerViewModel(
         val playbackEngine = engine
         val currentManifest = manifest
         val current = _state.value
-        val metrics = if (playbackEngine != null && currentManifest != null) playbackEngine.metrics() else null
+        val metrics =
+            if (playbackEngine != null && currentManifest != null) playbackEngine.metrics() else null
         if (metrics == null || currentManifest == null) {
             _latencySeconds.value = null
             if (current.statsVisible) _stats.value = null
@@ -595,6 +711,7 @@ class StreamPlayerViewModel(
     }
 
     override fun onCleared() {
+        watchActivity.onPlayback(null, playing = false)
         cancelSession()
         releaseEngine()
         super.onCleared()

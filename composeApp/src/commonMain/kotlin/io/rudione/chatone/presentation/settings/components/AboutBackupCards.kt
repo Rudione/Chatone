@@ -1,5 +1,18 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.icon
+import chatone.composeapp.generated.resources.app_name
+import chatone.composeapp.generated.resources.automod_export
+import chatone.composeapp.generated.resources.settings_app_info
+import chatone.composeapp.generated.resources.settings_backup_desc
+import chatone.composeapp.generated.resources.settings_backup_export_csv
+import chatone.composeapp.generated.resources.settings_backup_export_json
+import chatone.composeapp.generated.resources.settings_backup_export_xlsx
+import chatone.composeapp.generated.resources.settings_backup_import
+import chatone.composeapp.generated.resources.settings_backup_title
+import chatone.composeapp.generated.resources.settings_telegram
+import chatone.composeapp.generated.resources.settings_version
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -43,30 +56,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.bell_filled
-import chatone.composeapp.generated.resources.bell_outlined
-import chatone.composeapp.generated.resources.chatbubbles
-import chatone.composeapp.generated.resources.chatbubbles_outline
-import chatone.composeapp.generated.resources.icon
-import chatone.composeapp.generated.resources.images
-import chatone.composeapp.generated.resources.images_outline
-import chatone.composeapp.generated.resources.key_outline
-import chatone.composeapp.generated.resources.ic_sword
-import chatone.composeapp.generated.resources.sparkle_filled
-import chatone.composeapp.generated.resources.keyboard_24_filled
-import chatone.composeapp.generated.resources.keyboard_24_regular
-import chatone.composeapp.generated.resources.musical_notes_outline
-import chatone.composeapp.generated.resources.palette_fill_16
-import chatone.composeapp.generated.resources.palette_stroke_12
-import chatone.composeapp.generated.resources.panel_left_key_16_regular
-import chatone.composeapp.generated.resources.person_filled
-import chatone.composeapp.generated.resources.shield_filled
-import chatone.composeapp.generated.resources.shield_outlined
-import chatone.composeapp.generated.resources.star_filled
-import chatone.composeapp.generated.resources.star_outlined
-import chatone.composeapp.generated.resources.unfold_more
-import chatone.composeapp.generated.resources.wallpaper_filled
-import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
@@ -91,9 +80,6 @@ import io.rudione.chatone.util.system.HotkeyAction
 import io.rudione.chatone.util.system.comboFor
 import io.rudione.chatone.util.media.NotificationSoundPlayer
 import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.presentation.theme.i18n.AppLocale
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsEvent
@@ -122,10 +108,9 @@ import io.rudione.chatone.util.settings.SettingsImportExport
 @Composable
 internal fun AboutCard() {
 
-    val s = LocalStrings.current
     val uriHandler = LocalUriHandler.current
 
-    SettingsGroup(s.settingsAppInfo) {
+    SettingsGroup(stringResource(Res.string.settings_app_info)) {
 
         Column(
             modifier = Modifier.padding(16.dp)
@@ -137,7 +122,7 @@ internal fun AboutCard() {
 
                 Image(
                     painter = painterResource(Res.drawable.icon),
-                    contentDescription = s.appName,
+                    contentDescription = stringResource(Res.string.app_name),
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(14.dp))
@@ -148,13 +133,13 @@ internal fun AboutCard() {
                 Column {
 
                     Text(
-                        s.appName,
+                        stringResource(Res.string.app_name),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
 
                     Text(
-                        "${s.settingsVersion} ${BuildConfig.VERSION}",
+                        "${stringResource(Res.string.settings_version)} ${BuildConfig.VERSION}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -164,7 +149,7 @@ internal fun AboutCard() {
             Spacer(Modifier.height(16.dp))
 
             Text(
-                s.settingsTelegram,
+                stringResource(Res.string.settings_telegram),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -188,13 +173,12 @@ internal fun AboutCard() {
 
 @Composable
 internal fun BackupCard(vm: SettingsViewModel) {
-    val s = LocalStrings.current
     val scope = rememberCoroutineScope()
     var menuOpen by remember { mutableStateOf(false) }
-    SettingsGroup(s.settingsBackupTitle) {
+    SettingsGroup(stringResource(Res.string.settings_backup_title)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                s.settingsBackupDesc,
+                stringResource(Res.string.settings_backup_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -202,11 +186,11 @@ internal fun BackupCard(vm: SettingsViewModel) {
             ChatoneActionRow {
                 Box {
                     OutlinedButton(onClick = { menuOpen = true }) {
-                        ChatoneButtonText(s.automodExport)
+                        ChatoneButtonText(stringResource(Res.string.automod_export))
                     }
                     ChatoneDropdownMenu(menuOpen, { menuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text(s.settingsBackupExportJson) },
+                            text = { Text(stringResource(Res.string.settings_backup_export_json)) },
                             onClick = {
                                 menuOpen = false
                                 scope.launch {
@@ -225,7 +209,7 @@ internal fun BackupCard(vm: SettingsViewModel) {
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text(s.settingsBackupExportCsv) },
+                            text = { Text(stringResource(Res.string.settings_backup_export_csv)) },
                             onClick = {
                                 menuOpen = false
                                 scope.launch {
@@ -244,7 +228,7 @@ internal fun BackupCard(vm: SettingsViewModel) {
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text(s.settingsBackupExportXlsx) },
+                            text = { Text(stringResource(Res.string.settings_backup_export_xlsx)) },
                             onClick = {
                                 menuOpen = false
                                 scope.launch {
@@ -270,7 +254,7 @@ internal fun BackupCard(vm: SettingsViewModel) {
                         vm.sendEvent(SettingsEvent.OnImportSettingsText(text))
                     }
                 }) {
-                    ChatoneButtonText(s.settingsBackupImport)
+                    ChatoneButtonText(stringResource(Res.string.settings_backup_import))
                 }
             }
         }

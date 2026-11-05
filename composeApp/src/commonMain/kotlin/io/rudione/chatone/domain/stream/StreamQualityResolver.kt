@@ -2,6 +2,8 @@ package io.rudione.chatone.domain.stream
 
 import kotlin.math.abs
 
+class VariantTrack(val height: Int, val frameRate: Float, val bitrate: Long)
+
 object StreamQualityResolver {
 
     fun selectionFor(preference: String, variants: List<StreamVariant>): StreamQualitySelection {
@@ -30,6 +32,19 @@ object StreamQualityResolver {
         is StreamQualitySelection.Fixed -> variants.firstOrNull { it.groupId == selection.groupId }
     }
 
+    fun trackFor(variant: StreamVariant, tracks: List<VariantTrack>): Int? {
+        var best: Int? = null
+        var bestScore = Long.MAX_VALUE
+        tracks.forEachIndexed { index, track ->
+            val score = matchScore(track, variant) ?: return@forEachIndexed
+            if (score < bestScore) {
+                bestScore = score
+                best = index
+            }
+        }
+        return best
+    }
+
     fun activeVariant(bandwidth: Long?, height: Int?, variants: List<StreamVariant>): StreamVariant? {
         val video = variants.filterNot { it.isAudioOnly }
         if (video.isEmpty()) return null
@@ -48,6 +63,17 @@ object StreamQualityResolver {
             .distinctBy { it.displayName }
         return video + variants.filter { it.isAudioOnly }.take(1)
     }
+
+    private fun matchScore(track: VariantTrack, variant: StreamVariant): Long? {
+        if (variant.height > 0 && track.height > 0 && track.height != variant.height) return null
+        if (track.bitrate <= 0L) return Long.MAX_VALUE - 1
+        val frameRatePenalty = if (variant.frameRate > 0f && track.frameRate > 0f) {
+            (abs(track.frameRate - variant.frameRate) * FRAME_RATE_WEIGHT).toLong()
+        } else 0L
+        return abs(track.bitrate - variant.bandwidth) + frameRatePenalty
+    }
+
+    private const val FRAME_RATE_WEIGHT = 10_000f
 
     private fun closestBelow(preference: String, video: List<StreamVariant>): StreamQualitySelection {
         val wantedHeight = preference.substringBefore('p').toIntOrNull()

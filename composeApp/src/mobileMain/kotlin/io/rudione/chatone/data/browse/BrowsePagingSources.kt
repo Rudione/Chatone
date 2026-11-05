@@ -76,8 +76,8 @@ class TopStreamsPagingSource(
 class FollowedStreamsPagingSource(
     private val directory: StreamDirectory,
     private val userId: String,
-    private val accessToken: String,
-    private val filter: StreamFilter
+    private val filter: StreamFilter,
+    private val accessToken: suspend () -> String
 ) : PagingSource<String, BrowseStream>() {
 
     private val seen = HashSet<String>()
@@ -85,7 +85,7 @@ class FollowedStreamsPagingSource(
     override fun getRefreshKey(state: PagingState<String, BrowseStream>): String? = null
 
     override suspend fun load(params: LoadParams<String>): LoadResult<String, BrowseStream> {
-        val page = directory.followedStreams(userId, accessToken, params.key)
+        val page = directory.followedStreams(userId, accessToken(), params.key)
             ?: return LoadResult.Error(DirectoryUnavailableException())
         val visible = page.items
             .filter { seen.add(it.login) }

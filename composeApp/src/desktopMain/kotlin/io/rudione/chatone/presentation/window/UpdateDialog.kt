@@ -1,5 +1,14 @@
 package io.rudione.chatone.presentation.window
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.update_available_title
+import chatone.composeapp.generated.resources.update_failed
+import chatone.composeapp.generated.resources.update_installing
+import chatone.composeapp.generated.resources.update_later
+import chatone.composeapp.generated.resources.update_now
+import chatone.composeapp.generated.resources.update_skip_version
+import chatone.composeapp.generated.resources.update_verifying
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.system.AutoUpdater
 import kotlinx.coroutines.launch
 
@@ -43,7 +51,6 @@ fun UpdateAvailableOverlay() {
     val available by AutoUpdater.available.collectAsState()
     val stage by AutoUpdater.stage.collectAsState()
     val scope = rememberCoroutineScope()
-    val s = LocalStrings.current
     val entry = available ?: return
 
     Box(
@@ -74,7 +81,7 @@ fun UpdateAvailableOverlay() {
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    s.updateAvailableTitle,
+                    stringResource(Res.string.update_available_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -123,19 +130,19 @@ fun UpdateAvailableOverlay() {
                 }
 
                 AutoUpdater.Stage.Verifying -> Text(
-                    s.updateVerifying,
+                    stringResource(Res.string.update_verifying),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 AutoUpdater.Stage.Installing -> Text(
-                    s.updateInstalling,
+                    stringResource(Res.string.update_installing),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
 
                 is AutoUpdater.Stage.Failed -> Text(
-                    "${s.updateFailed}: ${current.reason}",
+                    "${stringResource(Res.string.update_failed)}: ${current.reason}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -154,17 +161,17 @@ fun UpdateAvailableOverlay() {
                 Spacer(Modifier.weight(1f))
                 if (!busy) {
                     TextButton(onClick = { AutoUpdater.skipVersion(entry.version) }) {
-                        Text(s.updateSkipVersion)
+                        Text(stringResource(Res.string.update_skip_version))
                     }
                     TextButton(onClick = { AutoUpdater.dismiss() }) {
-                        Text(s.updateLater)
+                        Text(stringResource(Res.string.update_later))
                     }
                 }
                 Button(
                     enabled = !busy,
                     onClick = { scope.launch { AutoUpdater.downloadAndUpdate(entry.release) } }
                 ) {
-                    Text(s.updateNow)
+                    Text(stringResource(Res.string.update_now))
                 }
             }
         }

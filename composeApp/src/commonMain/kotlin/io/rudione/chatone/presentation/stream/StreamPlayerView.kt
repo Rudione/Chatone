@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_audio_only
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -45,13 +48,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.rudione.chatone.domain.stream.LandscapeChatMode
 import io.rudione.chatone.domain.stream.StreamPhase
 import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 import io.rudione.chatone.domain.stream.StreamVideoScale
 import io.rudione.chatone.icons.material.Icons
 import io.rudione.chatone.icons.material.rounded.Headphones
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.stream.ambient.StreamAmbience
 import io.rudione.chatone.presentation.stream.ambient.ambientBars
 import kotlinx.coroutines.delay
@@ -136,7 +137,7 @@ fun StreamPlayerView(
             modifier = Modifier.fillMaxSize(),
             audioOnly = state.isAudioOnly,
             ambience = ambience,
-            ambientSampling = state.phase == StreamPhase.PLAYING && !state.isAudioOnly
+            ambientSampling = state.phase == StreamPhase.PLAYING && !state.isAudioOnly && state.preferences.ambientLight
         )
 
         if (overlay != null) {
@@ -153,9 +154,17 @@ fun StreamPlayerView(
             )
         }
 
-        val overlayChat = isFullscreen && state.preferences.landscapeChatMode == LandscapeChatMode.OVERLAY
+        val controlsShown = chrome.controlsVisible || state.forcesControls
+        if (isFullscreen && state.preferences.latencyOnVideo && !controlsShown && !state.statsVisible) {
+            StreamLatencyBadge(
+                latency = host.latencySeconds,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+            )
+        }
         AnimatedVisibility(
-            visible = chrome.controlsVisible || state.forcesControls,
+            visible = controlsShown,
             enter = fadeIn(tween(160)),
             exit = fadeOut(tween(220)),
             modifier = Modifier.fillMaxSize()
@@ -164,7 +173,7 @@ fun StreamPlayerView(
                 StreamControlsOverlay(
                     state = state,
                     liveInfo = liveInfo,
-                    latencySeconds = if (overlayChat) host.latencySeconds else null,
+                    latencySeconds = host.latencySeconds,
                     isFullscreen = isFullscreen,
                     pictureInPictureSupported = pictureInPicture.isSupported,
                     callbacks = callbacks
@@ -250,7 +259,7 @@ fun StreamPictureInPictureView(
 }
 
 @Composable
-internal fun StreamVideoFrame(
+fun StreamVideoFrame(
     engine: StreamPlaybackEngine?,
     scale: StreamVideoScale,
     aspectRatio: Float,
@@ -286,7 +295,7 @@ internal fun StreamVideoFrame(
             keepScreenOn = keepScreenOn,
             modifier = Modifier.requiredSize(targetWidth, targetHeight),
             surfaceKind = surfaceKind,
-            frameSink = ambience?.takeIf { ambientSampling && (letterboxed || it.glowAttached) }
+            frameSink = ambience?.takeIf { ambientSampling && (letterboxed || it.hasViewers) }
         )
         if (audioOnly) {
             AudioOnlyCover(compact = compactCover, modifier = Modifier.fillMaxSize())
@@ -302,7 +311,7 @@ internal fun StreamVideoFrame(
 
 @Composable
 private fun AudioOnlyCover(compact: Boolean, modifier: Modifier = Modifier) {
-    val label = LocalStrings.current.player.audioOnly
+    val label = stringResource(Res.string.player_audio_only)
     Column(
         modifier = modifier.background(Color.Black),
         horizontalAlignment = Alignment.CenterHorizontally,

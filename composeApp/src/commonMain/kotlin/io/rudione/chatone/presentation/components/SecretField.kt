@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.secret_hide
+import chatone.composeapp.generated.resources.secret_reveal
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -20,7 +24,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.delay
 import io.rudione.chatone.icons.lucide.Eye
 import io.rudione.chatone.icons.lucide.EyeOff
@@ -60,8 +63,7 @@ fun rememberSecretVisibility(autoHideMillis: Long = SECRET_AUTO_HIDE_MS): Secret
 
 @Composable
 fun SecretRevealButton(visibility: SecretVisibility, modifier: Modifier = Modifier) {
-    val s = LocalStrings.current
-    val label = if (visibility.revealed) s.secretHide else s.secretReveal
+    val label = if (visibility.revealed) stringResource(Res.string.secret_hide) else stringResource(Res.string.secret_reveal)
     ChatoneIconButton(onClick = visibility::toggle, modifier = modifier.size(26.dp)) {
         Icon(
             if (visibility.revealed) Lucide.EyeOff else Lucide.Eye,

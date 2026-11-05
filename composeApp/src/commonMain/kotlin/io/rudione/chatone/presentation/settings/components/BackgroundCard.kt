@@ -1,5 +1,16 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.images
+import chatone.composeapp.generated.resources.images_outline
+import chatone.composeapp.generated.resources.settings_background_preview
+import chatone.composeapp.generated.resources.settings_change_image
+import chatone.composeapp.generated.resources.settings_chat_background_image
+import chatone.composeapp.generated.resources.settings_choose_background_image
+import chatone.composeapp.generated.resources.settings_opaque
+import chatone.composeapp.generated.resources.settings_overlay_opacity
+import chatone.composeapp.generated.resources.settings_supports_image_formats
+import chatone.composeapp.generated.resources.settings_transparent
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -43,30 +54,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.bell_filled
-import chatone.composeapp.generated.resources.bell_outlined
-import chatone.composeapp.generated.resources.chatbubbles
-import chatone.composeapp.generated.resources.chatbubbles_outline
-import chatone.composeapp.generated.resources.icon
-import chatone.composeapp.generated.resources.images
-import chatone.composeapp.generated.resources.images_outline
-import chatone.composeapp.generated.resources.key_outline
-import chatone.composeapp.generated.resources.ic_sword
-import chatone.composeapp.generated.resources.sparkle_filled
-import chatone.composeapp.generated.resources.keyboard_24_filled
-import chatone.composeapp.generated.resources.keyboard_24_regular
-import chatone.composeapp.generated.resources.musical_notes_outline
-import chatone.composeapp.generated.resources.palette_fill_16
-import chatone.composeapp.generated.resources.palette_stroke_12
-import chatone.composeapp.generated.resources.panel_left_key_16_regular
-import chatone.composeapp.generated.resources.person_filled
-import chatone.composeapp.generated.resources.shield_filled
-import chatone.composeapp.generated.resources.shield_outlined
-import chatone.composeapp.generated.resources.star_filled
-import chatone.composeapp.generated.resources.star_outlined
-import chatone.composeapp.generated.resources.unfold_more
-import chatone.composeapp.generated.resources.wallpaper_filled
-import chatone.composeapp.generated.resources.wallpaper_outlined
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
@@ -93,9 +80,6 @@ import io.rudione.chatone.util.system.HotkeyAction
 import io.rudione.chatone.util.system.comboFor
 import io.rudione.chatone.util.media.NotificationSoundPlayer
 import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.presentation.theme.i18n.AppLocale
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsEvent
@@ -118,10 +102,9 @@ import io.rudione.chatone.presentation.components.ChatoneIconButton
 
 @Composable
 internal fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
     val wallpaperController = LocalWallpaperController.current
     val wallpaper by remember { derivedStateOf { wallpaperController.state } }
-    SettingsGroup(s.settingsChatBackgroundImage) {
+    SettingsGroup(stringResource(Res.string.settings_chat_background_image)) {
         Column(modifier = Modifier.padding(16.dp)) {
             val scope = rememberCoroutineScope()
             if (state.wallpaperPath.isNotBlank()) {
@@ -131,7 +114,7 @@ internal fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                 ) {
                     AsyncImage(
                         model = state.wallpaperPath,
-                        contentDescription = s.settingsBackgroundPreview,
+                        contentDescription = stringResource(Res.string.settings_background_preview),
                         modifier = Modifier.fillMaxSize().applyChatBlurOverlay(
                             type = wallpaper.blurType,
                             radius = wallpaper.blurRadius,
@@ -186,7 +169,7 @@ internal fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(s.settingsOverlayOpacity, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(Res.string.settings_overlay_opacity), style = MaterialTheme.typography.bodyMedium)
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(4.dp)
@@ -213,12 +196,12 @@ internal fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    s.settingsTransparent,
+                    stringResource(Res.string.settings_transparent),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    s.settingsOpaque,
+                    stringResource(Res.string.settings_opaque),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -242,12 +225,12 @@ internal fun BackgroundCard(state: SettingsState, vm: SettingsViewModel) {
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(if (state.wallpaperPath.isBlank()) s.settingsChooseBackgroundImage else s.settingsChangeImage)
+                Text(if (state.wallpaperPath.isBlank()) stringResource(Res.string.settings_choose_background_image) else stringResource(Res.string.settings_change_image))
             }
             if (state.wallpaperPath.isBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    s.settingsSupportsImageFormats,
+                    stringResource(Res.string.settings_supports_image_formats),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

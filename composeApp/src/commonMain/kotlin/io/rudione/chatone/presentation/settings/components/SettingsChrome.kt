@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.close
+import chatone.composeapp.generated.resources.settings_pin_window
+import chatone.composeapp.generated.resources.settings_unpin_window
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.settings.settingsAnchor
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -17,13 +22,11 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import chatone.composeapp.generated.resources.icon
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.theme.ChatoneIndication
 import io.rudione.chatone.presentation.window.windowDragArea
 import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.PinOff
@@ -88,7 +91,6 @@ internal fun SettingsPaneHeader(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -101,7 +103,7 @@ internal fun SettingsPaneHeader(
         if (isPinned != null) {
             SettingsPaneIcon(
                 icon = if (isPinned) Lucide.PinOff else Lucide.Pin,
-                label = if (isPinned) s.settingsUnpinWindow else s.settingsPinWindow,
+                label = if (isPinned) stringResource(Res.string.settings_unpin_window) else stringResource(Res.string.settings_pin_window),
                 tint = if (isPinned) {
                     MaterialTheme.colorScheme.primary
                 } else {
@@ -112,7 +114,7 @@ internal fun SettingsPaneHeader(
         }
         SettingsPaneIcon(
             icon = Lucide.X,
-            label = s.close,
+            label = stringResource(Res.string.close),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             onClick = onClose
         )

@@ -1,5 +1,16 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ui_baduser_was_banned_by_moderator
+import chatone.composeapp.generated.resources.ui_connected_to_chat
+import chatone.composeapp.generated.resources.ui_message_from_viewer123_was_deleted_by
+import chatone.composeapp.generated.resources.ui_spammer_was_timed_out_for_600s
+import chatone.composeapp.generated.resources.ui_stream_starting_in_10_minutes
+import chatone.composeapp.generated.resources.ui_this_got_removed
+import chatone.composeapp.generated.resources.ui_this_message_was_held_for_review
+import chatone.composeapp.generated.resources.ui_waves_hello
+import chatone.composeapp.generated.resources.ui_you_check_this_out
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -74,7 +85,7 @@ private fun PrivMsgMentionPreview() = PreviewSurface {
     PrivMsgItem(
         message = samplePrivMsg(
             username = "friend",
-            text = "@you check this out",
+            text = stringResource(Res.string.ui_you_check_this_out),
             isMention = true
         )
     )
@@ -85,7 +96,7 @@ private fun PrivMsgMentionPreview() = PreviewSurface {
 private fun PrivMsgActionPreview() = PreviewSurface {
     PrivMsgItem(
         message = samplePrivMsg(
-            text = "waves hello",
+            text = stringResource(Res.string.ui_waves_hello),
             isAction = true
         )
     )
@@ -107,7 +118,7 @@ private fun PrivMsgFirstMessagePreview() = PreviewSurface {
 private fun PrivMsgDeletedPreview() = PreviewSurface {
     PrivMsgItem(
         message = samplePrivMsg(
-            text = "this got removed",
+            text = stringResource(Res.string.ui_this_got_removed),
             isDeleted = true
         )
     )
@@ -121,7 +132,7 @@ private fun SystemMsgPreview() = PreviewSurface {
             id = "sys",
             timestamp = 1_700_000_000_000L,
             channel = "samplechannel",
-            text = "Connected to chat"
+            text = stringResource(Res.string.ui_connected_to_chat)
         )
     )
 }
@@ -151,7 +162,7 @@ private fun UserNoticeAnnouncementPreview() = PreviewSurface {
             systemText = "Stream starting in 10 minutes!",
             innerMessage = samplePrivMsg(
                 username = "streamer",
-                text = "Stream starting in 10 minutes!"
+                text = stringResource(Res.string.ui_stream_starting_in_10_minutes)
             ),
             noticeType = "announcement",
             announceColor = "purple"
@@ -167,7 +178,7 @@ private fun ModerationBanPreview() = PreviewSurface {
             id = "mod1",
             timestamp = 1_700_000_000_000L,
             channel = "samplechannel",
-            text = "baduser was banned by moderator",
+            text = stringResource(Res.string.ui_baduser_was_banned_by_moderator),
             action = DisplayMessage.ModerationMsg.ModerationAction.BAN,
             targetUser = "baduser",
             moderatorLogin = "moderator"
@@ -183,7 +194,7 @@ private fun ModerationTimeoutPreview() = PreviewSurface {
             id = "mod2",
             timestamp = 1_700_000_000_000L,
             channel = "samplechannel",
-            text = "spammer was timed out for 600s by moderator",
+            text = stringResource(Res.string.ui_spammer_was_timed_out_for_600s),
             action = DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT,
             targetUser = "spammer",
             duration = 600,
@@ -200,7 +211,7 @@ private fun ModerationDeletePreview() = PreviewSurface {
             id = "mod3",
             timestamp = 1_700_000_000_000L,
             channel = "samplechannel",
-            text = "Message from viewer123 was deleted by moderator",
+            text = stringResource(Res.string.ui_message_from_viewer123_was_deleted_by),
             action = DisplayMessage.ModerationMsg.ModerationAction.DELETE,
             targetUser = "viewer123",
             moderatorLogin = "moderator"
@@ -220,7 +231,7 @@ private fun AutoModPendingPreview() = PreviewSurface {
             userId = "2",
             username = "flagged_user",
             displayName = "flagged_user",
-            text = "this message was held for review",
+            text = stringResource(Res.string.ui_this_message_was_held_for_review),
             color = "#FF7F50",
             status = DisplayMessage.AutoModMsg.AutoModStatus.PENDING,
             reasonCategory = "swearing",

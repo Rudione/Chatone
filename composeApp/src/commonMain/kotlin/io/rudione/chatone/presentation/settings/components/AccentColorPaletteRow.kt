@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.palette_fill_16
+import chatone.composeapp.generated.resources.settings_set_custom
+import chatone.composeapp.generated.resources.theme_accent_color
+import chatone.composeapp.generated.resources.theme_accent_color_hint
+import chatone.composeapp.generated.resources.theme_reset
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import io.rudione.chatone.presentation.components.animatedBorder
 import androidx.compose.ui.draw.drawBehind
@@ -52,7 +58,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.palette_fill_16
 import io.rudione.chatone.presentation.components.ChatoneFieldLabel
 import io.rudione.chatone.presentation.components.ChatoneScrollbar
 import io.rudione.chatone.presentation.components.interactiveIcon
@@ -65,7 +70,6 @@ import io.rudione.chatone.presentation.theme.ExpressivePalettes
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.accentColorScheme
 import io.rudione.chatone.presentation.theme.accentPaletteAt
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.jetbrains.compose.resources.painterResource
 
 private val PaletteCardHeight = 62.dp
@@ -84,7 +88,6 @@ internal fun AccentColorPaletteRow(
     onReset: () -> Unit = {},
     onSelect: (Int) -> Unit
 ) {
-    val s = LocalStrings.current
     val customThemeManager = LocalCustomThemeManager.current
     val activeTheme by customThemeManager.currentTheme.collectAsState()
     val savedThemes by customThemeManager.savedThemes.collectAsState()
@@ -102,12 +105,12 @@ internal fun AccentColorPaletteRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 ChatoneFieldLabel(
-                    text = s.themeAccentColor,
+                    text = stringResource(Res.string.theme_accent_color),
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.height(2.dp))
                 ChatoneFieldLabel(
-                    text = s.themeAccentColorHint,
+                    text = stringResource(Res.string.theme_accent_color_hint),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -115,9 +118,12 @@ internal fun AccentColorPaletteRow(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (isCustomised) {
                     PaletteActionButton(
-                        label = s.themeReset,
+                        label = stringResource(Res.string.theme_reset),
                         tint = MaterialTheme.colorScheme.error,
-                        onClick = onReset
+                        onClick = {
+                            customThemeManager.resetToDefault()
+                            onReset()
+                        }
                     ) { iconModifier ->
                         Icon(
                             Icons.Default.Refresh,
@@ -128,7 +134,7 @@ internal fun AccentColorPaletteRow(
                     }
                 }
                 PaletteActionButton(
-                    label = s.settingsSetCustom,
+                    label = stringResource(Res.string.settings_set_custom),
                     tint = MaterialTheme.colorScheme.primary,
                     onClick = { onOpenThemeCreator(null) }
                 ) { iconModifier ->
@@ -172,7 +178,10 @@ internal fun AccentColorPaletteRow(
                         palette = palette,
                         selected = index == selectedIndex && activeTheme == null,
                         modifier = Modifier.weight(1f),
-                        onClick = { onSelect(index) }
+                        onClick = {
+                            customThemeManager.resetToDefault()
+                            onSelect(index)
+                        }
                     )
                 }
             }

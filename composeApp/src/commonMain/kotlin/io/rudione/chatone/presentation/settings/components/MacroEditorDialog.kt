@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.mod_add_step
+import chatone.composeapp.generated.resources.mod_edit_macro
+import chatone.composeapp.generated.resources.mod_macro_name
+import chatone.composeapp.generated.resources.mod_no_steps_yet
+import chatone.composeapp.generated.resources.mod_save_macro
+import chatone.composeapp.generated.resources.mod_step_count
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -40,7 +48,6 @@ import io.rudione.chatone.presentation.components.ChatoneDialogPanel
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneListItem
 import io.rudione.chatone.presentation.components.ChatoneTextField
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 fun MacroEditorDialog(
@@ -54,7 +61,6 @@ fun MacroEditorDialog(
     var showIconPicker by remember { mutableStateOf(false) }
     var showAddStep by remember { mutableStateOf(false) }
     var editingStepIndex by remember { mutableStateOf<Int?>(null) }
-    val s = LocalStrings.current
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -67,14 +73,14 @@ fun MacroEditorDialog(
                 .heightIn(max = 640.dp)
         ) {
             ChatoneDialogHeader(
-                title = s.modEditMacro,
-                subtitle = s.modStepCount.replace("{0}", steps.size.toString()),
+                title = stringResource(Res.string.mod_edit_macro),
+                subtitle = stringResource(Res.string.mod_step_count, steps.size),
                 onClose = onDismiss
             )
             ChatoneTextField(
                 value = macroName,
                 onValueChange = { macroName = it },
-                label = s.modMacroName,
+                label = stringResource(Res.string.mod_macro_name),
                 singleLine = true,
                 leading = {
                     MacroIconTile(
@@ -96,7 +102,7 @@ fun MacroEditorDialog(
                 if (steps.isEmpty()) {
                     item(contentType = "empty") {
                         Text(
-                            s.modNoStepsYet,
+                            stringResource(Res.string.mod_no_steps_yet),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             textAlign = TextAlign.Center,
@@ -130,14 +136,14 @@ fun MacroEditorDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ChatoneButton(
-                    text = s.modAddStep,
+                    text = stringResource(Res.string.mod_add_step),
                     onClick = { showAddStep = true },
                     tone = ChatoneButtonTone.Neutral,
                     icon = Icons.Filled.Add,
                     modifier = Modifier.weight(1f)
                 )
                 ChatoneButton(
-                    text = s.modSaveMacro,
+                    text = stringResource(Res.string.mod_save_macro),
                     onClick = {
                         onSave(
                             macro.copy(
@@ -189,7 +195,6 @@ private fun MacroStepRow(
     onMoveDown: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val s = LocalStrings.current
     ChatoneListItem(
         onClick = onEdit,
         leading = {
@@ -242,7 +247,7 @@ private fun MacroStepRow(
         }
     ) {
         Text(
-            macroStepDescription(step, s),
+            macroStepDescription(step),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,

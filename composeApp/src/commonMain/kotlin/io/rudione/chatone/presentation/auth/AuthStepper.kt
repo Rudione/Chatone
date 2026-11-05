@@ -1,5 +1,12 @@
 package io.rudione.chatone.presentation.auth
 
+import chatone.composeapp.generated.resources.auth_step_browser
+import chatone.composeapp.generated.resources.auth_step_paste
+import chatone.composeapp.generated.resources.auth_step_rights
+import chatone.composeapp.generated.resources.auth_step_sign_in
+import chatone.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.StringResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -41,8 +48,6 @@ import io.rudione.chatone.icons.lucide.Globe
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.ShieldCheck
 import io.rudione.chatone.presentation.components.expressive.expressiveGlass
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 private enum class StepMark { Done, Active, Upcoming }
 
@@ -52,11 +57,14 @@ fun AuthStep.icon(automatic: Boolean): ImageVector = when (this) {
     AuthStep.RIGHTS -> Lucide.ShieldCheck
 }
 
-fun AppStrings.stepLabel(step: AuthStep, automatic: Boolean): String = when (step) {
-    AuthStep.SIGN_IN -> authStepSignIn
-    AuthStep.PASTE -> if (automatic) authStepBrowser else authStepPaste
-    AuthStep.RIGHTS -> authStepRights
+fun AuthStep.labelRes(automatic: Boolean): StringResource = when (this) {
+    AuthStep.SIGN_IN -> Res.string.auth_step_sign_in
+    AuthStep.PASTE -> if (automatic) Res.string.auth_step_browser else Res.string.auth_step_paste
+    AuthStep.RIGHTS -> Res.string.auth_step_rights
 }
+
+@Composable
+fun stepLabel(step: AuthStep, automatic: Boolean): String = stringResource(step.labelRes(automatic))
 
 @Composable
 fun AuthStepper(slots: List<AuthStep>, current: AuthStep, automatic: Boolean, modifier: Modifier = Modifier) {
@@ -81,7 +89,6 @@ fun AuthStepper(slots: List<AuthStep>, current: AuthStep, automatic: Boolean, mo
 
 @Composable
 private fun StepperItem(step: AuthStep, mark: StepMark, automatic: Boolean) {
-    val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
     val container by animateColorAsState(
         when (mark) {
@@ -132,7 +139,7 @@ private fun StepperItem(step: AuthStep, mark: StepMark, automatic: Boolean) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    s.stepLabel(step, automatic),
+                    stepLabel(step, automatic),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = content,

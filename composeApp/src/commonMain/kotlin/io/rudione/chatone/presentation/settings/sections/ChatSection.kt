@@ -1,5 +1,69 @@
 package io.rudione.chatone.presentation.settings.sections
 
+import chatone.composeapp.generated.resources.settings_size_large
+import chatone.composeapp.generated.resources.settings_size_medium
+import chatone.composeapp.generated.resources.settings_size_small
+import chatone.composeapp.generated.resources.settings_spacing_high
+import chatone.composeapp.generated.resources.settings_spacing_low
+import chatone.composeapp.generated.resources.settings_spacing_medium
+import chatone.composeapp.generated.resources.settings_spacing_none
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_show_badges
+import chatone.composeapp.generated.resources.chat_show_badges_desc
+import chatone.composeapp.generated.resources.settings_alternate_row_bg
+import chatone.composeapp.generated.resources.settings_alternate_row_bg_desc
+import chatone.composeapp.generated.resources.settings_auto_translate_input
+import chatone.composeapp.generated.resources.settings_auto_translate_input_desc
+import chatone.composeapp.generated.resources.settings_chat_input_glow
+import chatone.composeapp.generated.resources.settings_chat_input_glow_desc
+import chatone.composeapp.generated.resources.settings_chat_input_group
+import chatone.composeapp.generated.resources.settings_chat_scrollbar_width
+import chatone.composeapp.generated.resources.settings_chat_top_bar_height
+import chatone.composeapp.generated.resources.settings_close_on_mouse_leave
+import chatone.composeapp.generated.resources.settings_close_on_mouse_leave_desc
+import chatone.composeapp.generated.resources.settings_emote_size
+import chatone.composeapp.generated.resources.settings_font_size
+import chatone.composeapp.generated.resources.settings_hide_emoji_button
+import chatone.composeapp.generated.resources.settings_hide_emoji_button_desc
+import chatone.composeapp.generated.resources.settings_hide_placeholder
+import chatone.composeapp.generated.resources.settings_hide_placeholder_desc
+import chatone.composeapp.generated.resources.settings_history_group
+import chatone.composeapp.generated.resources.settings_hub_group_chat_panel
+import chatone.composeapp.generated.resources.settings_hub_group_message_look
+import chatone.composeapp.generated.resources.settings_hub_group_mouse
+import chatone.composeapp.generated.resources.settings_hub_group_row_decor
+import chatone.composeapp.generated.resources.settings_mention_tabs
+import chatone.composeapp.generated.resources.settings_mention_tabs_desc
+import chatone.composeapp.generated.resources.settings_message_history_limit
+import chatone.composeapp.generated.resources.settings_message_spacing
+import chatone.composeapp.generated.resources.settings_messages
+import chatone.composeapp.generated.resources.settings_messages_unit
+import chatone.composeapp.generated.resources.settings_outgoing_translation_lang
+import chatone.composeapp.generated.resources.settings_outgoing_translation_lang_desc
+import chatone.composeapp.generated.resources.settings_pause_on_hover
+import chatone.composeapp.generated.resources.settings_pause_on_hover_desc
+import chatone.composeapp.generated.resources.settings_readable_nick_colors
+import chatone.composeapp.generated.resources.settings_readable_nick_colors_desc
+import chatone.composeapp.generated.resources.settings_repeated_window
+import chatone.composeapp.generated.resources.settings_seconds_unit
+import chatone.composeapp.generated.resources.settings_show_chat_header
+import chatone.composeapp.generated.resources.settings_show_chat_header_desc
+import chatone.composeapp.generated.resources.settings_show_deleted_messages
+import chatone.composeapp.generated.resources.settings_show_deleted_messages_desc
+import chatone.composeapp.generated.resources.settings_show_repeated_counter
+import chatone.composeapp.generated.resources.settings_show_repeated_counter_desc
+import chatone.composeapp.generated.resources.settings_show_timestamps_desc
+import chatone.composeapp.generated.resources.settings_show_viewer_join_leave
+import chatone.composeapp.generated.resources.settings_show_viewer_join_leave_desc
+import chatone.composeapp.generated.resources.settings_smooth_chat
+import chatone.composeapp.generated.resources.settings_smooth_chat_desc
+import chatone.composeapp.generated.resources.settings_timestamp12h
+import chatone.composeapp.generated.resources.settings_timestamp24h
+import chatone.composeapp.generated.resources.settings_timestamp_format
+import chatone.composeapp.generated.resources.settings_timestamps
+import chatone.composeapp.generated.resources.settings_translation_lang
+import chatone.composeapp.generated.resources.settings_translation_lang_desc
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -18,8 +82,6 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.settings.components.SettingsGroup
 import io.rudione.chatone.presentation.settings.components.SettingsPair
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.rememberInputCapabilities
 
 @Composable
@@ -48,36 +110,34 @@ internal fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun MessageLookGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsHub.groupMessageLook) {
+    SettingsGroup(stringResource(Res.string.settings_hub_group_message_look)) {
         ChatMessageScaleSettingRow()
         RowDivider()
         ListRow(
-            s.settingsFontSize,
-            s.sizeLabel(state.fontSize.ordinal),
-            SettingsState.FontSize.entries.map { s.sizeLabel(it.ordinal) }
+            stringResource(Res.string.settings_font_size),
+            sizeLabel(state.fontSize.ordinal),
+            SettingsState.FontSize.entries.map { sizeLabel(it.ordinal) }
         ) { vm.sendEvent(SettingsEvent.OnFontSizeChanged(SettingsState.FontSize.entries[it])) }
         RowDivider()
         ListRow(
-            s.settingsEmoteSize,
-            s.sizeLabel(state.emoteSize.ordinal),
-            SettingsState.EmoteSize.entries.map { s.sizeLabel(it.ordinal) }
+            stringResource(Res.string.settings_emote_size),
+            sizeLabel(state.emoteSize.ordinal),
+            SettingsState.EmoteSize.entries.map { sizeLabel(it.ordinal) }
         ) { vm.sendEvent(SettingsEvent.OnEmoteSizeChanged(SettingsState.EmoteSize.entries[it])) }
         RowDivider()
         ListRow(
-            s.settingsMessageSpacing,
-            s.spacingLabel(state.messageSpacing.ordinal),
-            SettingsState.MessageSpacing.entries.map { s.spacingLabel(it.ordinal) }
+            stringResource(Res.string.settings_message_spacing),
+            spacingLabel(state.messageSpacing.ordinal),
+            SettingsState.MessageSpacing.entries.map { spacingLabel(it.ordinal) }
         ) { vm.sendEvent(SettingsEvent.OnMessageSpacingChanged(SettingsState.MessageSpacing.entries[it])) }
     }
 }
 
 @Composable
 private fun RowDecorGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsHub.groupRowDecor) {
+    SettingsGroup(stringResource(Res.string.settings_hub_group_row_decor)) {
         SwitchRow(
-            s.settingsTimestamps, s.settingsShowTimestampsDesc,
+            stringResource(Res.string.settings_timestamps), stringResource(Res.string.settings_show_timestamps_desc),
             state.timestampFormat != SettingsState.TimestampFormat.OFF
         ) { enabled ->
             vm.sendEvent(
@@ -89,9 +149,9 @@ private fun RowDecorGroup(state: SettingsState, vm: SettingsViewModel) {
         if (state.timestampFormat != SettingsState.TimestampFormat.OFF) {
             RowDivider()
             ListRow(
-                s.settingsTimestampFormat,
-                if (state.timestampFormat == SettingsState.TimestampFormat.H12) s.settingsTimestamp12h else s.settingsTimestamp24h,
-                listOf(s.settingsTimestamp12h, s.settingsTimestamp24h)
+                stringResource(Res.string.settings_timestamp_format),
+                if (state.timestampFormat == SettingsState.TimestampFormat.H12) stringResource(Res.string.settings_timestamp12h) else stringResource(Res.string.settings_timestamp24h),
+                listOf(stringResource(Res.string.settings_timestamp12h), stringResource(Res.string.settings_timestamp24h))
             ) {
                 vm.sendEvent(
                     SettingsEvent.OnTimestampFormatChanged(
@@ -101,15 +161,15 @@ private fun RowDecorGroup(state: SettingsState, vm: SettingsViewModel) {
             }
         }
         RowDivider()
-        SwitchRow(s.chatShowBadges, s.chatShowBadgesDesc, state.showBadges) {
+        SwitchRow(stringResource(Res.string.chat_show_badges), stringResource(Res.string.chat_show_badges_desc), state.showBadges) {
             vm.sendEvent(SettingsEvent.OnShowBadgesChanged(it))
         }
         RowDivider()
-        SwitchRow(s.settingsAlternateRowBg, s.settingsAlternateRowBgDesc, state.alternateRowBackground) {
+        SwitchRow(stringResource(Res.string.settings_alternate_row_bg), stringResource(Res.string.settings_alternate_row_bg_desc), state.alternateRowBackground) {
             vm.sendEvent(SettingsEvent.OnAlternateRowBackgroundChanged(it))
         }
         RowDivider()
-        SwitchRow(s.settingsReadableNickColors, s.settingsReadableNickColorsDesc, state.readableNickColors) {
+        SwitchRow(stringResource(Res.string.settings_readable_nick_colors), stringResource(Res.string.settings_readable_nick_colors_desc), state.readableNickColors) {
             vm.sendEvent(SettingsEvent.OnReadableNickColorsChanged(it))
         }
     }
@@ -117,27 +177,26 @@ private fun RowDecorGroup(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun MessagesGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsMessages) {
-        SwitchRow(s.settingsShowDeletedMessages, s.settingsShowDeletedMessagesDesc, state.showDeletedMessages) {
+    SettingsGroup(stringResource(Res.string.settings_messages)) {
+        SwitchRow(stringResource(Res.string.settings_show_deleted_messages), stringResource(Res.string.settings_show_deleted_messages_desc), state.showDeletedMessages) {
             vm.sendEvent(SettingsEvent.OnShowDeletedChanged(it))
         }
         RowDivider()
-        SwitchRow(s.settingsShowViewerJoinLeave, s.settingsShowViewerJoinLeaveDesc, state.showViewerJoinLeave) {
+        SwitchRow(stringResource(Res.string.settings_show_viewer_join_leave), stringResource(Res.string.settings_show_viewer_join_leave_desc), state.showViewerJoinLeave) {
             vm.sendEvent(SettingsEvent.OnShowViewerJoinLeaveChanged(it))
         }
         RowDivider()
-        SwitchRow(s.settingsSmoothChat, s.settingsSmoothChatDesc, state.smoothChatEnabled) {
+        SwitchRow(stringResource(Res.string.settings_smooth_chat), stringResource(Res.string.settings_smooth_chat_desc), state.smoothChatEnabled) {
             vm.sendEvent(SettingsEvent.OnSmoothChatEnabledChanged(it))
         }
         RowDivider()
-        SwitchRow(s.settingsShowRepeatedCounter, s.settingsShowRepeatedCounterDesc, state.showRepeatedMessageCounter) {
+        SwitchRow(stringResource(Res.string.settings_show_repeated_counter), stringResource(Res.string.settings_show_repeated_counter_desc), state.showRepeatedMessageCounter) {
             vm.sendEvent(SettingsEvent.OnShowRepeatedCounterChanged(it))
         }
         if (state.showRepeatedMessageCounter) {
             SliderRow(
-                s.settingsRepeatedWindow, state.repeatedMessageWindow, 5f..120f, 11,
-                s.settingsSecondsUnit.replace("{0}", state.repeatedMessageWindow.toString())
+                stringResource(Res.string.settings_repeated_window), state.repeatedMessageWindow, 5f..120f, 11,
+                stringResource(Res.string.settings_seconds_unit, state.repeatedMessageWindow)
             ) { vm.sendEvent(SettingsEvent.OnRepeatedWindowChanged(it.toInt())) }
         }
     }
@@ -145,20 +204,19 @@ private fun MessagesGroup(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun ChatPanelGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsHub.groupChatPanel) {
-        SwitchRow(s.settingsShowChatHeader, s.settingsShowChatHeaderDesc, state.showChatHeader) {
+    SettingsGroup(stringResource(Res.string.settings_hub_group_chat_panel)) {
+        SwitchRow(stringResource(Res.string.settings_show_chat_header), stringResource(Res.string.settings_show_chat_header_desc), state.showChatHeader) {
             vm.sendEvent(SettingsEvent.OnShowChatHeaderChanged(it))
         }
         SliderRow(
-            label = s.settingsChatScrollbarWidth,
+            label = stringResource(Res.string.settings_chat_scrollbar_width),
             value = state.chatScrollbarWidth.toFloat(),
             valueRange = 6f..32f,
             steps = 12,
             valueLabel = "${state.chatScrollbarWidth} dp"
         ) { vm.sendEvent(SettingsEvent.OnChatScrollbarWidthChanged(it.toInt())) }
         SliderRow(
-            label = s.settingsChatTopBarHeight,
+            label = stringResource(Res.string.settings_chat_top_bar_height),
             value = state.chatTopBarHeight.toFloat(),
             valueRange = 28f..64f,
             steps = 17,
@@ -169,17 +227,16 @@ private fun ChatPanelGroup(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun ChatInputGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsChatInputGroup) {
-        SwitchRow(s.settingsHidePlaceholder, s.settingsHidePlaceholderDesc, state.hideChatInputPlaceholder) {
+    SettingsGroup(stringResource(Res.string.settings_chat_input_group)) {
+        SwitchRow(stringResource(Res.string.settings_hide_placeholder), stringResource(Res.string.settings_hide_placeholder_desc), state.hideChatInputPlaceholder) {
             vm.sendEvent(SettingsEvent.OnHideChatPlaceholderChanged(it))
         }
         RowDivider()
-        SwitchRow(s.settingsHideEmojiButton, s.settingsHideEmojiButtonDesc, state.hideEmojiButton) {
+        SwitchRow(stringResource(Res.string.settings_hide_emoji_button), stringResource(Res.string.settings_hide_emoji_button_desc), state.hideEmojiButton) {
             vm.sendEvent(SettingsEvent.OnHideEmojiButtonChanged(it))
         }
         RowDivider()
-        SwitchRow(s.settingsChatInputGlow, s.settingsChatInputGlowDesc, state.chatInputEventGlow) {
+        SwitchRow(stringResource(Res.string.settings_chat_input_glow), stringResource(Res.string.settings_chat_input_glow_desc), state.chatInputEventGlow) {
             vm.sendEvent(SettingsEvent.OnChatInputGlowChanged(it))
         }
     }
@@ -187,13 +244,12 @@ private fun ChatInputGroup(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun MouseGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsHub.groupMouse) {
-        SwitchRow(s.settingsPauseOnHover, s.settingsPauseOnHoverDesc, state.pauseOnHover) {
+    SettingsGroup(stringResource(Res.string.settings_hub_group_mouse)) {
+        SwitchRow(stringResource(Res.string.settings_pause_on_hover), stringResource(Res.string.settings_pause_on_hover_desc), state.pauseOnHover) {
             vm.sendEvent(SettingsEvent.OnPauseOnHoverChanged(it))
         }
         RowDivider()
-        SwitchRow(s.settingsCloseOnMouseLeave, s.settingsCloseOnMouseLeaveDesc, state.closeEmotePickerOnMouseLeave) {
+        SwitchRow(stringResource(Res.string.settings_close_on_mouse_leave), stringResource(Res.string.settings_close_on_mouse_leave_desc), state.closeEmotePickerOnMouseLeave) {
             vm.sendEvent(SettingsEvent.OnCloseEmotePickerOnMouseLeaveChanged(it))
         }
     }
@@ -201,20 +257,18 @@ private fun MouseGroup(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun HistoryGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsHistoryGroup) {
+    SettingsGroup(stringResource(Res.string.settings_history_group)) {
         SliderRow(
-            s.settingsMessageHistoryLimit, state.scrollbackLimit, 100f..2000f, 18,
-            s.settingsMessagesUnit.replace("{0}", state.scrollbackLimit.toString())
+            stringResource(Res.string.settings_message_history_limit), state.scrollbackLimit, 100f..2000f, 18,
+            stringResource(Res.string.settings_messages_unit, state.scrollbackLimit)
         ) { vm.sendEvent(SettingsEvent.OnScrollbackLimitChanged(it.toInt())) }
     }
 }
 
 @Composable
 private fun MentionTabsGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
-    SettingsGroup(s.settingsMentionTabs) {
-        SwitchRow(s.settingsMentionTabs, s.settingsMentionTabsDesc, state.mentionTabsEnabled) {
+    SettingsGroup(stringResource(Res.string.settings_mention_tabs)) {
+        SwitchRow(stringResource(Res.string.settings_mention_tabs), stringResource(Res.string.settings_mention_tabs_desc), state.mentionTabsEnabled) {
             vm.sendEvent(SettingsEvent.OnMentionTabsChanged(it))
         }
     }
@@ -222,15 +276,14 @@ private fun MentionTabsGroup(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun TranslationGroup(state: SettingsState, vm: SettingsViewModel) {
-    val s = LocalStrings.current
     val langs = TranslationLanguages
     val currentName = langs.firstOrNull { it.first == state.translationTargetLang }?.second ?: state.translationTargetLang
-    SettingsGroup(s.settingsTranslationLang) {
-        ListRow(s.settingsTranslationLangDesc, currentName, langs.map { it.second }) { idx ->
+    SettingsGroup(stringResource(Res.string.settings_translation_lang)) {
+        ListRow(stringResource(Res.string.settings_translation_lang_desc), currentName, langs.map { it.second }) { idx ->
             vm.sendEvent(SettingsEvent.OnTranslationLangChanged(langs[idx].first))
         }
         RowDivider()
-        SwitchRow(s.settingsAutoTranslateInput, s.settingsAutoTranslateInputDesc, state.autoTranslateInput) {
+        SwitchRow(stringResource(Res.string.settings_auto_translate_input), stringResource(Res.string.settings_auto_translate_input_desc), state.autoTranslateInput) {
             vm.sendEvent(SettingsEvent.OnAutoTranslateInputChanged(it))
         }
         AnimatedVisibility(
@@ -241,18 +294,21 @@ private fun TranslationGroup(state: SettingsState, vm: SettingsViewModel) {
             val outgoingName = langs.firstOrNull { it.first == state.outgoingTranslationLang }?.second
                 ?: state.outgoingTranslationLang
             ListRow(
-                title = s.settingsOutgoingTranslationLang,
+                title = stringResource(Res.string.settings_outgoing_translation_lang),
                 value = outgoingName,
                 options = langs.map { it.second },
-                help = s.settingsOutgoingTranslationLangDesc
+                help = stringResource(Res.string.settings_outgoing_translation_lang_desc)
             ) { idx -> vm.sendEvent(SettingsEvent.OnOutgoingTranslationLangChanged(langs[idx].first)) }
         }
     }
 }
 
-internal fun AppStrings.sizeLabel(index: Int): String =
-    listOf(settingsSizeSmall, settingsSizeMedium, settingsSizeLarge).getOrElse(index) { settingsSizeMedium }
+@Composable
+internal fun sizeLabel(index: Int): String = stringResource(
+    listOf(Res.string.settings_size_small, Res.string.settings_size_medium, Res.string.settings_size_large).getOrElse(index) { Res.string.settings_size_medium })
 
-private fun AppStrings.spacingLabel(index: Int): String =
-    listOf(settingsSpacingNone, settingsSpacingLow, settingsSpacingMedium, settingsSpacingHigh)
-        .getOrElse(index) { settingsSpacingLow }
+@Composable
+private fun spacingLabel(index: Int): String = stringResource(
+    listOf(Res.string.settings_spacing_none, Res.string.settings_spacing_low, Res.string.settings_spacing_medium, Res.string.settings_spacing_high)
+        .getOrElse(index) { Res.string.settings_spacing_low })
+

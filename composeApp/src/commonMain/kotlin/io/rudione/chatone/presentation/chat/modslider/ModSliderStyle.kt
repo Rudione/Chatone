@@ -1,5 +1,14 @@
 package io.rudione.chatone.presentation.chat.modslider
 
+import io.rudione.chatone.presentation.components.rememberDurationFormatter
+import androidx.compose.runtime.Immutable
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.mod_slider_action_ban
+import chatone.composeapp.generated.resources.mod_slider_action_delete
+import chatone.composeapp.generated.resources.mod_slider_action_timeout
+import chatone.composeapp.generated.resources.mod_slider_action_unban
+import chatone.composeapp.generated.resources.mod_slider_grip
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -29,8 +38,6 @@ import io.rudione.chatone.icons.lucide.ShieldCheck
 import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.ModSliderStrings
 import androidx.compose.ui.unit.Density
 
 @Stable
@@ -48,9 +55,9 @@ class ModSliderStyle(
     private val timeoutIcon: VectorPainter,
     private val banIcon: VectorPainter,
     private val unbanIcon: VectorPainter,
-    private val strings: ModSliderStrings
+    private val labels: ModSliderLabels
 ) {
-    val gripLabel: String get() = strings.grip
+    val gripLabel: String get() = labels.grip
 
     fun colorOf(action: ModSliderAction?): Color = when (action) {
         ModSliderAction.Delete -> delete
@@ -72,10 +79,39 @@ class ModSliderStyle(
     fun chipLabelOf(action: ModSliderAction): String = if (action == ModSliderAction.Delete) "" else labelOf(action)
 
     fun labelOf(action: ModSliderAction): String = when (action) {
-        ModSliderAction.Delete -> strings.actionDelete
-        is ModSliderAction.Timeout -> strings.actionTimeout.replace("{0}", ModSliderDurations.format(action.seconds))
-        ModSliderAction.Ban -> strings.actionBan
-        ModSliderAction.Unban -> strings.actionUnban
+        ModSliderAction.Delete -> labels.delete
+        is ModSliderAction.Timeout -> labels.timeout(labels.duration(action.seconds))
+        ModSliderAction.Ban -> labels.ban
+        ModSliderAction.Unban -> labels.unban
+    }
+}
+
+@Immutable
+class ModSliderLabels(
+    val grip: String,
+    val delete: String,
+    val ban: String,
+    val unban: String,
+    private val timeoutTemplate: String,
+    val duration: (Int) -> String
+) {
+    fun timeout(duration: String): String = timeoutTemplate.replace(DURATION_SLOT, duration)
+
+    companion object {
+        internal const val DURATION_SLOT = "\u0000"
+    }
+}
+
+@Composable
+fun rememberModSliderLabels(): ModSliderLabels {
+    val grip = stringResource(Res.string.mod_slider_grip)
+    val delete = stringResource(Res.string.mod_slider_action_delete)
+    val ban = stringResource(Res.string.mod_slider_action_ban)
+    val unban = stringResource(Res.string.mod_slider_action_unban)
+    val template = stringResource(Res.string.mod_slider_action_timeout, ModSliderLabels.DURATION_SLOT)
+    val duration = rememberDurationFormatter()
+    return remember(grip, delete, ban, unban, template, duration) {
+        ModSliderLabels(grip, delete, ban, unban, template, duration)
     }
 }
 
@@ -128,13 +164,13 @@ internal fun Density.modSliderMetrics(): ModSliderMetrics = ModSliderMetrics(
 fun rememberModSliderStyle(): ModSliderStyle {
     val extra = ChatoneTheme.extraColors
     val scheme = MaterialTheme.colorScheme
-    val strings = LocalStrings.current.modSlider
+    val labels = rememberModSliderLabels()
     val measurer = rememberTextMeasurer(cacheSize = LABEL_CACHE_SIZE)
     val deleteIcon = rememberVectorPainter(Lucide.Trash2)
     val timeoutIcon = rememberVectorPainter(Lucide.Timer)
     val banIcon = rememberVectorPainter(Lucide.Ban)
     val unbanIcon = rememberVectorPainter(Lucide.ShieldCheck)
-    return remember(extra, scheme, strings, measurer, deleteIcon, timeoutIcon, banIcon, unbanIcon) {
+    return remember(extra, scheme, labels, measurer, deleteIcon, timeoutIcon, banIcon, unbanIcon) {
         ModSliderStyle(
             delete = extra.modDelete,
             timeout = extra.modTimeout,
@@ -149,7 +185,7 @@ fun rememberModSliderStyle(): ModSliderStyle {
             timeoutIcon = timeoutIcon,
             banIcon = banIcon,
             unbanIcon = unbanIcon,
-            strings = strings
+            labels = labels
         )
     }
 }

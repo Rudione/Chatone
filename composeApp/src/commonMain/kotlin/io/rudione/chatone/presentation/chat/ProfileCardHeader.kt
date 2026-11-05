@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.ic_twitch
+import chatone.composeapp.generated.resources.chat_copy_username
+import chatone.composeapp.generated.resources.profile_editor_edit
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
@@ -35,13 +39,12 @@ import io.rudione.chatone.data.remote.GqlUserDossier
 import io.rudione.chatone.data.remote.NameHistoryEntry
 import io.rudione.chatone.domain.model.SevenTvUserCosmetic
 import io.rudione.chatone.presentation.components.ChatoneIconButton
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.window.windowDragArea
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.ic_twitch
 import io.rudione.chatone.icons.lucide.Copy
 import io.rudione.chatone.icons.lucide.CopyCheck
 import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.Pencil
 import io.rudione.chatone.icons.lucide.Users
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -63,9 +66,9 @@ internal fun ProfileCardHeader(
     isPinned: Boolean,
     onTogglePin: () -> Unit,
     onDetach: (() -> Unit)?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onEdit: (() -> Unit)? = null
 ) {
-    val s = LocalStrings.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val uriHandler = LocalUriHandler.current
@@ -142,7 +145,7 @@ internal fun ProfileCardHeader(
                     ) {
                         Icon(
                             if (copiedName) Lucide.CopyCheck else Lucide.Copy,
-                            contentDescription = s.chatCopyUsername,
+                            contentDescription = stringResource(Res.string.chat_copy_username),
                             modifier = Modifier.size(12.dp),
                             tint = if (copiedName) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
@@ -161,6 +164,16 @@ internal fun ProfileCardHeader(
                     }
                     if (sevenTv?.profile != null) {
                         SevenTvLinkButton(profile = sevenTv.profile)
+                    }
+                    if (onEdit != null) {
+                        ChatoneIconButton(onClick = onEdit, modifier = Modifier.size(20.dp)) {
+                            Icon(
+                                Lucide.Pencil,
+                                contentDescription = stringResource(Res.string.profile_editor_edit),
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
                 ProfileCardHeaderActions(

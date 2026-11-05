@@ -1,5 +1,15 @@
 package io.rudione.chatone.presentation.main
 
+import chatone.composeapp.generated.resources.main_vm_search_failed
+import chatone.composeapp.generated.resources.main_vm_failed_to_send_whisper
+import chatone.composeapp.generated.resources.main_vm_failed_to_join
+import chatone.composeapp.generated.resources.main_vm_failed_to_delete_account
+import chatone.composeapp.generated.resources.main_vm_failed_to_connect
+import io.rudione.chatone.presentation.text.uiText
+import io.rudione.chatone.presentation.text.UiText
+import chatone.composeapp.generated.resources.token_stale_warning
+import chatone.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.getString
 import io.rudione.chatone.domain.model.ChannelFolder
 import io.rudione.chatone.domain.model.ChannelTab
 import androidx.compose.ui.graphics.Color
@@ -29,6 +39,8 @@ import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.repository.SidebarLayoutRepository
 import io.rudione.chatone.data.repository.LiveAlertsRepository
 import io.rudione.chatone.data.repository.RecentChannelsRepository
+import io.rudione.chatone.data.remote.TwitchLiveStatusClient
+import io.rudione.chatone.domain.channel.ChannelSnapshot
 import io.rudione.chatone.domain.model.RecentChannel
 import io.rudione.chatone.data.repository.ThirdPartyBadgeRepository
 import io.rudione.chatone.domain.model.HighlightRule
@@ -36,11 +48,11 @@ import io.rudione.chatone.domain.model.IrcEvent
 import io.rudione.chatone.util.system.dismissSystemNotifications
 import io.rudione.chatone.domain.model.SidebarLayout
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.util.system.AppRestarter
 import io.rudione.chatone.util.automod.RegexCache
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.util.settings.AppConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -101,6 +113,7 @@ data class MainState(
 sealed class MainEvent : UiEvent {
     object ToggleSidebar : MainEvent()
     object CloseSidebar : MainEvent()
+    object OpenSidebar : MainEvent()
     object ToggleSidebarCollapsed : MainEvent()
     data class SetSidebarWidth(val widthDp: Float) : MainEvent()
     data class SetMiniRailCollapsed(val collapsed: Boolean) : MainEvent()
@@ -119,6 +132,8 @@ sealed class MainEvent : UiEvent {
         val profileImageUrl: String = "",
         val displayName: String = ""
     ) : MainEvent()
+
+    data class AddChannels(val channels: List<AddChannel>) : MainEvent()
 
     data class ReorderUnfolderedChannels(val fromIndex: Int, val toIndex: Int) : MainEvent()
     data class ReorderFolderChannels(
@@ -189,8 +204,12 @@ sealed class MainEvent : UiEvent {
     data class UnmuteMentionsUser(val userLogin: String) : MainEvent()
     data class MuteMentionsChannel(val channelLogin: String) : MainEvent()
     data class UnmuteMentionsChannel(val channelLogin: String) : MainEvent()
-    data class MuteMentionsUserInChannel(val userLogin: String, val channelLogin: String) : MainEvent()
-    data class UnmuteMentionsUserInChannel(val userLogin: String, val channelLogin: String) : MainEvent()
+    data class MuteMentionsUserInChannel(val userLogin: String, val channelLogin: String) :
+        MainEvent()
+
+    data class UnmuteMentionsUserInChannel(val userLogin: String, val channelLogin: String) :
+        MainEvent()
+
     object ShowBrowse : MainEvent()
     object HideBrowse : MainEvent()
     object ReturnToBrowse : MainEvent()
@@ -201,13 +220,14 @@ sealed class MainEvent : UiEvent {
         val avatarUrl: String = "",
         val fromBrowse: Boolean = false
     ) : MainEvent()
+
     data class ForgetRecentChannel(val login: String) : MainEvent()
     data class KeepRecentChannel(val login: String) : MainEvent()
 }
 
 sealed class MainEffect : UIEffect {
     object NavigateToAuth : MainEffect()
-    data class ShowError(val message: String) : MainEffect()
+    data class ShowError(val message: UiText) : MainEffect()
     data class IncomingWhisper(val fromDisplayName: String, val text: String) : MainEffect()
     data class MentionToast(
         val channelLogin: String,
@@ -232,7 +252,8 @@ class MainViewModel(
     private val thirdPartyBadgeRepository: ThirdPartyBadgeRepository,
     private val sidebarLayoutRepository: SidebarLayoutRepository,
     private val liveAlertsRepository: LiveAlertsRepository,
-    private val recentChannelsRepository: RecentChannelsRepository
+    private val recentChannelsRepository: RecentChannelsRepository,
+    private val liveStatusClient: TwitchLiveStatusClient
 ) : BaseViewModel<MainState, MainEvent, MainEffect>(MainState()) {
 
     val mentionMuteRepository = MentionMuteRepository()
@@ -248,11 +269,6 @@ class MainViewModel(
     }
 
     private val settings = Settings()
-
-    private fun uiStrings() =
-        AppStrings.forLocale(
-            settings.getString("language", "en")
-        )
 
     init {
         restoreSidebarLayout()
@@ -273,28 +289,57 @@ class MainViewModel(
         when (event) {
             MainEvent.ToggleSidebar -> update { it.copy(sidebarExpanded = !it.sidebarExpanded) }
             MainEvent.CloseSidebar -> update { it.copy(sidebarExpanded = false) }
+            MainEvent.OpenSidebar -> update {
+                if (it.sidebarExpanded) it else it.copy(
+                    sidebarExpanded = true
+                )
+            }
+
             MainEvent.ToggleSidebarCollapsed -> {
                 val collapsed = !state.value.sidebarCollapsed
                 update { it.copy(sidebarCollapsed = collapsed) }
                 sidebarLayoutRepository.saveCollapsed(collapsed)
             }
+
             is MainEvent.SetSidebarWidth -> {
                 update { it.copy(sidebarWidthDp = event.widthDp) }
                 sidebarLayoutRepository.saveWidth(event.widthDp)
             }
+
             is MainEvent.SetMiniRailCollapsed -> {
                 update { it.copy(miniRailCollapsed = event.collapsed) }
                 sidebarLayoutRepository.saveMiniRailCollapsed(event.collapsed)
             }
+
             is MainEvent.SelectChannel -> {
                 update { it.copy(returnToBrowse = false) }
                 selectChannel(event.login, event.scrollToMessageId)
             }
+
             MainEvent.ShowBrowse -> update { it.copy(showBrowse = true, sidebarExpanded = false) }
-            MainEvent.ReturnToBrowse -> update { it.copy(showBrowse = true, returnToBrowse = false, sidebarExpanded = false) }
-            MainEvent.ReturnToStream -> update { it.copy(showBrowse = false, returnToBrowse = true) }
+            MainEvent.ReturnToBrowse -> update {
+                it.copy(
+                    showBrowse = true,
+                    returnToBrowse = false,
+                    sidebarExpanded = false
+                )
+            }
+
+            MainEvent.ReturnToStream -> update {
+                it.copy(
+                    showBrowse = false,
+                    returnToBrowse = true
+                )
+            }
+
             MainEvent.HideBrowse -> update { it.copy(showBrowse = false) }
-            is MainEvent.OpenRecentChannel -> openRecentChannel(event.login, event.displayName, event.avatarUrl, event.fromBrowse)
+            is MainEvent.OpenRecentChannel -> openRecentChannel(
+                event.login,
+                event.displayName,
+                event.avatarUrl,
+                event.fromBrowse
+            )
+
             is MainEvent.ForgetRecentChannel -> forgetRecentChannel(event.login)
             is MainEvent.KeepRecentChannel -> keepRecentChannel(event.login)
             is MainEvent.ToggleLiveNotify -> liveAlertsRepository.toggle(event.login)
@@ -305,6 +350,7 @@ class MainViewModel(
                     showMentionsFeed = false
                 )
             }
+
             MainEvent.CloseMentionsChannel -> update { it.copy(mentionsChannelActive = false) }
             MainEvent.ClearPendingScrollMessage -> update { it.copy(pendingScrollMessageId = null) }
             is MainEvent.OpenMonitorTab -> update {
@@ -316,6 +362,7 @@ class MainViewModel(
                     sidebarExpanded = false
                 )
             }
+
             is MainEvent.CloseMonitorTab -> update {
                 val remaining = it.monitorTabs - event.login
                 val nextActive = if (it.activeChannelLogin == event.login)
@@ -323,15 +370,14 @@ class MainViewModel(
                 else it.activeChannelLogin
                 it.copy(monitorTabs = remaining, activeChannelLogin = nextActive)
             }
+
             is MainEvent.CloseChannel -> {
                 update { it.copy(returnToBrowse = false) }
                 closeChannel(event.login)
             }
-            is MainEvent.AddChannel -> addChannel(
-                event.login,
-                event.profileImageUrl,
-                event.displayName
-            )
+
+            is MainEvent.AddChannel -> addChannels(listOf(event))
+            is MainEvent.AddChannels -> addChannels(event.channels)
 
             is MainEvent.MarkMentionRead -> {
                 update { state ->
@@ -372,6 +418,7 @@ class MainViewModel(
             MainEvent.HideCreateFolderDialog -> update {
                 it.copy(isCreateFolderDialogVisible = false, newFolderSeedChannel = null)
             }
+
             is MainEvent.UpdateNewFolderName -> update { it.copy(newFolderName = event.name) }
             is MainEvent.UpdateNewFolderColor -> update { it.copy(newFolderColor = event.colorHex) }
             MainEvent.CreateFolder -> createFolder()
@@ -557,20 +604,25 @@ class MainViewModel(
             is MainEvent.MuteMentionsUser -> {
                 mentionMuteRepository.muteUser(event.userLogin)
             }
+
             is MainEvent.UnmuteMentionsUser -> {
                 mentionMuteRepository.unmuteUser(event.userLogin)
             }
+
             is MainEvent.MuteMentionsChannel -> {
                 mentionMuteRepository.muteChannel(event.channelLogin)
                 refreshChannelMuteFlags()
             }
+
             is MainEvent.UnmuteMentionsChannel -> {
                 mentionMuteRepository.unmuteChannel(event.channelLogin)
                 refreshChannelMuteFlags()
             }
+
             is MainEvent.MuteMentionsUserInChannel -> {
                 mentionMuteRepository.muteUserInChannel(event.userLogin, event.channelLogin)
             }
+
             is MainEvent.UnmuteMentionsUserInChannel -> {
                 mentionMuteRepository.unmuteUserInChannel(event.userLogin, event.channelLogin)
             }
@@ -666,7 +718,7 @@ class MainViewModel(
                 )
             } catch (e: Exception) {
                 Napier.e("Whisper send failed: ${e.message}", tag = TAG)
-                sendEffect(MainEffect.ShowError("Failed to send whisper"))
+                sendEffect(MainEffect.ShowError(uiText(Res.string.main_vm_failed_to_send_whisper)))
             }
         }
     }
@@ -732,7 +784,8 @@ class MainViewModel(
         viewModelScope.launch {
             getAccountsUseCase().collectLatest { accounts ->
                 val previousId = state.value.selectedAccount?.userId
-                val selected = accounts.firstOrNull { it.userId == previousId } ?: accounts.firstOrNull()
+                val selected =
+                    accounts.firstOrNull { it.userId == previousId } ?: accounts.firstOrNull()
                 val needsReauth = selected != null && !selected.scopes.contains("user:write:chat")
                 update { state ->
                     state.copy(
@@ -758,17 +811,26 @@ class MainViewModel(
                 launch { sevenTvEventApi.connect() }
                 launch {
                     try {
-                        val res = apiClient.getModeratedChannels(account.accessToken, account.userId)
+                        val res =
+                            apiClient.getModeratedChannels(account.accessToken, account.userId)
                         if (res is Result.Success) {
                             update { it.copy(moderatedChannelIds = res.data) }
                         }
-                    } catch (_: Exception) {}
+                    } catch (_: Exception) {
+                    }
                 }
                 launch { checkTokenScopes(account) }
                 Napier.d("Connected as ${account.login}", tag = TAG)
             } catch (e: Exception) {
                 Napier.e("Failed to connect: ${e.message}", e, tag = TAG)
-                sendEffect(MainEffect.ShowError("Failed to connect: ${e.message}"))
+                sendEffect(
+                    MainEffect.ShowError(
+                        uiText(
+                            Res.string.main_vm_failed_to_connect,
+                            e.message
+                        )
+                    )
+                )
             }
         }
     }
@@ -786,7 +848,10 @@ class MainViewModel(
                     settings.putString(KEY_WARNED_SCOPES, fingerprint)
                     sendEffect(
                         MainEffect.ShowError(
-                            uiStrings().tokenStaleWarning.replace("{0}", missing.size.toString())
+                            uiText(
+                                Res.string.token_stale_warning,
+                                missing.size
+                            )
                         )
                     )
                 }
@@ -832,7 +897,11 @@ class MainViewModel(
         update { state ->
             state.copy(
                 mentions = state.mentions.map { m ->
-                    if (!m.isRead && m.channelLogin.equals(login, ignoreCase = true)) m.copy(isRead = true) else m
+                    if (!m.isRead && m.channelLogin.equals(
+                            login,
+                            ignoreCase = true
+                        )
+                    ) m.copy(isRead = true) else m
                 },
                 unreadMentionsCount = (state.unreadMentionsCount - toMark.size).coerceAtLeast(0)
             )
@@ -860,8 +929,12 @@ class MainViewModel(
         val existing = state.value.openChannels.find { it.login == normalized }
         if (existing == null) {
             val recent = state.value.recentChannels.find { it.login == normalized }
-            if (recent != null) openRecentChannel(recent.login, recent.displayName, recent.profileImageUrl)
-            else addChannel(normalized)
+            if (recent != null) openRecentChannel(
+                recent.login,
+                recent.displayName,
+                recent.profileImageUrl
+            )
+            else addChannels(listOf(MainEvent.AddChannel(normalized)))
             return
         }
         update { state ->
@@ -890,45 +963,50 @@ class MainViewModel(
         saveChannelState()
     }
 
-    private fun addChannel(login: String, profileImageUrl: String = "", displayName: String = "") {
-        val normalized = login.lowercase().removePrefix("#").trim()
-        if (normalized.isEmpty()) return
-        val alreadyOpen = state.value.openChannels.find { it.login == normalized }
-        if (alreadyOpen != null) {
-            update {
-                it.copy(
-                    activeChannelLogin = normalized,
-                    isAddChannelDialogVisible = false,
-                    sidebarExpanded = false
-                )
-            }
-            return
-        }
-        val tab = ChannelTab(
-            login = normalized,
-            displayName = displayName.ifEmpty { normalized },
-            profileImageUrl = profileImageUrl,
-            notificationsMuted = mentionMuteRepository.isChannelMuted(normalized)
-        )
-        update { state ->
-            state.copy(
-                openChannels = state.openChannels + tab,
-                activeChannelLogin = normalized,
-                isAddChannelDialogVisible = false,
-                sidebarExpanded = false,
-                unfolderedChannels = state.unfolderedChannels + tab
+    private fun addChannels(requests: List<MainEvent.AddChannel>) {
+        val open = state.value.openChannels.mapTo(HashSet()) { it.login }
+        val normalized = requests
+            .map { it.copy(login = it.login.lowercase().removePrefix("#").trim()) }
+            .filter { it.login.isNotEmpty() }
+            .distinctBy { it.login }
+        val focus = normalized.firstOrNull()?.login ?: return
+        val tabs = normalized.filterNot { it.login in open }.map { request ->
+            ChannelTab(
+                login = request.login,
+                displayName = request.displayName.ifEmpty { request.login },
+                profileImageUrl = request.profileImageUrl,
+                notificationsMuted = mentionMuteRepository.isChannelMuted(request.login)
             )
         }
+        update { state ->
+            state.copy(
+                openChannels = state.openChannels + tabs,
+                activeChannelLogin = focus,
+                isAddChannelDialogVisible = false,
+                sidebarExpanded = false,
+                unfolderedChannels = state.unfolderedChannels + tabs
+            )
+        }
+        if (tabs.isEmpty()) return
         saveChannelState()
         viewModelScope.launch {
-            try {
-                joinChannelUseCase(normalized)
-                pollLiveStatus()
-                Napier.d("Joined channel: $normalized", tag = TAG)
-            } catch (e: Exception) {
-                Napier.e("Failed to join $normalized: ${e.message}", e, tag = TAG)
-                sendEffect(MainEffect.ShowError("Failed to join $normalized"))
+            tabs.forEach { tab ->
+                try {
+                    joinChannelUseCase(tab.login)
+                    Napier.d("Joined channel: ${tab.login}", tag = TAG)
+                } catch (e: Exception) {
+                    Napier.e("Failed to join ${tab.login}: ${e.message}", e, tag = TAG)
+                    sendEffect(
+                        MainEffect.ShowError(
+                            uiText(
+                                Res.string.main_vm_failed_to_join,
+                                tab.login
+                            )
+                        )
+                    )
+                }
             }
+            pollLiveStatus()
         }
     }
 
@@ -961,7 +1039,8 @@ class MainViewModel(
 
     private fun RecentChannel.toTab(previous: ChannelTab?): ChannelTab = ChannelTab(
         login = login,
-        displayName = previous?.displayName?.takeUnless { it.equals(login, ignoreCase = true) } ?: displayName,
+        displayName = previous?.displayName?.takeUnless { it.equals(login, ignoreCase = true) }
+            ?: displayName,
         profileImageUrl = previous?.profileImageUrl?.ifEmpty { null } ?: avatarUrl,
         isLive = previous?.isLive == true,
         notificationsMuted = mentionMuteRepository.isChannelMuted(login)
@@ -988,12 +1067,22 @@ class MainViewModel(
             }
             if (state.value.isConnected) {
                 runCatching { joinChannelUseCase(active) }
-                    .onFailure { Napier.w("Failed to restore recent channel $active: ${it.message}", tag = TAG) }
+                    .onFailure {
+                        Napier.w(
+                            "Failed to restore recent channel $active: ${it.message}",
+                            tag = TAG
+                        )
+                    }
             }
         }
     }
 
-    private fun openRecentChannel(login: String, displayName: String, avatarUrl: String, fromBrowse: Boolean = false) {
+    private fun openRecentChannel(
+        login: String,
+        displayName: String,
+        avatarUrl: String,
+        fromBrowse: Boolean = false
+    ) {
         val normalized = login.lowercase().removePrefix("#").trim()
         if (normalized.isEmpty()) return
         if (state.value.openChannels.any { it.login == normalized }) {
@@ -1025,7 +1114,14 @@ class MainViewModel(
                 pollLiveStatus()
             } catch (e: Exception) {
                 Napier.e("Failed to join recent $normalized: ${e.message}", e, tag = TAG)
-                sendEffect(MainEffect.ShowError("Failed to join $normalized"))
+                sendEffect(
+                    MainEffect.ShowError(
+                        uiText(
+                            Res.string.main_vm_failed_to_join,
+                            normalized
+                        )
+                    )
+                )
             }
         }
     }
@@ -1035,7 +1131,15 @@ class MainViewModel(
         val state = state.value
         previous.map { it.login }
             .filter { it !in kept && it != state.activeChannelLogin && state.openChannels.none { open -> open.login == it } }
-            .forEach { login -> viewModelScope.launch { runCatching { chatRepository.partChannel(login) } } }
+            .forEach { login ->
+                viewModelScope.launch {
+                    runCatching {
+                        chatRepository.partChannel(
+                            login
+                        )
+                    }
+                }
+            }
     }
 
     private fun forgetRecentChannel(login: String) {
@@ -1047,7 +1151,10 @@ class MainViewModel(
             } else {
                 state.activeChannelLogin
             }
-            state.copy(recentChannels = recents.toTabs(state.recentChannels), activeChannelLogin = nextActive)
+            state.copy(
+                recentChannels = recents.toTabs(state.recentChannels),
+                activeChannelLogin = nextActive
+            )
         }
         saveChannelState()
         if (!isOpen) viewModelScope.launch { runCatching { chatRepository.partChannel(login) } }
@@ -1077,7 +1184,7 @@ class MainViewModel(
         val query = state.value.addChannelQuery.trim()
         if (query.isBlank()) return
         if (account == null) {
-            addChannel(query); return
+            addChannels(listOf(MainEvent.AddChannel(query))); return
         }
         viewModelScope.launch {
             update { it.copy(isSearching = true) }
@@ -1090,7 +1197,13 @@ class MainViewModel(
                 }
 
                 is Result.Error -> {
-                    update { it.copy(isSearching = false) }; sendEffect(MainEffect.ShowError("Search failed"))
+                    update { it.copy(isSearching = false) }; sendEffect(
+                        MainEffect.ShowError(
+                            uiText(
+                                Res.string.main_vm_search_failed
+                            )
+                        )
+                    )
                 }
 
                 is Result.Loading -> {}
@@ -1295,17 +1408,19 @@ class MainViewModel(
 
                 val remaining = state.value.accounts.filter { it.userId != userId }
                 if (remaining.isEmpty()) {
-                    update { it.copy(
-                        selectedAccount = null,
-                        isGuest = true,
-                        needsReauth = false,
-                        openChannels = emptyList(),
-                        activeChannelLogin = ""
-                    )}
+                    update {
+                        it.copy(
+                            selectedAccount = null,
+                            isGuest = true,
+                            needsReauth = false,
+                            openChannels = emptyList(),
+                            activeChannelLogin = ""
+                        )
+                    }
                     sendEffect(MainEffect.NavigateToAuth)
                 }
             } catch (e: Exception) {
-                sendEffect(MainEffect.ShowError("Failed to delete account"))
+                sendEffect(MainEffect.ShowError(uiText(Res.string.main_vm_failed_to_delete_account)))
             }
         }
     }
@@ -1326,9 +1441,15 @@ class MainViewModel(
 
         val savedUnfoldered = settings.getStringOrNull(KEY_UNFOLDERED_ORDER)
         val unfolderedTabs = if (savedUnfoldered != null) {
-            val orderedLogins = savedUnfoldered.split(",").filter { it.isNotBlank() && it in openSet }
+            val orderedLogins =
+                savedUnfoldered.split(",").filter { it.isNotBlank() && it in openSet }
             val missing = channelLogins.filter { it !in orderedLogins.toSet() }
-            (orderedLogins + missing).map { login -> ChannelTab(login = login, displayName = login) }
+            (orderedLogins + missing).map { login ->
+                ChannelTab(
+                    login = login,
+                    displayName = login
+                )
+            }
         } else {
             openTabs
         }
@@ -1380,26 +1501,25 @@ class MainViewModel(
     }
 
     private suspend fun pollLiveStatus() {
-        val account = state.value.selectedAccount ?: return
         val allLogins = getAllChannelLogins()
         if (allLogins.isEmpty()) return
-        try {
-            val result = apiClient.getStreams(
-                accessToken = account.accessToken,
-                userLogins = allLogins.take(100),
-                first = 100
-            )
-            when (result) {
-                is Result.Success -> {
-                    updateLiveStatus(result.data.data.map { it.userLogin.lowercase() }.toSet())
-                    fetchAndUpdateProfileImages()
-                }
+        val account = state.value.selectedAccount
+        val helixLive = account?.let { helixLiveLogins(it.accessToken, allLogins) }
+        val live = helixLive ?: liveStatusClient.liveStreams(allLogins)?.keys ?: return
+        updateLiveStatus(live)
+        fetchAndUpdateProfileImages()
+    }
 
-                else -> {}
-            }
-        } catch (e: Exception) {
-            Napier.e("PollLive exception: ${e.message}", e, tag = TAG)
+    private suspend fun helixLiveLogins(accessToken: String, logins: List<String>): Set<String>? = try {
+        when (val result = apiClient.getStreams(accessToken = accessToken, userLogins = logins.take(100), first = 100)) {
+            is Result.Success -> result.data.data.mapTo(HashSet()) { it.userLogin.lowercase() }
+            else -> null
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Napier.e("PollLive exception: ${e.message}", e, tag = TAG)
+        null
     }
 
     private fun getAllChannelLogins(): List<String> {
@@ -1434,47 +1554,56 @@ class MainViewModel(
     }
 
     private suspend fun fetchAndUpdateProfileImages() {
-        val account = state.value.selectedAccount ?: return
-        val channelsToUpdate = getAllChannelLogins().filter { login ->
-            val tab = state.value.openChannels.firstOrNull { it.login.lowercase() == login }
-                ?: state.value.unfolderedChannels.firstOrNull { it.login.lowercase() == login }
-                ?: state.value.folders.firstNotNullOfOrNull { f -> f.channels.firstOrNull { it.login.lowercase() == login } }
-                ?: state.value.recentChannels.firstOrNull { it.login.lowercase() == login }
+        val missing = channelsMissingProfile()
+        if (missing.isEmpty()) return
+        val profiles = loadProfiles(missing.take(100)) ?: return
+        fun enrich(ch: ChannelTab): ChannelTab {
+            val profile = profiles[ch.login.lowercase()] ?: return ch
+            val name = profile.displayName.takeIf { it.isNotBlank() }
+            return ch.copy(
+                profileImageUrl = ch.profileImageUrl.ifEmpty { profile.avatarUrl },
+                displayName = if (name != null && ch.displayName.equals(ch.login, ignoreCase = true)) name else ch.displayName
+            )
+        }
+        update { state ->
+            state.copy(
+                openChannels = state.openChannels.map(::enrich),
+                unfolderedChannels = state.unfolderedChannels.map(::enrich),
+                folders = state.folders.map { folder -> folder.copy(channels = folder.channels.map(::enrich)) },
+                recentChannels = state.recentChannels.map(::enrich)
+            )
+        }
+    }
+
+    private fun channelsMissingProfile(): List<String> {
+        val s = state.value
+        val tabs = (s.openChannels + s.unfolderedChannels + s.folders.flatMap { it.channels } + s.recentChannels)
+            .associateBy { it.login.lowercase() }
+        return getAllChannelLogins().filter { login ->
+            val tab = tabs[login]
             tab == null || tab.profileImageUrl.isEmpty() || tab.displayName.equals(tab.login, ignoreCase = true)
         }
-        if (channelsToUpdate.isEmpty()) return
-        try {
-            val result = apiClient.getUsers(
-                accessToken = account.accessToken,
-                logins = channelsToUpdate.take(100)
-            )
-            if (result is Result.Success) {
-                val imageMap =
-                    result.data.data.associateBy({ it.login.lowercase() }, { it.profileImageUrl })
-                val nameMap =
-                    result.data.data.associateBy({ it.login.lowercase() }, { it.displayName })
-                fun enrich(ch: ChannelTab): ChannelTab {
-                    val key = ch.login.lowercase()
-                    val url = imageMap[key]
-                    val name = nameMap[key]?.takeIf { it.isNotBlank() }
-                    return ch.copy(
-                        profileImageUrl = if (ch.profileImageUrl.isEmpty() && url != null) url else ch.profileImageUrl,
-                        displayName = if (name != null && ch.displayName.equals(ch.login, ignoreCase = true)) name else ch.displayName
+    }
+
+    private suspend fun loadProfiles(logins: List<String>): Map<String, ChannelSnapshot>? {
+        val account = state.value.selectedAccount ?: return liveStatusClient.profiles(logins)
+        return try {
+            when (val result = apiClient.getUsers(accessToken = account.accessToken, logins = logins)) {
+                is Result.Success -> result.data.data.associate { user ->
+                    user.login.lowercase() to ChannelSnapshot(
+                        login = user.login.lowercase(),
+                        displayName = user.displayName,
+                        avatarUrl = user.profileImageUrl
                     )
                 }
-                update { state ->
-                    state.copy(
-                        openChannels = state.openChannels.map(::enrich),
-                        unfolderedChannels = state.unfolderedChannels.map(::enrich),
-                        folders = state.folders.map { folder ->
-                            folder.copy(channels = folder.channels.map(::enrich))
-                        },
-                        recentChannels = state.recentChannels.map(::enrich)
-                    )
-                }
+
+                else -> liveStatusClient.profiles(logins)
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.w("Failed to fetch profile images: ${e.message}", tag = TAG)
+            null
         }
     }
 
@@ -1689,6 +1818,7 @@ class MainViewModel(
         viewModelScope.launch { sevenTvEventApi.disconnect() }
         super.onCleared()
     }
+
     private fun refreshChannelMuteFlags() {
         update { state ->
             state.copy(

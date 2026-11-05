@@ -1,5 +1,12 @@
 package io.rudione.chatone.presentation.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.unit_days_label
+import chatone.composeapp.generated.resources.unit_hours_label
+import chatone.composeapp.generated.resources.unit_minutes_label
+import chatone.composeapp.generated.resources.unit_seconds_label
+import chatone.composeapp.generated.resources.unit_weeks_label
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -33,7 +40,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.Check
 import io.rudione.chatone.icons.lucide.ChevronDown
 import io.rudione.chatone.icons.lucide.Lucide
@@ -57,13 +63,12 @@ enum class DurationUnit(val seconds: Int) {
 
 @Composable
 fun DurationUnit.shortLabel(): String {
-    val s = LocalStrings.current
     return when (this) {
-        DurationUnit.SECONDS -> s.unitSecondsLabel
-        DurationUnit.MINUTES -> s.unitMinutesLabel
-        DurationUnit.HOURS -> s.unitHoursLabel
-        DurationUnit.DAYS -> s.unitDaysLabel
-        DurationUnit.WEEKS -> s.unitWeeksLabel
+        DurationUnit.SECONDS -> stringResource(Res.string.unit_seconds_label)
+        DurationUnit.MINUTES -> stringResource(Res.string.unit_minutes_label)
+        DurationUnit.HOURS -> stringResource(Res.string.unit_hours_label)
+        DurationUnit.DAYS -> stringResource(Res.string.unit_days_label)
+        DurationUnit.WEEKS -> stringResource(Res.string.unit_weeks_label)
     }
 }
 

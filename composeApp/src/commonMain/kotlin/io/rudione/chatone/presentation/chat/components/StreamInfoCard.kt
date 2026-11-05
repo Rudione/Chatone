@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat.components
 
+import io.rudione.chatone.presentation.stream.decimalSeparator
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.unit_hour_short
+import chatone.composeapp.generated.resources.unit_minute_short
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,7 +38,6 @@ import io.rudione.chatone.icons.lucide.Eye
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.presentation.stream.StreamFormatting
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 private val PreviewShape = RoundedCornerShape(8.dp)
 private val ChipShape = RoundedCornerShape(6.dp)
@@ -47,7 +51,6 @@ internal fun StreamInfoContent(
     footer: String?,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
     val content = LocalContentColor.current
     val muted = content.copy(alpha = 0.72f)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -84,9 +87,9 @@ internal fun StreamInfoContent(
             itemVerticalAlignment = Alignment.CenterVertically
         ) {
             if (liveStream.viewerCount > 0) {
-                InfoItem(Lucide.Eye, StreamFormatting.compactCount(liveStream.viewerCount, s.player.decimalSeparator), muted)
+                InfoItem(Lucide.Eye, StreamFormatting.compactCount(liveStream.viewerCount, decimalSeparator()), muted)
             }
-            val uptime = formatStreamUptime(liveStream.startedAt, s.unitHourShort, s.unitMinuteShort)
+            val uptime = formatStreamUptime(liveStream.startedAt, stringResource(Res.string.unit_hour_short), stringResource(Res.string.unit_minute_short))
             if (uptime.isNotEmpty()) InfoItem(Lucide.Timer, uptime, muted)
             if (liveStream.language.isNotBlank()) InfoChip(liveStream.language.uppercase(), muted)
             if (liveStream.isMature) InfoChip(MATURE_LABEL, muted)

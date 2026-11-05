@@ -1,5 +1,30 @@
 package io.rudione.chatone.presentation.chat.presence
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.profile_archive_failed
+import chatone.composeapp.generated.resources.profile_archive_not_logged
+import chatone.composeapp.generated.resources.profile_archive_retry
+import chatone.composeapp.generated.resources.profile_presence_active_days
+import chatone.composeapp.generated.resources.profile_presence_best_streak
+import chatone.composeapp.generated.resources.profile_presence_current_streak
+import chatone.composeapp.generated.resources.profile_presence_day
+import chatone.composeapp.generated.resources.profile_presence_day_empty
+import chatone.composeapp.generated.resources.profile_presence_days
+import chatone.composeapp.generated.resources.profile_presence_empty
+import chatone.composeapp.generated.resources.profile_presence_favorite_day
+import chatone.composeapp.generated.resources.profile_presence_hint
+import chatone.composeapp.generated.resources.profile_presence_hours
+import chatone.composeapp.generated.resources.profile_presence_loading
+import chatone.composeapp.generated.resources.profile_presence_months_short
+import chatone.composeapp.generated.resources.profile_presence_open
+import chatone.composeapp.generated.resources.profile_presence_partial
+import chatone.composeapp.generated.resources.profile_presence_peak_hour
+import chatone.composeapp.generated.resources.profile_presence_period
+import chatone.composeapp.generated.resources.profile_presence_title
+import chatone.composeapp.generated.resources.profile_presence_total
+import chatone.composeapp.generated.resources.profile_presence_weekdays
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.stringArrayResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.graphicsLayer
@@ -61,8 +86,6 @@ import androidx.compose.ui.unit.sp
 import io.rudione.chatone.icons.lucide.CalendarDays
 import io.rudione.chatone.icons.lucide.ChevronDown
 import io.rudione.chatone.icons.lucide.Lucide
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.isoDayNumber
 
@@ -75,7 +98,6 @@ private val MaxCell = 14.dp
 @Composable
 internal fun PresenceMapSection(state: UserPresenceState, modifier: Modifier = Modifier) {
     if (!state.isSupported) return
-    val s = LocalStrings.current
     val accent = MaterialTheme.colorScheme.primary
     val arrow = animateFloatAsState(if (state.isOpen) 180f else 0f)
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -92,7 +114,7 @@ internal fun PresenceMapSection(state: UserPresenceState, modifier: Modifier = M
         ) {
             Icon(Lucide.CalendarDays, contentDescription = null, modifier = Modifier.size(14.dp), tint = accent)
             Text(
-                s.profilePresenceOpen,
+                stringResource(Res.string.profile_presence_open),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = accent,
@@ -118,7 +140,6 @@ internal fun PresenceMapSection(state: UserPresenceState, modifier: Modifier = M
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PresenceMapCard(state: UserPresenceState) {
-    val s = LocalStrings.current
     var selected by remember { mutableStateOf<LocalDate?>(null) }
     val presence = state.presence
 
@@ -133,13 +154,13 @@ private fun PresenceMapCard(state: UserPresenceState) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                s.profilePresenceTitle,
+                stringResource(Res.string.profile_presence_title),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                s.profilePresencePeriod,
+                stringResource(Res.string.profile_presence_period),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.weight(1f)
@@ -150,11 +171,11 @@ private fun PresenceMapCard(state: UserPresenceState) {
         }
 
         when (state.status) {
-            UserPresenceState.Status.NotLogged -> PresenceNote(s.profileArchiveNotLogged)
+            UserPresenceState.Status.NotLogged -> PresenceNote(stringResource(Res.string.profile_archive_not_logged))
             UserPresenceState.Status.Failed -> {
-                PresenceNote(s.profileArchiveFailed)
+                PresenceNote(stringResource(Res.string.profile_archive_failed))
                 TextButton(onClick = state::retry) {
-                    Text(s.profileArchiveRetry, style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(Res.string.profile_archive_retry), style = MaterialTheme.typography.labelSmall)
                 }
             }
 
@@ -165,7 +186,7 @@ private fun PresenceMapCard(state: UserPresenceState) {
                         modifier = Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp))
                     )
                     PresenceNote(
-                        s.format(s.profilePresenceLoading, state.loadedMonths.toString(), state.totalMonths.toString())
+                        stringResource(Res.string.profile_presence_loading, state.loadedMonths.toString(), state.totalMonths.toString())
                     )
                 }
                 PresenceHeatmap(
@@ -182,31 +203,31 @@ private fun PresenceMapCard(state: UserPresenceState) {
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        PresenceStat(s.profilePresenceTotal, presence.total.toString())
-                        PresenceStat(s.profilePresenceActiveDays, presence.activeDays.toString())
-                        PresenceStat(s.profilePresenceBestStreak, s.format(s.profilePresenceDays, presence.longestStreak.toString()))
+                        PresenceStat(stringResource(Res.string.profile_presence_total), presence.total.toString())
+                        PresenceStat(stringResource(Res.string.profile_presence_active_days), presence.activeDays.toString())
+                        PresenceStat(stringResource(Res.string.profile_presence_best_streak), stringResource(Res.string.profile_presence_days, presence.longestStreak.toString()))
                         if (presence.currentStreak > 0) {
                             PresenceStat(
-                                s.profilePresenceCurrentStreak,
-                                s.format(s.profilePresenceDays, presence.currentStreak.toString())
+                                stringResource(Res.string.profile_presence_current_streak),
+                                stringResource(Res.string.profile_presence_days, presence.currentStreak.toString())
                             )
                         }
                         presence.favoriteWeekday?.let { day ->
-                            PresenceStat(s.profilePresenceFavoriteDay, s.profilePresenceWeekdays[day.isoDayNumber - 1])
+                            PresenceStat(stringResource(Res.string.profile_presence_favorite_day), stringArrayResource(Res.array.profile_presence_weekdays)[day.isoDayNumber - 1])
                         }
                         presence.peakHour?.let { hour ->
-                            PresenceStat(s.profilePresencePeakHour, "${hour.toString().padStart(2, '0')}:00")
+                            PresenceStat(stringResource(Res.string.profile_presence_peak_hour), "${hour.toString().padStart(2, '0')}:00")
                         }
                     }
                     HourHistogram(presence.hourCounts, presence.peakHour)
                 } else if (state.status == UserPresenceState.Status.Ready) {
-                    PresenceNote(s.profilePresenceEmpty)
+                    PresenceNote(stringResource(Res.string.profile_presence_empty))
                 }
                 if (state.partial && state.status == UserPresenceState.Status.Ready) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        PresenceNote(s.profilePresencePartial)
+                        PresenceNote(stringResource(Res.string.profile_presence_partial))
                         TextButton(onClick = state::retry) {
-                            Text(s.profileArchiveRetry, style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(Res.string.profile_archive_retry), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -234,7 +255,8 @@ private fun PresenceHeatmap(
     selected: LocalDate?,
     onSelect: (LocalDate?) -> Unit
 ) {
-    val s = LocalStrings.current
+    val profilePresenceWeekdaysText = stringArrayResource(Res.array.profile_presence_weekdays)
+    val profilePresenceMonthsShortText = stringArrayResource(Res.array.profile_presence_months_short)
     val start = remember(today) { ChatPresenceMath.gridStart(today) }
     val weeks = ChatPresenceMath.WEEKS
     val levelColors = presenceLevelColors()
@@ -269,7 +291,7 @@ private fun PresenceHeatmap(
             Canvas(modifier = Modifier.width(WeekdayLabelWidth).height(gridHeight)) {
                 val step = (cell + CellGap).toPx()
                 listOf(0, 2, 4).forEach { row ->
-                    val label = measurer.measure(s.profilePresenceWeekdays[row], labelStyle)
+                    val label = measurer.measure(profilePresenceWeekdaysText[row], labelStyle)
                     val top = MonthLabelHeight.toPx() + row * step + (cell.toPx() - label.size.height) / 2f
                     drawText(label, topLeft = Offset(0f, top))
                 }
@@ -304,7 +326,7 @@ private fun PresenceHeatmap(
                             column - lastLabelColumn >= 3
                         ) {
                             val label = measurer.measure(
-                                s.profilePresenceMonthsShort[weekStart.month.ordinal],
+                                profilePresenceMonthsShortText[weekStart.month.ordinal],
                                 labelStyle
                             )
                             drawText(label, topLeft = Offset(column * step, 0f))
@@ -346,12 +368,11 @@ private fun PresenceHeatmap(
 
 @Composable
 private fun SelectedDayLine(selected: LocalDate?, counts: Map<LocalDate, Int>) {
-    val s = LocalStrings.current
     val text = selected?.let { date ->
         val count = counts[date] ?: 0
-        if (count > 0) s.format(s.profilePresenceDay, formatPresenceDate(date), count.toString())
-        else s.format(s.profilePresenceDayEmpty, formatPresenceDate(date))
-    } ?: s.profilePresenceHint
+        if (count > 0) stringResource(Res.string.profile_presence_day, formatPresenceDate(date), count.toString())
+        else stringResource(Res.string.profile_presence_day_empty, formatPresenceDate(date))
+    } ?: stringResource(Res.string.profile_presence_hint)
     Text(
         text,
         style = MaterialTheme.typography.labelSmall,
@@ -413,14 +434,13 @@ private fun PresenceStat(caption: String, value: String) {
 
 @Composable
 private fun HourHistogram(hours: List<Int>, peak: Int?) {
-    val s = LocalStrings.current
     val accent = MaterialTheme.colorScheme.primary
     val measurer = rememberTextMeasurer()
     val labelStyle = TextStyle(fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
     val max = (hours.maxOrNull() ?: 0).coerceAtLeast(1)
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
-            s.profilePresenceHours,
+            stringResource(Res.string.profile_presence_hours),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )

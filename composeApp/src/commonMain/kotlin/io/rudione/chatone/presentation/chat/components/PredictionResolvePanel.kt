@@ -1,5 +1,14 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.prediction_bet_cancel
+import chatone.composeapp.generated.resources.prediction_resolve_complete
+import chatone.composeapp.generated.resources.prediction_resolve_detach
+import chatone.composeapp.generated.resources.prediction_resolve_lock
+import chatone.composeapp.generated.resources.prediction_resolve_subtitle
+import chatone.composeapp.generated.resources.prediction_resolve_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.drawBehind
@@ -37,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.remote.dto.PredictionData
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.ExternalLink
 import io.rudione.chatone.icons.lucide.Lock
 import io.rudione.chatone.icons.lucide.Lucide
@@ -70,7 +78,6 @@ internal fun PredictionResolvePanel(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
     var selected by remember(prediction.id) { mutableStateOf<String?>(null) }
     val totalPoints = prediction.outcomes.sumOf { it.channelPoints }.toLong()
     val isLocked = prediction.status == "LOCKED"
@@ -90,13 +97,13 @@ internal fun PredictionResolvePanel(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    s.predictionResolveTitle,
+                    stringResource(Res.string.prediction_resolve_title),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    s.predictionResolveSubtitle,
+                    stringResource(Res.string.prediction_resolve_subtitle),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -107,7 +114,7 @@ internal fun PredictionResolvePanel(
                 ChatoneIconButton(onClick = onDetach, modifier = Modifier.size(24.dp)) {
                     Icon(
                         Lucide.ExternalLink,
-                        contentDescription = s.predictionResolveDetach,
+                        contentDescription = stringResource(Res.string.prediction_resolve_detach),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -116,7 +123,7 @@ internal fun PredictionResolvePanel(
             ChatoneIconButton(onClick = onClose, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Lucide.X,
-                    contentDescription = s.cancel,
+                    contentDescription = stringResource(Res.string.cancel),
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -155,7 +162,7 @@ internal fun PredictionResolvePanel(
         ) {
             if (!isLocked) {
                 ResolveActionButton(
-                    label = s.predictionResolveLock,
+                    label = stringResource(Res.string.prediction_resolve_lock),
                     filled = false,
                     accent = MaterialTheme.colorScheme.primary,
                     enabled = true,
@@ -165,7 +172,7 @@ internal fun PredictionResolvePanel(
                 )
             }
             ResolveActionButton(
-                label = s.predictionBetCancel,
+                label = stringResource(Res.string.prediction_bet_cancel),
                 filled = false,
                 accent = MaterialTheme.colorScheme.primary,
                 enabled = true,
@@ -173,7 +180,7 @@ internal fun PredictionResolvePanel(
                 onClick = onClose
             )
             ResolveActionButton(
-                label = s.predictionResolveComplete,
+                label = stringResource(Res.string.prediction_resolve_complete),
                 filled = true,
                 accent = MaterialTheme.colorScheme.primary,
                 enabled = selected != null,

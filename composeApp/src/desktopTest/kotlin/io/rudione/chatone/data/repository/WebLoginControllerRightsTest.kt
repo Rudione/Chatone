@@ -367,7 +367,9 @@ class WebLoginControllerRightsTest {
     }
 
     private class FakeAuthRepository(private val account: TwitchAccount) : AuthRepository {
-        override suspend fun authenticateWithToken(accessToken: String): Result<TwitchAccount> = Result.Success(account)
+        override suspend fun refreshAccount(account: TwitchAccount): TokenRefreshOutcome = TokenRefreshOutcome.Rejected
+
+        override suspend fun authenticateWithToken(accessToken: String, refreshToken: String): Result<TwitchAccount> = Result.Success(account)
         override suspend fun validateToken(account: TwitchAccount): Result<Boolean> = Result.Success(true)
         override suspend fun revokeToken(account: TwitchAccount): Result<Unit> = Result.Success(Unit)
         override suspend fun saveAccount(account: TwitchAccount) = Unit

@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.multi_chat_add_panel
+import chatone.composeapp.generated.resources.multi_chat_drag_hint
+import chatone.composeapp.generated.resources.ok
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -18,14 +23,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 fun MultiChatGuidedTour(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val strings = LocalStrings.current
     var visible by remember { mutableStateOf(true) }
     AnimatedVisibility(visible = visible, modifier = modifier) {
         Box(
@@ -37,12 +40,12 @@ fun MultiChatGuidedTour(
         ) {
             Column {
                 Text(
-                    text = strings.multiChatAddPanel,
+                    text = stringResource(Res.string.multi_chat_add_panel),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Text(
-                    text = strings.multiChatDragHint,
+                    text = stringResource(Res.string.multi_chat_drag_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )
@@ -50,7 +53,7 @@ fun MultiChatGuidedTour(
                     visible = false
                     onDismiss()
                 }) {
-                    Text(strings.ok)
+                    Text(stringResource(Res.string.ok))
                 }
             }
         }

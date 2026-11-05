@@ -1,5 +1,33 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.media_clip
+import chatone.composeapp.generated.resources.player_audio_only
+import chatone.composeapp.generated.resources.player_back
+import chatone.composeapp.generated.resources.player_chat
+import chatone.composeapp.generated.resources.player_chat_hidden
+import chatone.composeapp.generated.resources.player_chat_overlay
+import chatone.composeapp.generated.resources.player_chat_side
+import chatone.composeapp.generated.resources.player_close
+import chatone.composeapp.generated.resources.player_exit_fullscreen
+import chatone.composeapp.generated.resources.player_fullscreen
+import chatone.composeapp.generated.resources.player_landscape_chat
+import chatone.composeapp.generated.resources.player_live
+import chatone.composeapp.generated.resources.player_mute
+import chatone.composeapp.generated.resources.player_offline
+import chatone.composeapp.generated.resources.player_other_channel_notice
+import chatone.composeapp.generated.resources.player_pause
+import chatone.composeapp.generated.resources.player_picture_in_picture
+import chatone.composeapp.generated.resources.player_play
+import chatone.composeapp.generated.resources.player_quality_auto
+import chatone.composeapp.generated.resources.player_retry
+import chatone.composeapp.generated.resources.player_settings
+import chatone.composeapp.generated.resources.player_unmute
+import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.koinInject
+import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.Clapperboard
+import io.rudione.chatone.presentation.profile.PageNavigator
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.drawBehind
@@ -75,9 +103,6 @@ import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.stream.LandscapeChatMode
 import io.rudione.chatone.domain.stream.StreamPhase
 import io.rudione.chatone.domain.stream.StreamQualitySelection
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.StreamPlayerStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 
@@ -108,7 +133,6 @@ internal fun BoxScope.StreamControlsOverlay(
     pictureInPictureSupported: Boolean,
     callbacks: StreamControlsCallbacks
 ) {
-    val strings = LocalStrings.current.player
     val compact = !isFullscreen
     val buttonSize = if (compact) 38.dp else 44.dp
     val iconSize = if (compact) 21.dp else 24.dp
@@ -138,17 +162,28 @@ internal fun BoxScope.StreamControlsOverlay(
         callbacks.onBack?.let { onBack ->
             PlayerIconButton(
                 icon = Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = strings.back,
+                contentDescription = stringResource(Res.string.player_back),
                 onClick = onBack,
                 size = buttonSize,
                 iconSize = iconSize
             )
         }
         Spacer(Modifier.weight(1f))
+        val pages: PageNavigator = koinInject()
+        val clipLogin = state.channelLogin
+        if (pages.isSupported && clipLogin != null && state.isPlaybackActive) {
+            PlayerIconButton(
+                icon = Lucide.Clapperboard,
+                contentDescription = stringResource(Res.string.media_clip),
+                onClick = { pages.createClip(clipLogin, latencySeconds?.value) },
+                size = buttonSize,
+                iconSize = iconSize
+            )
+        }
         if (pictureInPictureSupported && state.isPlaybackActive) {
             PlayerIconButton(
                 icon = Icons.Rounded.PictureInPictureAlt,
-                contentDescription = strings.pictureInPicture,
+                contentDescription = stringResource(Res.string.player_picture_in_picture),
                 onClick = callbacks.onEnterPictureInPicture,
                 size = buttonSize,
                 iconSize = iconSize
@@ -156,7 +191,7 @@ internal fun BoxScope.StreamControlsOverlay(
         }
         PlayerIconButton(
             icon = Icons.Rounded.Settings,
-            contentDescription = strings.settings,
+            contentDescription = stringResource(Res.string.player_settings),
             onClick = { callbacks.onEvent(StreamPlayerEvent.SetSettingsVisible(true)) },
             size = buttonSize,
             iconSize = iconSize
@@ -167,7 +202,7 @@ internal fun BoxScope.StreamControlsOverlay(
         val playing = state.isPlaybackActive
         PlayerIconButton(
             icon = if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-            contentDescription = if (playing) strings.pause else strings.play,
+            contentDescription = if (playing) stringResource(Res.string.player_pause) else stringResource(Res.string.player_play),
             onClick = { callbacks.onEvent(StreamPlayerEvent.TogglePlayback) },
             size = if (compact) 58.dp else 68.dp,
             iconSize = if (compact) 34.dp else 40.dp,
@@ -183,20 +218,21 @@ internal fun BoxScope.StreamControlsOverlay(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        LiveBadge(
-            liveInfo = liveInfo,
-            fallbackStartedAtMs = state.streamStartedAtMs,
-            latencySeconds = latencySeconds,
-            strings = strings,
-            compact = compact
-        )
+        if (state.phase != StreamPhase.OFFLINE && state.phase != StreamPhase.ENDED) {
+            LiveBadge(
+                liveInfo = liveInfo,
+                fallbackStartedAtMs = state.streamStartedAtMs,
+                latencySeconds = latencySeconds,
+                compact = compact
+            )
+        }
         Spacer(Modifier.weight(1f))
-        QualityPill(state = state, strings = strings) {
+        QualityPill(state = state) {
             callbacks.onEvent(StreamPlayerEvent.SetSettingsVisible(true))
         }
         PlayerIconButton(
             icon = if (state.isMuted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
-            contentDescription = if (state.isMuted) strings.unmute else strings.mute,
+            contentDescription = if (state.isMuted) stringResource(Res.string.player_unmute) else stringResource(Res.string.player_mute),
             onClick = { callbacks.onEvent(StreamPlayerEvent.ToggleMute) },
             size = buttonSize,
             iconSize = iconSize,
@@ -204,7 +240,7 @@ internal fun BoxScope.StreamControlsOverlay(
         )
         PlayerIconButton(
             icon = if (isFullscreen) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
-            contentDescription = if (isFullscreen) strings.exitFullscreen else strings.fullscreen,
+            contentDescription = if (isFullscreen) stringResource(Res.string.player_exit_fullscreen) else stringResource(Res.string.player_fullscreen),
             onClick = callbacks.onToggleFullscreen,
             size = buttonSize,
             iconSize = iconSize
@@ -213,7 +249,7 @@ internal fun BoxScope.StreamControlsOverlay(
             val mode = state.preferences.landscapeChatMode
             PlayerIconButton(
                 icon = chatModeIcon(mode),
-                contentDescription = "${strings.landscapeChat}: ${chatModeLabel(mode, strings)}",
+                contentDescription = "${stringResource(Res.string.player_landscape_chat)}: ${chatModeLabel(mode)}",
                 onClick = { callbacks.onEvent(StreamPlayerEvent.CycleLandscapeChatMode) },
                 size = buttonSize,
                 iconSize = iconSize
@@ -229,7 +265,6 @@ internal fun BoxScope.OtherChannelNotice(
     compact: Boolean,
     onDismiss: () -> Unit
 ) {
-    val appStrings = LocalStrings.current
     Row(
         modifier = Modifier
             .align(Alignment.TopCenter)
@@ -240,7 +275,7 @@ internal fun BoxScope.OtherChannelNotice(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = appStrings.format(appStrings.player.otherChannelNotice, chatChannelLogin, streamChannelLogin),
+            text = stringResource(Res.string.player_other_channel_notice, chatChannelLogin, streamChannelLogin),
             color = Color.White,
             fontSize = if (compact) 11.sp else 12.sp,
             fontWeight = FontWeight.Medium,
@@ -260,7 +295,7 @@ internal fun BoxScope.OtherChannelNotice(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Rounded.Close, contentDescription = appStrings.player.close, tint = Color.White, modifier = Modifier.size(15.dp))
+            Icon(Icons.Rounded.Close, contentDescription = stringResource(Res.string.player_close), tint = Color.White, modifier = Modifier.size(15.dp))
         }
     }
 }
@@ -274,7 +309,6 @@ internal fun BoxScope.ChatModeHint(changes: Int, mode: LandscapeChatMode) {
         delay(CHAT_MODE_HINT_MS)
         visible = false
     }
-    val strings = LocalStrings.current.player
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(tween(120)) + scaleIn(tween(160), initialScale = 0.9f),
@@ -293,7 +327,7 @@ internal fun BoxScope.ChatModeHint(changes: Int, mode: LandscapeChatMode) {
             Icon(chatModeIcon(mode), contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(8.dp))
             Text(
-                text = "${strings.chat}: ${chatModeLabel(mode, strings)}",
+                text = "${stringResource(Res.string.player_chat)}: ${chatModeLabel(mode)}",
                 color = Color.White,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -308,11 +342,9 @@ internal fun BoxScope.StreamStatusOverlay(
     state: StreamPlayerUiState,
     onRetry: () -> Unit
 ) {
-    val appStrings = LocalStrings.current
-    val strings = appStrings.player
     val message = when (state.phase) {
-        StreamPhase.OFFLINE -> appStrings.format(strings.offline, state.channelLogin.orEmpty())
-        else -> StreamFormatting.errorMessage(state.errorKind, strings)
+        StreamPhase.OFFLINE -> stringResource(Res.string.player_offline, state.channelLogin.orEmpty())
+        else -> StreamFormatting.errorMessage(state.errorKind)
     }
     Column(
         modifier = Modifier
@@ -344,7 +376,7 @@ internal fun BoxScope.StreamStatusOverlay(
             ) {
                 Icon(Icons.Rounded.Refresh, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(strings.retry, color = Color.White, style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(Res.string.player_retry), color = Color.White, style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -404,7 +436,6 @@ private fun LiveBadge(
     liveInfo: StreamLiveInfo?,
     fallbackStartedAtMs: Long?,
     latencySeconds: StateFlow<Float?>?,
-    strings: StreamPlayerStrings,
     compact: Boolean
 ) {
     val startedAtIso = liveInfo?.startedAt?.takeIf { it.isNotEmpty() }
@@ -435,7 +466,7 @@ private fun LiveBadge(
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            text = uptime ?: strings.live,
+            text = uptime ?: stringResource(Res.string.player_live),
             color = Color.White,
             fontSize = textSize,
             fontWeight = FontWeight.SemiBold,
@@ -457,7 +488,7 @@ private fun LiveBadge(
             Icon(Icons.Rounded.PersonOutline, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(3.dp))
             Text(
-                text = StreamFormatting.compactCount(liveInfo.viewerCount, strings.decimalSeparator),
+                text = StreamFormatting.compactCount(liveInfo.viewerCount, decimalSeparator()),
                 color = Color.White,
                 fontSize = textSize,
                 fontWeight = FontWeight.SemiBold,
@@ -468,12 +499,12 @@ private fun LiveBadge(
 }
 
 @Composable
-private fun QualityPill(state: StreamPlayerUiState, strings: StreamPlayerStrings, onClick: () -> Unit) {
+private fun QualityPill(state: StreamPlayerUiState, onClick: () -> Unit) {
     val label = when (val selection = state.selection) {
-        StreamQualitySelection.Auto -> state.activeVariant?.displayName ?: strings.qualityAuto
-        StreamQualitySelection.AudioOnly -> strings.audioOnly
+        StreamQualitySelection.Auto -> state.activeVariant?.displayName ?: stringResource(Res.string.player_quality_auto)
+        StreamQualitySelection.AudioOnly -> stringResource(Res.string.player_audio_only)
         is StreamQualitySelection.Fixed ->
-            state.variants.firstOrNull { it.groupId == selection.groupId }?.displayName ?: strings.qualityAuto
+            state.variants.firstOrNull { it.groupId == selection.groupId }?.displayName ?: stringResource(Res.string.player_quality_auto)
     }
     Text(
         text = label,
@@ -500,8 +531,9 @@ internal fun chatModeIcon(mode: LandscapeChatMode): ImageVector = when (mode) {
     LandscapeChatMode.HIDDEN -> Icons.Rounded.CommentsDisabled
 }
 
-internal fun chatModeLabel(mode: LandscapeChatMode, strings: StreamPlayerStrings): String = when (mode) {
-    LandscapeChatMode.SIDE -> strings.chatSide
-    LandscapeChatMode.OVERLAY -> strings.chatOverlay
-    LandscapeChatMode.HIDDEN -> strings.chatHidden
+@Composable
+internal fun chatModeLabel(mode: LandscapeChatMode): String = when (mode) {
+    LandscapeChatMode.SIDE -> stringResource(Res.string.player_chat_side)
+    LandscapeChatMode.OVERLAY -> stringResource(Res.string.player_chat_overlay)
+    LandscapeChatMode.HIDDEN -> stringResource(Res.string.player_chat_hidden)
 }

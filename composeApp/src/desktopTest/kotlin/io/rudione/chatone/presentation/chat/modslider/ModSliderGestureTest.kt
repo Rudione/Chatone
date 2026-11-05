@@ -30,8 +30,6 @@ import io.rudione.chatone.domain.moderation.ModSliderDurations
 import io.rudione.chatone.presentation.chat.PrivMsgItem
 import io.rudione.chatone.presentation.chat.TranslationStore
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.StringsRu
 import io.rudione.chatone.util.chat.MessageToken
 import kotlinx.coroutines.test.StandardTestDispatcher
 import org.koin.compose.KoinApplication
@@ -72,34 +70,33 @@ class ModSliderGestureTest {
     private val scene = ImageComposeScene(width = 720, height = 260, density = Density(1.5f), coroutineContext = dispatcher) {
         val store = remember { TranslationStore(TranslationClient(HttpClient(MockEngine { respondOk() }))) }
         KoinApplication(application = { modules(module { single { store } }) }) {
-            CompositionLocalProvider(LocalStrings provides StringsRu) {
-                ChatoneTheme(darkTheme = true) {
-                    val style = rememberModSliderStyle()
-                    val binding = remember(style) {
-                        ModSliderBinding(host, style, durations, deleteAtStart = true, banAtEnd = true, travelFraction = 0.4f)
-                    }
-                    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(8.dp)) {
-                        listOf(
-                            message(1, "viewer_one", "первое сообщение в чате"),
-                            message(2, "spammer", "купите подписчиков дешево"),
-                            message(3, "viewer_two", "ахах ну и стрим сегодня")
-                        ).forEach { msg ->
-                            PrivMsgItem(
-                                message = msg,
-                                showModActions = true,
-                                actorCanModerate = true,
-                                isMod = true,
-                                modSlider = binding,
-                                onDelete = { actions += ModSliderAction.Delete },
-                                onCustomTimeout = { actions += ModSliderAction.Timeout(it) },
-                                onBan = { actions += ModSliderAction.Ban },
-                                onUnban = { actions += ModSliderAction.Unban },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+            ChatoneTheme(darkTheme = true) {
+                val style = rememberModSliderStyle()
+                val binding = remember(style) {
+                    ModSliderBinding(host, style, durations, deleteAtStart = true, banAtEnd = true, travelFraction = 0.4f)
+                }
+                Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(8.dp)) {
+                    listOf(
+                        message(1, "viewer_one", "первое сообщение в чате"),
+                        message(2, "spammer", "купите подписчиков дешево"),
+                        message(3, "viewer_two", "ахах ну и стрим сегодня")
+                    ).forEach { msg ->
+                        PrivMsgItem(
+                            message = msg,
+                            showModActions = true,
+                            actorCanModerate = true,
+                            isMod = true,
+                            modSlider = binding,
+                            onDelete = { actions += ModSliderAction.Delete },
+                            onCustomTimeout = { actions += ModSliderAction.Timeout(it) },
+                            onBan = { actions += ModSliderAction.Ban },
+                            onUnban = { actions += ModSliderAction.Unban },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
+        
         }
     }
 

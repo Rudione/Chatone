@@ -1,5 +1,15 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.profile_archive_banned
+import chatone.composeapp.generated.resources.profile_archive_empty
+import chatone.composeapp.generated.resources.profile_archive_failed
+import chatone.composeapp.generated.resources.profile_archive_load_older
+import chatone.composeapp.generated.resources.profile_archive_not_logged
+import chatone.composeapp.generated.resources.profile_archive_retry
+import chatone.composeapp.generated.resources.profile_archive_timed_out
+import chatone.composeapp.generated.resources.profile_message_deleted
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,8 +60,6 @@ import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.data.remote.ArchivedChatLine
 import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
@@ -70,7 +78,7 @@ internal fun PastMessageLine(
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val separatorColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-    val deletedLabel = LocalStrings.current.profileMessageDeleted
+    val deletedLabel = stringResource(Res.string.profile_message_deleted)
     val line = buildAnnotatedString {
         withStyle(SpanStyle(color = nameColor, fontWeight = FontWeight.SemiBold)) { append(displayName) }
         withStyle(SpanStyle(color = separatorColor)) { append(": ") }
@@ -126,7 +134,6 @@ internal fun ProfileArchiveFeed(
 
 @Composable
 private fun ArchiveEmptyState(archive: UserLogArchiveState) {
-    val s = LocalStrings.current
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -134,21 +141,21 @@ private fun ArchiveEmptyState(archive: UserLogArchiveState) {
     ) {
         Text(
             when {
-                archive.availability == UserLogArchiveState.Availability.NotLogged -> s.profileArchiveNotLogged
+                archive.availability == UserLogArchiveState.Availability.NotLogged -> stringResource(Res.string.profile_archive_not_logged)
                 archive.loadFailed || archive.availability == UserLogArchiveState.Availability.Failed ->
-                    s.profileArchiveFailed
-                else -> s.profileArchiveEmpty
+                    stringResource(Res.string.profile_archive_failed)
+                else -> stringResource(Res.string.profile_archive_empty)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
         )
         if (archive.loadFailed) {
             TextButton(onClick = { archive.open(archive.anchorMonth) }) {
-                Text(s.profileArchiveRetry, style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(Res.string.profile_archive_retry), style = MaterialTheme.typography.labelSmall)
             }
         } else if (archive.canLoadOlder) {
             TextButton(onClick = archive::loadOlder) {
-                Text(s.profileArchiveLoadOlder, style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(Res.string.profile_archive_load_older), style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -163,7 +170,6 @@ private sealed interface ArchiveRow {
 
 @Composable
 private fun ArchiveLineList(archive: UserLogArchiveState, displayName: String, nameColor: Color) {
-    val s = LocalStrings.current
     val listState = rememberLazyListState()
     val rows = remember(archive.lines) { archiveRows(archive.lines) }
     var armed by remember(archive.anchorMonth, archive.query) { mutableStateOf(false) }
@@ -200,7 +206,7 @@ private fun ArchiveLineList(archive: UserLogArchiveState, displayName: String, n
                             onClick = archive::loadOlder,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(s.profileArchiveLoadOlder, style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(Res.string.profile_archive_load_older), style = MaterialTheme.typography.labelSmall)
                         }
 
                         else -> Spacer(Modifier.height(1.dp))
@@ -236,8 +242,7 @@ private fun ArchiveDayHeader(label: String) {
 }
 
 @Composable
-private fun ArchiveLineRow(line: ArchivedChatLine, displayName: String, nameColor: Color) {
-    val s = LocalStrings.current
+internal fun ArchiveLineRow(line: ArchivedChatLine, displayName: String, nameColor: Color) {
     val time = remember(line.timestampMs) { formatMessageTime(line.timestampMs) }
     when (line.kind) {
         ArchivedChatLine.Kind.MESSAGE -> PastMessageLine(
@@ -254,8 +259,8 @@ private fun ArchiveLineRow(line: ArchivedChatLine, displayName: String, nameColo
             ArchiveEventRow(
                 icon = if (isBan) Lucide.Ban else Lucide.Timer,
                 tint = tint,
-                text = if (isBan) s.profileArchiveBanned
-                else s.format(s.profileArchiveTimedOut, ModActionButton.formatDuration(line.durationSeconds ?: 0)),
+                text = if (isBan) stringResource(Res.string.profile_archive_banned)
+                else stringResource(Res.string.profile_archive_timed_out, ModActionButton.formatDuration(line.durationSeconds ?: 0)),
                 time = time
             )
         }

@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_mentions_tab
+import chatone.composeapp.generated.resources.chat_whisper_tab
+import chatone.composeapp.generated.resources.main_expand_sidebar
+import chatone.composeapp.generated.resources.open_channel_automod_label
+import chatone.composeapp.generated.resources.open_channel_live_label
+import chatone.composeapp.generated.resources.settings_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -21,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -45,8 +52,7 @@ internal fun MonitorTabSidebarItem(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
-    val label = if (login == "/live") s.openChannelLiveLabel else s.openChannelAutomodLabel
+    val label = if (login == "/live") stringResource(Res.string.open_channel_live_label) else stringResource(Res.string.open_channel_automod_label)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -126,7 +132,7 @@ internal fun CompactSidebar(
         ) {
             Icon(
                 Lucide.ChevronRight,
-                contentDescription = LocalStrings.current.mainExpandSidebar,
+                contentDescription = stringResource(Res.string.main_expand_sidebar),
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(14.dp)
             )
@@ -140,7 +146,6 @@ internal fun CompactSidebar(
             val folderedLogins = state.folders.flatMapTo(HashSet()) { folder -> folder.channels.map { it.login } }
             state.unfolderedChannels.filter { it.login !in folderedLogins }
         }
-        val s = LocalStrings.current
 
         LazyColumn(
             modifier = Modifier.weight(1f),
@@ -248,7 +253,7 @@ internal fun CompactSidebar(
                 items(state.monitorTabs.size, key = { "cmonitor_${state.monitorTabs[it]}" }, contentType = { "monitor" }) { i ->
                     val login = state.monitorTabs[i]
                     val isActive = login == state.activeChannelLogin
-                    val label = if (login == "/live") s.openChannelLiveLabel else s.openChannelAutomodLabel
+                    val label = if (login == "/live") stringResource(Res.string.open_channel_live_label) else stringResource(Res.string.open_channel_automod_label)
                     Box(
                         modifier = Modifier
                             .size(24.dp)
@@ -294,7 +299,7 @@ internal fun CompactSidebar(
             ) {
                 Icon(
                     Lucide.AtSign,
-                    contentDescription = s.chatMentionsTab,
+                    contentDescription = stringResource(Res.string.chat_mentions_tab),
                     tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(14.dp)
@@ -312,7 +317,7 @@ internal fun CompactSidebar(
             ) {
                 Icon(
                     Lucide.MessageCircle,
-                    contentDescription = s.chatWhisperTab,
+                    contentDescription = stringResource(Res.string.chat_whisper_tab),
                     tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(14.dp)
@@ -329,7 +334,7 @@ internal fun CompactSidebar(
         ) {
             Icon(
                 Lucide.Settings,
-                contentDescription = s.settingsTitle,
+                contentDescription = stringResource(Res.string.settings_title),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp)
             )

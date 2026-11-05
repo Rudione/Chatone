@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_close
+import chatone.composeapp.generated.resources.player_latency
+import chatone.composeapp.generated.resources.player_latency_compact
+import chatone.composeapp.generated.resources.player_watch
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.size
 import io.rudione.chatone.icons.material.Icons
 import io.rudione.chatone.icons.material.rounded.LiveTv
@@ -14,8 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import io.rudione.chatone.domain.stream.StreamPhase
 import io.rudione.chatone.presentation.components.ChatoneIconButton
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -48,11 +52,9 @@ fun rememberStreamHeaderHint(channelLogin: String): StreamHeaderHint? {
 
 @Composable
 fun streamLatencyText(seconds: Float, compact: Boolean): String {
-    val appStrings = LocalStrings.current
-    val strings = appStrings.player
-    return appStrings.format(
-        if (compact) strings.latencyCompact else strings.latency,
-        StreamFormatting.decimal(seconds, 2, strings.decimalSeparator)
+    return stringResource(
+        if (compact) Res.string.player_latency_compact else Res.string.player_latency,
+        StreamFormatting.decimal(seconds, 1, decimalSeparator())
     )
 }
 
@@ -61,7 +63,6 @@ fun StreamWatchButton(channelLogin: String, buttonSize: Dp, iconSize: Dp) {
     val host = LocalStreamPlayerHost.current ?: return
     val state by host.state.collectAsState()
     val watching = state.channelLogin.equals(channelLogin, ignoreCase = true)
-    val strings = LocalStrings.current.player
     ChatoneIconButton(
         onClick = {
             host.onEvent(if (watching) StreamPlayerEvent.Close else StreamPlayerEvent.Open(channelLogin))
@@ -70,7 +71,7 @@ fun StreamWatchButton(channelLogin: String, buttonSize: Dp, iconSize: Dp) {
     ) {
         Icon(
             imageVector = Icons.Rounded.LiveTv,
-            contentDescription = if (watching) strings.close else strings.watch,
+            contentDescription = if (watching) stringResource(Res.string.player_close) else stringResource(Res.string.player_watch),
             tint = if (watching) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(iconSize)
         )

@@ -1,5 +1,23 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.insights_age_days
+import chatone.composeapp.generated.resources.insights_age_hours
+import chatone.composeapp.generated.resources.insights_age_minutes
+import chatone.composeapp.generated.resources.insights_age_months
+import chatone.composeapp.generated.resources.insights_age_years
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.profile_dossier_account_age
+import chatone.composeapp.generated.resources.profile_dossier_affiliate
+import chatone.composeapp.generated.resources.profile_dossier_bio
+import chatone.composeapp.generated.resources.profile_dossier_followers
+import chatone.composeapp.generated.resources.profile_dossier_last_stream
+import chatone.composeapp.generated.resources.profile_dossier_live_now
+import chatone.composeapp.generated.resources.profile_dossier_open_channel
+import chatone.composeapp.generated.resources.profile_dossier_partner
+import chatone.composeapp.generated.resources.profile_dossier_sub_tier
+import chatone.composeapp.generated.resources.profile_dossier_unavailable
+import chatone.composeapp.generated.resources.profile_sub_age_months
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,8 +56,6 @@ import io.rudione.chatone.domain.model.SevenTvUserCosmetic
 import io.rudione.chatone.presentation.chat.presence.PresenceMapSection
 import io.rudione.chatone.presentation.chat.presence.UserPresenceState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
@@ -64,7 +80,6 @@ internal fun UserDossierTab(
     sevenTv: SevenTvUserCosmetic? = null,
     presence: UserPresenceState? = null
 ) {
-    val s = LocalStrings.current
 
     if (isLoading && dossier == null && sevenTv == null) {
         Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -83,7 +98,7 @@ internal fun UserDossierTab(
         ) {
             sevenTv?.let { SevenTvDossierSection(cosmetic = it) }
             Text(
-                s.profileDossierUnavailable,
+                stringResource(Res.string.profile_dossier_unavailable),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
             )
@@ -114,23 +129,23 @@ internal fun UserDossierTab(
                 DossierChip(
                     icon = Lucide.CalendarDays,
                     tint = MaterialTheme.colorScheme.primary,
-                    caption = s.profileDossierAccountAge,
-                    value = "${relativeAge(created, s.insights.ageUnits)} · ${formatDate(created)}"
+                    caption = stringResource(Res.string.profile_dossier_account_age),
+                    value = "${relativeAge(created)} · ${formatDate(created)}"
                 )
             }
             dossier.followerCount?.let { count ->
                 DossierChip(
                     icon = Lucide.Users,
                     tint = MaterialTheme.colorScheme.tertiary,
-                    caption = s.profileDossierFollowers,
+                    caption = stringResource(Res.string.profile_dossier_followers),
                     value = compactCount(count)
                 )
             }
             if (dossier.isPartner) {
-                DossierChip(Lucide.BadgeCheck, Color(0xFF9146FF), value = s.profileDossierPartner)
+                DossierChip(Lucide.BadgeCheck, Color(0xFF9146FF), value = stringResource(Res.string.profile_dossier_partner))
             }
             if (dossier.isAffiliate) {
-                DossierChip(Lucide.BadgeCheck, MaterialTheme.colorScheme.tertiary, value = s.profileDossierAffiliate)
+                DossierChip(Lucide.BadgeCheck, MaterialTheme.colorScheme.tertiary, value = stringResource(Res.string.profile_dossier_affiliate))
             }
             if (dossier.isStaff) {
                 DossierChip(Lucide.BadgeCheck, MaterialTheme.colorScheme.error, value = "Twitch Staff")
@@ -139,14 +154,14 @@ internal fun UserDossierTab(
                 DossierChip(
                     Lucide.Star,
                     MaterialTheme.colorScheme.primary,
-                    value = s.format(s.profileDossierSubTier, tierLabel(tier))
+                    value = stringResource(Res.string.profile_dossier_sub_tier, tierLabel(tier))
                 )
             }
             subAge?.takeIf { !it.hidden && it.cumulativeMonths > 0 }?.let { sa ->
                 DossierChip(
                     Lucide.Star,
                     MaterialTheme.colorScheme.primary,
-                    value = s.profileSubAgeMonths.replace("{0}", sa.cumulativeMonths.toString())
+                    value = stringResource(Res.string.profile_sub_age_months, sa.cumulativeMonths)
                 )
             }
             dossier.teamName?.let { team ->
@@ -160,9 +175,8 @@ internal fun UserDossierTab(
                     DossierChip(
                         Lucide.Video,
                         MaterialTheme.colorScheme.onSurfaceVariant,
-                        value = s.format(
-                            s.profileDossierLastStream,
-                            relativeAge(last, s.insights.ageUnits),
+                        value = stringResource(Res.string.profile_dossier_last_stream,
+                            relativeAge(last),
                             dossier.lastBroadcastGame ?: "—"
                         )
                     )
@@ -170,7 +184,7 @@ internal fun UserDossierTab(
                 DossierChip(
                     Lucide.Play,
                     MaterialTheme.colorScheme.primary,
-                    value = s.profileDossierOpenChannel,
+                    value = stringResource(Res.string.profile_dossier_open_channel),
                     onClick = { onOpenChannel(dossier.login) }
                 )
             }
@@ -179,7 +193,7 @@ internal fun UserDossierTab(
         dossier.bio?.let { bio ->
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    s.profileDossierBio,
+                    stringResource(Res.string.profile_dossier_bio),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     fontWeight = FontWeight.SemiBold
@@ -198,7 +212,6 @@ internal fun UserDossierTab(
 
 @Composable
 private fun LiveRow(dossier: GqlUserDossier, onOpenChannel: (String) -> Unit) {
-    val s = LocalStrings.current
     val live = ChatoneTheme.extraColors.live
     Row(
         modifier = Modifier
@@ -214,8 +227,7 @@ private fun LiveRow(dossier: GqlUserDossier, onOpenChannel: (String) -> Unit) {
         Spacer(Modifier.width(7.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                s.format(
-                    s.profileDossierLiveNow,
+                stringResource(Res.string.profile_dossier_live_now,
                     dossier.liveViewers?.let { compactCount(it) } ?: "—"
                 ),
                 style = MaterialTheme.typography.labelMedium,
@@ -234,7 +246,7 @@ private fun LiveRow(dossier: GqlUserDossier, onOpenChannel: (String) -> Unit) {
         }
         dossier.liveSinceEpochMs?.let { since ->
             Text(
-                relativeAge(since, s.insights.ageUnits),
+                relativeAge(since),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
@@ -285,21 +297,36 @@ internal fun compactCount(value: Int): String = when {
     else -> value.toString()
 }
 
-internal fun relativeAge(epochMs: Long, units: List<String>): String {
-    val nowMs = Clock.System.now().toEpochMilliseconds()
-    val diff = (nowMs - epochMs).coerceAtLeast(0L)
-    val minutes = diff / 60_000
+internal enum class AgeUnit { YEARS, MONTHS, DAYS, HOURS, MINUTES }
+
+internal data class Age(val amount: Long, val unit: AgeUnit)
+
+internal fun ageOf(epochMs: Long, nowMs: Long = Clock.System.now().toEpochMilliseconds()): Age {
+    val minutes = (nowMs - epochMs).coerceAtLeast(0L) / 60_000
     val hours = minutes / 60
     val days = hours / 24
     val months = days / 30
     val years = days / 365
     return when {
-        years >= 1 -> "$years${units[0]}"
-        months >= 1 -> "$months${units[1]}"
-        days >= 1 -> "$days${units[2]}"
-        hours >= 1 -> "$hours${units[3]}"
-        else -> "$minutes${units[4]}"
+        years >= 1 -> Age(years, AgeUnit.YEARS)
+        months >= 1 -> Age(months, AgeUnit.MONTHS)
+        days >= 1 -> Age(days, AgeUnit.DAYS)
+        hours >= 1 -> Age(hours, AgeUnit.HOURS)
+        else -> Age(minutes, AgeUnit.MINUTES)
     }
+}
+
+@Composable
+internal fun relativeAge(epochMs: Long): String {
+    val age = ageOf(epochMs)
+    val resource = when (age.unit) {
+        AgeUnit.YEARS -> Res.string.insights_age_years
+        AgeUnit.MONTHS -> Res.string.insights_age_months
+        AgeUnit.DAYS -> Res.string.insights_age_days
+        AgeUnit.HOURS -> Res.string.insights_age_hours
+        AgeUnit.MINUTES -> Res.string.insights_age_minutes
+    }
+    return stringResource(resource, age.amount.toInt())
 }
 
 internal fun formatDate(epochMs: Long): String {

@@ -8,6 +8,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.Parameters
 import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
+import io.rudione.chatone.util.settings.AppConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -22,7 +23,7 @@ data class DeviceCodeInfo(
     val verificationUri: String,
     val expiresInSeconds: Int,
     val intervalSeconds: Int,
-    val client: TwitchFirstPartyClient
+    val clientId: String
 ) {
     val activationUri: String
         get() = if (verificationUri.contains("device-code=")) {
@@ -38,8 +39,16 @@ sealed interface DeviceCodeResult {
     data class Failed(val retryable: Boolean, val message: String) : DeviceCodeResult
 }
 
+data class RefreshedToken(val accessToken: String, val refreshToken: String, val expiresInSeconds: Int)
+
+sealed interface TokenRefreshResult {
+    data class Refreshed(val token: RefreshedToken) : TokenRefreshResult
+    data object Rejected : TokenRefreshResult
+    data object Unreachable : TokenRefreshResult
+}
+
 sealed class DevicePollResult {
-    data class Success(val token: String) : DevicePollResult()
+    data class Success(val token: String, val refreshToken: String = "") : DevicePollResult()
     object Pending : DevicePollResult()
     object SlowDown : DevicePollResult()
     object ExpiredOrDenied : DevicePollResult()
@@ -48,7 +57,9 @@ sealed class DevicePollResult {
 
 class TwitchDeviceAuthClient(
     private val httpClient: HttpClient,
-    private val clients: List<TwitchFirstPartyClient> = TwitchFirstPartyClient.deviceFlowOrder
+    private val clients: List<TwitchFirstPartyClient> = TwitchFirstPartyClient.deviceFlowOrder,
+    private val accountClientId: String = AppConfig.TWITCH_CLIENT_ID,
+    private val accountScopes: List<String> = AppConfig.REQUIRED_SCOPES
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -58,7 +69,7 @@ class TwitchDeviceAuthClient(
     suspend fun requestDeviceCode(): DeviceCodeResult {
         var rejection = DeviceCodeResult.Failed(retryable = false, message = "No Twitch client accepted the request")
         for (client in candidates()) {
-            when (val result = requestWith(client)) {
+            when (val result = requestWith(client.clientId, SCOPES)) {
                 is DeviceCodeResult.Issued -> {
                     acceptedClient = client
                     return result
@@ -75,12 +86,45 @@ class TwitchDeviceAuthClient(
         return rejection
     }
 
+    suspend fun requestAccountCode(): DeviceCodeResult =
+        requestWith(accountClientId, accountScopes.joinToString(" "))
+
+    suspend fun refreshAccountToken(refreshToken: String): TokenRefreshResult = try {
+        val response = httpClient.submitForm(
+            url = TOKEN_ENDPOINT,
+            formParameters = Parameters.build {
+                append("client_id", accountClientId)
+                append("grant_type", "refresh_token")
+                append("refresh_token", refreshToken)
+            }
+        )
+        val root = parseObject(response.bodyAsText())
+        val accessToken = root?.string("access_token")
+        when {
+            response.status.isSuccess() && !accessToken.isNullOrBlank() -> TokenRefreshResult.Refreshed(
+                RefreshedToken(
+                    accessToken = accessToken,
+                    refreshToken = root.string("refresh_token").orEmpty().ifBlank { refreshToken },
+                    expiresInSeconds = root.int("expires_in") ?: 0
+                )
+            )
+
+            response.status.isPermanentRejection() -> TokenRefreshResult.Rejected
+            else -> TokenRefreshResult.Unreachable
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Napier.w("Token refresh failed: ${e.message}", tag = TAG)
+        TokenRefreshResult.Unreachable
+    }
+
     suspend fun pollToken(info: DeviceCodeInfo): DevicePollResult {
         return try {
             val response = httpClient.submitForm(
                 url = TOKEN_ENDPOINT,
                 formParameters = Parameters.build {
-                    append("client_id", info.client.clientId)
+                    append("client_id", info.clientId)
                     append("device_code", info.deviceCode)
                     append("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
                 }
@@ -89,7 +133,7 @@ class TwitchDeviceAuthClient(
             if (response.status.isSuccess()) {
                 val accessToken = root?.string("access_token")
                 return if (!accessToken.isNullOrBlank()) {
-                    DevicePollResult.Success(accessToken)
+                    DevicePollResult.Success(accessToken, root.string("refresh_token").orEmpty())
                 } else {
                     Napier.w("Device token poll succeeded without an access token", tag = TAG)
                     DevicePollResult.Error("Twitch returned no access token")
@@ -114,17 +158,17 @@ class TwitchDeviceAuthClient(
         return listOf(preferred) + clients.filter { it != preferred }
     }
 
-    private suspend fun requestWith(client: TwitchFirstPartyClient): DeviceCodeResult = try {
+    private suspend fun requestWith(clientId: String, scopes: String): DeviceCodeResult = try {
         val response = httpClient.submitForm(
             url = DEVICE_ENDPOINT,
             formParameters = Parameters.build {
-                append("client_id", client.clientId)
-                append("scopes", SCOPES)
+                append("client_id", clientId)
+                append("scopes", scopes)
             }
         )
         val root = parseObject(response.bodyAsText())
         when {
-            response.status.isSuccess() -> root?.toDeviceCode(client)
+            response.status.isSuccess() -> root?.toDeviceCode(clientId)
                 ?.let { DeviceCodeResult.Issued(it) }
                 ?: DeviceCodeResult.Failed(retryable = true, message = "Malformed device code response")
 
@@ -145,7 +189,7 @@ class TwitchDeviceAuthClient(
     private fun HttpStatusCode.isPermanentRejection(): Boolean =
         value in 400..499 && this != HttpStatusCode.TooManyRequests && this != HttpStatusCode.RequestTimeout
 
-    private fun JsonObject.toDeviceCode(client: TwitchFirstPartyClient): DeviceCodeInfo? {
+    private fun JsonObject.toDeviceCode(clientId: String): DeviceCodeInfo? {
         val deviceCode = string("device_code")?.takeIf { it.isNotBlank() } ?: return null
         val userCode = string("user_code")?.takeIf { it.isNotBlank() } ?: return null
         return DeviceCodeInfo(
@@ -155,7 +199,7 @@ class TwitchDeviceAuthClient(
                 ?: DEFAULT_VERIFICATION_URI,
             expiresInSeconds = int("expires_in") ?: DEFAULT_EXPIRES_SECONDS,
             intervalSeconds = int("interval") ?: DEFAULT_INTERVAL_SECONDS,
-            client = client
+            clientId = clientId
         )
     }
 

@@ -1,5 +1,12 @@
 package io.rudione.chatone.presentation.browse
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.browse_ask_ai
+import chatone.composeapp.generated.resources.browse_clear_search
+import chatone.composeapp.generated.resources.browse_live
+import chatone.composeapp.generated.resources.browse_offline
+import chatone.composeapp.generated.resources.browse_search_placeholder
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -61,7 +68,6 @@ import io.rudione.chatone.domain.browse.BrowseCategory
 import io.rudione.chatone.domain.browse.BrowseChannel
 import io.rudione.chatone.domain.browse.BrowseStream
 import io.rudione.chatone.presentation.components.pressScale
-import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
 
 internal val LiveRed = Color(0xFFE91916)
 private val CardShape = RoundedCornerShape(14.dp)
@@ -70,7 +76,6 @@ private val PillShape = RoundedCornerShape(50)
 @Composable
 internal fun BrowseSearchField(
     query: String,
-    strings: BrowseStrings,
     onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -94,7 +99,7 @@ internal fun BrowseSearchField(
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) {
                 Text(
-                    strings.searchPlaceholder,
+                    stringResource(Res.string.browse_search_placeholder),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -129,7 +134,7 @@ internal fun BrowseSearchField(
             ) {
                 Icon(
                     Icons.Rounded.Close,
-                    contentDescription = strings.clearSearch,
+                    contentDescription = stringResource(Res.string.browse_clear_search),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
@@ -152,7 +157,6 @@ internal fun BrowseSectionHeader(text: String, modifier: Modifier = Modifier) {
 @Composable
 internal fun CategoryCard(
     category: BrowseCategory,
-    strings: BrowseStrings,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -177,7 +181,7 @@ internal fun CategoryCard(
                 modifier = Modifier.fillMaxSize()
             )
             ViewerPill(
-                text = BrowseFormatting.compact(category.viewers, strings),
+                text = BrowseFormatting.compact(category.viewers),
                 modifier = Modifier.align(Alignment.BottomStart).padding(6.dp)
             )
         }
@@ -191,7 +195,7 @@ internal fun CategoryCard(
             modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)
         )
         Text(
-            BrowseFormatting.viewers(category.viewers, strings),
+            BrowseFormatting.viewers(category.viewers),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -203,7 +207,6 @@ internal fun CategoryCard(
 @Composable
 internal fun StreamCard(
     stream: BrowseStream,
-    strings: BrowseStrings,
     nowMs: Long,
     onClick: () -> Unit,
     onAskAi: () -> Unit,
@@ -230,17 +233,17 @@ internal fun StreamCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
-            LiveBadge(strings.live, Modifier.align(Alignment.TopStart).padding(8.dp))
+            LiveBadge(stringResource(Res.string.browse_live), Modifier.align(Alignment.TopStart).padding(8.dp))
             AskAiButton(
-                description = strings.askAi,
+                description = stringResource(Res.string.browse_ask_ai),
                 onClick = onAskAi,
                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
             )
             ViewerPill(
-                text = BrowseFormatting.compact(stream.viewers, strings),
+                text = BrowseFormatting.compact(stream.viewers),
                 modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
             )
-            BrowseFormatting.uptime(stream.startedAtMs, nowMs)?.let { uptime ->
+            BrowseFormatting.uptimeText(stream.startedAtMs, nowMs)?.let { uptime ->
                 OverlayPill(uptime, Modifier.align(Alignment.BottomEnd).padding(8.dp))
             }
         }
@@ -284,7 +287,6 @@ internal fun StreamCard(
 @Composable
 internal fun ChannelResultRow(
     channel: BrowseChannel,
-    strings: BrowseStrings,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -312,10 +314,10 @@ internal fun ChannelResultRow(
             val subtitle = if (channel.isLive) {
                 listOfNotNull(
                     channel.liveCategory,
-                    BrowseFormatting.viewers(channel.liveViewers ?: 0, strings)
+                    BrowseFormatting.viewers(channel.liveViewers ?: 0)
                 ).joinToString(" · ")
             } else {
-                strings.offline
+                stringResource(Res.string.browse_offline)
             }
             Text(
                 subtitle,
@@ -326,7 +328,7 @@ internal fun ChannelResultRow(
             )
         }
         if (channel.isLive) {
-            LiveBadge(strings.live)
+            LiveBadge(stringResource(Res.string.browse_live))
         }
     }
 }

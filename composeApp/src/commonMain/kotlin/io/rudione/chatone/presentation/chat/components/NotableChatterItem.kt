@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_notable_in_chat
+import chatone.composeapp.generated.resources.chat_notable_in_chat_a11y
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,8 +45,6 @@ import io.rudione.chatone.icons.lucide.BadgeCheck
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.presentation.chat.compactCount
 import io.rudione.chatone.presentation.chat.rememberNickColors
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 
 private val PartnerPurple = Color(0xFF9146FF)
 private const val ROW_SCALE = 1.2f
@@ -53,7 +55,6 @@ internal fun NotableChatterItem(
     chatFontSizeSp: Float,
     onClick: () -> Unit
 ) {
-    val s = LocalStrings.current
     val density = LocalDensity.current
     val fontSize = chatFontSizeSp.coerceIn(11f, 20f)
     val rowHeight = with(density) { ((fontSize * 1.35f).sp.toDp() + 4.dp) * ROW_SCALE }
@@ -62,7 +63,7 @@ internal fun NotableChatterItem(
     val accent = MaterialTheme.colorScheme.primary
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-    val description = s.format(s.chatNotableInChatA11y, message.displayName)
+    val description = stringResource(Res.string.chat_notable_in_chat_a11y, message.displayName)
 
     Box(
         modifier = Modifier.fillMaxWidth().height(rowHeight).padding(vertical = 2.dp),
@@ -121,7 +122,7 @@ internal fun NotableChatterItem(
                 )
             }
             Text(
-                s.chatNotableInChat,
+                stringResource(Res.string.chat_notable_in_chat),
                 fontSize = (fontSize * 0.85f).sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                 maxLines = 1

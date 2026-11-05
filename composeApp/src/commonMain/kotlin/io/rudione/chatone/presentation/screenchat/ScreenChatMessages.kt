@@ -24,6 +24,7 @@ import io.rudione.chatone.domain.model.ScreenChatSettings
 import io.rudione.chatone.presentation.chat.ModerationMsgItem
 import io.rudione.chatone.presentation.chat.PrivMsgItem
 import io.rudione.chatone.presentation.chat.UserNoticeMsgItem
+import io.rudione.chatone.presentation.chat.components.RewardRedemptionItem
 import io.rudione.chatone.presentation.chat.rendering.ChatFollowEffects
 import io.rudione.chatone.presentation.chat.rendering.rememberChatFollowState
 import io.rudione.chatone.presentation.settings.SettingsState
@@ -73,6 +74,13 @@ internal fun ScreenChatMessages(
                         modifier = Modifier.fillMaxWidth()
                     )
                     is DisplayMessage.UserNoticeMsg -> UserNoticeMsgItem(message)
+                    is DisplayMessage.RewardRedemptionMsg -> RewardRedemptionItem(
+                        message = message,
+                        chatFontSizeSp = fontSize,
+                        pointsIconUrl = null,
+                        highlightRules = chat.highlightRules,
+                        onUsernameClick = {}
+                    )
                     is DisplayMessage.ModerationMsg -> ModerationMsgItem(message = message, chatFontSizeSp = fontSize)
                     else -> Unit
                 }
@@ -83,7 +91,10 @@ internal fun ScreenChatMessages(
 
 internal fun screenChatItems(messages: List<DisplayMessage>, showModeration: Boolean): List<DisplayMessage> = messages
     .asSequence()
-    .filter { it is DisplayMessage.PrivMsg || it is DisplayMessage.UserNoticeMsg || (showModeration && it is DisplayMessage.ModerationMsg) }
+    .filter {
+        it is DisplayMessage.PrivMsg || it is DisplayMessage.UserNoticeMsg || it is DisplayMessage.RewardRedemptionMsg ||
+            (showModeration && it is DisplayMessage.ModerationMsg)
+    }
     .toList()
     .takeLast(MAX_ITEMS)
 

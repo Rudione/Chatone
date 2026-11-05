@@ -1,5 +1,29 @@
 package io.rudione.chatone.presentation.main
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.browse_live
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.follow_picker_option_desc
+import chatone.composeapp.generated.resources.follow_picker_option_title
+import chatone.composeapp.generated.resources.main_channel_name_placeholder
+import chatone.composeapp.generated.resources.ok
+import chatone.composeapp.generated.resources.open_channel_automod_desc
+import chatone.composeapp.generated.resources.open_channel_automod_label
+import chatone.composeapp.generated.resources.open_channel_channel_desc
+import chatone.composeapp.generated.resources.open_channel_channel_label
+import chatone.composeapp.generated.resources.open_channel_live_desc
+import chatone.composeapp.generated.resources.open_channel_live_label
+import chatone.composeapp.generated.resources.open_channel_title
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.main.follows.followPickerConfirm
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +54,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,16 +70,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
+import io.rudione.chatone.domain.follow.FollowedChannel
 import io.rudione.chatone.domain.model.Channel
+import io.rudione.chatone.presentation.main.follows.FollowedChannelsPicker
+import io.rudione.chatone.presentation.main.follows.rememberFollowedPickerState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.icons.lucide.Hash
+import io.rudione.chatone.icons.lucide.Heart
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Radio
 import io.rudione.chatone.icons.lucide.Shield
 
-enum class OpenChannelTab { CHANNEL, WHISPERS, MENTIONS, WATCHING, LIVE, AUTOMOD }
+enum class OpenChannelTab { CHANNEL, WHISPERS, MENTIONS, WATCHING, LIVE, AUTOMOD, FOLLOWING }
 
 private data class TabOption(
     val tab: OpenChannelTab,
@@ -72,28 +100,69 @@ fun OpenChannelDialog(
     onSearch: () -> Unit,
     onChannelSelected: (String, String, String) -> Unit,
     onOpenSpecialTab: (OpenChannelTab) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    openLogins: Set<String> = emptySet(),
+    onFollowedSelected: (List<FollowedChannel>) -> Unit = {}
 ) {
-    val s = LocalStrings.current
+    val openChannelChannelLabelText = stringResource(Res.string.open_channel_channel_label)
+    val openChannelChannelDescText = stringResource(Res.string.open_channel_channel_desc)
+    val openChannelLiveLabelText = stringResource(Res.string.open_channel_live_label)
+    val openChannelLiveDescText = stringResource(Res.string.open_channel_live_desc)
+    val openChannelAutomodLabelText = stringResource(Res.string.open_channel_automod_label)
+    val openChannelAutomodDescText = stringResource(Res.string.open_channel_automod_desc)
+    val followPickerOptionTitleText = stringResource(Res.string.follow_picker_option_title)
+    val followPickerOptionDescText = stringResource(Res.string.follow_picker_option_desc)
     var selected by remember { mutableStateOf(OpenChannelTab.CHANNEL) }
+    val followed = rememberFollowedPickerState(openLogins)
+    LaunchedEffect(selected) { if (selected == OpenChannelTab.FOLLOWING) followed.load() }
 
-    val options = remember(s) {
+    val options = remember(openChannelChannelLabelText, followPickerOptionTitleText) {
         listOf(
-            TabOption(OpenChannelTab.CHANNEL, s.openChannelChannelLabel, s.openChannelChannelDesc, Lucide.Hash),
-            TabOption(OpenChannelTab.LIVE, s.openChannelLiveLabel, s.openChannelLiveDesc, Lucide.Radio),
-            TabOption(OpenChannelTab.AUTOMOD, s.openChannelAutomodLabel, s.openChannelAutomodDesc, Lucide.Shield)
+            TabOption(
+                OpenChannelTab.CHANNEL,
+                openChannelChannelLabelText,
+                openChannelChannelDescText,
+                Lucide.Hash
+            ),
+            TabOption(
+                OpenChannelTab.LIVE,
+                openChannelLiveLabelText,
+                openChannelLiveDescText,
+                Lucide.Radio
+            ),
+            TabOption(
+                OpenChannelTab.AUTOMOD,
+                openChannelAutomodLabelText,
+                openChannelAutomodDescText,
+                Lucide.Shield
+            ),
+            TabOption(
+                OpenChannelTab.FOLLOWING,
+                followPickerOptionTitleText,
+                followPickerOptionDescText,
+                Lucide.Heart
+            )
         )
     }
 
     fun confirm() {
-        if (selected == OpenChannelTab.CHANNEL) {
-            if (query.isNotBlank()) onChannelSelected(query.trim().lowercase().removePrefix("#"), "", "")
-        } else {
-            onOpenSpecialTab(selected)
+        when (selected) {
+            OpenChannelTab.CHANNEL ->
+                if (query.isNotBlank()) onChannelSelected(
+                    query.trim().lowercase().removePrefix("#"), "", ""
+                )
+
+            OpenChannelTab.FOLLOWING -> followed.picked().takeIf { it.isNotEmpty() }
+                ?.let(onFollowedSelected)
+
+            else -> onOpenSpecialTab(selected)
         }
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface,
@@ -102,7 +171,11 @@ fun OpenChannelDialog(
             modifier = Modifier.width(340.dp)
         ) {
             Column(Modifier.padding(14.dp)) {
-                Text(s.openChannelTitle, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(Res.string.open_channel_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
                 Spacer(Modifier.height(8.dp))
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -111,18 +184,27 @@ fun OpenChannelDialog(
                             option = opt,
                             selected = selected == opt.tab,
                             onSelect = { selected = opt.tab },
-                            searchSlot = if (opt.tab == OpenChannelTab.CHANNEL && selected == OpenChannelTab.CHANNEL) {
-                                {
-                                    ChannelSearchInline(
-                                        query = query,
-                                        searchResults = searchResults,
-                                        isSearching = isSearching,
-                                        onQueryChange = onQueryChange,
-                                        onSearch = onSearch,
-                                        onChannelSelected = onChannelSelected
-                                    )
+                            searchSlot = when {
+                                opt.tab != selected -> null
+                                opt.tab == OpenChannelTab.CHANNEL -> {
+                                    {
+                                        ChannelSearchInline(
+                                            query = query,
+                                            searchResults = searchResults,
+                                            isSearching = isSearching,
+                                            onQueryChange = onQueryChange,
+                                            onSearch = onSearch,
+                                            onChannelSelected = onChannelSelected
+                                        )
+                                    }
                                 }
-                            } else null
+
+                                opt.tab == OpenChannelTab.FOLLOWING -> {
+                                    { FollowedChannelsPicker(followed) }
+                                }
+
+                                else -> null
+                            }
                         )
                     }
                 }
@@ -135,12 +217,24 @@ fun OpenChannelDialog(
                     TextButton(
                         onClick = onDismiss,
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                    ) { Text(s.cancel) }
+                    ) { Text(stringResource(Res.string.cancel)) }
                     Button(
                         onClick = { confirm() },
-                        enabled = selected != OpenChannelTab.CHANNEL || query.isNotBlank(),
+                        enabled = when (selected) {
+                            OpenChannelTab.CHANNEL -> query.isNotBlank()
+                            OpenChannelTab.FOLLOWING -> followed.selectedCount > 0
+                            else -> true
+                        },
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)
-                    ) { Text(s.ok) }
+                    ) {
+                        AnimatedContent(
+                            targetState = if (selected == OpenChannelTab.FOLLOWING) {
+                                followPickerConfirm(followed.selectedCount)
+                            } else stringResource(Res.string.ok),
+                            transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(100)) },
+                            label = "openChannelConfirm"
+                        ) { Text(it) }
+                    }
                 }
             }
         }
@@ -156,7 +250,8 @@ private fun TabRow(
 ) {
     val borderColor = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
     else MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
-    val bg = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.07f) else Color.Transparent
+    val bg =
+        if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.07f) else Color.Transparent
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -166,7 +261,8 @@ private fun TabRow(
             .clickable(onClick = onSelect)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+                .padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -190,7 +286,13 @@ private fun TabRow(
                 )
             }
         }
-        if (searchSlot != null) searchSlot()
+        AnimatedVisibility(
+            visible = searchSlot != null,
+            enter = expandVertically(tween(220)) + fadeIn(tween(180)),
+            exit = shrinkVertically(tween(180)) + fadeOut(tween(120))
+        ) {
+            searchSlot?.invoke()
+        }
     }
 }
 
@@ -203,13 +305,12 @@ private fun ChannelSearchInline(
     onSearch: () -> Unit,
     onChannelSelected: (String, String, String) -> Unit
 ) {
-    val s = LocalStrings.current
     Column(Modifier.padding(start = 10.dp, end = 10.dp, top = 2.dp, bottom = 8.dp)) {
         ChatoneTextField(
             value = query,
             onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = s.mainChannelNamePlaceholder,
+            placeholder = stringResource(Res.string.main_channel_name_placeholder),
             leading = {
                 Text(
                     "#",
@@ -225,7 +326,9 @@ private fun ChannelSearchInline(
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = {
-                if (query.isNotBlank()) onChannelSelected(query.trim().lowercase().removePrefix("#"), "", "")
+                if (query.isNotBlank()) onChannelSelected(
+                    query.trim().lowercase().removePrefix("#"), "", ""
+                )
             })
         )
         if (searchResults.isNotEmpty()) {
@@ -239,7 +342,13 @@ private fun ChannelSearchInline(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .clickable { onChannelSelected(channel.login, channel.profileImageUrl, channel.displayName) }
+                            .clickable {
+                                onChannelSelected(
+                                    channel.login,
+                                    channel.profileImageUrl,
+                                    channel.displayName
+                                )
+                            }
                             .padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -252,14 +361,30 @@ private fun ChannelSearchInline(
                             Spacer(Modifier.width(8.dp))
                         }
                         Column(Modifier.weight(1f)) {
-                            Text(channel.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                channel.displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
                             if (channel.gameName.isNotEmpty()) {
-                                Text(channel.gameName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    channel.gameName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         if (channel.isLive) {
-                            Surface(color = ChatoneTheme.extraColors.live, shape = RoundedCornerShape(4.dp)) {
-                                Text(s.explore.live, style = MaterialTheme.typography.labelSmall, color = Color.White, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                            Surface(
+                                color = ChatoneTheme.extraColors.live,
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    stringResource(Res.string.browse_live),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
                             }
                         }
                     }

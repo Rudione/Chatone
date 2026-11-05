@@ -1,5 +1,19 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ai_active_hours
+import chatone.composeapp.generated.resources.ai_auto_mod_title
+import chatone.composeapp.generated.resources.ai_config_title
+import chatone.composeapp.generated.resources.ai_enable
+import chatone.composeapp.generated.resources.ai_enable_desc
+import chatone.composeapp.generated.resources.ai_extra_instructions
+import chatone.composeapp.generated.resources.ai_monitor_desc
+import chatone.composeapp.generated.resources.ai_monitor_title
+import chatone.composeapp.generated.resources.ai_sens_high
+import chatone.composeapp.generated.resources.ai_sens_low
+import chatone.composeapp.generated.resources.ai_sens_med
+import chatone.composeapp.generated.resources.ai_sensitivity
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +47,6 @@ import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.presentation.ai.AiSetupContent
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.SettingsCard
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.components.ChatoneTextField
 
@@ -42,15 +55,14 @@ fun AiAssistantConfigCard(
     controller: AiAssistantController = koinInject(),
     client: AiAssistantClient = koinInject()
 ) {
-    val s = LocalStrings.current
     val enabled by controller.enabled.collectAsState()
 
-    SettingsCard(title = s.aiConfigTitle) {
+    SettingsCard(title = stringResource(Res.string.ai_config_title)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(s.aiEnable, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(stringResource(Res.string.ai_enable), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    s.aiEnableDesc,
+                    stringResource(Res.string.ai_enable_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -70,15 +82,14 @@ fun AiAssistantConfigCard(
 
 @Composable
 fun AiAutoModCard(controller: AiAssistantController = koinInject()) {
-    val s = LocalStrings.current
     val autoMod by controller.autoMod.collectAsState()
 
-    SettingsCard(title = s.aiAutoModTitle) {
+    SettingsCard(title = stringResource(Res.string.ai_auto_mod_title)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(s.aiMonitorTitle, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(stringResource(Res.string.ai_monitor_title), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Text(
-                    s.aiMonitorDesc,
+                    stringResource(Res.string.ai_monitor_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -87,9 +98,9 @@ fun AiAutoModCard(controller: AiAssistantController = koinInject()) {
         }
 
         if (autoMod.enabled) {
-            Text(s.aiSensitivity, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+            Text(stringResource(Res.string.ai_sensitivity), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(1 to s.aiSensLow, 2 to s.aiSensMed, 3 to s.aiSensHigh).forEach { (level, label) ->
+                listOf(1 to stringResource(Res.string.ai_sens_low), 2 to stringResource(Res.string.ai_sens_med), 3 to stringResource(Res.string.ai_sens_high)).forEach { (level, label) ->
                     FilterChip(
                         selected = autoMod.sensitivity == level,
                         onClick = { controller.updateAutoMod { it.copy(sensitivity = level) } },
@@ -99,7 +110,7 @@ fun AiAutoModCard(controller: AiAssistantController = koinInject()) {
             }
 
             Text(
-                s.aiActiveHours,
+                stringResource(Res.string.ai_active_hours),
                 style = MaterialTheme.typography.labelMedium,
                 modifier = Modifier.padding(top = 6.dp)
             )
@@ -115,7 +126,7 @@ fun AiAutoModCard(controller: AiAssistantController = koinInject()) {
                 value = autoMod.extraInstructions,
                 onValueChange = { v -> controller.updateAutoMod { it.copy(extraInstructions = v) } },
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                label = s.aiExtraInstructions
+                label = stringResource(Res.string.ai_extra_instructions)
             )
         }
     }

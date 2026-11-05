@@ -1,5 +1,12 @@
 package io.rudione.chatone.presentation.settings
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.back
+import chatone.composeapp.generated.resources.clear
+import chatone.composeapp.generated.resources.settings_hub_search_found
+import chatone.composeapp.generated.resources.settings_search_placeholder
+import chatone.composeapp.generated.resources.settings_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.draw.drawBehind
@@ -58,7 +65,6 @@ import io.rudione.chatone.presentation.components.expressive.ambientHaze
 import io.rudione.chatone.presentation.components.expressive.touchHaze
 import io.rudione.chatone.presentation.components.rows.LocalSettingsSearch
 import io.rudione.chatone.presentation.settings.components.settingsCard
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.rememberInputCapabilities
 import io.rudione.chatone.util.system.isDesktopPlatform
 import org.koin.compose.koinInject
@@ -87,7 +93,6 @@ internal fun SettingsCompactScreen(
     modifier: Modifier = Modifier,
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
-    val s = LocalStrings.current
     val search = remember { SettingsSearchState() }
     val page = remember { SettingsPageState() }
     val expansion = remember { SettingsSectionExpansion() }
@@ -102,7 +107,7 @@ internal fun SettingsCompactScreen(
             macOs = screenChatFloatsOverFullScreen
         )
     }
-    val model = rememberSettingsSearchModel(search.query, s, rememberSettingsCatalog(s, context))
+    val model = rememberSettingsSearchModel(search.query, rememberSettingsCatalog(context))
     val sections = remember(input) { SettingsSection.entries.filter { it.isAvailable(input) } }
     val settingsNavigator: SettingsNavigator = koinInject()
     val pendingDestination by settingsNavigator.pending.collectAsState()
@@ -154,10 +159,10 @@ internal fun SettingsCompactScreen(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        GlassIconButton(icon = Lucide.ArrowLeft, contentDescription = s.back, onClick = onNavigateBack)
+                        GlassIconButton(icon = Lucide.ArrowLeft, contentDescription = stringResource(Res.string.back), onClick = onNavigateBack)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            s.settingsTitle,
+                            stringResource(Res.string.settings_title),
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = scheme.onSurface
@@ -168,8 +173,8 @@ internal fun SettingsCompactScreen(
                     ExpressiveSearchField(
                         value = search.query,
                         onValueChange = search::change,
-                        placeholder = s.settingsSearchPlaceholder,
-                        clearLabel = s.clear,
+                        placeholder = stringResource(Res.string.settings_search_placeholder),
+                        clearLabel = stringResource(Res.string.clear),
                         modifier = Modifier
                             .padding(vertical = 6.dp)
                             .settingsSearchKeys(search, { model.flat.size }) {
@@ -183,7 +188,7 @@ internal fun SettingsCompactScreen(
                     } else {
                         item(key = "found", contentType = "found") {
                             Text(
-                                s.settingsHub.searchFound.replace("{0}", model.flat.size.toString()),
+                                stringResource(Res.string.settings_hub_search_found, model.flat.size),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = scheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 6.dp)
@@ -197,7 +202,7 @@ internal fun SettingsCompactScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             SectionHeader(
                                 section = section,
-                                label = section.localizedLabel(s),
+                                label = section.localizedLabel(),
                                 open = open,
                                 onToggle = { expansion.toggle(section) }
                             )

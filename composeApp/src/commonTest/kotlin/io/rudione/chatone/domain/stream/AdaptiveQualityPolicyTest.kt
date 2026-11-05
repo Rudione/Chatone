@@ -9,6 +9,7 @@ class AdaptiveQualityPolicyTest {
 
     private val bitrates = intArrayOf(6_800_000, 3_400_000, 1_400_000, 230_000)
     private val allowAll: (Int) -> Boolean = { true }
+    private val healthy = 1_200_000L
 
     private fun policy(capacity: Long = 5_000_000L) = AdaptiveQualityPolicy().apply { start(0L, capacity) }
 
@@ -18,26 +19,26 @@ class AdaptiveQualityPolicyTest {
 
     @Test
     fun startsWithTheBestQualityTheHintAllows() {
-        assertEquals(1, policy().select(bitrates, -1, allowAll, 0L))
+        assertEquals(1, policy().select(bitrates, -1, healthy, allowAll, 0L))
     }
 
     @Test
     fun aFastBurstLiftsQualityRightAway() {
         val policy = policy()
-        policy.select(bitrates, -1, allowAll, 0L)
+        policy.select(bitrates, -1, healthy, allowAll, 0L)
         policy.onTransfer(burst(40_000_000L), loadingBitrate = 3_400_000L, nowMs = 1_000L)
-        assertEquals(0, policy.select(bitrates, 1, allowAll, 2_000L))
+        assertEquals(0, policy.select(bitrates, 1, healthy, allowAll, 2_000L))
     }
 
     @Test
     fun streamPacedDownloadsDoNotLowerQuality() {
         val policy = policy()
         var now = 0L
-        var current = policy.select(bitrates, -1, allowAll, now)
+        var current = policy.select(bitrates, -1, healthy, allowAll, now)
         repeat(60) {
             now += 2_000L
             policy.onTransfer(TransferSample(850_000L, 3_500_000L, 3_350_000L), 3_400_000L, now)
-            current = policy.select(bitrates, current, allowAll, now)
+            current = policy.select(bitrates, current, healthy, allowAll, now)
         }
         assertTrue(current <= 1)
     }
@@ -45,65 +46,65 @@ class AdaptiveQualityPolicyTest {
     @Test
     fun slowDownloadsStepDown() {
         val policy = policy()
-        policy.select(bitrates, -1, allowAll, 0L)
+        policy.select(bitrates, -1, healthy, allowAll, 0L)
         policy.onTransfer(steady(1_600_000L), loadingBitrate = 3_400_000L, nowMs = 20_000L)
-        assertEquals(2, policy.select(bitrates, 1, allowAll, 20_100L))
+        assertEquals(2, policy.select(bitrates, 1, healthy, allowAll, 20_100L))
     }
 
     @Test
     fun rebufferStepsDownAndBlocksTheFailedLevel() {
         val policy = policy(capacity = 40_000_000L)
-        policy.select(bitrates, -1, allowAll, 0L)
+        policy.select(bitrates, -1, healthy, allowAll, 0L)
         policy.onRebuffer(loadingBitrate = 6_800_000L, nowMs = 30_000L)
-        assertEquals(1, policy.select(bitrates, 0, allowAll, 30_100L))
+        assertEquals(1, policy.select(bitrates, 0, healthy, allowAll, 30_100L))
         policy.onTransfer(burst(40_000_000L), 3_400_000L, 31_000L)
-        assertEquals(1, policy.select(bitrates, 1, allowAll, 40_000L))
-        assertEquals(0, policy.select(bitrates, 1, allowAll, 46_000L))
+        assertEquals(1, policy.select(bitrates, 1, healthy, allowAll, 40_000L))
+        assertEquals(0, policy.select(bitrates, 1, healthy, allowAll, 46_000L))
     }
 
     @Test
     fun repeatedFailuresWaitLonger() {
         val policy = policy(capacity = 40_000_000L)
-        policy.select(bitrates, -1, allowAll, 0L)
+        policy.select(bitrates, -1, healthy, allowAll, 0L)
         policy.onRebuffer(6_800_000L, 30_000L)
-        policy.select(bitrates, 0, allowAll, 30_100L)
+        policy.select(bitrates, 0, healthy, allowAll, 30_100L)
         policy.onTransfer(burst(40_000_000L), 3_400_000L, 46_000L)
-        assertEquals(0, policy.select(bitrates, 1, allowAll, 46_000L))
+        assertEquals(0, policy.select(bitrates, 1, healthy, allowAll, 46_000L))
         policy.onRebuffer(6_800_000L, 50_000L)
-        assertEquals(1, policy.select(bitrates, 0, allowAll, 50_100L))
+        assertEquals(1, policy.select(bitrates, 0, healthy, allowAll, 50_100L))
         policy.onTransfer(burst(40_000_000L), 3_400_000L, 66_000L)
-        assertEquals(1, policy.select(bitrates, 1, allowAll, 66_000L))
-        assertEquals(0, policy.select(bitrates, 1, allowAll, 81_000L))
+        assertEquals(1, policy.select(bitrates, 1, healthy, allowAll, 66_000L))
+        assertEquals(0, policy.select(bitrates, 1, healthy, allowAll, 81_000L))
     }
 
     @Test
     fun slightlySlowDownloadsStillStepDown() {
         val policy = policy(capacity = 9_000_000L)
-        policy.select(bitrates, -1, allowAll, 0L)
+        policy.select(bitrates, -1, healthy, allowAll, 0L)
         policy.onTransfer(steady(5_700_000L), loadingBitrate = 6_800_000L, nowMs = 20_000L)
-        assertEquals(1, policy.select(bitrates, 0, allowAll, 20_100L))
+        assertEquals(1, policy.select(bitrates, 0, healthy, allowAll, 20_100L))
     }
 
     @Test
     fun aFailedLevelIsNotRetriedRightAway() {
         val policy = policy()
-        policy.select(bitrates, -1, allowAll, 0L)
+        policy.select(bitrates, -1, healthy, allowAll, 0L)
         policy.onTransfer(steady(1_600_000L), 3_400_000L, 20_000L)
-        assertEquals(2, policy.select(bitrates, 1, allowAll, 20_100L))
+        assertEquals(2, policy.select(bitrates, 1, healthy, allowAll, 20_100L))
         policy.onTransfer(burst(5_000_000L), 1_400_000L, 21_000L)
-        assertEquals(2, policy.select(bitrates, 2, allowAll, 22_000L))
+        assertEquals(2, policy.select(bitrates, 2, healthy, allowAll, 22_000L))
     }
 
     @Test
     fun probesUpwardWhenNothingCanBeMeasured() {
         val policy = policy(capacity = 300_000L)
-        var current = policy.select(bitrates, -1, allowAll, 0L)
+        var current = policy.select(bitrates, -1, healthy, allowAll, 0L)
         assertEquals(3, current)
         var now = 0L
         repeat(40) {
             now += 1_000L
             policy.onTransfer(TransferSample(60_000L, 0L, 230_000L), 230_000L, now)
-            current = policy.select(bitrates, current, allowAll, now)
+            current = policy.select(bitrates, current, healthy, allowAll, now)
         }
         assertTrue(current < 3)
     }
@@ -111,7 +112,61 @@ class AdaptiveQualityPolicyTest {
     @Test
     fun excludedTracksAreSkipped() {
         val policy = policy(capacity = 40_000_000L)
-        assertEquals(1, policy.select(bitrates, -1, { it != 0 }, 0L))
+        assertEquals(1, policy.select(bitrates, -1, healthy, { it != 0 }, 0L))
+    }
+
+    @Test
+    fun doesNotProbeUpwardOnAThinBuffer() {
+        val policy = policy(capacity = 300_000L)
+        var current = policy.select(bitrates, -1, healthy, allowAll, 0L)
+        var now = 0L
+        repeat(40) {
+            now += 1_000L
+            current = policy.select(bitrates, current, 500_000L, allowAll, now)
+        }
+        assertEquals(3, current)
+        assertTrue(policy.select(bitrates, current, healthy, allowAll, now + 1_000L) < 3)
+    }
+
+    @Test
+    fun repeatedFailedProbesKeepBackingOff() {
+        val policy = policy(capacity = 4_500_000L)
+        var current = policy.select(bitrates, -1, healthy, allowAll, 0L)
+        assertEquals(1, current)
+        var now = 10_000L
+        val upgrades = ArrayList<Long>()
+        while (now < 900_000L) {
+            val next = policy.select(bitrates, current, healthy, allowAll, now)
+            if (next < current) {
+                upgrades += now
+                policy.onRebuffer(bitrates[next].toLong(), now + 1_000L)
+                current = policy.select(bitrates, next, healthy, allowAll, now + 1_100L)
+            } else {
+                current = next
+            }
+            now += 1_000L
+        }
+        val gaps = upgrades.zipWithNext { a, b -> b - a }
+        assertTrue(gaps.size >= 3)
+        assertTrue(gaps.zipWithNext().all { (a, b) -> b >= a })
+        assertTrue(gaps.last() >= 240_000L)
+    }
+
+    @Test
+    fun samplerTrustsOnlyTheLeadingBurst() {
+        val sampler = TransferSampler()
+        var now = 0L
+        repeat(20) {
+            sampler.onBytes(now, 8_192)
+            now += 20_000_000L
+        }
+        now += 200_000_000L
+        repeat(30) {
+            sampler.onBytes(now, 16_384)
+            now += 500_000L
+        }
+        val sample = sampler.finish()!!
+        assertTrue(sample.burstBps in 2_000_000L..4_000_000L)
     }
 
     @Test

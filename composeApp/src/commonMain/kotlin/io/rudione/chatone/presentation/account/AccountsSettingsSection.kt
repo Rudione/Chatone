@@ -1,5 +1,32 @@
 package io.rudione.chatone.presentation.account
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.accounts_active
+import chatone.composeapp.generated.resources.accounts_add
+import chatone.composeapp.generated.resources.accounts_custom_settings
+import chatone.composeapp.generated.resources.accounts_list_title
+import chatone.composeapp.generated.resources.accounts_none_added
+import chatone.composeapp.generated.resources.accounts_proxy_auth_optional
+import chatone.composeapp.generated.resources.accounts_proxy_desc
+import chatone.composeapp.generated.resources.accounts_proxy_enabled
+import chatone.composeapp.generated.resources.accounts_proxy_host
+import chatone.composeapp.generated.resources.accounts_proxy_invalid
+import chatone.composeapp.generated.resources.accounts_proxy_password
+import chatone.composeapp.generated.resources.accounts_proxy_port
+import chatone.composeapp.generated.resources.accounts_proxy_saved
+import chatone.composeapp.generated.resources.accounts_proxy_title
+import chatone.composeapp.generated.resources.accounts_proxy_type
+import chatone.composeapp.generated.resources.accounts_proxy_type_http
+import chatone.composeapp.generated.resources.accounts_proxy_type_socks5
+import chatone.composeapp.generated.resources.accounts_proxy_username
+import chatone.composeapp.generated.resources.accounts_remove
+import chatone.composeapp.generated.resources.accounts_remove_confirm
+import chatone.composeapp.generated.resources.accounts_set_primary
+import chatone.composeapp.generated.resources.accounts_uses_custom
+import chatone.composeapp.generated.resources.accounts_uses_global
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.save
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.data.repository.AccountManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -54,7 +81,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import io.rudione.chatone.domain.model.AccountProxyConfig
 import io.rudione.chatone.domain.model.ProxyType
 import io.rudione.chatone.domain.model.TwitchAccount
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.ChatoneTextField
@@ -68,7 +94,6 @@ fun AccountsSettingsSection(
     onSetPrimary: (TwitchAccount) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val strings = LocalStrings.current
     val activeId by accountManager.activeAccountId.collectAsState()
     var expandedAccount by remember { mutableStateOf<String?>(null) }
     var confirmRemove by remember { mutableStateOf<TwitchAccount?>(null) }
@@ -79,19 +104,19 @@ fun AccountsSettingsSection(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                strings.accountsListTitle,
+                stringResource(Res.string.accounts_list_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
             TextButton(onClick = onAddAccount) {
-                Text(strings.accountsAdd)
+                Text(stringResource(Res.string.accounts_add))
             }
         }
 
         if (accounts.isEmpty()) {
             Text(
-                strings.accountsNoneAdded,
+                stringResource(Res.string.accounts_none_added),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -117,17 +142,17 @@ fun AccountsSettingsSection(
     confirmRemove?.let { acc ->
         AlertDialog(
             onDismissRequest = { confirmRemove = null },
-            title = { Text(strings.accountsRemove) },
-            text = { Text(strings.accountsRemoveConfirm + "\n@${acc.login}") },
+            title = { Text(stringResource(Res.string.accounts_remove)) },
+            text = { Text(stringResource(Res.string.accounts_remove_confirm) + "\n@${acc.login}") },
             confirmButton = {
                 TextButton(onClick = {
                     accountManager.deleteAllPerAccountData(acc.userId)
                     onRemoveAccount(acc)
                     confirmRemove = null
-                }) { Text(strings.accountsRemove) }
+                }) { Text(stringResource(Res.string.accounts_remove)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRemove = null }) { Text(strings.cancel) }
+                TextButton(onClick = { confirmRemove = null }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }
@@ -143,7 +168,6 @@ private fun AccountManagementCard(
     onSetPrimary: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val strings = LocalStrings.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -175,7 +199,7 @@ private fun AccountManagementCard(
                             FilterChip(
                                 selected = true,
                                 onClick = {},
-                                label = { Text(strings.accountsActive, style = MaterialTheme.typography.labelSmall) }
+                                label = { Text(stringResource(Res.string.accounts_active), style = MaterialTheme.typography.labelSmall) }
                             )
                         }
                     }
@@ -210,7 +234,7 @@ private fun AccountManagementCard(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text(strings.accountsSetPrimary)
+                        Text(stringResource(Res.string.accounts_set_primary))
                     }
                 }
 
@@ -237,7 +261,7 @@ private fun AccountManagementCard(
                         tint = MaterialTheme.colorScheme.error
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(strings.accountsRemove, color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(Res.string.accounts_remove), color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -249,15 +273,14 @@ private fun OverrideSettingsRow(
     userId: String,
     accountManager: AccountManager
 ) {
-    val strings = LocalStrings.current
     var enabled by remember(userId) { mutableStateOf(accountManager.isOverrideEnabled(userId)) }
     val perAccountSettings = remember(accountManager) { PerAccountSettingsLoader(accountManager) }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(strings.accountsCustomSettings, style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(Res.string.accounts_custom_settings), style = MaterialTheme.typography.bodyMedium)
             Text(
-                if (enabled) strings.accountsUsesCustom else strings.accountsUsesGlobal,
+                if (enabled) stringResource(Res.string.accounts_uses_custom) else stringResource(Res.string.accounts_uses_global),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -278,7 +301,8 @@ private fun ProxyConfigSection(
     userId: String,
     accountManager: AccountManager
 ) {
-    val strings = LocalStrings.current
+    val accountsProxyInvalidText = stringResource(Res.string.accounts_proxy_invalid)
+    val accountsProxySavedText = stringResource(Res.string.accounts_proxy_saved)
     val initial = remember(userId) { accountManager.getProxy(userId) }
     var enabled by remember(userId) { mutableStateOf(initial?.enabled ?: false) }
     var type by remember(userId) { mutableStateOf(initial?.type ?: ProxyType.HTTP) }
@@ -292,7 +316,7 @@ private fun ProxyConfigSection(
     fun save() {
         val portInt = port.toIntOrNull()
         if (host.isBlank() || portInt == null || portInt !in 1..65535) {
-            saveHint = strings.accountsProxyInvalid
+            saveHint = accountsProxyInvalidText
             return
         }
         val cfg = AccountProxyConfig(
@@ -304,20 +328,20 @@ private fun ProxyConfigSection(
             enabled = enabled
         )
         accountManager.saveProxy(userId, cfg)
-        saveHint = strings.accountsProxySaved
+        saveHint = accountsProxySavedText
     }
 
     Column {
-        Text(strings.accountsProxyTitle, style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(Res.string.accounts_proxy_title), style = MaterialTheme.typography.titleSmall)
         Text(
-            strings.accountsProxyDesc,
+            stringResource(Res.string.accounts_proxy_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(6.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(strings.accountsProxyEnabled, modifier = Modifier.weight(1f))
+            Text(stringResource(Res.string.accounts_proxy_enabled), modifier = Modifier.weight(1f))
             ChatoneSwitch(checked = enabled, onCheckedChange = {
                 enabled = it
                 if (!it) accountManager.saveProxy(
@@ -335,12 +359,12 @@ private fun ProxyConfigSection(
             ) {
                 ChatoneTextField(
                     value = when (type) {
-                        ProxyType.HTTP -> strings.accountsProxyTypeHttp
-                        ProxyType.SOCKS5 -> strings.accountsProxyTypeSocks5
+                        ProxyType.HTTP -> stringResource(Res.string.accounts_proxy_type_http)
+                        ProxyType.SOCKS5 -> stringResource(Res.string.accounts_proxy_type_socks5)
                     },
                     onValueChange = {},
                     readOnly = true,
-                    label = strings.accountsProxyType,
+                    label = stringResource(Res.string.accounts_proxy_type),
                     trailing = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuExpanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor()
                 )
@@ -352,8 +376,8 @@ private fun ProxyConfigSection(
                         DropdownMenuItem(
                             text = {
                                 Text(when (t) {
-                                    ProxyType.HTTP -> strings.accountsProxyTypeHttp
-                                    ProxyType.SOCKS5 -> strings.accountsProxyTypeSocks5
+                                    ProxyType.HTTP -> stringResource(Res.string.accounts_proxy_type_http)
+                                    ProxyType.SOCKS5 -> stringResource(Res.string.accounts_proxy_type_socks5)
                                 })
                             },
                             onClick = {
@@ -369,7 +393,7 @@ private fun ProxyConfigSection(
                 ChatoneTextField(
                     value = host,
                     onValueChange = { host = it },
-                    label = strings.accountsProxyHost,
+                    label = stringResource(Res.string.accounts_proxy_host),
                     modifier = Modifier.weight(2f),
                     singleLine = true
                 )
@@ -377,7 +401,7 @@ private fun ProxyConfigSection(
                 ChatoneTextField(
                     value = port,
                     onValueChange = { port = it.filter { ch -> ch.isDigit() }.take(5) },
-                    label = strings.accountsProxyPort,
+                    label = stringResource(Res.string.accounts_proxy_port),
                     modifier = Modifier.weight(1f),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true
@@ -385,7 +409,7 @@ private fun ProxyConfigSection(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                strings.accountsProxyAuthOptional,
+                stringResource(Res.string.accounts_proxy_auth_optional),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -393,7 +417,7 @@ private fun ProxyConfigSection(
                 ChatoneTextField(
                     value = username,
                     onValueChange = { username = it },
-                    label = strings.accountsProxyUsername,
+                    label = stringResource(Res.string.accounts_proxy_username),
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -401,21 +425,21 @@ private fun ProxyConfigSection(
                 io.rudione.chatone.presentation.components.ChatoneSecretField(
                     value = password,
                     onValueChange = { password = it },
-                    label = strings.accountsProxyPassword,
+                    label = stringResource(Res.string.accounts_proxy_password),
                     modifier = Modifier.weight(1f)
                 )
             }
             Spacer(Modifier.height(8.dp))
             Row {
                 Button(onClick = ::save, modifier = Modifier.weight(1f)) {
-                    Text(strings.save)
+                    Text(stringResource(Res.string.save))
                 }
             }
             saveHint?.let { hint ->
                 Text(
                     hint,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (hint == strings.accountsProxyInvalid)
+                    color = if (hint == stringResource(Res.string.accounts_proxy_invalid))
                         MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 4.dp)

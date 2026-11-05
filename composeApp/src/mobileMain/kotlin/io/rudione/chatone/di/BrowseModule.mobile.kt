@@ -24,9 +24,17 @@ private class DefaultFollowedAccountProvider(
     override suspend fun account(activeId: String): FollowedAccount? {
         val account = activeId.takeIf { it.isNotBlank() }?.let { authRepository.getAccountById(it) }
             ?: authRepository.getFirstValidAccount()
-        return account?.let { FollowedAccount(it.userId, it.accessToken) }
+        return account?.let {
+            FollowedAccount(
+                userId = it.userId,
+                token = it.accessToken,
+                canReadFollows = it.scopes.isEmpty() || FOLLOWS_SCOPE in it.scopes
+            )
+        }
     }
 }
+
+private const val FOLLOWS_SCOPE = "user:read:follows"
 
 actual val platformBrowseModule: Module = module {
     single { TwitchDirectoryClient(httpClient = get()) } binds arrayOf(StreamDirectory::class, ChannelSnapshotSource::class)

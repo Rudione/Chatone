@@ -45,8 +45,11 @@ data class BrowsePage<T>(val items: List<T>, val nextCursor: String?) {
 @Immutable
 data class BrowseSearchResult(
     val categories: List<BrowseCategory>,
-    val channels: List<BrowseChannel>
-)
+    val channels: List<BrowseChannel>,
+    val streams: List<BrowseStream> = emptyList()
+) {
+    val isEmpty: Boolean get() = categories.isEmpty() && channels.isEmpty() && streams.isEmpty()
+}
 
 enum class StreamSort { VIEWERS_HIGH, VIEWERS_LOW, RECENT }
 
@@ -81,7 +84,7 @@ data class StreamFilter(
     }
 }
 
-data class FollowedAccount(val userId: String, val token: String)
+data class FollowedAccount(val userId: String, val token: String, val canReadFollows: Boolean = true)
 
 interface FollowedAccountProvider {
     val activeAccountId: kotlinx.coroutines.flow.StateFlow<String>

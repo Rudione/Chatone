@@ -1,19 +1,34 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.chat.timeline.rememberTimelineSource
+import io.rudione.chatone.presentation.chat.timeline.profileAuthor
+import io.rudione.chatone.presentation.chat.timeline.isBrowsingSeparately
+import io.rudione.chatone.presentation.chat.timeline.RemoteHistoryPager
+import io.rudione.chatone.presentation.chat.timeline.ProfileTimelineFeed
+import chatone.composeapp.generated.resources.ui_copy_username
+import chatone.composeapp.generated.resources.close
+import chatone.composeapp.generated.resources.profile_detach_card
+import androidx.compose.ui.text.style.TextOverflow
+import chatone.composeapp.generated.resources.ui_open_twitch_profile
+import chatone.composeapp.generated.resources.ic_twitch
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.chat_ban_reason_hint
+import chatone.composeapp.generated.resources.chat_ban_reason_placeholder
+import chatone.composeapp.generated.resources.delete
+import chatone.composeapp.generated.resources.profile_ban
+import chatone.composeapp.generated.resources.profile_delete_note
+import chatone.composeapp.generated.resources.profile_delete_note_confirm
+import chatone.composeapp.generated.resources.profile_editor_edit
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.icons.lucide.Pencil
+import io.rudione.chatone.data.repository.AccountManager
+import io.rudione.chatone.presentation.profile.PageNavigator
 import io.rudione.chatone.presentation.chat.roles.rememberUserRoles
 import io.rudione.chatone.presentation.chat.roles.UserRolesTab
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -30,26 +45,13 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.isSecondaryPressed
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
 import io.rudione.chatone.util.platform.setText
 import kotlinx.coroutines.launch
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.ic_twitch
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.AccountBadge
 import io.rudione.chatone.data.remote.BadgeHqClient
@@ -69,13 +71,6 @@ import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.domain.model.SevenTvCosmetics
-import io.rudione.chatone.presentation.components.ExpressiveCheckbox
-import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.util.chat.MessageToken
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlin.time.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -135,6 +130,8 @@ fun UserProfilePopup(
     onDismiss: () -> Unit
 ) {
     val noteRepository: UserNoteRepository = koinInject()
+    val profiles: PageNavigator = koinInject()
+    val activeAccountId by koinInject<AccountManager>().activeAccountId.collectAsState()
 
     if (isDesktopPlatform) {
         DesktopUserProfilePopup(
@@ -318,11 +315,10 @@ fun UserProfilePopup(
     }
 
     if (showDeleteConfirmation) {
-        val sd = LocalStrings.current
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            title = { Text(sd.profileDeleteNote) },
-            text = { Text(sd.profileDeleteNoteConfirm) },
+            title = { Text(stringResource(Res.string.profile_delete_note)) },
+            text = { Text(stringResource(Res.string.profile_delete_note_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -330,12 +326,12 @@ fun UserProfilePopup(
                         false
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text(sd.delete) }
+                ) { Text(stringResource(Res.string.delete)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showDeleteConfirmation = false
-                }) { Text(sd.cancel) }
+                }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }
@@ -383,12 +379,16 @@ fun UserProfilePopup(
                     gqlBadges = gqlBadges,
                     accountBadges = accountBadges,
                     sevenTvBadge = sevenTvBadge,
-                    isBroadcaster = isBroadcaster,
-                    isModerator = isModerator,
-                    isVip = isVip,
-                    isSubscriber = isSubscriber,
                     onDetach = onDetach,
-                    onDismiss = onDismiss
+                    onDismiss = onDismiss,
+                    onOpenProfile = {
+                        onDismiss()
+                        profiles.openChannel(username)
+                    }.takeIf { profiles.isSupported && username.isNotBlank() },
+                    onEdit = {
+                        onDismiss()
+                        profiles.openEditor(channelLogin.ifBlank { null })
+                    }.takeIf { profiles.isSupported && userId.isNotBlank() && userId == activeAccountId }
                 )
                 val showHistoryTab = showModActions &&
                         (isModerationHistoryLoading || moderationHistory.totalActions > 0)
@@ -454,23 +454,26 @@ fun UserProfilePopup(
                         username = username
                     )
 
-                    1 -> if (archive.isActive) {
+                    1 -> if (archive.isBrowsingSeparately) {
                         ProfileArchiveFeed(
                             archive = archive,
                             displayName = displayName,
                             nameColor = rememberNickColors().of(color, username.ifBlank { displayName }),
                             modifier = Modifier.fillMaxWidth().height(380.dp)
                         )
-                    } else MessagesTab(
-                        messages = userMessages,
-                        displayName = displayName,
-                        userColor = color,
-                        login = username,
-                        history = historyMessages,
-                        isHistoryLoading = isHistoryLoading,
-                        hasMoreHistory = hasMoreHistory,
-                        onLoadHistory = loadHistory.takeIf { canLoadHistory },
-                        localHistory = localHistory
+                    } else ProfileTimelineFeed(
+                        source = rememberTimelineSource(
+                            session = userMessages,
+                            local = localHistory,
+                            remote = historyMessages,
+                            pager = RemoteHistoryPager(canLoadHistory, hasMoreHistory, isHistoryLoading, loadHistory),
+                            archive = archive
+                        ),
+                        author = remember(userMessages, userId) {
+                            profileAuthor(userMessages, userId, username, displayName, color, channelLogin)
+                        },
+                        nameColor = rememberNickColors().of(color, username.ifBlank { displayName }),
+                        modifier = Modifier.fillMaxWidth().height(380.dp)
                     )
 
                     2 -> ModerationHistoryTab(
@@ -505,11 +508,11 @@ fun UserProfilePopup(
     if (banReasonPrompt) {
         AlertDialog(
             onDismissRequest = { banReasonPrompt = false },
-            title = { Text("${LocalStrings.current.profileBan}: $displayName") },
+            title = { Text("${stringResource(Res.string.profile_ban)}: $displayName") },
             text = {
                 Column {
                     Text(
-                        LocalStrings.current.chatBanReasonHint,
+                        stringResource(Res.string.chat_ban_reason_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -518,7 +521,7 @@ fun UserProfilePopup(
                         value = banReasonText,
                         onValueChange = { banReasonText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = LocalStrings.current.chatBanReasonPlaceholder,
+                        placeholder = stringResource(Res.string.chat_ban_reason_placeholder),
                         singleLine = false
                     )
                 }
@@ -528,10 +531,10 @@ fun UserProfilePopup(
                     onBanWithReason(banReasonText.trim())
                     banReasonPrompt = false
                     onDismiss()
-                }) { Text(LocalStrings.current.profileBan) }
+                }) { Text(stringResource(Res.string.profile_ban)) }
             },
             dismissButton = {
-                TextButton(onClick = { banReasonPrompt = false }) { Text(LocalStrings.current.cancel) }
+                TextButton(onClick = { banReasonPrompt = false }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }
@@ -545,17 +548,15 @@ fun UserProfileHeader(
     color: String?,
     badges: List<Badge>,
     sevenTvBadge: SevenTvCosmetics.Badge?,
-    isBroadcaster: Boolean,
-    isModerator: Boolean,
-    isVip: Boolean,
-    isSubscriber: Boolean,
     modifier: Modifier = Modifier,
     userId: String = "",
     gqlBadges: List<GqlDisplayBadge> = emptyList(),
     accountBadges: List<AccountBadge> = emptyList(),
     onDetach: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
-    showIconDetached: Boolean = true
+    showIconDetached: Boolean = true,
+    onOpenProfile: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -583,17 +584,19 @@ fun UserProfileHeader(
         }
     }
 
-    Column(modifier = modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(modifier = modifier.padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 10.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            val avatarModifier = Modifier.size(48.dp).clip(CircleShape)
+                .then(if (onOpenProfile != null) Modifier.clickable(onClick = onOpenProfile) else Modifier)
             if (avatarUrl.isNotEmpty()) {
                 AsyncImage(
                     model = avatarUrl,
                     contentDescription = displayName,
-                    modifier = Modifier.size(44.dp).clip(CircleShape)
+                    modifier = avatarModifier
                 )
             } else {
                 Box(
-                    modifier = Modifier.size(44.dp).clip(CircleShape)
+                    modifier = avatarModifier
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
@@ -606,97 +609,98 @@ fun UserProfileHeader(
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ProfileDisplayName(
-                        displayName = displayName,
-                        color = color,
-                        fallbackLogin = username,
-                        paint = sevenTv?.paint,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f, fill = false)
+                ProfileDisplayName(
+                    displayName = displayName,
+                    color = color,
+                    fallbackLogin = username,
+                    paint = sevenTv?.paint,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                if (username.lowercase() != displayName.lowercase()) {
+                    Text(
+                        "@$username",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(Modifier.width(4.dp))
-                    ChatoneIconButton(
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    ProfileHeaderAction(
                         onClick = {
                             scope.launch { clipboard.setText(username) }
                             showCopied = true
-                        },
-                        modifier = Modifier.size(22.dp)
+                        }
                     ) {
                         Icon(
-                            if (showCopied) Lucide.CopyCheck
-                            else Lucide.Copy,
-                            contentDescription = "Copy username",
-                            modifier = Modifier.size(14.dp),
-                            tint = if (showCopied)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            if (showCopied) Lucide.CopyCheck else Lucide.Copy,
+                            contentDescription = stringResource(Res.string.ui_copy_username),
+                            modifier = Modifier.size(16.dp),
+                            tint = if (showCopied) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    ChatoneIconButton(
-                        onClick = {
-                            val twitchUrl = "https://www.twitch.tv/${username.lowercase()}"
-                            uriHandler.openUri(twitchUrl)
-                        },
-                        modifier = Modifier.size(22.dp)
+                    ProfileHeaderAction(
+                        onClick = { uriHandler.openUri("https://www.twitch.tv/${username.lowercase()}") }
                     ) {
                         Icon(
                             painter = painterResource(Res.drawable.ic_twitch),
-                            contentDescription = "Open Twitch profile",
-                            modifier = Modifier.size(14.dp),
-                            tint = Color(0xFF9146FF)
+                            contentDescription = stringResource(Res.string.ui_open_twitch_profile),
+                            modifier = Modifier.size(16.dp),
+                            tint = TwitchPurple
                         )
                     }
-                    if (sevenTv?.profile != null) {
-                        Spacer(Modifier.width(2.dp))
-                        SevenTvLinkButton(profile = sevenTv.profile)
+                    sevenTv?.profile?.let { profile ->
+                        Box(Modifier.padding(horizontal = 4.dp)) { SevenTvLinkButton(profile = profile) }
+                    }
+                    if (onEdit != null) {
+                        ProfileHeaderAction(onClick = onEdit) {
+                            Icon(
+                                Lucide.Pencil,
+                                contentDescription = stringResource(Res.string.profile_editor_edit),
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    if (onDetach != null) {
+                        ProfileHeaderAction(onClick = onDetach) {
+                            Icon(
+                                Lucide.ExternalLink,
+                                contentDescription = stringResource(Res.string.profile_detach_card),
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
-                if (username.lowercase() != displayName.lowercase()) {
-                    Text(
-                        "@$username", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
-            if (onDetach != null) {
-                ChatoneIconButton(onClick = onDetach, modifier = Modifier.size(28.dp)) {
+            if (onDismiss != null && showIconDetached) {
+                ChatoneIconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
                     Icon(
-                        Lucide.ExternalLink, null, modifier = Modifier.size(15.dp),
+                        Lucide.X,
+                        contentDescription = stringResource(Res.string.close),
+                        modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-            }
-            if (onDismiss != null) {
-                if (showIconDetached) {
-                    ChatoneIconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(28.dp),
-                    ) {
-                        Icon(
-                            Lucide.X, null, modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
         }
 
         if (badgeItems.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             ProfileBadgeStrip(badges = badgeItems, badgeSize = 20.dp, spacing = 4.dp)
-        }
-
-        val hasRoles = isBroadcaster || isModerator || isVip || isSubscriber
-        if (hasRoles) {
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (isBroadcaster) RoleBadge("Broadcaster", MaterialTheme.colorScheme.error)
-                if (isModerator) RoleBadge("Mod", ChatoneTheme.extraColors.connected)
-                if (isVip) RoleBadge("VIP", Color(0xFFE005B9))
-                if (isSubscriber) RoleBadge("Sub", MaterialTheme.colorScheme.primary)
-            }
         }
     }
 }
+
+@Composable
+private fun ProfileHeaderAction(onClick: () -> Unit, content: @Composable () -> Unit) {
+    ChatoneIconButton(onClick = onClick, modifier = Modifier.size(30.dp), content = content)
+}
+
+private val TwitchPurple = Color(0xFF9146FF)

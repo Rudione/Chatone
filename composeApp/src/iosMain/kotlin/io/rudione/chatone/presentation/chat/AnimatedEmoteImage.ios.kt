@@ -2,7 +2,7 @@ package io.rudione.chatone.presentation.chat
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import coil3.compose.AsyncImage
+import io.rudione.chatone.presentation.chat.emote.SkiaEmoteImage
 
 @Composable
 actual fun AnimatedEmoteImage(
@@ -12,10 +12,11 @@ actual fun AnimatedEmoteImage(
     isScrolling: Boolean,
     maxDimension: Int
 ) {
-
-    AsyncImage(
-        model = url,
+    SkiaEmoteImage(
+        url = url,
         contentDescription = contentDescription,
-        modifier = modifier
+        modifier = modifier,
+        paused = isScrolling,
+        maxDimension = maxDimension
     )
 }

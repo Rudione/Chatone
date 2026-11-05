@@ -1,5 +1,36 @@
 package io.rudione.chatone.presentation.settings.components
 
+import io.rudione.chatone.presentation.components.durationText
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.mod_slider_action_ban
+import chatone.composeapp.generated.resources.mod_slider_action_delete
+import chatone.composeapp.generated.resources.mod_slider_add_step
+import chatone.composeapp.generated.resources.mod_slider_ban_at_end
+import chatone.composeapp.generated.resources.mod_slider_ban_at_end_help
+import chatone.composeapp.generated.resources.mod_slider_delete_at_start
+import chatone.composeapp.generated.resources.mod_slider_delete_at_start_help
+import chatone.composeapp.generated.resources.mod_slider_enable_help
+import chatone.composeapp.generated.resources.mod_slider_enable_title
+import chatone.composeapp.generated.resources.mod_slider_own_step
+import chatone.composeapp.generated.resources.mod_slider_preview_hint
+import chatone.composeapp.generated.resources.mod_slider_preview_message
+import chatone.composeapp.generated.resources.mod_slider_preview_result
+import chatone.composeapp.generated.resources.mod_slider_preview_title
+import chatone.composeapp.generated.resources.mod_slider_preview_user
+import chatone.composeapp.generated.resources.mod_slider_quick_steps
+import chatone.composeapp.generated.resources.mod_slider_reset_steps
+import chatone.composeapp.generated.resources.mod_slider_scale_title
+import chatone.composeapp.generated.resources.mod_slider_status_off
+import chatone.composeapp.generated.resources.mod_slider_status_on
+import chatone.composeapp.generated.resources.mod_slider_steps_help
+import chatone.composeapp.generated.resources.mod_slider_steps_order
+import chatone.composeapp.generated.resources.mod_slider_steps_title
+import chatone.composeapp.generated.resources.mod_slider_travel_help
+import chatone.composeapp.generated.resources.mod_slider_travel_title
+import chatone.composeapp.generated.resources.mod_slider_travel_value
+import chatone.composeapp.generated.resources.mod_slider_twitch_scale
+import chatone.composeapp.generated.resources.mod_slider_twitch_scale_help
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -64,7 +95,6 @@ import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.settingsAnchor
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.MessageToken
 
 @Composable
@@ -88,10 +118,9 @@ internal fun ModSliderSettings(state: SettingsState, onEvent: (SettingsEvent) ->
 
 @Composable
 private fun SliderEnableGroup(settings: ModSliderSettings, update: (ModSliderSettings) -> Unit) {
-    val strings = LocalStrings.current.modSlider
     val scheme = MaterialTheme.colorScheme
     SettingsGroup {
-        SwitchRow(strings.enableTitle, strings.enableHelp, settings.enabled) { update(settings.copy(enabled = it)) }
+        SwitchRow(stringResource(Res.string.mod_slider_enable_title), stringResource(Res.string.mod_slider_enable_help), settings.enabled) { update(settings.copy(enabled = it)) }
         Row(
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -104,7 +133,7 @@ private fun SliderEnableGroup(settings: ModSliderSettings, update: (ModSliderSet
                     .background(if (settings.enabled) scheme.primary else scheme.outline)
             )
             Text(
-                if (settings.enabled) strings.statusOn else strings.statusOff,
+                if (settings.enabled) stringResource(Res.string.mod_slider_status_on) else stringResource(Res.string.mod_slider_status_off),
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant
             )
@@ -118,9 +147,8 @@ private fun SliderScaleGroup(
     custom: List<Int>,
     update: (ModSliderSettings) -> Unit
 ) {
-    val strings = LocalStrings.current.modSlider
-    SettingsGroup(strings.scaleTitle) {
-        SwitchRow(strings.twitchScale, strings.twitchScaleHelp, settings.twitchScale) {
+    SettingsGroup(stringResource(Res.string.mod_slider_scale_title)) {
+        SwitchRow(stringResource(Res.string.mod_slider_twitch_scale), stringResource(Res.string.mod_slider_twitch_scale_help), settings.twitchScale) {
             update(settings.copy(twitchScale = it))
         }
         AnimatedVisibility(
@@ -143,43 +171,41 @@ private fun CustomStepsEditor(
     steps: List<Int>,
     update: (ModSliderSettings) -> Unit
 ) {
-    val s = LocalStrings.current
-    val strings = s.modSlider
     val extra = ChatoneTheme.extraColors
     var draft by remember { mutableIntStateOf(DEFAULT_DRAFT_SECONDS) }
     val full = steps.size >= ModSliderSettings.MAX_DURATIONS
     Column(
         modifier = Modifier
-            .settingsAnchor(strings.stepsTitle)
+            .settingsAnchor(stringResource(Res.string.mod_slider_steps_title))
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            strings.stepsTitle,
+            stringResource(Res.string.mod_slider_steps_title),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface
         )
-        ChatoneFieldLabel(strings.stepsOrder)
+        ChatoneFieldLabel(stringResource(Res.string.mod_slider_steps_order))
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
             itemVerticalAlignment = Alignment.CenterVertically
         ) {
             if (settings.deleteAtStart) {
-                StepTag(strings.actionDelete, extra.modDelete, onRemove = null)
+                StepTag(stringResource(Res.string.mod_slider_action_delete), extra.modDelete, onRemove = null)
                 StepArrow()
             }
             steps.forEachIndexed { index, seconds ->
-                StepTag(ModSliderDurations.format(seconds), extra.modTimeout) {
+                StepTag(durationText(seconds), extra.modTimeout) {
                     update(settings.withDurations(steps - seconds))
                 }
                 if (index < steps.lastIndex || settings.banAtEnd) StepArrow()
             }
-            if (settings.banAtEnd) StepTag(strings.actionBan, extra.modBan, onRemove = null)
+            if (settings.banAtEnd) StepTag(stringResource(Res.string.mod_slider_action_ban), extra.modBan, onRemove = null)
         }
-        ChatoneFieldLabel(strings.quickSteps)
+        ChatoneFieldLabel(stringResource(Res.string.mod_slider_quick_steps))
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -187,7 +213,7 @@ private fun CustomStepsEditor(
             QUICK_STEPS.forEach { seconds ->
                 val included = seconds in steps
                 ChatoneChip(
-                    label = ModSliderDurations.format(seconds),
+                    label = durationText(seconds),
                     onClick = { update(settings.withDurations(if (included) steps - seconds else steps + seconds)) },
                     selected = included,
                     enabled = included || !full,
@@ -196,7 +222,7 @@ private fun CustomStepsEditor(
                 )
             }
         }
-        ChatoneFieldLabel(strings.ownStep)
+        ChatoneFieldLabel(stringResource(Res.string.mod_slider_own_step))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ChatoneDurationField(
                 totalSeconds = draft,
@@ -205,7 +231,7 @@ private fun CustomStepsEditor(
                 modifier = Modifier.width(200.dp)
             )
             ChatoneButton(
-                text = strings.addStep,
+                text = stringResource(Res.string.mod_slider_add_step),
                 onClick = { update(settings.withDurations(steps + draft)) },
                 enabled = draft !in steps && !full,
                 tone = ChatoneButtonTone.Neutral,
@@ -214,14 +240,14 @@ private fun CustomStepsEditor(
             Spacer(Modifier.weight(1f))
             if (settings.hasCustomDurations) {
                 ChatoneButton(
-                    text = strings.resetSteps,
+                    text = stringResource(Res.string.mod_slider_reset_steps),
                     onClick = { update(settings.copy(timeoutSeconds = null)) },
                     tone = ChatoneButtonTone.Neutral,
                     icon = Lucide.RotateCcw
                 )
             }
         }
-        Text(strings.stepsHelp, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(Res.string.mod_slider_steps_help), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -256,28 +282,27 @@ private fun StepArrow() {
 
 @Composable
 private fun SliderTrackGroup(settings: ModSliderSettings, update: (ModSliderSettings) -> Unit) {
-    val strings = LocalStrings.current.modSlider
-    SettingsGroup(strings.travelTitle) {
-        SwitchRow(strings.deleteAtStart, strings.deleteAtStartHelp, settings.deleteAtStart) {
+    SettingsGroup(stringResource(Res.string.mod_slider_travel_title)) {
+        SwitchRow(stringResource(Res.string.mod_slider_delete_at_start), stringResource(Res.string.mod_slider_delete_at_start_help), settings.deleteAtStart) {
             update(settings.copy(deleteAtStart = it))
         }
         RowDivider()
-        SwitchRow(strings.banAtEnd, strings.banAtEndHelp, settings.banAtEnd) {
+        SwitchRow(stringResource(Res.string.mod_slider_ban_at_end), stringResource(Res.string.mod_slider_ban_at_end_help), settings.banAtEnd) {
             update(settings.copy(banAtEnd = it))
         }
         RowDivider()
         SliderRow(
-            label = strings.travelTitle,
+            label = stringResource(Res.string.mod_slider_travel_title),
             value = settings.travelPercent.toFloat(),
             valueRange = ModSliderSettings.MIN_TRAVEL_PERCENT.toFloat()..ModSliderSettings.MAX_TRAVEL_PERCENT.toFloat(),
             steps = (ModSliderSettings.MAX_TRAVEL_PERCENT - ModSliderSettings.MIN_TRAVEL_PERCENT) / ModSliderSettings.TRAVEL_STEP_PERCENT - 1,
-            valueLabel = strings.travelValue.replace("{0}", settings.travelPercent.toString())
+            valueLabel = stringResource(Res.string.mod_slider_travel_value, settings.travelPercent)
         ) { value ->
             val step = ModSliderSettings.TRAVEL_STEP_PERCENT
             update(settings.copy(travelPercent = ((value + step / 2f) / step).toInt() * step))
         }
         Text(
-            strings.travelHelp,
+            stringResource(Res.string.mod_slider_travel_help),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp)
@@ -287,7 +312,8 @@ private fun SliderTrackGroup(settings: ModSliderSettings, update: (ModSliderSett
 
 @Composable
 private fun SliderPreviewCard(settings: ModSliderSettings, durations: List<Int>) {
-    val strings = LocalStrings.current.modSlider
+    val modSliderPreviewUserText = stringResource(Res.string.mod_slider_preview_user)
+    val modSliderPreviewMessageText = stringResource(Res.string.mod_slider_preview_message)
     val host = remember { ModSliderHost() }
     val style = rememberModSliderStyle()
     val binding = remember(settings, durations, style) {
@@ -300,10 +326,10 @@ private fun SliderPreviewCard(settings: ModSliderSettings, durations: List<Int>)
             travelFraction = settings.travelFraction
         )
     }
-    val message = remember(strings) { previewMessage(strings.previewUser, strings.previewMessage) }
+    val message = remember(modSliderPreviewUserText, modSliderPreviewMessageText) { previewMessage(modSliderPreviewUserText, modSliderPreviewMessageText) }
     var lastAction by remember { mutableStateOf<ModSliderAction?>(null) }
     ModSliderGuard(host)
-    SettingsCard(title = strings.previewTitle, help = strings.previewHint) {
+    SettingsCard(title = stringResource(Res.string.mod_slider_preview_title), help = stringResource(Res.string.mod_slider_preview_hint)) {
         Column(modifier = Modifier.fillMaxWidth()) {
             PrivMsgItem(
                 message = message,
@@ -318,7 +344,7 @@ private fun SliderPreviewCard(settings: ModSliderSettings, durations: List<Int>)
             )
         }
         Text(
-            lastAction?.let { strings.previewResult.replace("{0}", style.labelOf(it)) } ?: strings.previewHint,
+            lastAction?.let { stringResource(Res.string.mod_slider_preview_result, style.labelOf(it)) } ?: stringResource(Res.string.mod_slider_preview_hint),
             style = MaterialTheme.typography.labelSmall,
             color = lastAction?.let { style.colorOf(it) } ?: MaterialTheme.colorScheme.onSurfaceVariant
         )

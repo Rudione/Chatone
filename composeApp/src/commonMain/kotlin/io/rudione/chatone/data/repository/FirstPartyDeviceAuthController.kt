@@ -48,7 +48,7 @@ class FirstPartyDeviceAuthController(
 
     private var pollJob: Job? = null
 
-    suspend fun prepare(): DeviceAuthStart {
+    suspend fun prepare(expectedUserId: String = ""): DeviceAuthStart {
         pollJob?.cancel()
         val info = when (val result = deviceAuthClient.requestDeviceCode()) {
             is DeviceCodeResult.Issued -> result.info
@@ -63,7 +63,7 @@ class FirstPartyDeviceAuthController(
 
         val waiting = DeviceAuthState.WaitingForApproval(info.userCode, info.activationUri)
         _state.value = waiting
-        startPolling(info, expectedUserId = "", pollImmediately = false)
+        startPolling(info, expectedUserId = expectedUserId, pollImmediately = false)
         return DeviceAuthStart.Started(waiting)
     }
 
@@ -83,7 +83,7 @@ class FirstPartyDeviceAuthController(
                 verificationUri = "",
                 expiresInSeconds = ADOPTED_EXPIRES_SECONDS,
                 intervalSeconds = ADOPTED_INTERVAL_SECONDS,
-                client = client
+                clientId = client.clientId
             ),
             expectedUserId = expectedUserId,
             pollImmediately = true,

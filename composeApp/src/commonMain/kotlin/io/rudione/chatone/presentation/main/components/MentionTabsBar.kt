@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.main.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.mention_tabs_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.MentionEntry
 import io.rudione.chatone.presentation.chat.rememberNickColors
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.AtSign
 import io.rudione.chatone.icons.lucide.Lucide
 
@@ -65,7 +67,7 @@ fun MentionTabsBar(
     ) {
         Icon(
             Lucide.AtSign,
-            contentDescription = LocalStrings.current.mentionTabsTitle,
+            contentDescription = stringResource(Res.string.mention_tabs_title),
             modifier = Modifier.size(13.dp),
             tint = MaterialTheme.colorScheme.primary
         )

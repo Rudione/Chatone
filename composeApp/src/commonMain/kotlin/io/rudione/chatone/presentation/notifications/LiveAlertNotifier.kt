@@ -1,12 +1,14 @@
 package io.rudione.chatone.presentation.notifications
 
+import chatone.composeapp.generated.resources.live_notify_body
+import chatone.composeapp.generated.resources.live_notify_title
+import chatone.composeapp.generated.resources.Res
+import org.jetbrains.compose.resources.getString
 import io.rudione.chatone.data.remote.TwitchLiveStatusClient
 import io.rudione.chatone.data.repository.LiveAlertsRepository
 import io.rudione.chatone.domain.live.LiveAlertPolicy
 import io.rudione.chatone.domain.model.LiveStreamSnapshot
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import io.rudione.chatone.util.system.NotificationTarget
 import io.rudione.chatone.util.system.NotificationTopic
 import io.rudione.chatone.util.system.notifySystem
@@ -47,16 +49,16 @@ class LiveAlertNotifier(
         val live = liveStatusClient.liveStreams(enabled) ?: return@withLock false
         val outcome = LiveAlertPolicy.evaluate(enabled, repository.ledger(), live)
         repository.saveLedger(outcome.entries)
-        outcome.alerts.forEach(::announce)
+        outcome.alerts.forEach { announce(it) }
         true
     }
 
-    private fun announce(stream: LiveStreamSnapshot) {
-        val strings = AppStrings.forLocale(SettingsViewModel.currentLanguage())
+    private suspend fun announce(stream: LiveStreamSnapshot) {
+        SettingsViewModel.currentLanguage()
         val details = listOf(stream.title, stream.gameName).filter { it.isNotBlank() }.joinToString(" · ")
         notifySystem(
-            title = strings.format(strings.liveNotifyTitle, stream.displayName),
-            body = details.ifEmpty { strings.liveNotifyBody },
+            title = getString(Res.string.live_notify_title, stream.displayName),
+            body = details.ifEmpty { getString(Res.string.live_notify_body) },
             topic = NotificationTopic.LIVE,
             target = NotificationTarget.of(stream.login)
         )

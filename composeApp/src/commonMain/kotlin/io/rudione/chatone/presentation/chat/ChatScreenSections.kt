@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.text.asString
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_waiting_for_messages
+import chatone.composeapp.generated.resources.uploader_drop_hint
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -36,7 +41,6 @@ import io.rudione.chatone.presentation.components.DockHost
 import io.rudione.chatone.presentation.components.DockPanel
 import io.rudione.chatone.presentation.components.evictedFrom
 import io.rudione.chatone.presentation.components.insetBottom
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.MessagesSquare
@@ -233,6 +237,7 @@ internal fun ChatEmotePickerSection(
     val onDismiss = { viewModel.sendEvent(ChatEvent.OnToggleEmotePicker) }
 
     if (dockHost == null) {
+        ChatSpillRequest(key = "emotes")
         Box(modifier = Modifier.fillMaxSize().insetBottom(inputHeightPx)) {
             EmotePickerSheet(
                 channelEmotes = resolvedEmotes,
@@ -242,7 +247,7 @@ internal fun ChatEmotePickerSection(
                 onEmojiSelected = onEmojiPicked,
                 onGifSelected = onGifPicked,
                 canSendGifs = state.ownSubTier >= 2,
-                gifSendError = state.gifSendError,
+                gifSendError = state.gifSendError?.asString(),
                 gifAccess = state.gifAccess,
                 onRefreshGifAccess = onRefreshGifAccess,
                 onDismiss = onDismiss
@@ -258,7 +263,7 @@ internal fun ChatEmotePickerSection(
                 onEmojiSelected = onEmojiPicked,
                 onGifSelected = onGifPicked,
                 canSendGifs = state.ownSubTier >= 2,
-                gifSendError = state.gifSendError,
+                gifSendError = state.gifSendError?.asString(),
                 gifAccess = state.gifAccess,
                 onRefreshGifAccess = onRefreshGifAccess,
                 onDismiss = onDismiss,
@@ -289,7 +294,7 @@ internal fun ChatWaitingState(isLoading: Boolean) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    LocalStrings.current.chatWaitingForMessages,
+                    stringResource(Res.string.chat_waiting_for_messages),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -308,7 +313,7 @@ internal fun ChatFileDropHint() {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            LocalStrings.current.uploaderDropHint,
+            stringResource(Res.string.uploader_drop_hint),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold

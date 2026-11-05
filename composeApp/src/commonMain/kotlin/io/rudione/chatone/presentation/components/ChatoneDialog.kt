@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.close
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +31,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
 
@@ -97,9 +99,7 @@ fun ChatoneDialogHeader(
                 title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                color = MaterialTheme.colorScheme.onSurface
             )
             if (!subtitle.isNullOrBlank()) {
                 Text(
@@ -114,7 +114,7 @@ fun ChatoneDialogHeader(
         ChatoneIconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
             Icon(
                 Lucide.X,
-                contentDescription = LocalStrings.current.close,
+                contentDescription = stringResource(Res.string.close),
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )

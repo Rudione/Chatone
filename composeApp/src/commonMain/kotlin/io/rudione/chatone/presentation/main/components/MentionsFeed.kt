@@ -1,5 +1,24 @@
 package io.rudione.chatone.presentation.main.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.panel_in_channel
+import chatone.composeapp.generated.resources.panel_mentions_empty
+import chatone.composeapp.generated.resources.panel_mentions_filter
+import chatone.composeapp.generated.resources.panel_mentions_filter_all
+import chatone.composeapp.generated.resources.panel_mentions_filter_by_channel
+import chatone.composeapp.generated.resources.panel_mentions_filter_by_user
+import chatone.composeapp.generated.resources.panel_mentions_filter_by_user_search
+import chatone.composeapp.generated.resources.panel_mentions_filter_today
+import chatone.composeapp.generated.resources.panel_mentions_filter_unread
+import chatone.composeapp.generated.resources.panel_mentions_hint
+import chatone.composeapp.generated.resources.panel_mentions_mark_all_read
+import chatone.composeapp.generated.resources.panel_mentions_sort
+import chatone.composeapp.generated.resources.panel_mentions_sort_by_channel
+import chatone.composeapp.generated.resources.panel_mentions_sort_by_user
+import chatone.composeapp.generated.resources.panel_mentions_sort_newest
+import chatone.composeapp.generated.resources.panel_mentions_sort_oldest
+import chatone.composeapp.generated.resources.panel_mentions_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,7 +50,6 @@ import io.rudione.chatone.presentation.chat.rememberNickColors
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.main.MainEvent
 import io.rudione.chatone.presentation.main.MainState
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
@@ -135,7 +153,7 @@ fun MentionsFeed(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    LocalStrings.current.panelMentionsTitle,
+                    stringResource(Res.string.panel_mentions_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -178,7 +196,7 @@ fun MentionsFeed(
                         modifier = Modifier.height(28.dp)
                     ) {
                         Text(
-                            LocalStrings.current.panelMentionsMarkAllRead,
+                            stringResource(Res.string.panel_mentions_mark_all_read),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -218,7 +236,7 @@ fun MentionsFeed(
                         value = userSearchQuery,
                         onValueChange = { userSearchQuery = it },
                         modifier = Modifier.weight(1f).heightIn(min = 40.dp),
-                        placeholder = LocalStrings.current.panelMentionsFilterByUserSearch,
+                        placeholder = stringResource(Res.string.panel_mentions_filter_by_user_search),
                         textStyle = MaterialTheme.typography.bodySmall,
                         singleLine = true,
                         leading = {
@@ -249,12 +267,12 @@ fun MentionsFeed(
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            LocalStrings.current.panelMentionsEmpty,
+                            stringResource(Res.string.panel_mentions_empty),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                         Text(
-                            LocalStrings.current.panelMentionsHint,
+                            stringResource(Res.string.panel_mentions_hint),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                         )
@@ -317,7 +335,7 @@ private fun MentionRow(entry: MentionEntry, onClick: () -> Unit) {
                     maxLines = 1
                 )
                 Text(
-                    LocalStrings.current.panelInChannel.replace("{0}", entry.channelLogin),
+                    stringResource(Res.string.panel_in_channel, (entry.channelLogin)),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     maxLines = 1,
@@ -355,7 +373,6 @@ private fun MentionFilterMenu(
     onSortChange: (MentionSort) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     LiquidGlassSurface(
         modifier = Modifier.width(240.dp),
         shape = RoundedCornerShape(14.dp),
@@ -367,37 +384,37 @@ private fun MentionFilterMenu(
         borderAlphaLow = 0.08f
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            SectionLabel(s.panelMentionsFilter)
-            FilterMenuRow(s.panelMentionsFilterAll, currentFilter == MentionFilter.ALL) {
+            SectionLabel(stringResource(Res.string.panel_mentions_filter))
+            FilterMenuRow(stringResource(Res.string.panel_mentions_filter_all), currentFilter == MentionFilter.ALL) {
                 onFilterChange(MentionFilter.ALL); onDismiss()
             }
-            FilterMenuRow(s.panelMentionsFilterUnread, currentFilter == MentionFilter.UNREAD) {
+            FilterMenuRow(stringResource(Res.string.panel_mentions_filter_unread), currentFilter == MentionFilter.UNREAD) {
                 onFilterChange(MentionFilter.UNREAD); onDismiss()
             }
-            FilterMenuRow(s.panelMentionsFilterToday, currentFilter == MentionFilter.TODAY) {
+            FilterMenuRow(stringResource(Res.string.panel_mentions_filter_today), currentFilter == MentionFilter.TODAY) {
                 onFilterChange(MentionFilter.TODAY); onDismiss()
             }
-            FilterMenuRow(s.panelMentionsFilterByUser, currentFilter == MentionFilter.BY_USER) {
+            FilterMenuRow(stringResource(Res.string.panel_mentions_filter_by_user), currentFilter == MentionFilter.BY_USER) {
                 onFilterChange(MentionFilter.BY_USER); onDismiss()
             }
-            FilterMenuRow(s.panelMentionsFilterByChannel, currentFilter == MentionFilter.BY_CHANNEL) {
+            FilterMenuRow(stringResource(Res.string.panel_mentions_filter_by_channel), currentFilter == MentionFilter.BY_CHANNEL) {
                 onFilterChange(MentionFilter.BY_CHANNEL); onDismiss()
             }
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 color = Color.White.copy(alpha = 0.08f)
             )
-            SectionLabel(s.panelMentionsSort)
-            FilterMenuRow(s.panelMentionsSortNewest, currentSort == MentionSort.NEWEST) {
+            SectionLabel(stringResource(Res.string.panel_mentions_sort))
+            FilterMenuRow(stringResource(Res.string.panel_mentions_sort_newest), currentSort == MentionSort.NEWEST) {
                 onSortChange(MentionSort.NEWEST); onDismiss()
             }
-            FilterMenuRow(s.panelMentionsSortOldest, currentSort == MentionSort.OLDEST) {
+            FilterMenuRow(stringResource(Res.string.panel_mentions_sort_oldest), currentSort == MentionSort.OLDEST) {
                 onSortChange(MentionSort.OLDEST); onDismiss()
             }
-            FilterMenuRow(s.panelMentionsSortByUser, currentSort == MentionSort.BY_USER) {
+            FilterMenuRow(stringResource(Res.string.panel_mentions_sort_by_user), currentSort == MentionSort.BY_USER) {
                 onSortChange(MentionSort.BY_USER); onDismiss()
             }
-            FilterMenuRow(s.panelMentionsSortByChannel, currentSort == MentionSort.BY_CHANNEL) {
+            FilterMenuRow(stringResource(Res.string.panel_mentions_sort_by_channel), currentSort == MentionSort.BY_CHANNEL) {
                 onSortChange(MentionSort.BY_CHANNEL); onDismiss()
             }
         }

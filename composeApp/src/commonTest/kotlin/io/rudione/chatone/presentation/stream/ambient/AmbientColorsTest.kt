@@ -68,6 +68,18 @@ class AmbientColorsTest {
     }
 
     @Test
+    fun surroundSitsBetweenBarsAndGlowAndStaysDarkEnoughForWhiteIcons() {
+        val palette = analyze(frame { _, _ -> rgb(255, 255, 255) })
+        val offset = AmbientColors.index(AmbientEdge.TOP, 1)
+        val bar = AmbientColors.barColor(palette, offset, 1f)
+        val surround = AmbientColors.surroundColor(palette, offset, 1f)
+        val glow = AmbientColors.glowColor(palette, offset, 1f, darkBackground = true)
+        assertTrue(surround.green > bar.green)
+        assertTrue(surround.green < glow.green)
+        assertTrue(surround.red < 0.4f && surround.green < 0.4f && surround.blue < 0.4f)
+    }
+
+    @Test
     fun glowIsBrighterThanBarsOnDarkBackgrounds() {
         val palette = analyze(frame { _, _ -> rgb(90, 140, 60) })
         val offset = AmbientColors.index(AmbientEdge.BOTTOM, 1)

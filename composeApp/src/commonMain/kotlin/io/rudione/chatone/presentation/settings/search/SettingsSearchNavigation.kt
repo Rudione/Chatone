@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.settings.search
 
+import androidx.compose.runtime.produceState
+import io.rudione.chatone.presentation.theme.i18n.LocalAppLocale
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -16,7 +18,6 @@ import androidx.compose.ui.input.key.type
 import io.rudione.chatone.presentation.settings.SettingsPageState
 import io.rudione.chatone.presentation.settings.SettingsSection
 import io.rudione.chatone.presentation.settings.labelMatches
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import kotlinx.coroutines.delay
 
 @Stable
@@ -51,19 +52,21 @@ internal class SettingsSearchModel(
 }
 
 @Composable
-internal fun rememberSettingsCatalog(strings: AppStrings, context: SettingsCatalogContext): List<SettingsSearchEntry> =
-    remember(strings, context) { buildSettingsCatalog(strings, context) }
+internal fun rememberSettingsCatalog(context: SettingsCatalogContext): List<SettingsSearchEntry> {
+    val language = LocalAppLocale.current
+    val catalog by produceState(emptyList<SettingsSearchEntry>(), context, language) {
+        value = buildSettingsCatalog(context)
+    }
+    return catalog
+}
 
 @Composable
-internal fun rememberSettingsSearchModel(
-    query: String,
-    strings: AppStrings,
-    catalog: List<SettingsSearchEntry>
-): SettingsSearchModel {
-    return remember(query, catalog, strings) {
+internal fun rememberSettingsSearchModel(query: String, catalog: List<SettingsSearchEntry>): SettingsSearchModel {
+    val labels = SettingsSection.entries.associateWith { it.localizedLabel() }
+    return remember(query, catalog, labels) {
         val hits = searchSettings(query, catalog)
-        val labels = if (query.isBlank()) emptySet() else SettingsSection.entries.filter { it.labelMatches(query, strings) }.toSet()
-        SettingsSearchModel(hits, groupSearchHits(hits), labels)
+        val matches = if (query.isBlank()) emptySet() else labels.filter { (section, label) -> section.labelMatches(query, label) }.keys
+        SettingsSearchModel(hits, groupSearchHits(hits), matches)
     }
 }
 

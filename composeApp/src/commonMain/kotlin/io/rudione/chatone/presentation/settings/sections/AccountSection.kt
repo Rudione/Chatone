@@ -1,5 +1,15 @@
 package io.rudione.chatone.presentation.settings.sections
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.accounts_title
+import chatone.composeapp.generated.resources.settings_account
+import chatone.composeapp.generated.resources.settings_cancel
+import chatone.composeapp.generated.resources.settings_clear_cache
+import chatone.composeapp.generated.resources.settings_clear_cache_desc
+import chatone.composeapp.generated.resources.settings_confirm_clear_cache
+import chatone.composeapp.generated.resources.settings_logout
+import chatone.composeapp.generated.resources.settings_logout_desc
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -41,12 +51,10 @@ import io.rudione.chatone.presentation.settings.components.FirstPartyTokenCard
 import io.rudione.chatone.presentation.settings.components.SettingsGroup
 import io.rudione.chatone.presentation.settings.components.StreamerModeCard
 import io.rudione.chatone.presentation.settings.settingsAnchor
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 
 @Composable
 internal fun AccountContent(viewModel: SettingsViewModel) {
-    val s = LocalStrings.current
     val state by viewModel.state.collectAsState()
     val accountManager = koinInject<AccountManager>()
     val accountActions = koinInject<AccountActions>()
@@ -54,7 +62,7 @@ internal fun AccountContent(viewModel: SettingsViewModel) {
     val accountUi = rememberAccountUiState(accountLoader, accountManager)
     var showAddAccountDialog by remember { mutableStateOf(false) }
 
-    SettingsGroup(s.accountsTitle) {
+    SettingsGroup(stringResource(Res.string.accounts_title)) {
         AccountsSettingsSectionCompact(
             accounts = accountUi.accounts,
             accountManager = accountManager,
@@ -63,7 +71,7 @@ internal fun AccountContent(viewModel: SettingsViewModel) {
             onSetPrimary = { accountActions.setPrimary(it) }
         )
     }
-    SettingsGroup(s.settingsAccount) {
+    SettingsGroup(stringResource(Res.string.settings_account)) {
         AccountSessionBody(
             onLogout = { viewModel.sendEvent(SettingsEvent.OnLogoutClicked) },
             onClearCache = { viewModel.sendEvent(SettingsEvent.OnClearCacheClicked) }
@@ -96,21 +104,20 @@ internal fun AccountContent(viewModel: SettingsViewModel) {
 
 @Composable
 private fun AccountSessionBody(onLogout: () -> Unit, onClearCache: () -> Unit) {
-    val s = LocalStrings.current
     var showClearDialog by remember { mutableStateOf(false) }
     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
         DangerAction(
-            anchor = s.settingsLogout,
-            description = s.settingsLogoutDesc,
-            label = s.settingsLogout,
+            anchor = stringResource(Res.string.settings_logout),
+            description = stringResource(Res.string.settings_logout_desc),
+            label = stringResource(Res.string.settings_logout),
             icon = Lucide.LogOut,
             onClick = onLogout
         )
         Spacer(Modifier.height(10.dp))
         DangerAction(
-            anchor = s.settingsClearCache,
-            description = s.settingsClearCacheDesc,
-            label = s.settingsClearCache,
+            anchor = stringResource(Res.string.settings_clear_cache),
+            description = stringResource(Res.string.settings_clear_cache_desc),
+            label = stringResource(Res.string.settings_clear_cache),
             icon = Lucide.Trash2,
             onClick = { showClearDialog = true }
         )
@@ -118,8 +125,8 @@ private fun AccountSessionBody(onLogout: () -> Unit, onClearCache: () -> Unit) {
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text(s.settingsClearCache) },
-            text = { Text(s.settingsConfirmClearCache) },
+            title = { Text(stringResource(Res.string.settings_clear_cache)) },
+            text = { Text(stringResource(Res.string.settings_confirm_clear_cache)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -127,10 +134,10 @@ private fun AccountSessionBody(onLogout: () -> Unit, onClearCache: () -> Unit) {
                         onClearCache()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text(s.settingsClearCache) }
+                ) { Text(stringResource(Res.string.settings_clear_cache)) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) { Text(s.settingsCancel) }
+                TextButton(onClick = { showClearDialog = false }) { Text(stringResource(Res.string.settings_cancel)) }
             }
         )
     }

@@ -1,5 +1,15 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.main_close_channel
+import chatone.composeapp.generated.resources.main_create_folder_title
+import chatone.composeapp.generated.resources.main_live_notify_off
+import chatone.composeapp.generated.resources.main_live_notify_on
+import chatone.composeapp.generated.resources.main_new_folder
+import chatone.composeapp.generated.resources.main_open_in_player
+import chatone.composeapp.generated.resources.main_remove_from_folder
+import chatone.composeapp.generated.resources.main_watch_in_player
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
@@ -32,7 +42,6 @@ import io.rudione.chatone.domain.model.ChannelFolder
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.stream.StreamOpenQuality
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.Bell
 import io.rudione.chatone.icons.lucide.BellRing
 import io.rudione.chatone.icons.lucide.Folder
@@ -59,7 +68,6 @@ internal fun ChannelContextMenu(
     actions: ChannelMenuActions,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     val anchorOffset = with(LocalDensity.current) { IntOffset(0, 24.dp.roundToPx()) }
     val appearance = remember { MutableTransitionState(false).apply { targetState = true } }
     var showQualities by remember { mutableStateOf(false) }
@@ -73,7 +81,11 @@ internal fun ChannelContextMenu(
     PortalPopup(
         alignment = Alignment.TopEnd,
         offset = anchorOffset,
-        properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true),
+        properties = PopupProperties(
+            focusable = true,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        ),
         onDismissRequest = onDismiss
     ) {
         AnimatedVisibility(
@@ -98,20 +110,26 @@ internal fun ChannelContextMenu(
                 Column {
                     if (folders.isEmpty()) {
                         LiquidGlassDropdownItem(
-                            text = s.mainCreateFolderTitle,
+                            text = stringResource(Res.string.main_create_folder_title),
                             icon = Lucide.FolderPlus,
                             iconTint = MaterialTheme.colorScheme.primary,
                             onClick = { run(actions.onCreateFolder) }
                         )
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = dividerColor)
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = dividerColor
+                        )
                     } else {
                         if (currentFolderId != null) {
                             LiquidGlassDropdownItem(
-                                text = s.mainRemoveFromFolder,
+                                text = stringResource(Res.string.main_remove_from_folder),
                                 icon = Lucide.X,
                                 onClick = { run { actions.onMoveToFolder(null) } }
                             )
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = dividerColor)
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 4.dp),
+                                color = dividerColor
+                            )
                         }
                         folders.filter { it.id != currentFolderId }.forEach { folder ->
                             LiquidGlassDropdownItem(
@@ -121,19 +139,26 @@ internal fun ChannelContextMenu(
                             )
                         }
                         LiquidGlassDropdownItem(
-                            text = s.mainNewFolder,
+                            text = stringResource(Res.string.main_new_folder),
                             icon = Lucide.FolderPlus,
                             onClick = { run(actions.onCreateFolder) }
                         )
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = dividerColor)
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            color = dividerColor
+                        )
                     }
                     LiquidGlassDropdownItem(
-                        text = if (liveNotifyEnabled) s.mainLiveNotifyOff else s.mainLiveNotifyOn,
+                        text = if (liveNotifyEnabled) stringResource(Res.string.main_live_notify_off) else stringResource(
+                            Res.string.main_live_notify_on
+                        ),
                         icon = if (liveNotifyEnabled) Lucide.BellRing else Lucide.Bell,
                         onClick = { run(actions.onToggleLiveNotify) }
                     )
                     LiquidGlassDropdownItem(
-                        text = if (opensStreamInApp) s.mainWatchInPlayer else s.mainOpenInPlayer,
+                        text = if (opensStreamInApp) stringResource(Res.string.main_watch_in_player) else stringResource(
+                            Res.string.main_open_in_player
+                        ),
                         icon = Lucide.Play,
                         onClick = { showQualities = !showQualities }
                     )
@@ -152,7 +177,7 @@ internal fun ChannelContextMenu(
                         }
                     }
                     LiquidGlassDropdownItem(
-                        text = s.mainCloseChannel,
+                        text = stringResource(Res.string.main_close_channel),
                         icon = Lucide.X,
                         onClick = { run(actions.onClose) }
                     )

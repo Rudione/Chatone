@@ -1,5 +1,15 @@
 package io.rudione.chatone.presentation.main.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.main_create
+import chatone.composeapp.generated.resources.main_create_folder_seed_hint
+import chatone.composeapp.generated.resources.main_create_folder_title
+import chatone.composeapp.generated.resources.main_edit_folder_title
+import chatone.composeapp.generated.resources.main_folder_color_label
+import chatone.composeapp.generated.resources.main_folder_name_placeholder
+import chatone.composeapp.generated.resources.main_save
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -55,7 +65,6 @@ import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.Channel
 import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.components.GlowSurface
-import io.rudione.chatone.presentation.components.GradientButton
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
 import io.rudione.chatone.presentation.settings.SettingsEvent
@@ -74,8 +83,6 @@ import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.util.media.WallpaperLoader
 import io.rudione.chatone.util.system.handleHover
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -117,17 +124,16 @@ internal fun CreateFolderDialog(
     onDismiss: () -> Unit,
     seedChannelLogin: String? = null
 ) {
-    val s = LocalStrings.current
     FolderEditorDialog(
-        title = s.mainCreateFolderTitle,
-        confirmLabel = s.mainCreate,
+        title = stringResource(Res.string.main_create_folder_title),
+        confirmLabel = stringResource(Res.string.main_create),
         name = name,
         colorHex = colorHex,
         onNameChange = onNameChange,
         onColorChange = onColorChange,
         onConfirm = onCreate,
         onDismiss = onDismiss,
-        hint = seedChannelLogin?.let { s.format(s.mainCreateFolderSeedHint, "#$it") }
+        hint = seedChannelLogin?.let { stringResource(Res.string.main_create_folder_seed_hint, "#$it") }
     )
 }
 
@@ -141,8 +147,8 @@ internal fun EditFolderDialog(
     onDismiss: () -> Unit
 ) {
     FolderEditorDialog(
-        title = LocalStrings.current.mainEditFolderTitle,
-        confirmLabel = LocalStrings.current.mainSave,
+        title = stringResource(Res.string.main_edit_folder_title),
+        confirmLabel = stringResource(Res.string.main_save),
         name = name,
         colorHex = colorHex,
         onNameChange = onNameChange,
@@ -165,7 +171,6 @@ private fun FolderEditorDialog(
     onDismiss: () -> Unit,
     hint: String? = null
 ) {
-    val s = LocalStrings.current
     val selected = FolderColors.options.firstOrNull { it.hex.equals(colorHex, ignoreCase = true) }
         ?: FolderColors.options.first()
 
@@ -193,7 +198,7 @@ private fun FolderEditorDialog(
                     value = name,
                     onValueChange = onNameChange,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = s.mainFolderNamePlaceholder,
+                    placeholder = stringResource(Res.string.main_folder_name_placeholder),
                     leading = {
                         Icon(
                             Lucide.Folder,
@@ -209,7 +214,7 @@ private fun FolderEditorDialog(
 
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    s.mainFolderColorLabel,
+                    stringResource(Res.string.main_folder_color_label),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -239,7 +244,7 @@ private fun FolderEditorDialog(
                             if (isActive) {
                                 Icon(
                                     Lucide.Check,
-                                    contentDescription = option.label(s),
+                                    contentDescription = stringResource(option.label),
                                     modifier = Modifier.size(16.dp),
                                     tint = Color.White
                                 )
@@ -256,7 +261,7 @@ private fun FolderEditorDialog(
                     TextButton(
                         onClick = onDismiss,
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                    ) { Text(s.cancel) }
+                    ) { Text(stringResource(Res.string.cancel)) }
                     Button(
                         onClick = onConfirm,
                         enabled = name.isNotBlank(),

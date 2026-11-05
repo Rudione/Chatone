@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.ai
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ai_assist_highlight_active
+import chatone.composeapp.generated.resources.ai_assist_highlight_resume
+import chatone.composeapp.generated.resources.ai_assist_highlight_stop
+import chatone.composeapp.generated.resources.ai_assist_highlight_stopped
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -23,8 +29,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Sparkles
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import org.koin.compose.koinInject
 
 @Composable
@@ -32,8 +36,6 @@ internal fun AiHighlightCard(
     proposal: AiHighlightProposal,
     controller: AiAssistantController = koinInject()
 ) {
-    val strings = LocalStrings.current
-    val s = strings.aiAssist
     val watch by controller.highlightWatch.collectAsState()
     val active = watch?.criteria == proposal.criteria
     val label = proposal.label.ifBlank { proposal.criteria }
@@ -56,7 +58,7 @@ internal fun AiHighlightCard(
                 modifier = Modifier.size(16.dp)
             )
             Text(
-                if (active) strings.format(s.highlightActive, label) else "$label · ${s.highlightStopped}",
+                if (active) stringResource(Res.string.ai_assist_highlight_active, label) else "$label · ${stringResource(Res.string.ai_assist_highlight_stopped)}",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 2,
@@ -64,11 +66,11 @@ internal fun AiHighlightCard(
                 modifier = Modifier.weight(1f)
             )
             if (active) {
-                TextButton(onClick = controller::stopHighlight) { Text(s.highlightStop) }
+                TextButton(onClick = controller::stopHighlight) { Text(stringResource(Res.string.ai_assist_highlight_stop)) }
             } else {
                 TextButton(onClick = {
                     controller.startHighlight(controller.snapshot.value.activeChannel, proposal.criteria, proposal.label)
-                }) { Text(s.highlightResume) }
+                }) { Text(stringResource(Res.string.ai_assist_highlight_resume)) }
             }
         }
     }

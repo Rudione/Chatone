@@ -33,8 +33,8 @@ val LocalStreamPlayerHost = staticCompositionLocalOf<StreamPlayerHost?> { null }
 
 @Composable
 fun rememberStreamPlayerHost(): StreamPlayerHost? {
-    val isHandheld = remember { currentFormFactor().isHandheld }
-    if (!isHandheld) return null
+    val playsStreams = remember { currentFormFactor().playsStreams }
+    if (!playsStreams) return null
     val factory = koinInject<StreamPlaybackEngineFactory>()
     if (!factory.isSupported) return null
     val viewModel: StreamPlayerViewModel = koinViewModel()

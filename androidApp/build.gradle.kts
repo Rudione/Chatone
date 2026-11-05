@@ -77,6 +77,7 @@ android {
 
 dependencies {
     implementation(projects.composeApp)
+    implementation(projects.tv)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.koin.android)

@@ -1,5 +1,12 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.chat_slow_mode
+import chatone.composeapp.generated.resources.chat_subs_only
+import chatone.composeapp.generated.resources.chat_emote_only
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_followers_only
+import chatone.composeapp.generated.resources.profile_follow
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -25,7 +32,6 @@ import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.domain.model.subscriptionTierOverlay
 import io.rudione.chatone.presentation.chat.LocalThirdPartyBadges
 import io.rudione.chatone.presentation.chat.RoomState
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 
 internal data class BadgeVisual(
     val imageUrl: String,
@@ -89,13 +95,14 @@ internal fun collectBadgeVisuals(
     }
 }
 
-internal fun roomModeLabels(roomState: RoomState, s: AppStrings): List<String> = buildList {
-    if (roomState.emoteOnly) add("Emote-only")
-    if (roomState.subsOnly) add("Sub-only")
-    if (roomState.slowMode > 0) add("Slow ${roomState.slowMode}s")
+@Composable
+internal fun roomModeLabels(roomState: RoomState): List<String> = buildList {
+    if (roomState.emoteOnly) add(stringResource(Res.string.chat_emote_only))
+    if (roomState.subsOnly) add(stringResource(Res.string.chat_subs_only))
+    if (roomState.slowMode > 0) add(stringResource(Res.string.chat_slow_mode, roomState.slowMode))
     if (roomState.followersOnly >= 0) {
-        if (roomState.followersOnly == 0) add(s.profileFollow)
-        else add(s.chatFollowersOnly.replace("{0}", roomState.followersOnly.toString()))
+        if (roomState.followersOnly == 0) add(stringResource(Res.string.profile_follow))
+        else add(stringResource(Res.string.chat_followers_only, roomState.followersOnly))
     }
     if (roomState.r9k) add("R9K")
 }

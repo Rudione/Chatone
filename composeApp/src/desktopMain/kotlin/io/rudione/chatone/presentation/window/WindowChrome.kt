@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.window
 
+import chatone.composeapp.generated.resources.icon
 import io.rudione.chatone.presentation.components.PopupPortalHost
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +21,6 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.rememberWindowState
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.icon
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.presentation.settings.TitleBarMode
 import io.rudione.chatone.presentation.settings.SettingsViewModel

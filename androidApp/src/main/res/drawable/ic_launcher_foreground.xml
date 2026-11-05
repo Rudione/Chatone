@@ -1,26 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:pathData="M71.69,36.91A24.6,24.6 0 1 0 71.69,71.09"
-        android:strokeWidth="10.85"
-        android:strokeLineCap="round">
-        <aapt:attr name="android:strokeColor">
-            <gradient
-                android:type="linear"
-                android:startX="30.5"
-                android:startY="31.6"
-                android:endX="79.7"
-                android:endY="85.0">
-                <item android:offset="0" android:color="#D9A2FF" />
-                <item android:offset="0.38" android:color="#A063FF" />
-                <item android:offset="0.7" android:color="#6D3AF0" />
-                <item android:offset="1" android:color="#2B7FFF" />
-            </gradient>
-        </aapt:attr>
-    </path>
+    <group android:name="orbit">
+        <clip-path android:pathData="M0 0L0 108L108 108L108 0ZM78.31 36.34L280.14 -110.3L280.14 218.3L78.31 71.66A30.05 30.05 0 1 1 78.31 36.34Z" />
+        <path
+            android:pathData="M79.71 30.85A34.59 12.93 -42 1 1 28.29 77.15A34.59 12.93 -42 1 1 79.71 30.85"
+            android:strokeColor="#FFE2E3FF"
+            android:strokeWidth="2.1" />
+    </group>
+    <group android:name="day">
+        <clip-path android:pathData="M287.44 -156.19L78.3 32.12A32.7 11.04 -42 0 1 29.7 75.88L-179.44 264.19L-366.48 56.46L100.4 -363.92Z" />
+        <path android:pathData="M78.31 36.34A30.05 30.05 0 1 0 78.31 71.66L65.31 62.22A13.98 13.98 0 1 1 65.31 45.78Z" android:fillColor="#FF8083D9" />
+    </group>
+    <group android:name="night">
+        <clip-path android:pathData="M287.44 -156.19L81.11 29.59A36.48 14.82 -42 0 1 26.89 78.41L-179.44 264.19L7.6 471.92L474.48 51.54Z" />
+        <path android:pathData="M78.31 36.34A30.05 30.05 0 1 0 78.31 71.66L65.31 62.22A13.98 13.98 0 1 1 65.31 45.78Z" android:fillColor="#FF403EA6" />
+    </group>
 </vector>

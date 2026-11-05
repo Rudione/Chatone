@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,21 +60,31 @@ fun Modifier.expressiveGlass(shape: Shape = CircleShape, elevation: Dp = 14.dp):
         .shadow(elevation, shape, clip = false, ambientColor = Color.Black, spotColor = Color.Black)
         .clip(shape)
         .background(surface.copy(alpha = 0.80f))
-        .border(1.dp, Brush.verticalGradient(listOf(edge.copy(alpha = 0.16f), edge.copy(alpha = 0.03f))), shape)
+        .border(
+            1.dp,
+            Brush.verticalGradient(listOf(edge.copy(alpha = 0.16f), edge.copy(alpha = 0.03f))),
+            shape
+        )
 }
 
 @Composable
 fun Modifier.pressSquish(interaction: MutableInteractionSource): Modifier {
     val pressed by interaction.collectIsPressedAsState()
+    val focused by interaction.collectIsFocusedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.93f else 1f,
+        targetValue = when {
+            pressed -> 0.93f
+            focused -> 1.08f
+            else -> 1f
+        },
         animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMedium),
         label = "pressSquish"
     )
+    val ring = MaterialTheme.colorScheme.onSurface
     return graphicsLayer {
         scaleX = scale
         scaleY = scale
-    }
+    }.then(if (focused) Modifier.border(2.dp, ring, CircleShape) else Modifier)
 }
 
 @Composable
@@ -168,11 +179,20 @@ fun HeroPillButton(
             label = "heroLoading"
         ) { busy ->
             if (busy) {
-                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.5.dp, color = content)
+                CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.5.dp,
+                    color = content
+                )
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (icon != null) {
-                        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(22.dp))
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            tint = content,
+                            modifier = Modifier.size(22.dp)
+                        )
                         Spacer(Modifier.width(12.dp))
                     }
                     Text(
@@ -202,7 +222,12 @@ fun GlassIconButton(
             .size(size)
             .pressSquish(interaction)
             .clip(CircleShape)
-            .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick),
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -249,7 +274,12 @@ fun <T> PillSegmented(
                     .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = content)
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = content
+                )
             }
         }
     }

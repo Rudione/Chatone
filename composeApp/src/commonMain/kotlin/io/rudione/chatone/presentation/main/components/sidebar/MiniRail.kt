@@ -1,5 +1,12 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.add_channel
+import chatone.composeapp.generated.resources.chat_mentions_tab
+import chatone.composeapp.generated.resources.chat_whisper_tab
+import chatone.composeapp.generated.resources.main_collapse_mini_rail
+import chatone.composeapp.generated.resources.main_open_sidebar
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -40,7 +47,6 @@ import coil3.compose.AsyncImage
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.launch
 import io.rudione.chatone.presentation.main.MainState
 import io.rudione.chatone.presentation.main.MainEvent
@@ -76,7 +82,6 @@ internal fun MiniRail(
     var railDragOffset by remember { mutableStateOf(Offset.Zero) }
     var railDragStartCenterX by remember { mutableStateOf(0f) }
     var railDropTargetLogin by remember { mutableStateOf<String?>(null) }
-    val s = LocalStrings.current
     val railItemCoordinates = remember { HashMap<String, LayoutCoordinates>() }
     val tooltipOffsetYPx = with(density) { 28.dp.roundToPx() }
     val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
@@ -106,7 +111,7 @@ internal fun MiniRail(
             ) {
                 Icon(
                     Lucide.ChevronLeft,
-                    contentDescription = LocalStrings.current.mainCollapseMiniRail,
+                    contentDescription = stringResource(Res.string.main_collapse_mini_rail),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(18.dp)
                 )
@@ -117,7 +122,7 @@ internal fun MiniRail(
             ) {
                 Icon(
                     Lucide.Menu,
-                    contentDescription = LocalStrings.current.mainOpenSidebar,
+                    contentDescription = stringResource(Res.string.main_open_sidebar),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(18.dp)
                 )
@@ -148,7 +153,8 @@ internal fun MiniRail(
             ) {
                 val railNodes: List<Any> = run {
                     val out = mutableListOf<Any>()
-                    val openByKey = state.openChannels.associateBy { it.login.lowercase().removePrefix("#") }
+                    val openByKey =
+                        state.openChannels.associateBy { it.login.lowercase().removePrefix("#") }
                     val emitted = mutableSetOf<String>()
                     state.folders.forEach { f ->
                         out.add(f)
@@ -159,7 +165,11 @@ internal fun MiniRail(
                                 emitted.add(key)
                             }
                         } else {
-                            f.channels.forEach { emitted.add(it.login.lowercase().removePrefix("#")) }
+                            f.channels.forEach {
+                                emitted.add(
+                                    it.login.lowercase().removePrefix("#")
+                                )
+                            }
                         }
                     }
                     state.openChannels.forEach { ch ->
@@ -245,7 +255,10 @@ internal fun MiniRail(
                                     drawRect(
                                         color = folderTint,
                                         topLeft = Offset(0f, size.height - lineHeight),
-                                        size = androidx.compose.ui.geometry.Size(size.width, lineHeight)
+                                        size = androidx.compose.ui.geometry.Size(
+                                            size.width,
+                                            lineHeight
+                                        )
                                     )
                                 } else Modifier
                             )
@@ -256,7 +269,8 @@ internal fun MiniRail(
                                         railDragLogin = channel.login
                                         railDragOffset = Offset.Zero
                                         railDragStartCenterX =
-                                            railItemCoordinates[channel.login]?.railCenterXInRoot() ?: 0f
+                                            railItemCoordinates[channel.login]?.railCenterXInRoot()
+                                                ?: 0f
                                         railDropTargetLogin = null
                                         railDragFromIndex =
                                             state.openChannels.indexOfFirst { it.login == channel.login }
@@ -443,7 +457,7 @@ internal fun MiniRail(
                 ) {
                     Icon(
                         Lucide.AtSign,
-                        contentDescription = s.chatMentionsTab,
+                        contentDescription = stringResource(Res.string.chat_mentions_tab),
                         tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -463,7 +477,7 @@ internal fun MiniRail(
                 ) {
                     Icon(
                         Lucide.MessageCircle,
-                        contentDescription = s.chatWhisperTab,
+                        contentDescription = stringResource(Res.string.chat_whisper_tab),
                         tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -481,7 +495,7 @@ internal fun MiniRail(
             ) {
                 Icon(
                     Lucide.Plus,
-                    contentDescription = s.addChannel,
+                    contentDescription = stringResource(Res.string.add_channel),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )

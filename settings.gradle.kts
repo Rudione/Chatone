@@ -81,10 +81,13 @@ dependencyResolutionManagement {
             version("atomicfu", "0.33.0")
             version("androidxBrowser", "1.10.0")
             version("paging", "3.5.3")
+            version("tvMaterial", "1.1.0")
+            version("zxing", "3.5.4")
 
 
             plugin("kotlinMultiplatform", "org.jetbrains.kotlin.multiplatform").versionRef("kotlin")
             plugin("androidApplication", "com.android.application").versionRef("agp")
+            plugin("androidLibrary", "com.android.library").versionRef("agp")
             plugin("androidKmpLibrary", "com.android.kotlin.multiplatform.library").versionRef("agp")
             plugin("composeMultiplatform", "org.jetbrains.compose").versionRef("compose")
             plugin("composeCompiler", "org.jetbrains.kotlin.plugin.compose").versionRef("kotlin")
@@ -180,6 +183,8 @@ dependencyResolutionManagement {
             library("compose-components-uiToolingPreview", "org.jetbrains.compose.components", "components-ui-tooling-preview").versionRef("compose")
             library("kotlinx-atomicfu", "org.jetbrains.kotlinx", "atomicfu").versionRef("atomicfu")
             library("androidx-browser", "androidx.browser", "browser").versionRef("androidxBrowser")
+            library("androidx-tv-material", "androidx.tv", "tv-material").versionRef("tvMaterial")
+            library("zxing-core", "com.google.zxing", "core").versionRef("zxing")
         }
     }
 }
@@ -187,3 +192,4 @@ dependencyResolutionManagement {
 include(":composeApp")
 include(":androidApp")
 include(":core:icons")
+include(":tv")

@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.timeline_today
+import chatone.composeapp.generated.resources.timeline_yesterday
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.chat.chatDayLabel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,8 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.DisplayMessage
-import io.rudione.chatone.presentation.theme.i18n.ChatTimelineStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -51,14 +54,27 @@ internal class ChatDayIndex(private val zone: TimeZone = TimeZone.currentSystemD
 internal fun localEpochDay(epochMs: Long, zone: TimeZone = TimeZone.currentSystemDefault()): Long =
     Instant.fromEpochMilliseconds(epochMs).toLocalDateTime(zone).date.toEpochDays().toLong()
 
-internal fun chatDayLabel(strings: ChatTimelineStrings, epochDay: Long, todayEpochDay: Long): String {
+internal sealed interface DayLabel {
+    data object Today : DayLabel
+    data object Yesterday : DayLabel
+    data class Date(val day: Int, val month: Int, val year: Int?) : DayLabel
+}
+
+internal fun dayLabelOf(epochDay: Long, todayEpochDay: Long): DayLabel {
     val date = LocalDate.fromEpochDays(epochDay)
     val today = LocalDate.fromEpochDays(todayEpochDay)
     return when (epochDay) {
-        todayEpochDay -> strings.today
-        todayEpochDay - 1 -> strings.yesterday
-        else -> strings.dayLabel(date.day, date.month.ordinal + 1, date.year.takeIf { it != today.year })
+        todayEpochDay -> DayLabel.Today
+        todayEpochDay - 1 -> DayLabel.Yesterday
+        else -> DayLabel.Date(date.day, date.month.ordinal + 1, date.year.takeIf { it != today.year })
     }
+}
+
+@Composable
+internal fun chatDayLabel(epochDay: Long, todayEpochDay: Long): String = when (val label = dayLabelOf(epochDay, todayEpochDay)) {
+    DayLabel.Today -> stringResource(Res.string.timeline_today)
+    DayLabel.Yesterday -> stringResource(Res.string.timeline_yesterday)
+    is DayLabel.Date -> chatDayLabel(label.day, label.month, label.year)
 }
 
 @Composable
@@ -75,7 +91,6 @@ internal fun ChatDayBreakFrame(epochDay: Long?, content: @Composable () -> Unit)
 
 @Composable
 private fun ChatDayDivider(epochDay: Long) {
-    val strings = LocalStrings.current.timeline
     val today = localEpochDay(Clock.System.now().toEpochMilliseconds())
     val lineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)
     Row(
@@ -85,7 +100,7 @@ private fun ChatDayDivider(epochDay: Long) {
     ) {
         HorizontalDivider(modifier = Modifier.weight(1f), color = lineColor)
         Text(
-            chatDayLabel(strings, epochDay, today),
+            chatDayLabel(epochDay, today),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),

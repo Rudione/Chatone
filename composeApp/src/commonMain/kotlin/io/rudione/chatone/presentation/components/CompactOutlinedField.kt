@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -47,12 +48,11 @@ fun CompactOutlinedField(
     val contentAlpha = if (enabled) 1f else 0.4f
 
     Column(modifier = modifier) {
-        Text(
+        FitText(
             label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = contentAlpha),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            minFontSize = 9.sp,
             modifier = Modifier.padding(bottom = 3.dp, start = 2.dp)
         )
         Row(

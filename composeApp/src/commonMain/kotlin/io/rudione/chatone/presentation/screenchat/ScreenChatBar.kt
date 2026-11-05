@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.screenchat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.screen_chat_close
+import chatone.composeapp.generated.resources.screen_chat_drag_hint
+import chatone.composeapp.generated.resources.screen_chat_lock
+import chatone.composeapp.generated.resources.screen_chat_open_app
+import chatone.composeapp.generated.resources.screen_chat_settings
+import chatone.composeapp.generated.resources.screen_chat_unlock
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,7 +49,6 @@ import io.rudione.chatone.icons.lucide.LockOpen
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Settings
 import io.rudione.chatone.icons.lucide.X
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.window.WindowGrip
 import io.rudione.chatone.presentation.window.windowGrip
 
@@ -55,7 +62,7 @@ internal fun ScreenChatBar(
     onOpenApp: (() -> Unit)?,
     onClose: () -> Unit
 ) {
-    val strings = LocalStrings.current.screenChat
+    val screenChatDragHintText = stringResource(Res.string.screen_chat_drag_hint)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -70,7 +77,7 @@ internal fun ScreenChatBar(
                 .weight(1f)
                 .fillMaxHeight()
                 .then(if (locked) Modifier else Modifier.windowGrip(WindowGrip.MOVE, onHeldChange))
-                .semantics { contentDescription = strings.dragHint },
+                .semantics { contentDescription = screenChatDragHintText },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -93,15 +100,15 @@ internal fun ScreenChatBar(
                 )
             }
         }
-        if (onOpenApp != null) BarButton(icon = Lucide.AppWindow, description = strings.openApp, active = false, onClick = onOpenApp)
-        BarButton(icon = Lucide.Settings, description = strings.settings, active = false, onClick = onOpenSettings)
+        if (onOpenApp != null) BarButton(icon = Lucide.AppWindow, description = stringResource(Res.string.screen_chat_open_app), active = false, onClick = onOpenApp)
+        BarButton(icon = Lucide.Settings, description = stringResource(Res.string.screen_chat_settings), active = false, onClick = onOpenSettings)
         BarButton(
             icon = if (locked) Lucide.Lock else Lucide.LockOpen,
-            description = if (locked) strings.unlock else strings.lock,
+            description = if (locked) stringResource(Res.string.screen_chat_unlock) else stringResource(Res.string.screen_chat_lock),
             active = locked,
             onClick = onToggleLock
         )
-        BarButton(icon = Lucide.X, description = strings.close, active = false, onClick = onClose)
+        BarButton(icon = Lucide.X, description = stringResource(Res.string.screen_chat_close), active = false, onClick = onClose)
     }
 }
 

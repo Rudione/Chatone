@@ -38,6 +38,17 @@ class ModLogSummaryParserTest {
     }
 
     @Test
+    fun aBareActionNameIsNotADetail() {
+        assertNull(ModLogSummaryParser.detailOf("Timed out", ModLogActionType.TIMEOUT))
+        assertNull(ModLogSummaryParser.detailOf(" Banned. ", ModLogActionType.BAN))
+        assertNull(ModLogSummaryParser.detailOf("Unbanned", ModLogActionType.UNBAN))
+        assertEquals(
+            "mod_one timed out spammer for 600 seconds",
+            ModLogSummaryParser.detailOf("mod_one timed out spammer for 600 seconds", ModLogActionType.TIMEOUT)
+        )
+    }
+
+    @Test
     fun deniedAccessGivesNothing() {
         assertNull(parse("""{"bans": {"code": "FORBIDDEN"}, "timeouts": {"code": "FORBIDDEN"}}"""))
     }

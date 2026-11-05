@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.multi_chat_add_panel
+import chatone.composeapp.generated.resources.multi_chat_already_open
+import chatone.composeapp.generated.resources.multi_chat_choose_channel
+import chatone.composeapp.generated.resources.multi_chat_no_channels_to_add
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -25,7 +31,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.ChatPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.icons.lucide.Check
@@ -41,7 +46,6 @@ fun AddChatPanelButton(
     iconSize: androidx.compose.ui.unit.Dp = 18.dp,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
-    val strings = LocalStrings.current
     var expanded by remember { mutableStateOf(false) }
     val panels by panelManager.panels.collectAsState()
     val canOpen = panels.size < ChatPanel.MAX_PANELS
@@ -61,7 +65,7 @@ fun AddChatPanelButton(
         ) {
             Icon(
                 imageVector = Lucide.Plus,
-                contentDescription = strings.multiChatAddPanel,
+                contentDescription = stringResource(Res.string.multi_chat_add_panel),
                 modifier = Modifier.size(iconSize),
                 tint = if (canOpen) tint else tint.copy(alpha = 0.4f)
             )
@@ -77,13 +81,13 @@ fun AddChatPanelButton(
         ) {
             if (pickable.isEmpty()) {
                 DropdownMenuItem(
-                    text = { Text(strings.multiChatNoChannelsToAdd) },
+                    text = { Text(stringResource(Res.string.multi_chat_no_channels_to_add)) },
                     onClick = { expanded = false },
                     enabled = false
                 )
             } else {
                 Text(
-                    strings.multiChatChooseChannel,
+                    stringResource(Res.string.multi_chat_choose_channel),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -104,7 +108,7 @@ fun AddChatPanelButton(
                                 if (alreadyOpen) {
                                     Icon(
                                         Lucide.Check,
-                                        contentDescription = strings.multiChatAlreadyOpen,
+                                        contentDescription = stringResource(Res.string.multi_chat_already_open),
                                         modifier = Modifier.size(16.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )

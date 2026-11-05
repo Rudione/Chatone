@@ -1,9 +1,37 @@
 package io.rudione.chatone.presentation.browse
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.browse_back
+import chatone.composeapp.generated.resources.browse_categories_header
+import chatone.composeapp.generated.resources.browse_channels_header
+import chatone.composeapp.generated.resources.browse_follow_empty
+import chatone.composeapp.generated.resources.browse_follow_reconnect
+import chatone.composeapp.generated.resources.browse_follow_sign_in
+import chatone.composeapp.generated.resources.browse_load_failed
+import chatone.composeapp.generated.resources.browse_nothing_found
+import chatone.composeapp.generated.resources.browse_popular_categories
+import chatone.composeapp.generated.resources.browse_retry
+import chatone.composeapp.generated.resources.browse_streams_header
+import chatone.composeapp.generated.resources.browse_tab_categories
+import chatone.composeapp.generated.resources.browse_tab_following
+import chatone.composeapp.generated.resources.browse_tab_popular
+import chatone.composeapp.generated.resources.browse_title
+import org.jetbrains.compose.resources.stringResource
+import androidx.compose.foundation.layout.Box
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
@@ -64,8 +92,6 @@ import io.rudione.chatone.domain.browse.BrowseChannel
 import io.rudione.chatone.domain.browse.BrowseStream
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.SystemBackHandler
-import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -90,10 +116,10 @@ fun BrowseScreen(
     val popularStreams = viewModel.popularStreams.collectAsLazyPagingItems()
     val followedStreams = viewModel.followedStreams.collectAsLazyPagingItems()
     val directoryGrid = rememberLazyGridState()
-    val strings = LocalStrings.current.explore
     val onEvent: (BrowseEvent) -> Unit = remember(viewModel) { { viewModel.sendEvent(it) } }
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     var filtersOpen by rememberSaveable { mutableStateOf(false) }
+    val promptScope = rememberCoroutineScope()
 
     val goBack: () -> Unit = {
         if (viewModel.state.value.category != null) onEvent(BrowseEvent.CloseCategory) else onClose()
@@ -101,125 +127,127 @@ fun BrowseScreen(
     SystemBackHandler(onBack = goBack)
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
-        ) {
-            BrowseTopBar(
-                title = state.category?.name ?: strings.title,
-                strings = strings,
-                onBack = goBack
-            )
-            AnimatedContent(
-                targetState = state.category,
-                contentKey = { it?.id },
-                transitionSpec = { sharedAxisX(forward = targetState != null) },
-                label = "browsePane",
-                modifier = Modifier.fillMaxSize()
-            ) { category ->
-                if (category == null) {
-                    val onAskAiStream: (BrowseStream) -> Unit = { stream ->
-                        onAskAi(
-                            BrowseFormatting.aiPrompt(
-                                stream = stream,
-                                category = "",
-                                strings = strings,
-                                nowMs = Clock.System.now().toEpochMilliseconds()
-                            )
-                        )
-                    }
-                    when {
-                        state.isSearching -> DirectoryPane(
-                            state = state,
-                            categories = categories,
-                            gridState = directoryGrid,
-                            strings = strings,
-                            bottomInset = bottomInset,
-                            onEvent = onEvent,
-                            onOpenChannel = onOpenChannel
-                        )
-
-                        state.tab == BrowseTab.FOLLOWING -> PopularStreamsPane(
-                            streams = followedStreams,
-                            filter = state.filter,
-                            strings = strings,
-                            bottomInset = bottomInset,
-                            header = { StreamsHeader(state, strings, onEvent) },
-                            onEvent = onEvent,
-                            onOpenFilters = { filtersOpen = true },
-                            onOpenStream = onOpenStream,
-                            onAskAi = onAskAiStream,
-                            emptyText = if (state.signedIn) strings.followEmpty else strings.followSignIn,
-                            emptyAction = false,
-                            failedText = strings.followReconnect
-                        )
-
-                        state.tab == BrowseTab.POPULAR -> PopularStreamsPane(
-                            streams = popularStreams,
-                            filter = state.filter,
-                            strings = strings,
-                            bottomInset = bottomInset,
-                            header = { StreamsHeader(state, strings, onEvent) },
-                            onEvent = onEvent,
-                            onOpenFilters = { filtersOpen = true },
-                            onOpenStream = onOpenStream,
-                            onAskAi = onAskAiStream
-                        )
-
-                        else -> DirectoryPane(
-                            state = state,
-                            categories = categories,
-                            gridState = directoryGrid,
-                            strings = strings,
-                            bottomInset = bottomInset,
-                            onEvent = onEvent,
-                            onOpenChannel = onOpenChannel
-                        )
-                    }
-                } else {
-                    CategoryStreamsPane(
-                        category = category,
-                        filter = state.filter,
-                        streams = streams,
-                        strings = strings,
-                        bottomInset = bottomInset,
-                        onEvent = onEvent,
-                        onOpenFilters = { filtersOpen = true },
-                        onOpenStream = onOpenStream,
-                        onAskAi = { stream ->
-                            onAskAi(
-                                BrowseFormatting.aiPrompt(
-                                    stream = stream,
-                                    category = category.name,
-                                    strings = strings,
-                                    nowMs = Clock.System.now().toEpochMilliseconds()
-                                )
-                            )
-                        }
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            ) {
+                BrowseTopBar(
+                    title = state.category?.name ?: stringResource(Res.string.browse_title),
+                    onBack = goBack
+                )
+                AnimatedVisibility(
+                    visible = state.category == null,
+                    enter = expandVertically(tween(220, easing = EnterEasing)) + fadeIn(tween(180, easing = EnterEasing)),
+                    exit = shrinkVertically(tween(180, easing = ExitEasing)) + fadeOut(tween(120, easing = ExitEasing))
+                ) {
+                    BrowseSearchField(
+                        query = state.query,
+                        onQueryChange = { onEvent(BrowseEvent.QueryChanged(it)) },
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 8.dp)
                     )
                 }
+                AnimatedContent(
+                    targetState = state.category,
+                    contentKey = { it?.id },
+                    transitionSpec = { sharedAxisX(forward = targetState != null) },
+                    label = "browsePane",
+                    modifier = Modifier.fillMaxSize()
+                ) { category ->
+                    if (category == null) {
+                        val onAskAiStream: (BrowseStream) -> Unit = { stream ->
+                            promptScope.launch {
+                                onAskAi(BrowseFormatting.aiPrompt(stream, "", Clock.System.now().toEpochMilliseconds()))
+                            }
+                        }
+                        if (state.isSearching) {
+                            DirectoryPane(
+                                state = state,
+                                categories = categories,
+                                gridState = directoryGrid,
+                                bottomInset = bottomInset,
+                                onEvent = onEvent,
+                                onOpenChannel = onOpenChannel,
+                                onOpenStream = onOpenStream,
+                                onAskAi = onAskAiStream
+                            )
+                        } else {
+                            BrowseTabPager(
+                                selected = state.tab,
+                                onSelect = { onEvent(BrowseEvent.SelectTab(it)) }
+                            ) { tab ->
+                                when (tab) {
+                                    BrowseTab.FOLLOWING -> PopularStreamsPane(
+                                        streams = followedStreams,
+                                        filter = state.filter,
+                                        bottomInset = bottomInset,
+                                        onEvent = onEvent,
+                                        onOpenFilters = { filtersOpen = true },
+                                        onOpenStream = onOpenStream,
+                                        onAskAi = onAskAiStream,
+                                        emptyText = if (state.signedIn) stringResource(Res.string.browse_follow_empty) else stringResource(Res.string.browse_follow_sign_in),
+                                        emptyAction = false,
+                                        failedText = stringResource(Res.string.browse_follow_reconnect)
+                                    )
+                                    BrowseTab.POPULAR -> PopularStreamsPane(
+                                        streams = popularStreams,
+                                        filter = state.filter,
+                                        bottomInset = bottomInset,
+                                        onEvent = onEvent,
+                                        onOpenFilters = { filtersOpen = true },
+                                        onOpenStream = onOpenStream,
+                                        onAskAi = onAskAiStream
+                                    )
+                                    BrowseTab.CATEGORIES -> DirectoryPane(
+                                        state = state,
+                                        categories = categories,
+                                        gridState = directoryGrid,
+                                        bottomInset = bottomInset,
+                                        onEvent = onEvent,
+                                        onOpenChannel = onOpenChannel,
+                                        onOpenStream = onOpenStream,
+                                        onAskAi = onAskAiStream
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        CategoryStreamsPane(
+                            category = category,
+                            filter = state.filter,
+                            streams = streams,
+                            bottomInset = bottomInset,
+                            onEvent = onEvent,
+                            onOpenFilters = { filtersOpen = true },
+                            onOpenStream = onOpenStream,
+                            onAskAi = { stream ->
+                                promptScope.launch {
+                                    onAskAi(BrowseFormatting.aiPrompt(stream, category.name, Clock.System.now().toEpochMilliseconds()))
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+            val filtersAvailable = state.category != null ||
+                (!state.isSearching && state.tab != BrowseTab.CATEGORIES)
+            if (filtersOpen && filtersAvailable) {
+                val filterStreams = when {
+                    state.category != null -> streams
+                    state.tab == BrowseTab.FOLLOWING -> followedStreams
+                    else -> popularStreams
+                }
+                StreamFilterSheet(
+                    initial = state.filter,
+                    tagSuggestions = remember(filterStreams.itemCount, state.filter.tag) {
+                        BrowseViewModel.tagSuggestionsFor(filterStreams.itemSnapshotList.items, state.filter.tag)
+                    },
+                    onApply = { onEvent(BrowseEvent.ApplyFilter(it)) },
+                    onDismiss = { filtersOpen = false }
+                )
             }
         }
-    }
-
-    val filtersAvailable = state.category != null ||
-        (!state.isSearching && state.tab != BrowseTab.CATEGORIES)
-    if (filtersOpen && filtersAvailable) {
-        val filterStreams = when {
-            state.category != null -> streams
-            state.tab == BrowseTab.FOLLOWING -> followedStreams
-            else -> popularStreams
-        }
-        StreamFilterSheet(
-            initial = state.filter,
-            tagSuggestions = remember(filterStreams.itemCount, state.filter.tag) {
-                BrowseViewModel.tagSuggestionsFor(filterStreams.itemSnapshotList.items, state.filter.tag)
-            },
-            strings = strings,
-            onApply = { onEvent(BrowseEvent.ApplyFilter(it)) },
-            onDismiss = { filtersOpen = false }
-        )
     }
 }
 
@@ -234,7 +262,7 @@ private fun sharedAxisX(forward: Boolean): ContentTransform {
 }
 
 @Composable
-private fun BrowseTopBar(title: String, strings: BrowseStrings, onBack: () -> Unit) {
+private fun BrowseTopBar(title: String, onBack: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -242,7 +270,7 @@ private fun BrowseTopBar(title: String, strings: BrowseStrings, onBack: () -> Un
         ChatoneIconButton(onClick = onBack, modifier = Modifier.size(44.dp)) {
             Icon(
                 Icons.AutoMirrored.Rounded.ArrowBack,
-                contentDescription = strings.back,
+                contentDescription = stringResource(Res.string.browse_back),
                 tint = MaterialTheme.colorScheme.onSurface
             )
         }
@@ -265,26 +293,42 @@ private fun BrowseTopBar(title: String, strings: BrowseStrings, onBack: () -> Un
 }
 
 @Composable
-private fun StreamsHeader(
-    state: BrowseState,
-    strings: BrowseStrings,
-    onEvent: (BrowseEvent) -> Unit
+private fun BrowseTabPager(
+    selected: BrowseTab,
+    onSelect: (BrowseTab) -> Unit,
+    page: @Composable (BrowseTab) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        BrowseSearchField(
-            query = state.query,
-            strings = strings,
-            onQueryChange = { onEvent(BrowseEvent.QueryChanged(it)) }
+    val pagerState = rememberPagerState(initialPage = selected.ordinal) { BrowseTabs.size }
+    val scope = rememberCoroutineScope()
+    val select by rememberUpdatedState(onSelect)
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { index -> select(BrowseTabs[index]) }
+    }
+    LaunchedEffect(selected) {
+        if (pagerState.settledPage != selected.ordinal && !pagerState.isScrollInProgress) {
+            pagerState.animateScrollToPage(selected.ordinal)
+        }
+    }
+    Column(Modifier.fillMaxSize()) {
+        BrowseTabs(
+            selected = BrowseTabs[pagerState.targetPage],
+            onSelect = { tab -> scope.launch { pagerState.animateScrollToPage(tab.ordinal) } },
+            modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 4.dp)
         )
-        BrowseTabs(state.tab, strings, onSelect = { onEvent(BrowseEvent.SelectTab(it)) })
+        HorizontalPager(
+            state = pagerState,
+            beyondViewportPageCount = 1,
+            key = { BrowseTabs[it].name },
+            modifier = Modifier.fillMaxSize()
+        ) { index -> page(BrowseTabs[index]) }
     }
 }
 
 @Composable
 private fun BrowseTabs(
     selected: BrowseTab,
-    strings: BrowseStrings,
-    onSelect: (BrowseTab) -> Unit
+    onSelect: (BrowseTab) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     ExpressiveTabs(
         tabs = BrowseTabs,
@@ -292,12 +336,12 @@ private fun BrowseTabs(
         onSelect = onSelect,
         label = { tab ->
             when (tab) {
-                BrowseTab.FOLLOWING -> strings.tabFollowing
-                BrowseTab.POPULAR -> strings.tabPopular
-                BrowseTab.CATEGORIES -> strings.tabCategories
+                BrowseTab.FOLLOWING -> stringResource(Res.string.browse_tab_following)
+                BrowseTab.POPULAR -> stringResource(Res.string.browse_tab_popular)
+                BrowseTab.CATEGORIES -> stringResource(Res.string.browse_tab_categories)
             }
         },
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     )
 }
 
@@ -307,10 +351,11 @@ private fun DirectoryPane(
     state: BrowseState,
     categories: LazyPagingItems<BrowseCategory>,
     gridState: LazyGridState,
-    strings: BrowseStrings,
     bottomInset: Dp,
     onEvent: (BrowseEvent) -> Unit,
-    onOpenChannel: (BrowseChannel) -> Unit
+    onOpenChannel: (BrowseChannel) -> Unit,
+    onOpenStream: (BrowseStream) -> Unit,
+    onAskAi: (BrowseStream) -> Unit
 ) {
     val refreshing = if (state.isSearching) {
         state.searchLoading && state.searchResult != null
@@ -330,32 +375,21 @@ private fun DirectoryPane(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            fullSpanItem("search") {
-                BrowseSearchField(
-                    query = state.query,
-                    strings = strings,
-                    onQueryChange = { onEvent(BrowseEvent.QueryChanged(it)) }
-                )
-            }
             if (state.isSearching) {
-                searchResults(state, strings, onEvent, onOpenChannel)
+                searchResults(state, onEvent, onOpenChannel, onOpenStream, onAskAi)
             } else {
-                fullSpanItem("tabs") {
-                    BrowseTabs(state.tab, strings, onSelect = { onEvent(BrowseEvent.SelectTab(it)) })
-                }
-                topCategories(categories, strings, onEvent)
+                topCategories(categories, onEvent)
             }
         }
-        ScrollToTopButton(gridState, strings, bottomInset)
+        ScrollToTopButton(gridState, bottomInset)
     }
 }
 
 private fun LazyGridScope.topCategories(
     categories: LazyPagingItems<BrowseCategory>,
-    strings: BrowseStrings,
     onEvent: (BrowseEvent) -> Unit
 ) {
-    fullSpanItem("popular_header") { BrowseSectionHeader(strings.popularCategories) }
+    fullSpanItem("popular_header") { BrowseSectionHeader(stringResource(Res.string.browse_popular_categories)) }
     when (categories.content) {
         PagedContent.Loading -> items(
             count = CATEGORY_PLACEHOLDERS,
@@ -364,11 +398,11 @@ private fun LazyGridScope.topCategories(
         ) { PlaceholderBlock(aspectRatio = 3f / 4f) }
 
         PagedContent.Failed -> fullSpanItem("categories_error") {
-            BrowseMessage(strings.loadFailed, strings.retry, categories::retry)
+            BrowseMessage(stringResource(Res.string.browse_load_failed), stringResource(Res.string.browse_retry), categories::retry)
         }
 
         PagedContent.Empty -> fullSpanItem("categories_empty") {
-            BrowseMessage(strings.nothingFound, strings.retry, categories::refresh)
+            BrowseMessage(stringResource(Res.string.browse_nothing_found), stringResource(Res.string.browse_retry), categories::refresh)
         }
 
         PagedContent.Items -> {
@@ -380,54 +414,67 @@ private fun LazyGridScope.topCategories(
                 val category = categories[index] ?: return@items
                 CategoryCard(
                     category = category,
-                    strings = strings,
                     onClick = { onEvent(BrowseEvent.OpenCategory(category)) },
                     modifier = Modifier.animateItem()
                 )
             }
-            pagingFooter(categories, strings, "categories")
+            pagingFooter(categories, "categories")
         }
     }
 }
 
 private fun LazyGridScope.searchResults(
     state: BrowseState,
-    strings: BrowseStrings,
     onEvent: (BrowseEvent) -> Unit,
-    onOpenChannel: (BrowseChannel) -> Unit
+    onOpenChannel: (BrowseChannel) -> Unit,
+    onOpenStream: (BrowseStream) -> Unit,
+    onAskAi: (BrowseStream) -> Unit
 ) {
     val result = state.searchResult
+    val searchNowMs = Clock.System.now().toEpochMilliseconds()
     when {
         state.searchFailed -> fullSpanItem("search_error") {
-            BrowseMessage(strings.loadFailed, strings.retry, { onEvent(BrowseEvent.RetrySearch) })
+            BrowseMessage(stringResource(Res.string.browse_load_failed), stringResource(Res.string.browse_retry), { onEvent(BrowseEvent.RetrySearch) })
         }
 
         result == null -> fullSpanItem("search_loading") { LoadingFooter() }
 
-        result.channels.isEmpty() && result.categories.isEmpty() -> fullSpanItem("search_empty") {
-            BrowseMessage(strings.nothingFound, null, null)
+        result.isEmpty -> fullSpanItem("search_empty") {
+            BrowseMessage(stringResource(Res.string.browse_nothing_found), null, null)
         }
 
         else -> {
             if (result.channels.isNotEmpty()) {
-                fullSpanItem("channels_header") { BrowseSectionHeader(strings.channelsHeader) }
+                fullSpanItem("channels_header") { BrowseSectionHeader(stringResource(Res.string.browse_channels_header)) }
                 result.channels.forEach { channel ->
                     fullSpanItem("channel_${channel.login}") {
                         ChannelResultRow(
                             channel = channel,
-                            strings = strings,
                             onClick = { onOpenChannel(channel) },
                             modifier = Modifier.animateItem()
                         )
                     }
                 }
             }
+            if (result.streams.isNotEmpty()) {
+                fullSpanItem("streams_header") { BrowseSectionHeader(stringResource(Res.string.browse_streams_header)) }
+                result.streams.forEach { stream ->
+                    fullSpanItem("search_stream_${stream.login}") {
+                        StreamCard(
+                            stream = stream,
+                            nowMs = searchNowMs,
+                            onClick = { onOpenStream(stream) },
+                            onAskAi = { onAskAi(stream) },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
+                }
+            }
             if (result.categories.isNotEmpty()) {
-                fullSpanItem("search_categories_header") { BrowseSectionHeader(strings.categoriesHeader) }
+                fullSpanItem("search_categories_header") { BrowseSectionHeader(stringResource(Res.string.browse_categories_header)) }
                 items(result.categories, key = { "search_category_${it.id}" }, contentType = { "category" }) { category ->
                     CategoryCard(
                         category = category,
-                        strings = strings,
                         onClick = { onEvent(BrowseEvent.OpenCategory(category)) },
                         modifier = Modifier.animateItem()
                     )

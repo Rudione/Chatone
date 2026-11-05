@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.multi_chat_drag_hint
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -18,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 fun PanelDropOverlay(
@@ -26,7 +28,6 @@ fun PanelDropOverlay(
     modifier: Modifier = Modifier
 ) {
     if (!isActive) return
-    val strings = LocalStrings.current
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -41,7 +42,7 @@ fun PanelDropOverlay(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = strings.multiChatDragHint,
+            text = stringResource(Res.string.multi_chat_drag_hint),
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.titleSmall
         )

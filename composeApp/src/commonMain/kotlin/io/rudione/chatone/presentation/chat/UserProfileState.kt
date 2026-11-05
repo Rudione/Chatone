@@ -49,7 +49,7 @@ class UserProfileState internal constructor(
     private val userId: String,
     private val username: String,
     private val channelId: String,
-    private val channelLogin: String,
+    val channelLogin: String,
     private val accessToken: String,
     private val canModerate: Boolean,
     val archive: UserLogArchiveState,
@@ -168,7 +168,11 @@ class UserProfileState internal constructor(
                 isModerationHistoryLoading = true
                 scope.launch {
                     moderationHistory =
-                        moderationHistoryRepository.loadHistoryForUser(channelId, userId, accessToken)
+                        moderationHistoryRepository.loadHistoryForUser(
+                            channelId,
+                            userId,
+                            accessToken
+                        )
                     isModerationHistoryLoading = false
                 }
             }

@@ -1,28 +1,15 @@
 import math
 import os
 import sys
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
+
+import logo_geometry as geo
 
 SIZE = 1024
 SS = 4
-CENTER = SIZE / 2
-RING_RADIUS = 340.0
-RING_WIDTH = 150.0
-GAP_HALF_ANGLE = 44.0
 PLATE_RADIUS = 228
 PLATE_RADIUS_SMALL = 212
 
-RING_STOPS = [
-    (0.00, (217, 162, 255)),
-    (0.38, (160, 99, 255)),
-    (0.70, (109, 58, 240)),
-    (1.00, (43, 127, 255)),
-]
-RING_STOPS_SMALL = [
-    (0.00, (220, 168, 255)),
-    (0.45, (155, 92, 255)),
-    (1.00, (59, 140, 255)),
-]
 PLATE_STOPS = [
     (0.00, (34, 27, 51)),
     (0.55, (20, 16, 32)),
@@ -63,41 +50,77 @@ def linear_gradient(size, stops, start, end):
     return small.resize((size, size), Image.BICUBIC)
 
 
-def ring_mask(size, radius, width, scale):
+def _disk(size, x, y, radius):
     mask = Image.new("L", (size, size), 0)
-    draw = ImageDraw.Draw(mask)
-    r = radius * scale
-    w = width * scale
-    c = size / 2
-    box = [c - r, c - r, c + r, c + r]
-    draw.arc(box, start=GAP_HALF_ANGLE, end=360 - GAP_HALF_ANGLE, fill=255, width=round(w))
-    for sign in (-1, 1):
-        a = math.radians(GAP_HALF_ANGLE * sign)
-        ex = c + r * math.cos(a)
-        ey = c + r * math.sin(a)
-        draw.ellipse([ex - w / 2, ey - w / 2, ex + w / 2, ey + w / 2], fill=255)
+    ImageDraw.Draw(mask).ellipse([x - radius, y - radius, x + radius, y + radius], fill=255)
     return mask
 
 
-def sheen_layer(size, scale):
-    layer = Image.new("L", (size, size), 0)
-    draw = ImageDraw.Draw(layer)
-    r = (RING_RADIUS + RING_WIDTH * 0.26) * scale
-    c = size / 2
-    box = [c - r, c - r, c + r, c + r]
-    draw.arc(box, start=196, end=300, fill=110, width=round(26 * scale))
-    return layer
+def _polygon(size, points):
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).polygon(points, fill=255)
+    return mask
 
 
-def build(size, detailed=True):
+def _ellipse_points(f, rx, ry, start, end, steps=900):
+    a = math.radians(geo.RING_ROT_DEG)
+    out = []
+    for i in range(steps + 1):
+        t = start + (end - start) * i / steps
+        x, y = rx * math.cos(t), ry * math.sin(t)
+        out.append(f.p(x * math.cos(a) - y * math.sin(a), x * math.sin(a) + y * math.cos(a)))
+    return out
+
+
+def _rotated(f, x, y):
+    a = math.radians(geo.RING_ROT_DEG)
+    return f.p(x * math.cos(a) - y * math.sin(a), x * math.sin(a) + y * math.cos(a))
+
+
+def paint_mark(canvas, size, f, with_orbit=True):
+    cx, cy = f.p(0, 0)
+    outer = _disk(size, cx, cy, f.n(geo.OUTER))
+    body = ImageChops.subtract(outer, _disk(size, cx, cy, f.n(geo.INNER)))
+    far = f.n(geo.FAR)
+    a = math.radians(geo.OPEN_DEG)
+    wedge = _polygon(size, [(cx, cy), (cx + far * math.cos(a), cy - far * math.sin(a)), (cx + far * math.cos(a), cy + far * math.sin(a))])
+    body = ImageChops.subtract(body, wedge)
+    cut = geo.RING_WIDTH / 2 + geo.RING_GAP
+    far_x = geo.RING_RX + geo.FAR
+
+    def side(grow, sign):
+        arc = _ellipse_points(f, geo.RING_RX + grow, geo.RING_RY + grow, 0, math.pi)
+        return _polygon(size, [_rotated(f, far_x, 0)] + arc + [_rotated(f, -far_x, 0), _rotated(f, -far_x, sign * geo.FAR), _rotated(f, far_x, sign * geo.FAR)])
+
+    day = ImageChops.multiply(body, side(-cut, -1))
+    night = ImageChops.multiply(body, side(cut, 1))
+    if with_orbit:
+        half = geo.RING_WIDTH / 2
+        ring = _polygon(size, _ellipse_points(f, geo.RING_RX + half, geo.RING_RY + half, 0, 2 * math.pi))
+        ring = ImageChops.subtract(ring, _polygon(size, _ellipse_points(f, geo.RING_RX - half, geo.RING_RY - half, 0, 2 * math.pi)))
+        visible = ImageChops.subtract(ImageChops.invert(outer), wedge)
+        canvas.paste(Image.new("RGBA", (size, size), geo.RING + (255,)), (0, 0), ImageChops.multiply(ring, visible))
+    canvas.paste(Image.new("RGBA", (size, size), geo.LIT + (255,)), (0, 0), day)
+    canvas.paste(Image.new("RGBA", (size, size), geo.NIGHT + (255,)), (0, 0), night)
+    return canvas
+
+
+def _frame(big, ratio):
+    radius = geo.RING_RX + geo.RING_WIDTH / 2
+    scale = big * ratio / (2 * radius)
+    return geo.Frame(scale, big / 2 - geo.CX * scale, big / 2 - geo.CY * scale)
+
+
+def build(size, detailed=True, rounded=True):
     scale = size * SS / SIZE
     big = size * SS
 
     plate_radius = (PLATE_RADIUS if detailed else PLATE_RADIUS_SMALL) * scale
-    plate_mask = Image.new("L", (big, big), 0)
-    ImageDraw.Draw(plate_mask).rounded_rectangle(
-        [0, 0, big - 1, big - 1], radius=plate_radius, fill=255
-    )
+    plate_mask = Image.new("L", (big, big), 0 if rounded else 255)
+    if rounded:
+        ImageDraw.Draw(plate_mask).rounded_rectangle(
+            [0, 0, big - 1, big - 1], radius=plate_radius, fill=255
+        )
 
     if detailed:
         plate = linear_gradient(big, PLATE_STOPS, (0.2, 0.0), (0.85, 1.0))
@@ -107,19 +130,9 @@ def build(size, detailed=True):
     canvas = Image.new("RGBA", (big, big), (0, 0, 0, 0))
     canvas.paste(plate.convert("RGBA"), (0, 0), plate_mask)
 
-    stops = RING_STOPS if detailed else RING_STOPS_SMALL
-    ring_w = RING_WIDTH if detailed else 168.0
-    ring_r = RING_RADIUS if detailed else 330.0
-    ring = linear_gradient(big, stops, (0.06, 0.04), (0.90, 0.96)).convert("RGBA")
-    canvas.paste(ring, (0, 0), ring_mask(big, ring_r, ring_w, scale))
+    canvas = paint_mark(canvas, big, _frame(big, 0.97 if detailed else 1.08), with_orbit=detailed)
 
-    if detailed and size >= 128:
-        sheen = sheen_layer(big, scale)
-        white = Image.new("RGBA", (big, big), (255, 255, 255, 255))
-        combined = Image.new("L", (big, big), 0)
-        combined.paste(sheen, (0, 0), ring_mask(big, ring_r, ring_w, scale))
-        canvas.paste(white, (0, 0), combined)
-
+    if detailed and rounded and size >= 128:
         edge = Image.new("L", (big, big), 0)
         ImageDraw.Draw(edge).rounded_rectangle(
             [4 * scale, 4 * scale, big - 1 - 4 * scale, big - 1 - 4 * scale],
@@ -131,11 +144,9 @@ def build(size, detailed=True):
 
 
 def build_mark(size):
-    scale = size * SS / SIZE
     big = size * SS
     canvas = Image.new("RGBA", (big, big), (0, 0, 0, 0))
-    ring = linear_gradient(big, RING_STOPS, (0.06, 0.04), (0.90, 0.96)).convert("RGBA")
-    canvas.paste(ring, (0, 0), ring_mask(big, RING_RADIUS, RING_WIDTH, scale))
+    canvas = paint_mark(canvas, big, _frame(big, 0.96))
     return canvas.resize((size, size), Image.LANCZOS)
 
 
@@ -150,4 +161,6 @@ if __name__ == "__main__":
         icon(s).save(os.path.join(out, f"icon-{s}.png"))
     for s in (108, 432, 512, 1024):
         build_mark(s).save(os.path.join(out, f"mark-{s}.png"))
+    for s in (512, 1024):
+        build(s, rounded=False).convert("RGB").save(os.path.join(out, f"store-{s}.png"))
     print("rendered to", out)

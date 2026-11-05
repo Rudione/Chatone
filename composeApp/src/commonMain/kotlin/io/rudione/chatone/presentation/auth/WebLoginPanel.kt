@@ -1,5 +1,43 @@
 package io.rudione.chatone.presentation.auth
 
+import chatone.composeapp.generated.resources.login_err_clipboard_empty
+import chatone.composeapp.generated.resources.login_err_decrypt
+import chatone.composeapp.generated.resources.login_err_encryption_unsupported
+import chatone.composeapp.generated.resources.login_err_foreign_client
+import chatone.composeapp.generated.resources.login_err_identity
+import chatone.composeapp.generated.resources.login_err_incomplete
+import chatone.composeapp.generated.resources.login_err_malformed
+import chatone.composeapp.generated.resources.login_err_network
+import chatone.composeapp.generated.resources.login_err_rights_not_granted
+import chatone.composeapp.generated.resources.login_err_token_rejected
+import chatone.composeapp.generated.resources.login_err_unsafe_url
+import org.jetbrains.compose.resources.StringResource
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.login_auto_watch
+import chatone.composeapp.generated.resources.login_awaiting_rights
+import chatone.composeapp.generated.resources.login_code_accepted
+import chatone.composeapp.generated.resources.login_continue_without_rights
+import chatone.composeapp.generated.resources.login_mod_failed
+import chatone.composeapp.generated.resources.login_mod_linked
+import chatone.composeapp.generated.resources.login_mod_pending
+import chatone.composeapp.generated.resources.login_open_activation
+import chatone.composeapp.generated.resources.login_open_mirror
+import chatone.composeapp.generated.resources.login_open_site
+import chatone.composeapp.generated.resources.login_open_site_hint
+import chatone.composeapp.generated.resources.login_paste_from_clipboard
+import chatone.composeapp.generated.resources.login_paste_manual_hint
+import chatone.composeapp.generated.resources.login_paste_manual_label
+import chatone.composeapp.generated.resources.login_preparing
+import chatone.composeapp.generated.resources.login_reopen_site
+import chatone.composeapp.generated.resources.login_retry_now
+import chatone.composeapp.generated.resources.login_retry_rights
+import chatone.composeapp.generated.resources.login_retrying
+import chatone.composeapp.generated.resources.login_rights_on_site
+import chatone.composeapp.generated.resources.login_step_confirm
+import chatone.composeapp.generated.resources.login_step_open
+import chatone.composeapp.generated.resources.login_step_paste
+import chatone.composeapp.generated.resources.login_verifying
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -50,24 +88,23 @@ import io.rudione.chatone.data.repository.DeviceAuthState
 import io.rudione.chatone.data.repository.LoginFailure
 import io.rudione.chatone.data.repository.WebLoginController
 import io.rudione.chatone.presentation.components.ChatoneButtonText
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
+
+fun LoginFailure.messageRes(): StringResource = when (this) {
+    LoginFailure.ClipboardEmpty -> Res.string.login_err_clipboard_empty
+    LoginFailure.Malformed -> Res.string.login_err_malformed
+    LoginFailure.DecryptionFailed -> Res.string.login_err_decrypt
+    LoginFailure.Incomplete -> Res.string.login_err_incomplete
+    LoginFailure.ForeignClientId -> Res.string.login_err_foreign_client
+    LoginFailure.IdentityMismatch -> Res.string.login_err_identity
+    LoginFailure.TokenRejected -> Res.string.login_err_token_rejected
+    LoginFailure.EncryptionUnsupported -> Res.string.login_err_encryption_unsupported
+    LoginFailure.UnsafeLoginUrl -> Res.string.login_err_unsafe_url
+    LoginFailure.RightsNotGranted -> Res.string.login_err_rights_not_granted
+    LoginFailure.Network -> Res.string.login_err_network
+}
 
 @Composable
-fun AppStrings.loginFailureText(failure: LoginFailure): String = when (failure) {
-    LoginFailure.ClipboardEmpty -> loginErrClipboardEmpty
-    LoginFailure.Malformed -> loginErrMalformed
-    LoginFailure.DecryptionFailed -> loginErrDecrypt
-    LoginFailure.Incomplete -> loginErrIncomplete
-    LoginFailure.ForeignClientId -> loginErrForeignClient
-    LoginFailure.IdentityMismatch -> loginErrIdentity
-    LoginFailure.TokenRejected -> loginErrTokenRejected
-    LoginFailure.EncryptionUnsupported -> loginErrEncryptionUnsupported
-    LoginFailure.UnsafeLoginUrl -> loginErrUnsafeUrl
-    LoginFailure.RightsNotGranted -> loginErrRightsNotGranted
-    LoginFailure.Network -> loginErrNetwork
-}
+fun loginFailureText(failure: LoginFailure): String = stringResource(failure.messageRes())
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -90,7 +127,6 @@ fun WebLoginPanel(
     onRetryRights: (() -> Unit)? = null,
     onOpenActivation: (() -> Unit)? = null
 ) {
-    val s = LocalStrings.current
     val busy = isPreparing || isVerifying
     val paste = rememberLoginPasteWatcher(awaitingPaste, busy, failure, onSubmitPayload)
     val codeAccepted = paste.codeAccepted
@@ -122,7 +158,7 @@ fun WebLoginPanel(
                 Icon(Icons.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (awaitingPaste) s.loginReopenSite else s.loginOpenSite,
+                    text = if (awaitingPaste) stringResource(Res.string.login_reopen_site) else stringResource(Res.string.login_open_site),
                     maxLines = 2
                 )
             }
@@ -134,7 +170,7 @@ fun WebLoginPanel(
             ) {
                 Icon(Icons.Filled.ContentPaste, null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(s.loginPasteFromClipboard, maxLines = 2)
+                Text(stringResource(Res.string.login_paste_from_clipboard), maxLines = 2)
             }
         }
 
@@ -143,16 +179,16 @@ fun WebLoginPanel(
         Text(
             text = when {
                 isPreparing && prepareAttempt > 1 ->
-                    s.format(s.loginRetrying, prepareAttempt, WebLoginController.DEVICE_ATTEMPTS)
+                    stringResource(Res.string.login_retrying, prepareAttempt, WebLoginController.DEVICE_ATTEMPTS)
 
-                isPreparing -> s.loginPreparing
+                isPreparing -> stringResource(Res.string.login_preparing)
                 isVerifying && verifyAttempt > 1 ->
-                    s.format(s.loginRetrying, verifyAttempt, WebLoginController.VERIFY_ATTEMPTS)
+                    stringResource(Res.string.login_retrying, verifyAttempt, WebLoginController.VERIFY_ATTEMPTS)
 
-                isVerifying -> s.loginVerifying
-                codeAccepted -> s.loginCodeAccepted
-                awaitingPaste -> s.loginAutoWatch
-                else -> s.loginOpenSiteHint
+                isVerifying -> stringResource(Res.string.login_verifying)
+                codeAccepted -> stringResource(Res.string.login_code_accepted)
+                awaitingPaste -> stringResource(Res.string.login_auto_watch)
+                else -> stringResource(Res.string.login_open_site_hint)
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -161,7 +197,7 @@ fun WebLoginPanel(
         if (awaitingPaste && onOpenMirror != null) {
             TextButton(onClick = onOpenMirror, enabled = !busy) {
                 Text(
-                    text = s.loginOpenMirror,
+                    text = stringResource(Res.string.login_open_mirror),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 2
                 )
@@ -178,8 +214,8 @@ fun WebLoginPanel(
                     value = paste.manualPayload,
                     onValueChange = paste::type,
                     modifier = Modifier.fillMaxWidth(),
-                    label = s.loginPasteManualLabel,
-                    hint = s.loginPasteManualHint,
+                    label = stringResource(Res.string.login_paste_manual_label),
+                    hint = stringResource(Res.string.login_paste_manual_hint),
                     enabled = !busy,
                     trailing = {
                         if (paste.manualPayload.isNotBlank()) {
@@ -212,7 +248,7 @@ fun WebLoginPanel(
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
                 Text(
-                    if (deviceState == DeviceAuthState.ConfirmingOnLoginPage) s.loginRightsOnSite else s.loginAwaitingRights,
+                    if (deviceState == DeviceAuthState.ConfirmingOnLoginPage) stringResource(Res.string.login_rights_on_site) else stringResource(Res.string.login_awaiting_rights),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -222,7 +258,7 @@ fun WebLoginPanel(
                 Button(onClick = onOpenActivation, shape = RoundedCornerShape(12.dp)) {
                     Icon(Icons.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    ChatoneButtonText(s.loginOpenActivation)
+                    ChatoneButtonText(stringResource(Res.string.login_open_activation))
                 }
             }
         }
@@ -244,7 +280,7 @@ fun WebLoginPanel(
                     modifier = Modifier.size(14.dp)
                 )
                 Text(
-                    s.loginCodeAccepted,
+                    stringResource(Res.string.login_code_accepted),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -253,7 +289,7 @@ fun WebLoginPanel(
 
         if (failure != null) {
             Spacer(Modifier.height(12.dp))
-            LoginErrorBanner(message = s.loginFailureText(failure))
+            LoginErrorBanner(message = loginFailureText(failure))
         }
 
         if (failure == LoginFailure.Network && onRetryPayload != null) {
@@ -263,21 +299,21 @@ fun WebLoginPanel(
                 enabled = !busy,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                ChatoneButtonText(s.loginRetryNow)
+                ChatoneButtonText(stringResource(Res.string.login_retry_now))
             }
         }
 
         if (failure == LoginFailure.RightsNotGranted && onRetryRights != null) {
             Spacer(Modifier.height(8.dp))
             Button(onClick = onRetryRights, shape = RoundedCornerShape(12.dp)) {
-                ChatoneButtonText(s.loginRetryRights)
+                ChatoneButtonText(stringResource(Res.string.login_retry_rights))
             }
         }
 
         if (onContinueWithoutRights != null && (awaitingRights || failure == LoginFailure.RightsNotGranted)) {
             Spacer(Modifier.height(8.dp))
             OutlinedButton(onClick = onContinueWithoutRights, shape = RoundedCornerShape(12.dp)) {
-                ChatoneButtonText(s.loginContinueWithoutRights)
+                ChatoneButtonText(stringResource(Res.string.login_continue_without_rights))
             }
         }
 
@@ -290,13 +326,12 @@ fun WebLoginPanel(
 
 @Composable
 private fun LoginStepRow(currentStep: Int) {
-    val s = LocalStrings.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.Top
     ) {
-        listOf(s.loginStepOpen, s.loginStepPaste, s.loginStepConfirm).forEachIndexed { index, label ->
+        listOf(stringResource(Res.string.login_step_open), stringResource(Res.string.login_step_paste), stringResource(Res.string.login_step_confirm)).forEachIndexed { index, label ->
             val step = index + 1
             LoginStepChip(
                 index = step,
@@ -363,7 +398,6 @@ private fun LoginStepChip(index: Int, label: String, active: Boolean, done: Bool
 
 @Composable
 private fun DeviceAuthStatus(deviceState: DeviceAuthState) {
-    val s = LocalStrings.current
     var codeRevealed by remember(deviceState) { mutableStateOf(false) }
     val (text, tint) = when (deviceState) {
         is DeviceAuthState.WaitingForApproval -> {
@@ -372,17 +406,17 @@ private fun DeviceAuthStatus(deviceState: DeviceAuthState) {
             } else {
                 "•".repeat(deviceState.userCode.length.coerceIn(4, 10))
             }
-            s.format(s.loginModPending, code) to MaterialTheme.colorScheme.tertiary
+            stringResource(Res.string.login_mod_pending, code) to MaterialTheme.colorScheme.tertiary
         }
 
         DeviceAuthState.Validating ->
-            s.loginVerifying to MaterialTheme.colorScheme.tertiary
+            stringResource(Res.string.login_verifying) to MaterialTheme.colorScheme.tertiary
 
         is DeviceAuthState.Success ->
-            s.format(s.loginModLinked, deviceState.displayName) to MaterialTheme.colorScheme.primary
+            stringResource(Res.string.login_mod_linked, deviceState.displayName) to MaterialTheme.colorScheme.primary
 
         is DeviceAuthState.Error ->
-            s.loginModFailed to MaterialTheme.colorScheme.onSurfaceVariant
+            stringResource(Res.string.login_mod_failed) to MaterialTheme.colorScheme.onSurfaceVariant
 
         DeviceAuthState.Idle, DeviceAuthState.ConfirmingOnLoginPage -> return
     }

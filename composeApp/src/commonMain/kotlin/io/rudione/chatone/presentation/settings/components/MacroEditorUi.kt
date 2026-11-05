@@ -1,5 +1,26 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.mod_choose_icon
+import chatone.composeapp.generated.resources.mod_create
+import chatone.composeapp.generated.resources.mod_create_macro
+import chatone.composeapp.generated.resources.mod_icon_tab_emoji
+import chatone.composeapp.generated.resources.mod_icon_tab_material
+import chatone.composeapp.generated.resources.mod_macro_name
+import chatone.composeapp.generated.resources.mod_macros
+import chatone.composeapp.generated.resources.mod_macros_desc
+import chatone.composeapp.generated.resources.mod_new_macro
+import chatone.composeapp.generated.resources.mod_no_macros
+import chatone.composeapp.generated.resources.mod_pin_macro
+import chatone.composeapp.generated.resources.mod_pinned_slot_suffix
+import chatone.composeapp.generated.resources.mod_quick_bar
+import chatone.composeapp.generated.resources.mod_slot
+import chatone.composeapp.generated.resources.mod_slot_empty
+import chatone.composeapp.generated.resources.mod_slot_name
+import chatone.composeapp.generated.resources.mod_step_count
+import chatone.composeapp.generated.resources.mod_unpin_from_bar
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -65,7 +86,6 @@ import io.rudione.chatone.presentation.settings.SettingsDestination
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsNavigator
 import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 
 private val MacroTileShape = RoundedCornerShape(8.dp)
@@ -77,7 +97,6 @@ fun MacrosSection(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingMacro by remember { mutableStateOf<Macro?>(null) }
-    val s = LocalStrings.current
     val settingsNavigator: SettingsNavigator = koinInject()
     val pendingDestination by settingsNavigator.pending.collectAsState()
 
@@ -88,16 +107,16 @@ fun MacrosSection(
         settingsNavigator.consume(destination)
     }
 
-    SettingsCard(title = s.modMacros, help = s.modMacrosDesc) {
+    SettingsCard(title = stringResource(Res.string.mod_macros), help = stringResource(Res.string.mod_macros_desc)) {
         if (state.macros.any { it.pinnedIndex in 0 until Macro.MAX_MACRO_SLOTS }) {
-            ChatoneFieldLabel(s.modQuickBar)
+            ChatoneFieldLabel(stringResource(Res.string.mod_quick_bar))
             MacroQuickBarPreview(macros = state.macros, onEdit = { editingMacro = it })
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         }
 
         if (state.macros.isEmpty()) {
             Text(
-                s.modNoMacros,
+                stringResource(Res.string.mod_no_macros),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
@@ -119,7 +138,7 @@ fun MacrosSection(
         }
 
         ChatoneButton(
-            text = s.modCreateMacro,
+            text = stringResource(Res.string.mod_create_macro),
             onClick = { showAddDialog = true },
             tone = ChatoneButtonTone.Neutral,
             icon = Icons.Filled.Add,
@@ -185,7 +204,6 @@ private fun MacroRow(
 ) {
     var showPinMenu by remember { mutableStateOf(false) }
     val isPinned = macro.pinnedIndex in 0 until Macro.MAX_MACRO_SLOTS
-    val s = LocalStrings.current
 
     ChatoneListItem(
         onClick = onEdit,
@@ -195,7 +213,7 @@ private fun MacroRow(
                 ChatoneIconButton(onClick = { showPinMenu = true }, modifier = Modifier.size(26.dp)) {
                     Icon(
                         if (isPinned) Icons.Filled.Star else Icons.Outlined.Star,
-                        contentDescription = s.modPinMacro,
+                        contentDescription = stringResource(Res.string.mod_pin_macro),
                         modifier = Modifier.size(15.dp),
                         tint = if (isPinned) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant
@@ -204,7 +222,7 @@ private fun MacroRow(
                 ChatoneDropdownMenu(expanded = showPinMenu, onDismissRequest = { showPinMenu = false }) {
                     if (isPinned) {
                         DropdownMenuItem(
-                            text = { Text(s.modUnpinFromBar) },
+                            text = { Text(stringResource(Res.string.mod_unpin_from_bar)) },
                             onClick = {
                                 showPinMenu = false
                                 onUnpin()
@@ -218,8 +236,8 @@ private fun MacroRow(
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    s.modSlot.replace("{0}", (slot + 1).toString()) +
-                                        (slotMacro?.let { s.modSlotName.replace("{0}", it.name) } ?: s.modSlotEmpty)
+                                    stringResource(Res.string.mod_slot, (slot + 1)) +
+                                        (slotMacro?.let { stringResource(Res.string.mod_slot_name, (it.name)) } ?: stringResource(Res.string.mod_slot_empty))
                                 )
                             },
                             onClick = {
@@ -258,8 +276,8 @@ private fun MacroRow(
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            s.modStepCount.replace("{0}", macro.steps.size.toString()) +
-                if (isPinned) s.modPinnedSlotSuffix.replace("{0}", (macro.pinnedIndex + 1).toString()) else "",
+            stringResource(Res.string.mod_step_count, macro.steps.size) +
+                if (isPinned) stringResource(Res.string.mod_pinned_slot_suffix, (macro.pinnedIndex + 1)) else "",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -324,7 +342,8 @@ internal fun MacroIconPicker(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
+    val modIconTabMaterialText = stringResource(Res.string.mod_icon_tab_material)
+    val modIconTabEmojiText = stringResource(Res.string.mod_icon_tab_emoji)
     var showVectors by remember { mutableStateOf(!MacroIcons.isEmojiChoice(selected)) }
     val tokens = remember(showVectors) {
         if (showVectors) MacroIcons.CATALOG.map { MacroIcons.token(it.first) } else MacroIcons.EMOJI
@@ -335,7 +354,7 @@ internal fun MacroIconPicker(
             tabs = ICON_TABS,
             selected = showVectors,
             onSelect = { showVectors = it },
-            label = { if (it) s.modIconTabMaterial else s.modIconTabEmoji },
+            label = { if (it) modIconTabMaterialText else modIconTabEmojiText },
             size = ExpressiveTabSize.Compact
         )
         LazyVerticalGrid(
@@ -363,16 +382,15 @@ private fun MacroNameDialog(
 ) {
     var name by remember { mutableStateOf("") }
     var icon by remember { mutableStateOf(MacroIcons.DEFAULT) }
-    val s = LocalStrings.current
 
     ChatoneDialog(
         onDismissRequest = onDismiss,
-        title = s.modNewMacro,
+        title = stringResource(Res.string.mod_new_macro),
         maxWidth = 420.dp,
         actions = {
-            ChatoneButton(text = s.cancel, onClick = onDismiss, tone = ChatoneButtonTone.Neutral)
+            ChatoneButton(text = stringResource(Res.string.cancel), onClick = onDismiss, tone = ChatoneButtonTone.Neutral)
             ChatoneButton(
-                text = s.modCreate,
+                text = stringResource(Res.string.mod_create),
                 onClick = { onConfirm(name.trim(), icon) },
                 enabled = name.isNotBlank()
             )
@@ -381,12 +399,12 @@ private fun MacroNameDialog(
         ChatoneTextField(
             value = name,
             onValueChange = { name = it },
-            label = s.modMacroName,
+            label = stringResource(Res.string.mod_macro_name),
             singleLine = true,
             leading = { MacroIconTile(icon = icon, onClick = null, size = 24.dp) },
             modifier = Modifier.fillMaxWidth()
         )
-        ChatoneFieldLabel(s.modChooseIcon)
+        ChatoneFieldLabel(stringResource(Res.string.mod_choose_icon))
         MacroIconPicker(selected = icon, onSelect = { icon = it })
     }
 }

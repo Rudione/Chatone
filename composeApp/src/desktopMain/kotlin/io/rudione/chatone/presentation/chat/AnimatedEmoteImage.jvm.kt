@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ui_by
+import chatone.composeapp.generated.resources.ui_original
+import chatone.composeapp.generated.resources.ui_right_click_to_open_on_7tv
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.tween
@@ -111,7 +116,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "Original:",
+                            text = stringResource(Res.string.ui_original),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
                         )
@@ -131,7 +136,7 @@ fun EmoteTooltip(emote: GenericEmote) {
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = "By",
+                        text = stringResource(Res.string.ui_by),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
@@ -165,7 +170,7 @@ fun EmoteTooltip(emote: GenericEmote) {
 
             if (emote.provider == EmoteProvider.SEVEN_TV) {
                 Text(
-                    text = "Right-click to open on 7TV",
+                    text = stringResource(Res.string.ui_right_click_to_open_on_7tv),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
                 )

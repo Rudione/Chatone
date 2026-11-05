@@ -1,5 +1,15 @@
 package io.rudione.chatone.presentation.automod
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_rule_reply_cooldown
+import chatone.composeapp.generated.resources.chat_rule_reply_cooldown_desc
+import chatone.composeapp.generated.resources.chat_rule_reply_enabled
+import chatone.composeapp.generated.resources.chat_rule_reply_enabled_desc
+import chatone.composeapp.generated.resources.chat_rule_reply_reset
+import chatone.composeapp.generated.resources.chat_rule_reply_template
+import chatone.composeapp.generated.resources.chat_rule_reply_template_hint
+import chatone.composeapp.generated.resources.unit_seconds_label
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,7 +26,6 @@ import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneNumberField
 import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.components.ExpressiveCheckRow
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.RotateCcw
 
@@ -26,13 +35,12 @@ internal fun ChatRuleReplySection(
     onChange: (ChatRule) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
-    val defaultTemplate = s.defaultChatRuleReply(rule.type)
+    val defaultTemplate = defaultChatRuleReplyRes(rule.type)?.let { stringResource(it) }.orEmpty()
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ExpressiveCheckRow(
-            title = s.chatRuleReplyEnabled,
-            description = s.chatRuleReplyEnabledDesc,
+            title = stringResource(Res.string.chat_rule_reply_enabled),
+            description = stringResource(Res.string.chat_rule_reply_enabled_desc),
             checked = rule.replyEnabled,
             onCheckedChange = { onChange(rule.copy(replyEnabled = it)) },
             modifier = Modifier.fillMaxWidth()
@@ -44,21 +52,21 @@ internal fun ChatRuleReplySection(
                     onValueChange = { text ->
                         onChange(rule.copy(replyTemplate = text.takeUnless { it == defaultTemplate }.orEmpty()))
                     },
-                    label = s.chatRuleReplyTemplate,
-                    hint = s.chatRuleReplyTemplateHint,
+                    label = stringResource(Res.string.chat_rule_reply_template),
+                    hint = stringResource(Res.string.chat_rule_reply_template_hint),
                     singleLine = false,
                     maxLines = 3,
                     textStyle = MaterialTheme.typography.bodySmall,
                     trailing = if (rule.replyTemplate.isNotBlank()) {
                         {
-                            LiquidGlassTooltipBox(tooltip = s.chatRuleReplyReset) {
+                            LiquidGlassTooltipBox(tooltip = stringResource(Res.string.chat_rule_reply_reset)) {
                                 ChatoneIconButton(
                                     onClick = { onChange(rule.copy(replyTemplate = "")) },
                                     modifier = Modifier.size(24.dp)
                                 ) {
                                     Icon(
                                         Lucide.RotateCcw,
-                                        contentDescription = s.chatRuleReplyReset,
+                                        contentDescription = stringResource(Res.string.chat_rule_reply_reset),
                                         modifier = Modifier.size(15.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -71,10 +79,10 @@ internal fun ChatRuleReplySection(
                 ChatoneNumberField(
                     value = rule.replyCooldownSeconds,
                     onValueChange = { onChange(rule.copy(replyCooldownSeconds = it)) },
-                    label = s.chatRuleReplyCooldown,
-                    hint = s.chatRuleReplyCooldownDesc,
+                    label = stringResource(Res.string.chat_rule_reply_cooldown),
+                    hint = stringResource(Res.string.chat_rule_reply_cooldown_desc),
                     range = 1..ChatRule.MAX_REPLY_COOLDOWN_SECONDS,
-                    suffix = s.unitSecondsLabel,
+                    suffix = stringResource(Res.string.unit_seconds_label),
                     modifier = Modifier.fillMaxWidth()
                 )
             }

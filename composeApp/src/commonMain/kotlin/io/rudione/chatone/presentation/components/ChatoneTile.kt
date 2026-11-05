@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
@@ -51,9 +50,3 @@ fun Modifier.chatoneTile(
             if (outlined) Modifier.border(1.dp, line.copy(alpha = 0.42f), shape) else Modifier
         )
 }
-
-@Composable
-fun accentBrush(
-    horizontal: Boolean = true,
-    stops: List<Color> = ChatoneTheme.extraColors.accentGradient
-): Brush = if (horizontal) Brush.horizontalGradient(stops) else Brush.verticalGradient(stops)

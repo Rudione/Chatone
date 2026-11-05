@@ -1,12 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <defs>
-    <linearGradient id="ring" x1="0.06" y1="0.04" x2="0.90" y2="0.96">
-      <stop offset="0" stop-color="#D9A2FF"/>
-      <stop offset="0.38" stop-color="#A063FF"/>
-      <stop offset="0.70" stop-color="#6D3AF0"/>
-      <stop offset="1" stop-color="#2B7FFF"/>
-    </linearGradient>
-  </defs>
-  <path d="M756.6 275.8A340 340 0 1 0 756.6 748.2" fill="none"
-        stroke="url(#ring)" stroke-width="150" stroke-linecap="round"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><clipPath id="c-lit"><path d="M3664.32 -2326.36L840.21 216.48A441.65 149.1 -42 0 1 183.79 807.52L-2640.32 3350.36L-5166.12 545.18L1138.53 -5131.55Z"/></clipPath><clipPath id="c-night"><path d="M3664.32 -2326.36L878.08 182.38A492.6 200.06 -42 0 1 145.92 841.62L-2640.32 3350.36L-114.53 6155.55L6190.12 478.82Z"/></clipPath><clipPath id="c-orbit"><path d="M0 0L0 1024L1024 1024L1024 0ZM840.29 273.49L3565.83 -1706.74L3565.83 2730.74L840.29 750.51A405.79 405.79 0 1 1 840.29 273.49Z"/></clipPath></defs><path clip-path="url(#c-orbit)" d="M859.14 199.43A467.12 174.58 -42 1 1 164.86 824.57A467.12 174.58 -42 1 1 859.14 199.43" fill="none" stroke="#E2E3FF" stroke-width="28.31"/><path clip-path="url(#c-lit)" d="M840.29 273.49A405.79 405.79 0 1 0 840.29 750.51L664.69 622.94A188.74 188.74 0 1 1 664.69 401.06Z" fill="#8083D9"/><path clip-path="url(#c-night)" d="M840.29 273.49A405.79 405.79 0 1 0 840.29 750.51L664.69 622.94A188.74 188.74 0 1 1 664.69 401.06Z" fill="#403EA6"/></svg>

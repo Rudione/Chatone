@@ -11,7 +11,6 @@ import android.view.TextureView
 import android.view.View
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
-import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaLibraryInfo
 import androidx.media3.common.MediaMetadata
@@ -19,8 +18,6 @@ import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
-import androidx.media3.common.TrackSelectionOverride
-import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.datasource.HttpDataSource
@@ -50,7 +47,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
-import kotlin.math.abs
 
 @UnstableApi
 internal class AndroidStreamPlaybackEngine(
@@ -85,10 +81,11 @@ internal class AndroidStreamPlaybackEngine(
     private var released = false
     private var mediaInfo: StreamMediaInfo? = null
     private val outputs = ArrayList<View>(2)
+    private val trackSelector = DefaultTrackSelector(appContext, AutoQualityTrackSelectionFactory(autoQuality))
 
     val player: ExoPlayer = ExoPlayer.Builder(appContext, StreamRenderersFactory(appContext))
         .setBandwidthMeter(bandwidthMeter)
-        .setTrackSelector(DefaultTrackSelector(appContext, AutoQualityTrackSelectionFactory(autoQuality)))
+        .setTrackSelector(trackSelector)
         .setLoadControl(
             DefaultLoadControl.Builder()
                 .setBufferDurationsMs(MIN_BUFFER_MS, MAX_BUFFER_MS, START_BUFFER_MS, REBUFFER_MS)
@@ -110,7 +107,6 @@ internal class AndroidStreamPlaybackEngine(
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
-            if (events.contains(Player.EVENT_TRACKS_CHANGED)) applyPendingOverride()
             if (events.contains(Player.EVENT_IS_PLAYING_CHANGED)) updateLiveEdgeCheck()
             publish()
         }
@@ -165,7 +161,7 @@ internal class AndroidStreamPlaybackEngine(
             .setPlaylistParserFactory(parserFactory)
             .setAllowChunklessPreparation(true)
             .createMediaSource(mediaItem)
-        applyTrackParameters(resolveOverride = false)
+        applyTrackParameters()
         player.setMediaSource(mediaSource)
         player.prepare()
         player.playWhenReady = true
@@ -291,7 +287,8 @@ internal class AndroidStreamPlaybackEngine(
         if (offsetMs != C.TIME_UNSET && player.isCurrentMediaItemLive) {
             val liveOffsetUs = offsetMs * 1_000L + speedControl.clockOffsetUs
             val targetUs = speedControl.targetUs
-            if (liveEdgeGuard.shouldJump(liveOffsetUs, targetUs, SystemClock.elapsedRealtime())) {
+            val bufferedUs = player.totalBufferedDuration * 1_000L
+            if (liveEdgeGuard.shouldJump(liveOffsetUs, targetUs, bufferedUs, SystemClock.elapsedRealtime())) {
                 Napier.i("Jumping to live edge, lag ${liveOffsetUs / 1_000}ms over target ${targetUs.takeIf { it != LiveSpeedPolicy.UNSET }?.div(1_000)}ms", tag = TAG)
                 player.seekToDefaultPosition()
             }
@@ -307,54 +304,20 @@ internal class AndroidStreamPlaybackEngine(
         return window.windowStartTimeMs + player.currentPosition
     }
 
-    private fun applyTrackParameters(resolveOverride: Boolean = true) {
+    private fun applyTrackParameters() {
         if (released) return
-        val builder = player.trackSelectionParameters.buildUpon()
-            .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+        val fixed = selection is StreamQualitySelection.Fixed
+        autoQuality.pin(pinnedVariant())
+        val builder = trackSelector.buildUponParameters()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, selection == StreamQualitySelection.AudioOnly)
-        if (resolveOverride) {
-            val requested = selection as? StreamQualitySelection.Fixed
-            val variant = requested?.let { fixed -> manifest?.variants?.firstOrNull { it.groupId == fixed.groupId } }
-            overrideFor(variant)?.let(builder::addOverride)
-        }
-        player.trackSelectionParameters = builder.build()
+            .setAllowVideoMixedMimeTypeAdaptiveness(fixed)
+        if (fixed) builder.clearViewportSizeConstraints() else builder.setViewportSizeToPhysicalDisplaySize(appContext, true)
+        trackSelector.setParameters(builder)
     }
 
-    private fun applyPendingOverride() {
-        if (selection !is StreamQualitySelection.Fixed) return
-        val currentGroups = player.currentTracks.groups.map { it.mediaTrackGroup }
-        val hasLiveOverride = player.trackSelectionParameters.overrides.any { (group, override) ->
-            override.type == C.TRACK_TYPE_VIDEO && group in currentGroups
-        }
-        if (!hasLiveOverride) applyTrackParameters()
-    }
-
-    private fun overrideFor(variant: StreamVariant?): TrackSelectionOverride? {
-        if (variant == null || variant.isAudioOnly) return null
-        var best: TrackSelectionOverride? = null
-        var bestScore = Long.MAX_VALUE
-        for (group in player.currentTracks.groups) {
-            if (group.type != C.TRACK_TYPE_VIDEO) continue
-            for (index in 0 until group.length) {
-                if (!group.isTrackSupported(index)) continue
-                val score = matchScore(group.getTrackFormat(index), variant) ?: continue
-                if (score < bestScore) {
-                    bestScore = score
-                    best = TrackSelectionOverride(group.mediaTrackGroup, index)
-                }
-            }
-        }
-        return best
-    }
-
-    private fun matchScore(format: Format, variant: StreamVariant): Long? {
-        if (variant.height > 0 && format.height > 0 && format.height != variant.height) return null
-        val bitrate = listOf(format.peakBitrate, format.averageBitrate, format.bitrate).firstOrNull { it > 0 }
-            ?: return Long.MAX_VALUE - 1
-        val frameRatePenalty = if (variant.frameRate > 0f && format.frameRate > 0f) {
-            (abs(format.frameRate - variant.frameRate) * FRAME_RATE_WEIGHT).toLong()
-        } else 0L
-        return abs(bitrate - variant.bandwidth) + frameRatePenalty
+    private fun pinnedVariant(): StreamVariant? {
+        val fixed = selection as? StreamQualitySelection.Fixed ?: return null
+        return manifest?.variants?.firstOrNull { it.groupId == fixed.groupId && !it.isAudioOnly }
     }
 
     private fun handleError(error: PlaybackException) {
@@ -461,7 +424,6 @@ internal class AndroidStreamPlaybackEngine(
         const val MIN_LIVE_SPEED = 0.95f
         const val MAX_LIVE_SPEED = 1.1f
         const val LIVE_EDGE_CHECK_INTERVAL_MS = 1_000L
-        const val FRAME_RATE_WEIGHT = 10_000f
         const val HTTP_FORBIDDEN = 403
         const val HTTP_NOT_FOUND = 404
         const val HTTP_GONE = 410

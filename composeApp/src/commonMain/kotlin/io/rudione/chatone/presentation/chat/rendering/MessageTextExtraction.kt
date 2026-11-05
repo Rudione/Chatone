@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.rendering
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_translating
+import chatone.composeapp.generated.resources.chat_translation_error
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -31,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.presentation.chat.TranslationLanguages
 import io.rudione.chatone.presentation.chat.TranslationUiState
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
@@ -46,7 +49,6 @@ internal fun DisplayMessage.PrivMsg.rawTokenText(): String =
 @Composable
 internal fun MessageTranslationLine(state: TranslationUiState?, onPickLanguage: (String) -> Unit) {
     if (state == null) return
-    val s = LocalStrings.current
     var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
@@ -79,7 +81,7 @@ internal fun MessageTranslationLine(state: TranslationUiState?, onPickLanguage: 
         Spacer(Modifier.width(6.dp))
         when (state) {
             TranslationUiState.Loading -> Text(
-                s.chatTranslating,
+                stringResource(Res.string.chat_translating),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -101,7 +103,7 @@ internal fun MessageTranslationLine(state: TranslationUiState?, onPickLanguage: 
             )
 
             is TranslationUiState.Error -> Text(
-                s.chatTranslationError,
+                stringResource(Res.string.chat_translation_error),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )

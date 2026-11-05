@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.settings
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.clear
+import chatone.composeapp.generated.resources.close
+import chatone.composeapp.generated.resources.settings_hub_search_keyboard_hint
+import chatone.composeapp.generated.resources.settings_search_no_results
+import chatone.composeapp.generated.resources.settings_search_placeholder
+import chatone.composeapp.generated.resources.settings_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -79,7 +87,6 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.window.windowDragArea
 import io.rudione.chatone.util.media.WallpaperLoader
 import io.rudione.chatone.util.platform.DeviceFormFactor
@@ -108,7 +115,6 @@ fun SettingsScreen(
     val state by viewModel.state.collectAsState()
     val customThemeManager: CustomThemeManager = LocalCustomThemeManager.current
     val wallpaperController = LocalWallpaperController.current
-    val s = LocalStrings.current
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             if (effect is SettingsEffect.NavigateToAuth) {
@@ -191,8 +197,7 @@ fun SettingsScreen(
         ) {
             CompositionLocalProvider(
                 LocalWallpaperController provides wallpaperController,
-                LocalCustomThemeManager provides customThemeManager,
-                LocalStrings provides s
+                LocalCustomThemeManager provides customThemeManager
             ) {
                 Surface(
                     modifier = Modifier
@@ -232,7 +237,6 @@ private fun SettingsDialogContent(
     onTogglePin: () -> Unit = {},
     onOpenThemeCreator: (seedColor: Int?) -> Unit = {}
 ) {
-    val s = LocalStrings.current
     val extra = ChatoneTheme.extraColors
     val page = remember { SettingsPageState() }
     val search = remember { SettingsSearchState() }
@@ -248,9 +252,9 @@ private fun SettingsDialogContent(
             macOs = screenChatFloatsOverFullScreen
         )
     }
-    val catalog = rememberSettingsCatalog(s, context)
-    val model = rememberSettingsSearchModel(search.query, s, catalog)
-    val subsections = remember(catalog, s) { settingsSubsections(catalog, s) }
+    val catalog = rememberSettingsCatalog(context)
+    val model = rememberSettingsSearchModel(search.query, catalog)
+    val subsections = remember(catalog) { settingsSubsections(catalog) }
     var activeSubsection by remember { mutableStateOf<SettingsSubsection?>(null) }
     val available = remember(input) { SettingsSection.entries.filter { it.isAvailable(input) } }
     val sidebarSections = if (search.isSearching) {
@@ -326,7 +330,7 @@ private fun SettingsDialogContent(
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
-                            s.settingsTitle,
+                            stringResource(Res.string.settings_title),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -336,8 +340,8 @@ private fun SettingsDialogContent(
                     ExpressiveSearchField(
                         value = search.query,
                         onValueChange = search::change,
-                        placeholder = s.settingsSearchPlaceholder,
-                        clearLabel = s.clear,
+                        placeholder = stringResource(Res.string.settings_search_placeholder),
+                        clearLabel = stringResource(Res.string.clear),
                         height = 40.dp,
                         modifier = Modifier
                             .padding(horizontal = 10.dp)
@@ -348,7 +352,7 @@ private fun SettingsDialogContent(
                     )
                     if (search.isSearching && model.flat.isNotEmpty()) {
                         Text(
-                            s.settingsHub.searchKeyboardHint,
+                            stringResource(Res.string.settings_hub_search_keyboard_hint),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             modifier = Modifier.padding(start = 18.dp, top = 6.dp)
@@ -369,7 +373,7 @@ private fun SettingsDialogContent(
                         ) {
                             if (sidebarSections.isEmpty()) {
                                 Text(
-                                    s.settingsSearchNoResults,
+                                    stringResource(Res.string.settings_search_no_results),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
@@ -406,7 +410,7 @@ private fun SettingsDialogContent(
                     }
 
                     PillButton(
-                        text = s.close,
+                        text = stringResource(Res.string.close),
                         onClick = onNavigateBack,
                         icon = Lucide.ArrowLeft,
                         tone = PillTone.Ghost,

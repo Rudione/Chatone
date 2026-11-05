@@ -1,5 +1,24 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.ui_cancel_reply
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.chat_hide_pin
+import chatone.composeapp.generated.resources.chat_replying_to
+import chatone.composeapp.generated.resources.chat_unpin_message
+import chatone.composeapp.generated.resources.event_label_pinned
+import chatone.composeapp.generated.resources.raid_now
+import chatone.composeapp.generated.resources.raid_started
+import chatone.composeapp.generated.resources.raid_success
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.chat.ChatSpillRequest
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,7 +56,6 @@ import io.rudione.chatone.presentation.chat.AnimatedEmoteImage
 import io.rudione.chatone.presentation.chat.rememberNickColors
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.plainText
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
@@ -70,6 +88,8 @@ internal fun PinnedMessageBar(
     val primaryColor = MaterialTheme.colorScheme.primary
     val compact = LocalWindowSize.current == ChatoneWindowSize.Compact
     val narrow = LocalEventBannerCompact.current
+    var expanded by remember(message.id) { mutableStateOf(false) }
+    ChatSpillRequest(key = "pinned", active = expanded)
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
     val sidePadding = when {
         narrow -> 2.dp
@@ -81,6 +101,8 @@ internal fun PinnedMessageBar(
             .fillMaxWidth()
             .padding(horizontal = sidePadding, vertical = if (narrow) 3.dp else 4.dp)
             .chatoneGlassPanel(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button) { expanded = !expanded }
+            .animateContentSize()
     ) {
         Column(
             modifier = Modifier
@@ -105,11 +127,11 @@ internal fun PinnedMessageBar(
                 horizontalArrangement = Arrangement.spacedBy(if (narrow) 4.dp else 8.dp)
             ) {
                 if (canUnpin) {
-                    LiquidGlassTooltipBox(tooltip = LocalStrings.current.chatUnpinMessage) {
+                    LiquidGlassTooltipBox(tooltip = stringResource(Res.string.chat_unpin_message)) {
                         ChatoneIconButton(onClick = onUnpin, modifier = Modifier.size(24.dp)) {
                             Icon(
                                 Lucide.Pin,
-                                contentDescription = LocalStrings.current.chatUnpinMessage,
+                                contentDescription = stringResource(Res.string.chat_unpin_message),
                                 modifier = Modifier.size(16.dp),
                                 tint = primaryColor
                             )
@@ -118,7 +140,7 @@ internal fun PinnedMessageBar(
                 } else {
                     Icon(
                         Lucide.Pin,
-                        contentDescription = LocalStrings.current.eventLabelPinned,
+                        contentDescription = stringResource(Res.string.event_label_pinned),
                         modifier = Modifier.size(16.dp),
                         tint = primaryColor
                     )
@@ -168,7 +190,7 @@ internal fun PinnedMessageBar(
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        maxLines = 2, overflow = TextOverflow.Ellipsis
+                        maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis
                     )
                 }
                 if (endsAtMs != null) {
@@ -189,7 +211,7 @@ internal fun PinnedMessageBar(
                         softWrap = false
                     )
                 }
-                EventHideButton(tooltip = LocalStrings.current.chatHidePin, onHide = onHide)
+                EventHideButton(tooltip = stringResource(Res.string.chat_hide_pin), onHide = onHide)
             }
         }
     }
@@ -228,7 +250,7 @@ internal fun ReplyBar(
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    LocalStrings.current.chatReplyingTo.replace("{0}", displayName),
+                    stringResource(Res.string.chat_replying_to, displayName),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
@@ -244,7 +266,7 @@ internal fun ReplyBar(
             ChatoneIconButton(onClick = onCancel, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Lucide.X,
-                    contentDescription = "Cancel reply",
+                    contentDescription = stringResource(Res.string.ui_cancel_reply),
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -348,7 +370,7 @@ internal fun RaidBanner(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    LocalStrings.current.raidStarted.replace("{0}", "@$targetLogin"),
+                    stringResource(Res.string.raid_started, "@$targetLogin"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
@@ -357,7 +379,7 @@ internal fun RaidBanner(
                 )
                 Text(
                     when {
-                        remaining <= 0 -> LocalStrings.current.raidSuccess
+                        remaining <= 0 -> stringResource(Res.string.raid_success)
                         !raidNowEnabled -> "${lockSeconds - elapsedSec}s · ${remaining}s"
                         else -> "${remaining}s"
                     },
@@ -371,7 +393,7 @@ internal fun RaidBanner(
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
             ) {
                 Text(
-                    LocalStrings.current.raidNow,
+                    stringResource(Res.string.raid_now),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (raidNowEnabled) accent else accent.copy(alpha = 0.38f)
                 )
@@ -381,7 +403,7 @@ internal fun RaidBanner(
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
             ) {
                 Text(
-                    LocalStrings.current.cancel,
+                    stringResource(Res.string.cancel),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error
                 )

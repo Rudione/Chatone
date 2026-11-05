@@ -32,7 +32,8 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class TwitchPubSubClient(
     private val httpClient: HttpClient,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val channelEventsToken: (String) -> String = { it }
 ) {
     private val TAG = "TwitchPubSub"
     private val PUBSUB_URL = "wss://pubsub-edge.twitch.tv/v1"
@@ -98,6 +99,15 @@ class TwitchPubSubClient(
                             """{"type":"LISTEN","nonce":"points","data":{"topics":["$pointsTopic"],"auth_token":"$currentToken"}}"""
                         send(Frame.Text(pointsListen))
                         Napier.d("Subscribed to PubSub topic: $pointsTopic", tag = TAG)
+
+                        val rewardsTopic = "community-points-channel-v1.$currentChannelId"
+                        val rewardsToken = channelEventsToken(currentToken).ifEmpty { currentToken }
+                        send(
+                            Frame.Text(
+                                """{"type":"LISTEN","nonce":"rewards","data":{"topics":["$rewardsTopic"],"auth_token":"$rewardsToken"}}"""
+                            )
+                        )
+                        Napier.d("Subscribed to PubSub topic: $rewardsTopic", tag = TAG)
 
                         val pollTopic = "polls.$currentChannelId"
                         send(
@@ -203,6 +213,8 @@ class TwitchPubSubClient(
                             messageStr
                         )
 
+                        topic.startsWith("community-points-channel-v1.") -> handleChannelPoints(messageStr)
+
                         topic.startsWith("polls.") -> handlePollUpdate(messageStr)
 
                         topic.startsWith("predictions-channel-v1.") -> handlePredictionUpdate(
@@ -227,6 +239,11 @@ class TwitchPubSubClient(
         } catch (e: Exception) {
             Napier.w("community-points parse failed: ${e.message}", tag = TAG)
         }
+    }
+
+    private fun handleChannelPoints(messageStr: String) {
+        val redemption = RewardRedemptionParser.fromPubSub(messageStr) ?: return
+        scope.launch { _events.emit(IrcEvent.RewardRedeemed(redemption)) }
     }
 
     private fun handlePollUpdate(messageStr: String) {
@@ -462,6 +479,8 @@ class TwitchPubSubClient(
                 val resolvedBy = data["resolver_login"]?.jsonPrimitive?.content
                     ?: data["moderator"]?.jsonObject?.get("login")?.jsonPrimitive?.content
                     ?: "a moderator"
+                val author = (data["message"] as? JsonObject)?.get("sender")?.let { it as? JsonObject }
+                    ?.get("login")?.jsonPrimitive?.contentOrNull
                 Napier.d("AutoMod resolved by $resolvedBy: msgId=$msgId status=$status", tag = TAG)
                 scope.launch {
                     _events.emit(
@@ -469,7 +488,8 @@ class TwitchPubSubClient(
                             channel = currentChannelId,
                             msgId = msgId,
                             resolvedBy = resolvedBy,
-                            action = status
+                            action = status,
+                            authorLogin = author
                         )
                     )
                 }
@@ -558,7 +578,9 @@ class TwitchPubSubClient(
                         color = color,
                         reasonCategory = reasonCategory,
                         reasonLevel = reasonLevel,
-                        flaggedFragments = flaggedFragments
+                        flaggedFragments = flaggedFragments,
+                        badges = AutoModMessageParts.pubSubBadges(senderObj),
+                        emotes = AutoModMessageParts.twitchEmotes(AutoModMessageParts.pubSubFragments(contentObj), text)
                     )
                 )
             }

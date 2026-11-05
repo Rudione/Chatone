@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.components.expressive
 
+import io.rudione.chatone.presentation.components.FitText
+import androidx.compose.ui.unit.sp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -76,7 +78,7 @@ fun <T> ExpressiveTabs(
     tabs: List<T>,
     selected: T,
     onSelect: (T) -> Unit,
-    label: (T) -> String,
+    label: @Composable (T) -> String,
     modifier: Modifier = Modifier,
     fill: Boolean = true,
     size: ExpressiveTabSize = ExpressiveTabSize.Regular,
@@ -221,13 +223,12 @@ fun ExpressiveTabLabel(
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         if (icon != null) Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(iconSize))
-        Text(
+        FitText(
             text,
             style = style,
             color = color,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            minFontSize = 10.sp,
             modifier = Modifier.weight(1f, fill = false)
         )
         if (badge > 0) {

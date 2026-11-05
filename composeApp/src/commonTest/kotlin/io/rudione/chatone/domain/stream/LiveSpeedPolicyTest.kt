@@ -8,6 +8,7 @@ import kotlin.test.assertTrue
 class LiveSpeedPolicyTest {
 
     private val target = 1_600_000L
+    private val ample = 5_000_000L
 
     private fun policy(minSpeed: Float = 0.95f, maxSpeed: Float = 1.1f) = LiveSpeedPolicy().apply {
         configure(
@@ -124,30 +125,40 @@ class LiveSpeedPolicyTest {
     fun guardJumpsOnlyAfterAPersistentLag() {
         val guard = LiveEdgeGuard()
         val lagging = target + 3_500_000L
-        assertFalse(guard.shouldJump(lagging, target, 0L))
-        assertFalse(guard.shouldJump(lagging, target, 2_000L))
-        assertTrue(guard.shouldJump(lagging, target, 3_000L))
+        assertFalse(guard.shouldJump(lagging, target, ample, 0L))
+        assertFalse(guard.shouldJump(lagging, target, ample, 2_000L))
+        assertTrue(guard.shouldJump(lagging, target, ample, 3_000L))
     }
 
     @Test
     fun guardForgetsAShortLag() {
         val guard = LiveEdgeGuard()
         val lagging = target + 3_500_000L
-        assertFalse(guard.shouldJump(lagging, target, 0L))
-        assertFalse(guard.shouldJump(target, target, 1_000L))
-        assertFalse(guard.shouldJump(lagging, target, 2_000L))
-        assertFalse(guard.shouldJump(lagging, target, 4_000L))
-        assertTrue(guard.shouldJump(lagging, target, 5_000L))
+        assertFalse(guard.shouldJump(lagging, target, ample, 0L))
+        assertFalse(guard.shouldJump(target, target, ample, 1_000L))
+        assertFalse(guard.shouldJump(lagging, target, ample, 2_000L))
+        assertFalse(guard.shouldJump(lagging, target, ample, 4_000L))
+        assertTrue(guard.shouldJump(lagging, target, ample, 5_000L))
     }
 
     @Test
     fun guardWaitsForTheCooldownBetweenJumps() {
         val guard = LiveEdgeGuard()
         val lagging = target + 3_500_000L
-        guard.shouldJump(lagging, target, 0L)
-        assertTrue(guard.shouldJump(lagging, target, 3_000L))
-        guard.shouldJump(lagging, target, 4_000L)
-        assertFalse(guard.shouldJump(lagging, target, 10_000L))
-        assertTrue(guard.shouldJump(lagging, target, 33_000L))
+        guard.shouldJump(lagging, target, ample, 0L)
+        assertTrue(guard.shouldJump(lagging, target, ample, 3_000L))
+        guard.shouldJump(lagging, target, ample, 4_000L)
+        assertFalse(guard.shouldJump(lagging, target, ample, 10_000L))
+        assertTrue(guard.shouldJump(lagging, target, ample, 33_000L))
+    }
+
+    @Test
+    fun guardDoesNotJumpPastTheBuffer() {
+        val guard = LiveEdgeGuard()
+        val lagging = target + 3_500_000L
+        assertFalse(guard.shouldJump(lagging, target, 3_800_000L, 0L))
+        assertFalse(guard.shouldJump(lagging, target, 3_800_000L, 3_000L))
+        assertFalse(guard.shouldJump(lagging, target, 3_800_000L, 6_000L))
+        assertTrue(guard.shouldJump(lagging, target, 4_200_000L, 7_000L))
     }
 }

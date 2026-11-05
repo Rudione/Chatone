@@ -1,5 +1,18 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.chat.threads.LocalReplyThreadOpener
+import io.rudione.chatone.presentation.text.asString
+import io.rudione.chatone.presentation.text.resolve
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_scroll_to_bottom
+import chatone.composeapp.generated.resources.chat_send_message_in
+import chatone.composeapp.generated.resources.uploader_confirm_no
+import chatone.composeapp.generated.resources.uploader_confirm_text
+import chatone.composeapp.generated.resources.uploader_confirm_title
+import chatone.composeapp.generated.resources.uploader_confirm_yes
+import chatone.composeapp.generated.resources.uploader_new_host_warning
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.points.rememberWatchStreak
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -36,6 +49,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -101,6 +115,8 @@ import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.domain.model.MentionEntry
 import io.rudione.chatone.presentation.chat.components.NotableChatterItem
+import io.rudione.chatone.presentation.chat.components.RewardRedemptionItem
+import io.rudione.chatone.domain.mention.MentionInsertion
 import io.rudione.chatone.presentation.chat.components.ChatTopBar
 import io.rudione.chatone.presentation.chat.components.roomModeLabels
 import io.rudione.chatone.presentation.chat.components.ModActionConfirmDialog
@@ -140,8 +156,8 @@ import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.automod.DetachedAutomodWindow
 import io.rudione.chatone.presentation.chat.components.ChannelPointsBitsSheet
 import io.rudione.chatone.presentation.chat.components.chatInputBackdrop
-import io.rudione.chatone.presentation.components.SwipeDirection
-import io.rudione.chatone.presentation.components.directionalSwipe
+import io.rudione.chatone.presentation.components.expressive.LocalModalDrawer
+import io.rudione.chatone.presentation.components.expressive.openDrawerSwipe
 import io.rudione.chatone.presentation.chat.components.rememberChatInputGlass
 import io.rudione.chatone.presentation.chat.rendering.LocalScrollActivity
 import io.rudione.chatone.presentation.chat.rendering.rememberDedupedMessages
@@ -168,7 +184,6 @@ import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.util.media.NotificationSoundPlayer
 import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.startup.ReportLaunchStage
 import io.rudione.chatone.presentation.startup.launchStage
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
@@ -237,7 +252,6 @@ fun ChatScreen(
                     "ver=${settingsState.modButtonsVersion}"
         )
     }
-    val s = LocalStrings.current
     val streamHost = LocalStreamPlayerHost.current
     DisposableEffect(channelLogin) {
         DisplayedChatChannels.acquire(channelLogin)
@@ -248,8 +262,13 @@ fun ChatScreen(
         onDispose(detach)
     }
     val surfaceStyle = LocalChatSurfaceStyle.current
-    val messageAlphaModifier = remember(surfaceStyle.messageAlpha) {
-        if (surfaceStyle.messageAlpha < 1f) Modifier.alpha(surfaceStyle.messageAlpha) else Modifier
+    val messageAlphaModifier = remember(surfaceStyle.messageAlpha, surfaceStyle.messageBackdropAlpha) {
+        val faded = if (surfaceStyle.messageAlpha < 1f) Modifier.alpha(surfaceStyle.messageAlpha) else Modifier
+        if (surfaceStyle.messageBackdropAlpha > 0f) {
+            faded.padding(vertical = 1.dp).background(Color.Black.copy(alpha = surfaceStyle.messageBackdropAlpha), MessageBackdropShape)
+        } else {
+            faded
+        }
     }
     val isPhone = remember { currentFormFactor() == DeviceFormFactor.PHONE }
     val replyIcon = rememberVectorPainter(Lucide.Reply)
@@ -303,6 +322,7 @@ fun ChatScreen(
     )
     var messageInputFocused by remember { mutableStateOf(false) }
     val profileStack = rememberProfilePopupStack()
+    val replyThreads = rememberReplyThreadHost()
     var detachedProfileMessage by remember { mutableStateOf<DisplayMessage.PrivMsg?>(null) }
     var pendingModAction by remember { mutableStateOf<PendingModAction?>(null) }
     var isPausedByHotkey by remember { mutableStateOf(false) }
@@ -322,6 +342,20 @@ fun ChatScreen(
     val coroutineScope = rememberCoroutineScope()
     val follow = rememberChatFollowState(listState)
     val modButtonsOnHover = settingsState.modButtonsOnHover && rememberInputCapabilities().pointer
+    val requestTimeout: (String, String) -> Unit = { userId, name ->
+        if (settingsState.confirmModActions) {
+            pendingModAction = PendingModAction.Timeout(userId, name, settingsState.defaultTimeoutDuration)
+        } else {
+            viewModel.sendEvent(ChatEvent.OnTimeoutUser(userId, settingsState.defaultTimeoutDuration))
+        }
+    }
+    val requestBan: (String, String) -> Unit = { userId, name ->
+        if (settingsState.confirmModActions) {
+            pendingModAction = PendingModAction.Ban(userId, name)
+        } else {
+            viewModel.sendEvent(ChatEvent.OnBanUser(userId))
+        }
+    }
     val sliderHost = remember { ModSliderHost() }
     val sliderStyle = rememberModSliderStyle()
     val sliderSettings = settingsState.modSlider
@@ -365,6 +399,22 @@ fun ChatScreen(
     SideEffect(effectivelyPaused) {
         viewModel.sendEvent(ChatEvent.OnScrollbackPinned(effectivelyPaused))
     }
+    val remoteScroll = LocalChatRemoteScroll.current
+    LaunchedEffect(remoteScroll, listState, follow) {
+        remoteScroll?.commands?.collect { command ->
+            when (command) {
+                is ChatRemoteCommand.ScrollBy -> {
+                    listState.animateScrollBy(command.pixels)
+                    follow.onUserScrolled()
+                }
+
+                ChatRemoteCommand.Latest -> {
+                    follow.resume()
+                    stickToBottom()
+                }
+            }
+        }
+    }
     val effectivelyPausedLatest by rememberUpdatedState(effectivelyPaused)
 
     ChatFollowEffects(
@@ -404,7 +454,7 @@ fun ChatScreen(
         viewModel.effect.collect { effect ->
             when (effect) {
                 is ChatEffect.ShowError -> {
-                    chatErrorBanner = effect.message
+                    chatErrorBanner = effect.message.resolve()
                 }
                 ChatEffect.ScrollToBottom -> {
                     if (!effectivelyPausedLatest && renderedCountLatest > 0) {
@@ -484,8 +534,8 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        chatBoxFocusRequester.requestFocus()
+    LaunchedEffect(surfaceStyle.claimsFocus) {
+        if (surfaceStyle.claimsFocus) chatBoxFocusRequester.requestFocus()
     }
 
     val currentSettings by rememberUpdatedState(settingsState)
@@ -714,7 +764,7 @@ fun ChatScreen(
     Box(
         modifier = modifier.fillMaxSize()
             .focusRequester(chatBoxFocusRequester)
-            .focusable()
+            .focusable(enabled = surfaceStyle.claimsFocus)
             .onPreviewKeyEvent { event -> hotkeyHandler(event) }
             .externalFileDropTarget(
                 enabled = settingsState.imageUploader.isUsable,
@@ -799,7 +849,7 @@ fun ChatScreen(
                     )
                     .then(
                         if (!options.isWideScreen && !options.isMultiChat) {
-                            Modifier.directionalSwipe(SwipeDirection.Right, callbacks.onNavigateBack)
+                            Modifier.openDrawerSwipe(LocalModalDrawer.current, callbacks.onOpenSidebar)
                         } else Modifier
                     )
             ) {
@@ -924,7 +974,7 @@ fun ChatScreen(
                                                 ) {
                                                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.035f)
                                                 } else Color.Transparent
-                                            CompositionLocalProvider(LocalDensity provides messageDensity) {
+                                            CompositionLocalProvider(LocalDensity provides messageDensity, LocalReplyThreadOpener provides replyThreads.opener) {
                                             ChatDayBreakFrame(rowDecorations.dayBreakById[message.id]) {
                                             when (message) {
                                                 is DisplayMessage.PrivMsg -> PrivMsgItem(
@@ -992,34 +1042,14 @@ fun ChatScreen(
                                                     onUsernameClick = {
                                                         profileStack.open(message)
                                                     },
-                                                    onRightClickUsername = { displayName ->
-
-                                                        viewModel.sendEvent(
-                                                            ChatEvent.OnInsertMention(
-                                                                displayName
-                                                            )
-                                                        )
+                                                    onRightClickUsername = { name ->
+                                                        val mention = if (name == message.displayName) {
+                                                            MentionInsertion.preferredName(message.displayName, message.username)
+                                                        } else name
+                                                        viewModel.sendEvent(ChatEvent.OnInsertMention(mention))
                                                     },
-                                                    onMentionClick = { mentionedUsername ->
-                                                        val cleanLogin =
-                                                            mentionedUsername.removePrefix("@")
-                                                        val mentionedMsg = state.messages
-                                                            .filterIsInstance<DisplayMessage.PrivMsg>()
-                                                            .lastOrNull {
-                                                                it.username.equals(
-                                                                    cleanLogin,
-                                                                    ignoreCase = true
-                                                                )
-                                                            }
-                                                        if (mentionedMsg != null) {
-                                                            profileStack.open(mentionedMsg)
-                                                        } else {
-                                                            profileStack.openLogin(
-                                                                login = cleanLogin,
-                                                                channel = state.channelLogin,
-                                                                nowMs = kotlin.time.Clock.System.now().toEpochMilliseconds()
-                                                            )
-                                                        }
+                                                    onMentionClick = { mention ->
+                                                        profileStack.openMention(mention, state.messages, state.channelLogin)
                                                     },
                                                     onReply = {
                                                         viewModel.sendEvent(
@@ -1035,22 +1065,7 @@ fun ChatScreen(
                                                             )
                                                         )
                                                     },
-                                                    onTimeout = {
-                                                        if (settingsState.confirmModActions) {
-                                                            pendingModAction = PendingModAction.Timeout(
-                                                                message.userId,
-                                                                message.displayName,
-                                                                settingsState.defaultTimeoutDuration
-                                                            )
-                                                        } else {
-                                                            viewModel.sendEvent(
-                                                                ChatEvent.OnTimeoutUser(
-                                                                    message.userId,
-                                                                    settingsState.defaultTimeoutDuration
-                                                                )
-                                                            )
-                                                        }
-                                                    },
+                                                    onTimeout = { requestTimeout(message.userId, message.displayName) },
                                                     onCustomTimeout = { seconds ->
                                                         viewModel.sendEvent(
                                                             ChatEvent.OnTimeoutUser(
@@ -1059,20 +1074,7 @@ fun ChatScreen(
                                                             )
                                                         )
                                                     },
-                                                    onBan = {
-                                                        if (settingsState.confirmModActions) {
-                                                            pendingModAction = PendingModAction.Ban(
-                                                                message.userId,
-                                                                message.displayName
-                                                            )
-                                                        } else {
-                                                            viewModel.sendEvent(
-                                                                ChatEvent.OnBanUser(
-                                                                    message.userId
-                                                                )
-                                                            )
-                                                        }
-                                                    },
+                                                    onBan = { requestBan(message.userId, message.displayName) },
                                                     onDelete = {
                                                         viewModel.sendEvent(
                                                             ChatEvent.OnDeleteMessage(
@@ -1083,6 +1085,7 @@ fun ChatScreen(
                                                     onUnban = {
                                                         viewModel.sendEvent(ChatEvent.OnUnbanUser(message.userId))
                                                     },
+                                                    isTargetBanned = message.userId in state.bannedUserIds,
                                                     modSlider = modSlider,
                                                     searchHighlightQuery = chatSearchQuery,
                                                     highlightRules = settingsState.highlightRules,
@@ -1097,6 +1100,28 @@ fun ChatScreen(
                                                 )
 
                                                 is DisplayMessage.SystemMsg -> SystemMsgItem(message)
+                                                is DisplayMessage.RewardRedemptionMsg -> RewardRedemptionItem(
+                                                    message = message,
+                                                    chatFontSizeSp = when (settingsState.fontSize) {
+                                                        SettingsState.FontSize.SMALL -> 12f
+                                                        SettingsState.FontSize.MEDIUM -> 15f
+                                                        SettingsState.FontSize.LARGE -> 18f
+                                                    },
+                                                    pointsIconUrl = state.pointsIconUrl,
+                                                    highlightRules = settingsState.highlightRules,
+                                                    userColorByLogin = rowDecorations.userColorByLogin,
+                                                    onUsernameClick = {
+                                                        val found = state.messages
+                                                            .filterIsInstance<DisplayMessage.PrivMsg>()
+                                                            .lastOrNull { it.userId == message.userId }
+                                                        if (found != null) profileStack.open(found)
+                                                        else profileStack.openLogin(
+                                                            login = message.login,
+                                                            channel = state.channelLogin,
+                                                            nowMs = kotlin.time.Clock.System.now().toEpochMilliseconds()
+                                                        )
+                                                    }
+                                                )
                                                 is DisplayMessage.NotableChatterMsg -> NotableChatterItem(
                                                     message = message,
                                                     chatFontSizeSp = when (settingsState.fontSize) {
@@ -1208,6 +1233,45 @@ fun ChatScreen(
                                                             isAction = false
                                                         )
                                                         profileStack.open(syntheticMsg)
+                                                    },
+                                                    preview = { held ->
+                                                        PrivMsgItem(
+                                                            message = held,
+                                                            isCompact = !options.isWideScreen,
+                                                            extraVerticalPadding = 2.dp,
+                                                            showModActions = state.canModerate,
+                                                            modButtonsVisible = true,
+                                                            timestampFormat = SettingsState.TimestampFormat.OFF,
+                                                            showBadges = settingsState.showBadges,
+                                                            isMod = state.canModerate,
+                                                            currentUserId = state.currentUserId,
+                                                            emoteSize = settingsState.emoteSize,
+                                                            customModButtons = settingsState.customModButtons,
+                                                            allModButtons = liveModButtons ?: settingsState.allModButtons,
+                                                            modButtonsVersion = settingsState.modButtonsVersion,
+                                                            showCustomModButtons = state.canModerate,
+                                                            actorCanModerate = state.canModerate,
+                                                            actorIsBroadcaster = state.isBroadcaster,
+                                                            showDefaultDeleteButton = false,
+                                                            showDefaultTimeoutButton = settingsState.showDefaultTimeoutButton,
+                                                            showDefaultBanButton = settingsState.showDefaultBanButton,
+                                                            chatFontSizeSp = when (settingsState.fontSize) {
+                                                                SettingsState.FontSize.SMALL -> 12f
+                                                                SettingsState.FontSize.MEDIUM -> 15f
+                                                                SettingsState.FontSize.LARGE -> 18f
+                                                            },
+                                                            onUsernameClick = { profileStack.open(held) },
+                                                            onTimeout = { requestTimeout(held.userId, held.displayName) },
+                                                            onCustomTimeout = { seconds ->
+                                                                viewModel.sendEvent(ChatEvent.OnTimeoutUser(held.userId, seconds))
+                                                            },
+                                                            onBan = { requestBan(held.userId, held.displayName) },
+                                                            onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(held.userId)) },
+                                                            isTargetBanned = held.userId in state.bannedUserIds,
+                                                            highlightRules = settingsState.highlightRules,
+                                                            userColorByLogin = rowDecorations.userColorByLogin,
+                                                            accessToken = state.currentAccessToken
+                                                        )
                                                     }
                                                 )
                                             }
@@ -1305,7 +1369,7 @@ fun ChatScreen(
                                         ) {
                                             Icon(
                                                 Lucide.ChevronDown,
-                                                contentDescription = s.chatScrollToBottom
+                                                contentDescription = stringResource(Res.string.chat_scroll_to_bottom)
                                             )
                                         }
                                         if (unreadCount > 0) {
@@ -1344,14 +1408,16 @@ fun ChatScreen(
                     }
                 }
 
-                ChatEventOverlaysSection(
-                    state = state,
-                    viewModel = viewModel,
-                    showPinnedMessage = surfaceStyle.showPinnedMessage,
-                    scrollbarWidthDp = settingsState.chatScrollbarWidth,
-                    dockHost = dockHost,
-                    bottomInsetPx = { bottomStackHeightPx }
-                )
+                if (surfaceStyle.showEventBanners) {
+                    ChatEventOverlaysSection(
+                        state = state,
+                        viewModel = viewModel,
+                        showPinnedMessage = surfaceStyle.showPinnedMessage,
+                        scrollbarWidthDp = settingsState.chatScrollbarWidth,
+                        dockHost = dockHost,
+                        bottomInsetPx = { bottomStackHeightPx }
+                    )
+                }
             }
 
             if (modPanelDocked) {
@@ -1395,11 +1461,12 @@ fun ChatScreen(
                         bitsCount = 0L,
                         rewards = state.channelRewards,
                         isLoading = state.pointsBitsLoading,
-                        error = state.pointsBitsError,
+                        error = state.pointsBitsError?.asString(),
                         onRedeem = { reward, text ->
                             viewModel.sendEvent(ChatEvent.OnRedeemReward(reward, text))
                         },
                         onClose = { viewModel.sendEvent(ChatEvent.OnClosePointsBitsPanel) },
+                        streak = rememberWatchStreak(state.channelLogin).value,
                         docked = true
                     )
                 }
@@ -1511,10 +1578,9 @@ fun ChatScreen(
                                 ?: "") + " in #${state.channelLogin}"
 
                             state.channelLogin.isNotEmpty() -> {
-                                val strings = LocalStrings.current
                                 val name = state.channelDisplayName.ifBlank { state.channelLogin }
-                                val modes = roomModeLabels(state.roomState, strings)
-                                strings.chatSendMessageIn.replace("{0}", name) +
+                                val modes = roomModeLabels(state.roomState)
+                                stringResource(Res.string.chat_send_message_in, name) +
                                     if (modes.isNotEmpty()) "  ·  ${modes.joinToString(" · ")}" else ""
                             }
                             else -> null
@@ -1635,21 +1701,21 @@ fun ChatScreen(
         val pendingHost = state.pendingUploadHost.orEmpty()
         AlertDialog(
             onDismissRequest = { viewModel.sendEvent(ChatEvent.OnCancelPendingUpload) },
-            title = { Text(s.uploaderConfirmTitle, fontWeight = FontWeight.SemiBold) },
+            title = { Text(stringResource(Res.string.uploader_confirm_title), fontWeight = FontWeight.SemiBold) },
             text = {
                 Text(
-                    s.uploaderConfirmText.replace("{0}", pendingName).replace("{1}", pendingHost) +
-                        if (state.pendingUploadHostIsNew) "\n\n" + s.uploaderNewHostWarning else ""
+                    stringResource(Res.string.uploader_confirm_text, pendingName, pendingHost) +
+                        if (state.pendingUploadHostIsNew) "\n\n" + stringResource(Res.string.uploader_new_host_warning) else ""
                 )
             },
             confirmButton = {
                 Button(onClick = { viewModel.sendEvent(ChatEvent.OnConfirmPendingUpload) }) {
-                    Text(s.uploaderConfirmYes)
+                    Text(stringResource(Res.string.uploader_confirm_yes))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.sendEvent(ChatEvent.OnCancelPendingUpload) }) {
-                    Text(s.uploaderConfirmNo)
+                    Text(stringResource(Res.string.uploader_confirm_no))
                 }
             }
         )
@@ -1665,6 +1731,14 @@ fun ChatScreen(
             inputHeightPx = { inputHeightPx }
         )
     }
+
+    ChatReplyThreadSection(
+        host = replyThreads,
+        state = state,
+        settings = settingsState,
+        profiles = profileStack,
+        onSend = { target, text -> viewModel.sendEvent(ChatEvent.OnSendThreadReply(target, text)) }
+    )
 
     profileStack.slots.forEach { slot ->
         key(slot.key) {
@@ -1780,3 +1854,5 @@ private fun ChatErrorBanner(message: String?, onDismiss: () -> Unit) {
 }
 
 private const val FOCUS_SETTLE_FRAMES = 2
+
+private val MessageBackdropShape = RoundedCornerShape(8.dp)

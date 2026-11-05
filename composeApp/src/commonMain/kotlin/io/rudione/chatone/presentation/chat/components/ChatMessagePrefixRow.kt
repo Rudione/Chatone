@@ -1,5 +1,23 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.ui_emotes
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.chat_banned_word_message
+import chatone.composeapp.generated.resources.chat_banned_word_send_anyway
+import chatone.composeapp.generated.resources.chat_banned_word_title
+import chatone.composeapp.generated.resources.chat_placeholder
+import chatone.composeapp.generated.resources.chat_send
+import chatone.composeapp.generated.resources.chat_you_are_banned
+import chatone.composeapp.generated.resources.copy
+import chatone.composeapp.generated.resources.cut
+import chatone.composeapp.generated.resources.input_auto_translate
+import chatone.composeapp.generated.resources.input_translate
+import chatone.composeapp.generated.resources.paste
+import chatone.composeapp.generated.resources.uploader_copy_link
+import chatone.composeapp.generated.resources.uploader_link_copied
+import chatone.composeapp.generated.resources.uploader_uploading
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.components.layoutHeight
 import io.rudione.chatone.presentation.components.animatedBorder
 import androidx.compose.ui.draw.drawBehind
@@ -61,7 +79,6 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.bottomBarBackgroundColor
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.delay
@@ -190,7 +207,10 @@ internal fun MessageInput(
     val slowmodeFraction = remember { Animatable(0f) }
     LaunchedEffect(slowModeSeconds) {
         snapshotFlow {
-            if (slowModeSeconds > 0) (1f - slowmodeRemainingMs.toFloat() / (slowModeSeconds * 1000f)).coerceIn(0f, 1f) else 0f
+            if (slowModeSeconds > 0) (1f - slowmodeRemainingMs.toFloat() / (slowModeSeconds * 1000f)).coerceIn(
+                0f,
+                1f
+            ) else 0f
         }.collectLatest { slowmodeFraction.animateTo(it, tween(150)) }
     }
     val showSlowmodeRing by remember { derivedStateOf { slowmodeFraction.value > 0f } }
@@ -273,7 +293,6 @@ internal fun MessageInput(
         ChatoneTheme.extraColors.chatInputSurface
     )
 
-    val s = LocalStrings.current
 
     val clipboard = LocalClipboard.current
     val translationClient: TranslationClient = koinInject()
@@ -407,7 +426,13 @@ internal fun MessageInput(
                                 Modifier.chatInputGlassSurface(
                                     glass = glass,
                                     resting = { containerColor.compositeOver(bottomBarColor) },
-                                    border = { androidx.compose.ui.graphics.lerp(borderColor, glowColor, glowAlpha()) },
+                                    border = {
+                                        androidx.compose.ui.graphics.lerp(
+                                            borderColor,
+                                            glowColor,
+                                            glowAlpha()
+                                        )
+                                    },
                                     borderWidth = { borderWidth },
                                     focused = isFocused,
                                     glow = glowColor
@@ -669,7 +694,6 @@ private fun RowScope.MessageInputTextField(
     onTogglePause: () -> Unit,
     onContextMenu: (IntOffset) -> Unit
 ) {
-    val s = LocalStrings.current
     CompositionLocalProvider(
         androidx.compose.foundation.text.contextmenu.provider.LocalTextContextMenuDropdownProvider provides NoOpTextContextMenuProvider
     ) {
@@ -787,7 +811,7 @@ private fun RowScope.MessageInputTextField(
             decorationBox = { inner ->
                 if (tfv.text.isEmpty() && !hidePlaceholder) {
                     Text(
-                        placeholderText ?: s.chatPlaceholder,
+                        placeholderText ?: stringResource(Res.string.chat_placeholder),
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         softWrap = false,
@@ -836,7 +860,6 @@ private fun BoxScope.MessageInputSlowmodeRing(fraction: () -> Float, color: Colo
 
 @Composable
 private fun MessageInputBannedBanner(banReason: String?, errorRed: Color) {
-    val s = LocalStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -852,7 +875,7 @@ private fun MessageInputBannedBanner(banReason: String?, errorRed: Color) {
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                s.chatYouAreBanned,
+                stringResource(Res.string.chat_you_are_banned),
                 style = MaterialTheme.typography.labelMedium,
                 color = errorRed,
                 fontWeight = FontWeight.SemiBold
@@ -899,7 +922,7 @@ private fun MessageInputEmojiButton(
     ) {
         Icon(
             imageVector = Lucide.Smile,
-            contentDescription = "Emotes",
+            contentDescription = stringResource(Res.string.ui_emotes),
             modifier = Modifier.size(21.dp),
             tint = if (enabled) {
                 if (isFocused) primaryCol else primaryCol.copy(alpha = 0.68f)
@@ -923,7 +946,6 @@ private fun MessageInputContextMenu(
     clipboard: Clipboard,
     scope: CoroutineScope
 ) {
-    val s = LocalStrings.current
     PortalPopup(
         alignment = Alignment.TopStart,
         offset = offset + IntOffset(8, 8),
@@ -945,7 +967,7 @@ private fun MessageInputContextMenu(
         ) {
             Column {
                 LiquidGlassDropdownItem(
-                    text = s.cut,
+                    text = stringResource(Res.string.cut),
                     icon = Lucide.Scissors,
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = {
@@ -964,7 +986,7 @@ private fun MessageInputContextMenu(
                     }
                 )
                 LiquidGlassDropdownItem(
-                    text = s.copy,
+                    text = stringResource(Res.string.copy),
                     icon = Lucide.Copy,
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = {
@@ -981,7 +1003,7 @@ private fun MessageInputContextMenu(
                     }
                 )
                 LiquidGlassDropdownItem(
-                    text = s.paste,
+                    text = stringResource(Res.string.paste),
                     icon = Lucide.ClipboardPaste,
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = {
@@ -1004,7 +1026,7 @@ private fun MessageInputContextMenu(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                 )
                 LiquidGlassDropdownItem(
-                    text = s.inputTranslate,
+                    text = stringResource(Res.string.input_translate),
                     icon = Lucide.Languages,
                     iconTint = MaterialTheme.colorScheme.primary,
                     onClick = {
@@ -1023,7 +1045,7 @@ private fun MessageInputContextMenu(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        s.inputAutoTranslate,
+                        stringResource(Res.string.input_auto_translate),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
@@ -1045,9 +1067,8 @@ private fun MessageInputUploadStatus(
     primaryCol: Color,
     onCopyUploadedLink: () -> Unit
 ) {
-    val s = LocalStrings.current
     if (uploadProgress != null) {
-        LiquidGlassTooltipBox(tooltip = s.uploaderUploading) {
+        LiquidGlassTooltipBox(tooltip = stringResource(Res.string.uploader_uploading)) {
             Box(
                 modifier = Modifier
                     .size(32.dp)
@@ -1072,7 +1093,9 @@ private fun MessageInputUploadStatus(
             }
         }
         LiquidGlassTooltipBox(
-            tooltip = if (justCopied) s.uploaderLinkCopied else s.uploaderCopyLink
+            tooltip = if (justCopied) stringResource(Res.string.uploader_link_copied) else stringResource(
+                Res.string.uploader_copy_link
+            )
         ) {
             Box(
                 modifier = Modifier
@@ -1096,7 +1119,7 @@ private fun MessageInputUploadStatus(
             ) {
                 Icon(
                     if (justCopied) Lucide.Check else Lucide.Link,
-                    contentDescription = s.uploaderCopyLink,
+                    contentDescription = stringResource(Res.string.uploader_copy_link),
                     modifier = Modifier.size(18.dp),
                     tint = primaryCol
                 )
@@ -1122,7 +1145,6 @@ private fun MessageInputSendColumn(
     slowmodeColor: Color,
     onSendClick: () -> Unit
 ) {
-    val s = LocalStrings.current
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -1153,7 +1175,7 @@ private fun MessageInputSendColumn(
         ) {
             Icon(
                 Lucide.SendHorizontal,
-                contentDescription = s.chatSend,
+                contentDescription = stringResource(Res.string.chat_send),
                 modifier = Modifier.size(18.dp),
                 tint = if (canSend) {
                     MaterialTheme.colorScheme.onPrimary
@@ -1189,19 +1211,18 @@ private fun MessageInputBannedWordDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(s.chatBannedWordTitle) },
-        text = { Text(s.chatBannedWordMessage) },
+        title = { Text(stringResource(Res.string.chat_banned_word_title)) },
+        text = { Text(stringResource(Res.string.chat_banned_word_message)) },
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
                 colors = ButtonDefaults.textButtonColors(contentColor = errorRed)
-            ) { Text(s.chatBannedWordSendAnyway) }
+            ) { Text(stringResource(Res.string.chat_banned_word_send_anyway)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(s.cancel) }
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
         }
     )
 }
@@ -1305,10 +1326,12 @@ private fun formatTimestampFor(
     return when (format) {
         SettingsState.TimestampFormat.H24 ->
             "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
+
         SettingsState.TimestampFormat.H12 -> {
             val h = if (dt.hour == 0) 12 else if (dt.hour > 12) dt.hour - 12 else dt.hour
             "$h:${dt.minute.toString().padStart(2, '0')} ${if (dt.hour < 12) "AM" else "PM"}"
         }
+
         SettingsState.TimestampFormat.OFF -> ""
     }
 }

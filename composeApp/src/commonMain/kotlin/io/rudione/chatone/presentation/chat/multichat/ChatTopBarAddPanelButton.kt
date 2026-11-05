@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.multi_chat_add_panel
+import chatone.composeapp.generated.resources.multi_chat_already_open
+import chatone.composeapp.generated.resources.multi_chat_max_panels
+import chatone.composeapp.generated.resources.multi_chat_no_channels_to_add
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -19,7 +25,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.ChatPanel
 import io.rudione.chatone.presentation.main.MainViewModel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -33,7 +38,6 @@ fun ChatTopBarAddPanelButton(
     currentChannel: String,
     modifier: Modifier = Modifier
 ) {
-    val strings = LocalStrings.current
     val panelManager: ChatPanelManager = koinInject()
     val mainViewModel: MainViewModel = koinViewModel()
     val mainState by mainViewModel.state.collectAsState()
@@ -57,7 +61,7 @@ fun ChatTopBarAddPanelButton(
     ) {
         Icon(
             Lucide.Plus,
-            contentDescription = strings.multiChatAddPanel,
+            contentDescription = stringResource(Res.string.multi_chat_add_panel),
             modifier = Modifier.size(16.dp),
             tint = if (canOpen) MaterialTheme.colorScheme.onSurfaceVariant
             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
@@ -71,13 +75,13 @@ fun ChatTopBarAddPanelButton(
     ) {
         if (panels.size >= ChatPanel.MAX_PANELS) {
             DropdownMenuItem(
-                text = { Text(strings.multiChatMaxPanels) },
+                text = { Text(stringResource(Res.string.multi_chat_max_panels)) },
                 onClick = { expanded = false },
                 enabled = false
             )
         } else if (candidates.isEmpty()) {
             DropdownMenuItem(
-                text = { Text(strings.multiChatNoChannelsToAdd) },
+                text = { Text(stringResource(Res.string.multi_chat_no_channels_to_add)) },
                 onClick = { expanded = false },
                 enabled = false
             )
@@ -88,7 +92,7 @@ fun ChatTopBarAddPanelButton(
                     text = {
                         if (alreadyOpen) {
                             Text(
-                                "$ch · ${strings.multiChatAlreadyOpen}",
+                                "$ch · ${stringResource(Res.string.multi_chat_already_open)}",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
                         } else {

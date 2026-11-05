@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_close
+import chatone.composeapp.generated.resources.player_expand_player
+import chatone.composeapp.generated.resources.player_mute
+import chatone.composeapp.generated.resources.player_unmute
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -54,7 +60,6 @@ import io.rudione.chatone.icons.material.automirrored.rounded.VolumeOff
 import io.rudione.chatone.icons.material.automirrored.rounded.VolumeUp
 import io.rudione.chatone.icons.material.rounded.Close
 import io.rudione.chatone.icons.material.rounded.Fullscreen
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -122,7 +127,6 @@ private fun FloatingPlayerWindow(
 ) {
     val host = floating.host
     val state by host.state.collectAsState()
-    val strings = LocalStrings.current.player
     val expand by rememberUpdatedState(onExpand)
     BoxWithConstraints(
         modifier
@@ -223,7 +227,7 @@ private fun FloatingPlayerWindow(
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = SCRIM_ALPHA))) {
                     PlayerIconButton(
                         icon = if (state.isMuted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
-                        contentDescription = if (state.isMuted) strings.unmute else strings.mute,
+                        contentDescription = if (state.isMuted) stringResource(Res.string.player_unmute) else stringResource(Res.string.player_mute),
                         onClick = {
                             interactionTick++
                             host.onEvent(StreamPlayerEvent.ToggleMute)
@@ -235,7 +239,7 @@ private fun FloatingPlayerWindow(
                     )
                     PlayerIconButton(
                         icon = Icons.Rounded.Close,
-                        contentDescription = strings.close,
+                        contentDescription = stringResource(Res.string.player_close),
                         onClick = { host.onEvent(StreamPlayerEvent.Dismiss) },
                         size = SmallButton,
                         iconSize = SmallIcon,
@@ -243,7 +247,7 @@ private fun FloatingPlayerWindow(
                     )
                     PlayerIconButton(
                         icon = Icons.Rounded.Fullscreen,
-                        contentDescription = strings.expandPlayer,
+                        contentDescription = stringResource(Res.string.player_expand_player),
                         onClick = { expand() },
                         size = LargeButton,
                         iconSize = LargeIcon,

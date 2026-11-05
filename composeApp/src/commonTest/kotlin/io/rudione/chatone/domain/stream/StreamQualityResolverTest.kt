@@ -58,4 +58,23 @@ class StreamQualityResolverTest {
         val menu = StreamQualityResolver.orderedForMenu(withHevc)
         assertEquals(listOf("chunked", "720p60", "480p30", "160p30", "audio_only"), menu.map { it.groupId })
     }
+
+    @Test
+    fun pinnedVariantMatchesItsTrackByHeightFrameRateAndBitrate() {
+        val tracks = listOf(
+            VariantTrack(1080, 60f, 6_800_000),
+            VariantTrack(720, 60f, 3_400_000),
+            VariantTrack(720, 30f, 2_300_000),
+            VariantTrack(480, 30f, 1_400_000)
+        )
+        assertEquals(0, StreamQualityResolver.trackFor(variants[0], tracks))
+        assertEquals(1, StreamQualityResolver.trackFor(variants[1], tracks))
+        assertEquals(3, StreamQualityResolver.trackFor(variants[2], tracks))
+    }
+
+    @Test
+    fun pinnedVariantWithoutAMatchingHeightHasNoTrack() {
+        val tracks = listOf(VariantTrack(720, 60f, 3_400_000), VariantTrack(480, 30f, 1_400_000))
+        assertNull(StreamQualityResolver.trackFor(variants[0], tracks))
+    }
 }

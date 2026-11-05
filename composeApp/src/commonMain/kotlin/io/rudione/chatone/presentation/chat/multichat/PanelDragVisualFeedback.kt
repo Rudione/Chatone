@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.multi_chat_drag_hint
+import chatone.composeapp.generated.resources.multi_chat_max_panels
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 fun PanelDragVisualFeedback(
@@ -25,7 +28,6 @@ fun PanelDragVisualFeedback(
     maxPanels: Int,
     modifier: Modifier = Modifier
 ) {
-    val strings = LocalStrings.current
     val canAccept = panelCount < maxPanels
     AnimatedVisibility(
         visible = visible,
@@ -52,7 +54,7 @@ fun PanelDragVisualFeedback(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = if (canAccept) strings.multiChatDragHint else strings.multiChatMaxPanels,
+                text = if (canAccept) stringResource(Res.string.multi_chat_drag_hint) else stringResource(Res.string.multi_chat_max_panels),
                 style = MaterialTheme.typography.titleMedium,
                 color = if (canAccept) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.error

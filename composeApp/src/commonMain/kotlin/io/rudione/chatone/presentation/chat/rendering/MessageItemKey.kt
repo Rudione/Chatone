@@ -9,5 +9,6 @@ fun DisplayMessage.contentType(): String = when (this) {
     is DisplayMessage.SystemMsg -> "system"
     is DisplayMessage.ModerationMsg -> "mod"
     is DisplayMessage.AutoModMsg -> "automod"
+    is DisplayMessage.RewardRedemptionMsg -> "reward"
     else -> "other"
 }

@@ -106,18 +106,21 @@ class LiveSpeedPolicy(private val tuning: Tuning = Tuning()) {
 class LiveEdgeGuard(
     private val excessUs: Long = 3_000_000L,
     private val persistenceMs: Long = 3_000L,
-    private val cooldownMs: Long = 30_000L
+    private val cooldownMs: Long = 30_000L,
+    private val landingBufferUs: Long = 600_000L
 ) {
     private var excessSinceMs = LiveSpeedPolicy.UNSET
     private var lastJumpMs = LiveSpeedPolicy.UNSET
 
-    fun shouldJump(liveOffsetUs: Long, targetUs: Long, nowMs: Long): Boolean {
+    fun shouldJump(liveOffsetUs: Long, targetUs: Long, bufferedUs: Long, nowMs: Long): Boolean {
         val unset = LiveSpeedPolicy.UNSET
-        if (liveOffsetUs == unset || targetUs == unset || liveOffsetUs - targetUs <= excessUs) {
+        val lagUs = liveOffsetUs - targetUs
+        if (liveOffsetUs == unset || targetUs == unset || lagUs <= excessUs) {
             excessSinceMs = unset
             return false
         }
         if (excessSinceMs == unset) excessSinceMs = nowMs
+        if (bufferedUs - lagUs < landingBufferUs) return false
         val persisted = nowMs - excessSinceMs >= persistenceMs
         val cooledDown = lastJumpMs == unset || nowMs - lastJumpMs >= cooldownMs
         if (!persisted || !cooledDown) return false

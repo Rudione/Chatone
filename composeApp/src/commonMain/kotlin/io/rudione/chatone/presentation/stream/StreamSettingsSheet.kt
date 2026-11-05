@@ -1,13 +1,42 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.player_audio_only
+import chatone.composeapp.generated.resources.player_auto_picture_in_picture
+import chatone.composeapp.generated.resources.player_auto_picture_in_picture_description
+import chatone.composeapp.generated.resources.player_background_audio
+import chatone.composeapp.generated.resources.player_background_audio_description
+import chatone.composeapp.generated.resources.player_close
+import chatone.composeapp.generated.resources.player_catch_up
+import chatone.composeapp.generated.resources.player_landscape_chat
+import chatone.composeapp.generated.resources.player_latency_hint
+import chatone.composeapp.generated.resources.player_latency_on_video
+import chatone.composeapp.generated.resources.player_latency_on_video_hint
+import chatone.composeapp.generated.resources.player_ambient_light
+import chatone.composeapp.generated.resources.player_ambient_light_hint
+import chatone.composeapp.generated.resources.player_latency_unknown
+import chatone.composeapp.generated.resources.player_low_latency
+import chatone.composeapp.generated.resources.player_low_latency_description
+import chatone.composeapp.generated.resources.player_quality
+import chatone.composeapp.generated.resources.player_quality_auto
+import chatone.composeapp.generated.resources.player_quality_auto_active
+import chatone.composeapp.generated.resources.player_scale_fill
+import chatone.composeapp.generated.resources.player_scale_fit
+import chatone.composeapp.generated.resources.player_settings
+import chatone.composeapp.generated.resources.player_source
+import chatone.composeapp.generated.resources.player_video
+import chatone.composeapp.generated.resources.player_video_stats
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,38 +59,58 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import io.rudione.chatone.icons.material.Icons
-import io.rudione.chatone.icons.material.rounded.Close
-import io.rudione.chatone.icons.material.rounded.Headphones
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_overlay_look
+import chatone.composeapp.generated.resources.player_overlay_look_hint
+import chatone.composeapp.generated.resources.player_settings_back
 import io.rudione.chatone.domain.stream.LandscapeChatMode
-import io.rudione.chatone.domain.stream.StreamPlayerPreferences
+import io.rudione.chatone.domain.stream.StreamLatencyLevel
 import io.rudione.chatone.domain.stream.StreamQualitySelection
 import io.rudione.chatone.domain.stream.StreamVideoScale
+import io.rudione.chatone.icons.lucide.Activity
+import io.rudione.chatone.icons.lucide.ArrowLeft
+import io.rudione.chatone.icons.lucide.ChevronRight
+import io.rudione.chatone.icons.lucide.Headphones
+import io.rudione.chatone.icons.lucide.Lucide
+import io.rudione.chatone.icons.lucide.Palette
+import io.rudione.chatone.icons.lucide.PictureInPicture2
+import io.rudione.chatone.icons.lucide.Sparkles
+import io.rudione.chatone.icons.lucide.Timer
+import io.rudione.chatone.icons.lucide.X
+import io.rudione.chatone.icons.lucide.Zap
 import io.rudione.chatone.presentation.components.ChatoneChip
-import io.rudione.chatone.presentation.components.ChatoneSegmentedControl
-import io.rudione.chatone.presentation.components.ChatoneSlider
 import io.rudione.chatone.presentation.components.ChatoneSwitch
+import io.rudione.chatone.presentation.components.FitText
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
-import kotlin.math.roundToInt
+import io.rudione.chatone.presentation.components.expressive.PillButton
+import io.rudione.chatone.presentation.components.expressive.PillSegmented
+import io.rudione.chatone.presentation.components.expressive.PillTone
+import kotlinx.coroutines.flow.StateFlow
+import org.jetbrains.compose.resources.stringResource
+
+private enum class SettingsPage { MAIN, OVERLAY_LOOK }
 
 @Composable
 fun StreamSettingsSheet(
@@ -70,8 +119,12 @@ fun StreamSettingsSheet(
     pictureInPictureSupported: Boolean
 ) {
     val state by host.state.collectAsState()
+    var page by rememberSaveable { mutableStateOf(SettingsPage.MAIN) }
     val dismiss = { host.onEvent(StreamPlayerEvent.SetSettingsVisible(false)) }
-    StreamBackHandler(enabled = state.settingsVisible, onBack = dismiss)
+    LaunchedEffect(state.settingsVisible) { if (!state.settingsVisible) page = SettingsPage.MAIN }
+    StreamBackHandler(enabled = state.settingsVisible) {
+        if (page == SettingsPage.MAIN) dismiss() else page = SettingsPage.MAIN
+    }
 
     AnimatedVisibility(visible = state.settingsVisible, enter = fadeIn(tween(160)), exit = fadeOut(tween(160))) {
         Box(
@@ -89,31 +142,42 @@ fun StreamSettingsSheet(
             exit = if (landscape) slideOutHorizontally(tween(180)) { it } + fadeOut() else slideOutVertically(tween(180)) { it } + fadeOut(),
             modifier = Modifier.align(if (landscape) Alignment.CenterEnd else Alignment.BottomCenter)
         ) {
-            val panelModifier = if (landscape) {
-                Modifier.fillMaxHeight().width(360.dp)
-            } else {
-                Modifier.fillMaxWidth().heightIn(max = 560.dp)
-            }
+            val panelModifier = if (landscape) Modifier.fillMaxHeight().width(360.dp) else Modifier.fillMaxWidth().heightIn(max = 560.dp)
             Column(
                 modifier = panelModifier
                     .padding(8.dp)
-                    .chatoneGlassPanel(shape = RoundedCornerShape(20.dp), topAlpha = 1f, bottomAlpha = 1f)
+                    .chatoneGlassPanel(shape = RoundedCornerShape(24.dp), topAlpha = 1f, bottomAlpha = 1f)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
             ) {
-                SheetHeader(title = LocalStrings.current.player.settings, onClose = dismiss)
-                Column(
-                    modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    QualitySection(state = state, onSelect = { host.onEvent(StreamPlayerEvent.SelectQuality(it)) })
-                    PreferenceSections(
-                        preferences = state.preferences,
-                        statsVisible = state.statsVisible,
-                        pictureInPictureSupported = pictureInPictureSupported,
-                        onEvent = host::onEvent
-                    )
+                SheetHeader(
+                    title = pageTitle(page),
+                    onBack = if (page == SettingsPage.MAIN) null else ({ page = SettingsPage.MAIN }),
+                    onClose = dismiss
+                )
+                AnimatedContent(
+                    targetState = page,
+                    transitionSpec = {
+                        val forward = targetState.ordinal > initialState.ordinal
+                        val sign = if (forward) 1 else -1
+                        (slideInHorizontally(tween(240)) { sign * it / 3 } + fadeIn(tween(200))) togetherWith
+                                (slideOutHorizontally(tween(200)) { -sign * it / 3 } + fadeOut(tween(140)))
+                    },
+                    label = "playerSettingsPage"
+                ) { current ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(start = 8.dp, end = 8.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        when (current) {
+                            SettingsPage.MAIN -> MainPage(state, host.latencySeconds, pictureInPictureSupported, host::onEvent) {
+                                page = SettingsPage.OVERLAY_LOOK
+                            }
+                            SettingsPage.OVERLAY_LOOK -> OverlayLookPage(state.preferences, host::onEvent)
+                        }
+                    }
                 }
             }
         }
@@ -121,183 +185,222 @@ fun StreamSettingsSheet(
 }
 
 @Composable
-private fun SheetHeader(title: String, onClose: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun pageTitle(page: SettingsPage): String {
+    return when (page) {
+        SettingsPage.MAIN -> stringResource(Res.string.player_settings)
+        SettingsPage.OVERLAY_LOOK -> stringResource(Res.string.player_overlay_look)
+    }
+}
+
+@Composable
+private fun MainPage(
+    state: StreamPlayerUiState,
+    latency: StateFlow<Float?>,
+    pictureInPictureSupported: Boolean,
+    onEvent: (StreamPlayerEvent) -> Unit,
+    onOpenOverlayLook: () -> Unit
+) {
+    val preferences = state.preferences
+    if (state.isPlaybackActive) {
+        LatencyRow(latency) { onEvent(StreamPlayerEvent.Reload) }
+        SettingsDivider()
+    }
+    SectionTitle(stringResource(Res.string.player_quality))
+    QualityChips(state) { onEvent(StreamPlayerEvent.SelectQuality(it)) }
+    SectionTitle(stringResource(Res.string.player_video))
+    PillSegmented(
+        options = StreamVideoScale.entries.map { it to videoScaleLabel(it) },
+        selected = preferences.videoScale,
+        onSelect = { onEvent(StreamPlayerEvent.SetVideoScale(it)) },
+        modifier = Modifier.padding(horizontal = 8.dp)
+    )
+    SectionTitle(stringResource(Res.string.player_landscape_chat))
+    PillSegmented(
+        options = LandscapeChatMode.entries.map { it to chatModeLabel(it) },
+        selected = preferences.landscapeChatMode,
+        onSelect = { onEvent(StreamPlayerEvent.SetLandscapeChatMode(it)) },
+        modifier = Modifier.padding(horizontal = 8.dp)
+    )
+    AnimatedVisibility(
+        visible = preferences.landscapeChatMode == LandscapeChatMode.OVERLAY,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut()
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    role = Role.Button,
-                    onClick = onClose
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Rounded.Close,
-                contentDescription = LocalStrings.current.player.close,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+        NavigationRow(Lucide.Palette, stringResource(Res.string.player_overlay_look), stringResource(Res.string.player_overlay_look_hint), onOpenOverlayLook)
+    }
+    SettingsDivider()
+    ToggleRow(Lucide.Zap, stringResource(Res.string.player_low_latency), stringResource(Res.string.player_low_latency_description), preferences.lowLatency) {
+        onEvent(StreamPlayerEvent.SetLowLatency(it))
+    }
+    ToggleRow(Lucide.Timer, stringResource(Res.string.player_latency_on_video), stringResource(Res.string.player_latency_on_video_hint), preferences.latencyOnVideo) {
+        onEvent(StreamPlayerEvent.SetLatencyOnVideo(it))
+    }
+    ToggleRow(Lucide.Sparkles, stringResource(Res.string.player_ambient_light), stringResource(Res.string.player_ambient_light_hint), preferences.ambientLight) {
+        onEvent(StreamPlayerEvent.SetAmbientLight(it))
+    }
+    if (pictureInPictureSupported) {
+        ToggleRow(
+            Lucide.PictureInPicture2,
+            stringResource(Res.string.player_auto_picture_in_picture),
+            stringResource(Res.string.player_auto_picture_in_picture_description),
+            preferences.autoPictureInPicture
+        ) { onEvent(StreamPlayerEvent.SetAutoPictureInPicture(it)) }
+    }
+    ToggleRow(Lucide.Headphones, stringResource(Res.string.player_background_audio), stringResource(Res.string.player_background_audio_description), preferences.backgroundAudio) {
+        onEvent(StreamPlayerEvent.SetBackgroundAudio(it))
+    }
+    ToggleRow(Lucide.Activity, stringResource(Res.string.player_video_stats), null, state.statsVisible) { onEvent(StreamPlayerEvent.SetStatsVisible(it)) }
+}
+
+@Composable
+private fun LatencyRow(latency: StateFlow<Float?>, onCatchUp: () -> Unit) {
+    val seconds by latency.collectAsState()
+    val current = seconds
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SettingsRowIcon(Lucide.Timer)
+        Column(Modifier.weight(1f)) {
+            Text(
+                current?.let { streamLatencyText(it, compact = false) } ?: stringResource(Res.string.player_latency_unknown),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = current?.let { StreamLatencyLevel.of(it).color() } ?: MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                stringResource(Res.string.player_latency_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        PillButton(stringResource(Res.string.player_catch_up), onClick = onCatchUp, tone = PillTone.Tonal, height = 38.dp)
     }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 6.dp)
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun QualitySection(state: StreamPlayerUiState, onSelect: (StreamQualitySelection) -> Unit) {
-    val appStrings = LocalStrings.current
-    val strings = appStrings.player
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionTitle(strings.quality)
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            val autoLabel = state.activeVariant
-                ?.takeIf { state.selection == StreamQualitySelection.Auto }
-                ?.let { appStrings.format(strings.qualityAutoActive, it.displayName) }
-                ?: strings.qualityAuto
-            ChatoneChip(
-                label = autoLabel,
-                selected = state.selection == StreamQualitySelection.Auto,
-                onClick = { onSelect(StreamQualitySelection.Auto) }
-            )
-            state.variants.filterNot { it.isAudioOnly }.forEach { variant ->
-                val selection = StreamQualitySelection.Fixed(variant.groupId)
-                ChatoneChip(
-                    label = if (variant.isSource) "${variant.displayName} · ${strings.source}" else variant.displayName,
-                    selected = state.selection == selection,
-                    onClick = { onSelect(selection) }
-                )
-            }
-            if (state.variants.any { it.isAudioOnly }) {
-                ChatoneChip(
-                    label = strings.audioOnly,
-                    leadingIcon = Icons.Rounded.Headphones,
-                    selected = state.selection == StreamQualitySelection.AudioOnly,
-                    onClick = { onSelect(StreamQualitySelection.AudioOnly) }
-                )
-            }
+private fun QualityChips(state: StreamPlayerUiState, onSelect: (StreamQualitySelection) -> Unit) {
+    val autoLabel = state.activeVariant
+        ?.takeIf { state.selection == StreamQualitySelection.Auto }
+        ?.let { stringResource(Res.string.player_quality_auto_active, it.displayName) }
+        ?: stringResource(Res.string.player_quality_auto)
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        QualityChip(autoLabel, state.selection == StreamQualitySelection.Auto) { onSelect(StreamQualitySelection.Auto) }
+        state.variants.filterNot { it.isAudioOnly }.forEach { variant ->
+            val selection = StreamQualitySelection.Fixed(variant.groupId)
+            val label = if (variant.isSource) "${variant.displayName} · ${stringResource(Res.string.player_source)}" else variant.displayName
+            QualityChip(label, state.selection == selection) { onSelect(selection) }
+        }
+        if (state.variants.any { it.isAudioOnly }) {
+            QualityChip(
+                stringResource(Res.string.player_audio_only),
+                state.selection == StreamQualitySelection.AudioOnly,
+                Lucide.Headphones
+            ) { onSelect(StreamQualitySelection.AudioOnly) }
         }
     }
 }
 
 @Composable
-private fun PreferenceSections(
-    preferences: StreamPlayerPreferences,
-    statsVisible: Boolean,
-    pictureInPictureSupported: Boolean,
-    onEvent: (StreamPlayerEvent) -> Unit
-) {
-    val strings = LocalStrings.current.player
-    ToggleRow(
-        title = strings.lowLatency,
-        description = strings.lowLatencyDescription,
-        checked = preferences.lowLatency,
-        onCheckedChange = { onEvent(StreamPlayerEvent.SetLowLatency(it)) }
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionTitle(strings.video)
-        ChatoneSegmentedControl(
-            options = listOf(StreamVideoScale.FIT to strings.scaleFit, StreamVideoScale.FILL to strings.scaleFill),
-            selected = preferences.videoScale,
-            onSelect = { onEvent(StreamPlayerEvent.SetVideoScale(it)) },
-            fillWidth = true
-        )
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionTitle(strings.landscapeChat)
-        ChatoneSegmentedControl(
-            options = LandscapeChatMode.entries.map { it to chatModeLabel(it, strings) },
-            selected = preferences.landscapeChatMode,
-            onSelect = { onEvent(StreamPlayerEvent.SetLandscapeChatMode(it)) },
-            fillWidth = true,
-            iconOf = ::chatModeIcon
-        )
-        if (preferences.landscapeChatMode == LandscapeChatMode.OVERLAY) {
-            PercentSliderRow(
-                label = strings.chatBackground,
-                value = preferences.overlayOpacity,
-                range = StreamPlayerPreferences.MIN_OVERLAY_OPACITY..StreamPlayerPreferences.MAX_OVERLAY_OPACITY,
-                onCommit = { onEvent(StreamPlayerEvent.SetOverlayOpacity(it)) }
-            )
-            PercentSliderRow(
-                label = strings.chatMessagesOpacity,
-                value = preferences.overlayMessageOpacity,
-                range = StreamPlayerPreferences.MIN_OVERLAY_MESSAGE_OPACITY..StreamPlayerPreferences.MAX_OVERLAY_MESSAGE_OPACITY,
-                onCommit = { onEvent(StreamPlayerEvent.SetOverlayMessageOpacity(it)) }
-            )
-        }
-    }
-    if (pictureInPictureSupported) {
-        ToggleRow(
-            title = strings.autoPictureInPicture,
-            description = strings.autoPictureInPictureDescription,
-            checked = preferences.autoPictureInPicture,
-            onCheckedChange = { onEvent(StreamPlayerEvent.SetAutoPictureInPicture(it)) }
-        )
-    }
-    ToggleRow(
-        title = strings.backgroundAudio,
-        description = strings.backgroundAudioDescription,
-        checked = preferences.backgroundAudio,
-        onCheckedChange = { onEvent(StreamPlayerEvent.SetBackgroundAudio(it)) }
-    )
-    ToggleRow(
-        title = strings.videoStats,
-        description = null,
-        checked = statsVisible,
-        onCheckedChange = { onEvent(StreamPlayerEvent.SetStatsVisible(it)) }
-    )
+private fun QualityChip(label: String, selected: Boolean, icon: ImageVector? = null, onClick: () -> Unit) {
+    ChatoneChip(label = label, onClick = onClick, selected = selected, leadingIcon = icon, height = 36.dp)
 }
 
 @Composable
-private fun PercentSliderRow(
-    label: String,
-    value: Float,
-    range: ClosedFloatingPointRange<Float>,
-    onCommit: (Float) -> Unit
-) {
-    var local by remember(value) { mutableFloatStateOf(value) }
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "${(local * 100).roundToInt()}%",
-                style = MaterialTheme.typography.labelMedium,
+private fun videoScaleLabel(scale: StreamVideoScale): String {
+    return if (scale == StreamVideoScale.FIT) stringResource(Res.string.player_scale_fit) else stringResource(Res.string.player_scale_fill)
+}
+
+@Composable
+private fun SheetHeader(title: String, onBack: (() -> Unit)?, onClose: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AnimatedVisibility(visible = onBack != null) {
+            RoundIconButton(Lucide.ArrowLeft, stringResource(Res.string.player_settings_back)) { onBack?.invoke() }
+        }
+        AnimatedContent(
+            targetState = title,
+            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+            label = "playerSettingsTitle",
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+        ) { text ->
+            FitText(
+                text,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-        Spacer(Modifier.height(4.dp))
-        ChatoneSlider(
-            value = local,
-            onValueChange = { local = it },
-            valueRange = range,
-            onValueChangeFinished = { onCommit(local) }
-        )
+        RoundIconButton(Lucide.X, stringResource(Res.string.player_close), onClose)
     }
 }
 
 @Composable
-private fun ToggleRow(
+private fun RoundIconButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.7f))
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+internal fun SettingsRowIcon(icon: ImageVector) {
+    Box(
+        Modifier.size(34.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(17.dp))
+    }
+}
+
+@Composable
+private fun NavigationRow(icon: ImageVector, title: String, value: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        SettingsRowIcon(icon)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+            Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+        Icon(Lucide.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+internal fun ToggleRow(
+    icon: ImageVector?,
     title: String,
     description: String?,
     checked: Boolean,
@@ -306,40 +409,30 @@ private fun ToggleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                role = Role.Switch,
-                onClick = { onCheckedChange(!checked) }
-            ),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(role = Role.Switch, onClick = { onCheckedChange(!checked) })
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        if (icon != null) SettingsRowIcon(icon)
         Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
             if (description != null) {
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Spacer(Modifier.width(12.dp))
         ChatoneSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+internal fun SettingsDivider() {
+    Spacer(
+        Modifier
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     )
 }

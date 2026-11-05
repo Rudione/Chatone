@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.chat.zoom
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_zoom_in
+import chatone.composeapp.generated.resources.chat_zoom_label
+import chatone.composeapp.generated.resources.chat_zoom_out
+import chatone.composeapp.generated.resources.chat_zoom_reset
+import chatone.composeapp.generated.resources.settings_chat_message_scale
+import chatone.composeapp.generated.resources.settings_chat_message_scale_hint
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -52,7 +60,6 @@ import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
 import io.rudione.chatone.presentation.components.rows.SliderRow
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
 import io.rudione.chatone.util.system.isDesktopPlatform
 import kotlinx.coroutines.delay
@@ -108,7 +115,6 @@ fun ChatZoomIndicator(
     modifier: Modifier = Modifier,
     repository: ChatMessageScaleRepository = koinInject()
 ) {
-    val s = LocalStrings.current
     val scale by repository.scale.collectAsState()
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -158,7 +164,7 @@ fun ChatZoomIndicator(
                     enabled = scale.percent > ChatMessageScale.MIN_PERCENT,
                     modifier = Modifier.size(30.dp)
                 ) {
-                    Icon(Lucide.Minus, contentDescription = s.chatZoomOut, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.Minus, contentDescription = stringResource(Res.string.chat_zoom_out), modifier = Modifier.size(18.dp))
                 }
                 Column(
                     modifier = Modifier.widthIn(min = 64.dp).padding(horizontal = 4.dp),
@@ -171,7 +177,7 @@ fun ChatZoomIndicator(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        s.chatZoomLabel,
+                        stringResource(Res.string.chat_zoom_label),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
@@ -182,11 +188,11 @@ fun ChatZoomIndicator(
                     enabled = scale.percent < ChatMessageScale.MAX_PERCENT,
                     modifier = Modifier.size(30.dp)
                 ) {
-                    Icon(Lucide.Plus, contentDescription = s.chatZoomIn, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.Plus, contentDescription = stringResource(Res.string.chat_zoom_in), modifier = Modifier.size(18.dp))
                 }
                 if (!scale.isDefault) {
                     TextButton(onClick = { repository.reset() }) {
-                        Text(s.chatZoomReset, style = MaterialTheme.typography.labelMedium)
+                        Text(stringResource(Res.string.chat_zoom_reset), style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -196,11 +202,10 @@ fun ChatZoomIndicator(
 
 @Composable
 fun ChatMessageScaleSettingRow(repository: ChatMessageScaleRepository = koinInject()) {
-    val s = LocalStrings.current
     val scale by repository.scale.collectAsState()
     Column {
         SliderRow(
-            label = s.settingsChatMessageScale,
+            label = stringResource(Res.string.settings_chat_message_scale),
             value = scale.percent.toFloat(),
             valueRange = ChatMessageScale.MIN_PERCENT.toFloat()..ChatMessageScale.MAX_PERCENT.toFloat(),
             steps = (ChatMessageScale.MAX_PERCENT - ChatMessageScale.MIN_PERCENT) / ChatMessageScale.STEP_PERCENT - 1,
@@ -208,7 +213,7 @@ fun ChatMessageScaleSettingRow(repository: ChatMessageScaleRepository = koinInje
         ) { repository.set(ChatMessageScale.of(it)) }
         if (isDesktopPlatform) {
             HighlightedSettingsText(
-                s.settingsChatMessageScaleHint,
+                stringResource(Res.string.settings_chat_message_scale_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp)

@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.settings_mention_alerts
+import chatone.composeapp.generated.resources.settings_mention_alerts_desc
+import chatone.composeapp.generated.resources.settings_notifications_blocked
+import chatone.composeapp.generated.resources.settings_open_notification_settings
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,13 +24,11 @@ import io.rudione.chatone.data.repository.NotificationPreferencesRepository
 import io.rudione.chatone.presentation.components.ChatoneButton
 import io.rudione.chatone.presentation.components.ChatoneButtonTone
 import io.rudione.chatone.presentation.components.ChatoneSwitch
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.system.NotificationAccess
 import org.koin.compose.koinInject
 
 @Composable
 internal fun MentionAlertsCard(preferences: NotificationPreferencesRepository = koinInject()) {
-    val s = LocalStrings.current
     val enabled by preferences.mentionAlerts.collectAsState()
     val permitted by NotificationAccess.granted.collectAsState()
     SettingsSurface(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -36,12 +40,12 @@ internal fun MentionAlertsCard(preferences: NotificationPreferencesRepository = 
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        s.settingsMentionAlerts,
+                        stringResource(Res.string.settings_mention_alerts),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        s.settingsMentionAlertsDesc,
+                        stringResource(Res.string.settings_mention_alerts_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -56,12 +60,12 @@ internal fun MentionAlertsCard(preferences: NotificationPreferencesRepository = 
             }
             if (enabled && !permitted) {
                 Text(
-                    s.settingsNotificationsBlocked,
+                    stringResource(Res.string.settings_notifications_blocked),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error
                 )
                 ChatoneButton(
-                    text = s.settingsOpenNotificationSettings,
+                    text = stringResource(Res.string.settings_open_notification_settings),
                     onClick = NotificationAccess::openSystemSettings,
                     tone = ChatoneButtonTone.Neutral
                 )

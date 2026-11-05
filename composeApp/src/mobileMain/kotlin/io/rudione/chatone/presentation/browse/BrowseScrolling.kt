@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.browse
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.browse_scroll_to_top
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.layout.offset
@@ -30,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.icons.lucide.ChevronUp
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.presentation.stream.LocalFloatingStreamPlayer
-import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
@@ -40,7 +42,7 @@ private const val LANDING_INDEX = 6
 private val ButtonMargin = 16.dp
 
 @Composable
-internal fun BoxScope.ScrollToTopButton(gridState: LazyGridState, strings: BrowseStrings, bottomInset: Dp) {
+internal fun BoxScope.ScrollToTopButton(gridState: LazyGridState, bottomInset: Dp) {
     val visible by remember(gridState) { derivedStateOf { gridState.firstVisibleItemIndex > SHOW_AFTER_INDEX } }
     val floating = LocalFloatingStreamPlayer.current
     val clearance = animateDpAsState(floating?.bottomEndClearance ?: 0.dp, tween(260), label = "scrollTopClearance")
@@ -64,7 +66,7 @@ internal fun BoxScope.ScrollToTopButton(gridState: LazyGridState, strings: Brows
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         ) {
-            Icon(Lucide.ChevronUp, contentDescription = strings.scrollToTop)
+            Icon(Lucide.ChevronUp, contentDescription = stringResource(Res.string.browse_scroll_to_top))
         }
     }
 }

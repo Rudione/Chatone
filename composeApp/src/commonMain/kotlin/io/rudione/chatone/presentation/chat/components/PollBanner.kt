@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_hide_event_banner
+import chatone.composeapp.generated.resources.event_poll_votes
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import io.rudione.chatone.presentation.chat.components.pollWonText
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import io.rudione.chatone.presentation.components.layoutWidthFraction
@@ -28,7 +34,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.remote.dto.PollData
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
 import io.rudione.chatone.icons.lucide.Lucide
@@ -51,7 +56,6 @@ fun PollBanner(
     val winner = poll.choices.firstOrNull {
         (it.votes + it.channelPointsVotes) == maxChoiceVotes && maxChoiceVotes > 0
     }
-    val strings = LocalStrings.current
     val compact = LocalEventBannerCompact.current
 
     Box(
@@ -87,7 +91,7 @@ fun PollBanner(
                         PollCountdownChip(poll = poll)
                     } else {
                         Text(
-                            strings.events.pollVotes(totalVotes),
+                            pluralStringResource(Res.plurals.event_poll_votes, totalVotes, totalVotes),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -95,7 +99,7 @@ fun PollBanner(
                         )
                     }
                     if (onHide != null) {
-                        EventHideButton(tooltip = strings.chatHideEventBanner, onHide = onHide)
+                        EventHideButton(tooltip = stringResource(Res.string.chat_hide_event_banner), onHide = onHide)
                     }
                 }
                 if (compact) PollTitle(poll.title, maxLines = 2)
@@ -132,7 +136,7 @@ fun PollBanner(
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        strings.events.pollWon(winner.title, winPct, totalVotes),
+                        pollWonText(winner.title, winPct, totalVotes),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = PollWinnerGreen,

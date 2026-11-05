@@ -24,7 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.ChatoneTheme
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun ChatoneSplitHandle(
@@ -40,7 +40,7 @@ fun ChatoneSplitHandle(
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val tint by animateColorAsState(
-        if (hovered) ChatoneTheme.extraColors.accentGradient.first().copy(alpha = 0.85f)
+        if (hovered) MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
         else Color.Transparent,
         label = "splitHandle"
     )

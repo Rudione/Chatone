@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.panel_search_viewers
+import chatone.composeapp.generated.resources.panel_viewers
+import chatone.composeapp.generated.resources.panel_viewers_in_chat
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,7 +31,6 @@ import io.rudione.chatone.data.remote.dto.ChatterData
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.Result
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneTextField
@@ -100,11 +104,10 @@ fun ChattersPanel(
                     tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    val s = LocalStrings.current
-                    Text(s.panelViewers, style = MaterialTheme.typography.titleSmall,
+                    Text(stringResource(Res.string.panel_viewers), style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     if (totalCount > 0) {
-                        Text(s.panelViewersInChat.replace("{0}", totalCount.toString()), style = MaterialTheme.typography.labelSmall,
+                        Text(stringResource(Res.string.panel_viewers_in_chat, totalCount), style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -120,7 +123,7 @@ fun ChattersPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 6.dp),
-                placeholder = LocalStrings.current.panelSearchViewers,
+                placeholder = stringResource(Res.string.panel_search_viewers),
                 leading = { Icon(Lucide.Search, null, modifier = Modifier.size(16.dp)) },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodySmall,

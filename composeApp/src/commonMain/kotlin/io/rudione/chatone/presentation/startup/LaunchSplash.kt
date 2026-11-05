@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.startup
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.app_name
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.startup.launchStageLabel
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -32,7 +36,6 @@ import io.rudione.chatone.presentation.components.expressive.ChatoneMark
 import io.rudione.chatone.presentation.components.expressive.ScallopBadge
 import io.rudione.chatone.presentation.components.expressive.ambientHaze
 import io.rudione.chatone.presentation.components.expressive.touchHaze
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 import kotlin.time.Duration
@@ -57,7 +60,6 @@ fun LaunchSplashOverlay(maxHold: Duration = MAX_HOLD) {
 
 @Composable
 fun LaunchSplash(stage: LaunchStage, modifier: Modifier = Modifier) {
-    val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
     Box(
         modifier = modifier
@@ -81,7 +83,7 @@ fun LaunchSplash(stage: LaunchStage, modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.height(32.dp))
             Text(
-                s.appName,
+                stringResource(Res.string.app_name),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = scheme.onSurface
@@ -92,7 +94,7 @@ fun LaunchSplash(stage: LaunchStage, modifier: Modifier = Modifier) {
                 label = "launchStage"
             ) { current ->
                 Text(
-                    s.launch.stage(current),
+                    launchStageLabel(current),
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp)

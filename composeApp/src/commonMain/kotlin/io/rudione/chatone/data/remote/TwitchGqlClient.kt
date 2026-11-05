@@ -8,6 +8,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.rudione.chatone.data.remote.dto.PollChoice
@@ -118,7 +119,9 @@ data class GqlChannelPointReward(
     val isInStock: Boolean,
     val isUserInputRequired: Boolean,
     val imageUrl: String? = null,
-    val automaticType: TwitchAutomaticRewardType? = null
+    val automaticType: TwitchAutomaticRewardType? = null,
+    val backgroundColor: Long? = null,
+    val hasCustomImage: Boolean = false
 ) {
     val isRedeemableInApp: Boolean
         get() = automaticType == null || automaticType.isRedeemableInApp
@@ -683,7 +686,9 @@ class TwitchGqlClient(
             isEnabled = obj.boolOrNull("isEnabled") == true && obj.boolOrNull("isPaused") != true,
             isInStock = obj.boolOrNull("isInStock") ?: true,
             isUserInputRequired = obj.boolOrNull("isUserInputRequired") ?: false,
-            imageUrl = rewardImageUrl(obj)
+            imageUrl = rewardImageUrl(obj),
+            backgroundColor = parseHexColor(obj.stringOrNull("backgroundColor")),
+            hasCustomImage = obj["image"] is JsonObject
         )
     }
 
@@ -694,7 +699,8 @@ class TwitchGqlClient(
         ) ?: return null
         val pricingType = obj["pricingType"]?.jsonPrimitive?.contentOrNull ?: "POINTS"
         val costKey = if (pricingType == "BITS") "bitsCost" else "cost"
-        val cost = obj[costKey]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
+        val defaultCostKey = if (pricingType == "BITS") "defaultBitsCost" else "defaultCost"
+        val cost = obj.longOrNull(costKey)?.takeIf { it > 0 } ?: obj.longOrNull(defaultCostKey) ?: 0L
         if (cost <= 0) return null
         return GqlChannelPointReward(
             id = id,
@@ -706,7 +712,9 @@ class TwitchGqlClient(
             isInStock = obj.boolOrNull("isInStock") ?: true,
             isUserInputRequired = false,
             imageUrl = rewardImageUrl(obj),
-            automaticType = type
+            automaticType = type,
+            backgroundColor = parseHexColor(obj.stringOrNull("backgroundColor") ?: obj.stringOrNull("defaultBackgroundColor")),
+            hasCustomImage = obj["image"] is JsonObject
         )
     }
 
@@ -721,6 +729,16 @@ class TwitchGqlClient(
 
     private fun JsonObject.boolOrNull(key: String): Boolean? =
         this[key]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull()
+
+    private fun JsonObject.stringOrNull(key: String): String? =
+        (this[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+
+    private fun JsonObject.longOrNull(key: String): Long? = stringOrNull(key)?.toLongOrNull()
+
+    private fun parseHexColor(raw: String?): Long? {
+        val hex = raw?.removePrefix("#")?.takeIf { it.length == 6 } ?: return null
+        return hex.toLongOrNull(16)?.let { 0xFF000000 or it }
+    }
 
     suspend fun unlockRandomSubEmoteGql(
         channelId: String,
@@ -870,9 +888,16 @@ class TwitchGqlClient(
                     "GQL ${profile.label} HTTP ${response.status.value}: $text",
                     tag = TAG
                 )
-                return Result.Error(Exception("HTTP ${response.status.value}"))
+                val failure = if (response.status == HttpStatusCode.Unauthorized) {
+                    GqlUnauthorizedException()
+                } else {
+                    Exception("HTTP ${response.status.value}")
+                }
+                return Result.Error(failure)
             }
             Result.Success(json.parseToJsonElement(text).jsonArray)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.w("GQL ${profile.label} query failed: ${e.message}", tag = TAG)
             Result.Error(e)
@@ -984,6 +1009,13 @@ class TwitchGqlClient(
         return Result.Success(Unit)
     }
 
+    suspend fun firstPartyCall(
+        query: String,
+        variables: JsonObject,
+        token: String,
+        payloadKey: String
+    ): Result<JsonObject> = firstPartyMutation(query, variables, token, payloadKey)
+
     private suspend fun firstPartyMutation(
         query: String,
         variables: JsonObject,
@@ -991,7 +1023,8 @@ class TwitchGqlClient(
         payloadKey: String
     ): Result<JsonObject> {
         var lastError: Result.Error? = null
-        for (profile in FIRST_PARTY_MUTATION_PROFILES) {
+        val owner = tokenResolver.clientFor(normalizeGqlToken(token)).clientId
+        for (profile in FIRST_PARTY_MUTATION_PROFILES.sortedByDescending { it.clientId == owner }) {
             val integrity = if (profile.useIntegrity) {
                 integrityToken(profile, token) ?: continue
             } else {
@@ -1014,7 +1047,10 @@ class TwitchGqlClient(
                 lastError = Result.Error(GqlIntegrityRejectedException())
                 continue
             }
-            node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
+            node?.gqlErrorOrNull()?.let {
+                Napier.w("$payloadKey: ${profile.label} answered $it", tag = TAG)
+                return Result.Error(GqlServerException(it))
+            }
             val payload = node?.get("data")?.asObjectOrNull()?.get(payloadKey)?.asObjectOrNull()
                 ?: return Result.Error(Exception("Empty $payloadKey response"))
             Napier.d("$payloadKey: ${profile.label} passed the integrity gate", tag = TAG)
@@ -1129,6 +1165,26 @@ class TwitchGqlClient(
             subscriptionTier = rel?.get("subscriptionBenefit")?.asObjectOrNull()
                 ?.get("tier")?.jsonPrimitive?.contentOrNull
         )
+    }
+
+    suspend fun getAutoModProfile(
+        login: String,
+        channelLogin: String,
+        channelId: String,
+        token: String
+    ): AutoModProfile? {
+        if (login.isBlank() || channelLogin.isBlank() || channelId.isBlank()) return null
+        val variables = buildJsonObject {
+            put("login", login.lowercase())
+            put("channelLogin", channelLogin.lowercase())
+            put("channelID", channelId)
+        }
+        val r = inlineQuery(AutoModProfileParser.QUERY, token, variables)
+        if (r !is Result.Success) return null
+        val user = r.data.firstDataNode()
+            ?.get("data")?.asObjectOrNull()
+            ?.get("user")?.asObjectOrNull() ?: return null
+        return AutoModProfileParser.parse(user)
     }
 
     suspend fun getUserDisplayBadges(
@@ -1627,3 +1683,7 @@ private data class GqlClientProfile(
 class SendGifException(val code: String) : Exception(code)
 
 class GqlIntegrityRejectedException : Exception("Rejected by the Twitch integrity check")
+
+class GqlUnauthorizedException : Exception("Twitch rejected the token for this client")
+
+class GqlServerException(errors: String) : Exception(errors)

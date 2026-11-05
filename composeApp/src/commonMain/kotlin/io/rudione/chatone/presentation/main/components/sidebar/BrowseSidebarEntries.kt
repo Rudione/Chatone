@@ -1,5 +1,12 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.browse_entry_subtitle
+import chatone.composeapp.generated.resources.browse_entry_title
+import chatone.composeapp.generated.resources.browse_forget_channel
+import chatone.composeapp.generated.resources.browse_keep_channel
+import chatone.composeapp.generated.resources.browse_recent_header
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,7 +40,6 @@ import io.rudione.chatone.domain.model.ChannelTab
 import io.rudione.chatone.presentation.components.pressScale
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
 import io.rudione.chatone.icons.lucide.ChevronRight
 import io.rudione.chatone.icons.lucide.Compass
 import io.rudione.chatone.icons.lucide.Lucide
@@ -41,7 +47,7 @@ import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.X
 
 @Composable
-internal fun BrowseEntryItem(strings: BrowseStrings, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun BrowseEntryItem(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val interaction = remember { MutableInteractionSource() }
     val primary = MaterialTheme.colorScheme.primary
     Row(
@@ -57,21 +63,27 @@ internal fun BrowseEntryItem(strings: BrowseStrings, onClick: () -> Unit, modifi
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(32.dp).clip(CircleShape).background(primary.copy(alpha = 0.18f)),
+            modifier = Modifier.size(32.dp).clip(CircleShape)
+                .background(primary.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Lucide.Compass, contentDescription = null, tint = primary, modifier = Modifier.size(19.dp))
+            Icon(
+                Lucide.Compass,
+                contentDescription = null,
+                tint = primary,
+                modifier = Modifier.size(19.dp)
+            )
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                strings.entryTitle,
+                stringResource(Res.string.browse_entry_title),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                strings.entrySubtitle,
+                stringResource(Res.string.browse_entry_subtitle),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -88,14 +100,14 @@ internal fun BrowseEntryItem(strings: BrowseStrings, onClick: () -> Unit, modifi
 }
 
 @Composable
-internal fun RecentChannelsHeader(strings: BrowseStrings, modifier: Modifier = Modifier) {
+internal fun RecentChannelsHeader(modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth()) {
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
         )
         Text(
-            strings.recentHeader,
+            stringResource(Res.string.browse_recent_header),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             letterSpacing = 1.sp,
@@ -108,7 +120,6 @@ internal fun RecentChannelsHeader(strings: BrowseStrings, modifier: Modifier = M
 internal fun RecentChannelItem(
     channel: ChannelTab,
     isActive: Boolean,
-    strings: BrowseStrings,
     onClick: () -> Unit,
     onKeep: () -> Unit,
     onForget: () -> Unit,
@@ -163,7 +174,7 @@ internal fun RecentChannelItem(
         ChatoneIconButton(onClick = onKeep, modifier = Modifier.size(26.dp)) {
             Icon(
                 Lucide.Pin,
-                contentDescription = strings.keepChannel,
+                contentDescription = stringResource(Res.string.browse_keep_channel),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
             )
@@ -171,7 +182,7 @@ internal fun RecentChannelItem(
         ChatoneIconButton(onClick = onForget, modifier = Modifier.size(26.dp)) {
             Icon(
                 Lucide.X,
-                contentDescription = strings.forgetChannel,
+                contentDescription = stringResource(Res.string.browse_forget_channel),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.size(14.dp)
             )

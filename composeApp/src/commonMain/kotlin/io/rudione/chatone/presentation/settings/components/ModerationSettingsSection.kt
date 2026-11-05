@@ -1,5 +1,26 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.mod_add_timeout_button
+import chatone.composeapp.generated.resources.mod_add_timeout_button_count
+import chatone.composeapp.generated.resources.mod_button_color_hint
+import chatone.composeapp.generated.resources.mod_button_colors
+import chatone.composeapp.generated.resources.mod_buttons_on_hover
+import chatone.composeapp.generated.resources.mod_buttons_on_hover_desc
+import chatone.composeapp.generated.resources.mod_custom_label_optional
+import chatone.composeapp.generated.resources.mod_drag_reorder_hint
+import chatone.composeapp.generated.resources.mod_duration
+import chatone.composeapp.generated.resources.mod_edit_timeout_button
+import chatone.composeapp.generated.resources.mod_mod_action_buttons
+import chatone.composeapp.generated.resources.mod_press_drag_reorder
+import chatone.composeapp.generated.resources.mod_preview_label
+import chatone.composeapp.generated.resources.mod_quick_presets
+import chatone.composeapp.generated.resources.mod_slider_buttons_in_chat
+import chatone.composeapp.generated.resources.mod_slider_buttons_in_chat_help
+import chatone.composeapp.generated.resources.mod_slider_buttons_in_chat_off
+import chatone.composeapp.generated.resources.save
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -73,7 +94,6 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.settingsAnchor
 import io.rudione.chatone.presentation.settings.theme_settings.ThemeCreatorSection
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.rememberInputCapabilities
 
 private val TIMEOUT_BUTTON_PRESETS = listOf(
@@ -108,10 +128,9 @@ internal fun ModActionButtonsSection(
             orderedButtons = state.allModButtons.sortedBy { it.sortOrder }
         }
     }
-    val s = LocalStrings.current
     val rowSpacingPx = with(LocalDensity.current) { ROW_SPACING.roundToPx() }
 
-    SettingsCard(title = s.modModActionButtons, help = s.modDragReorderHint) {
+    SettingsCard(title = stringResource(Res.string.mod_mod_action_buttons), help = stringResource(Res.string.mod_drag_reorder_hint)) {
         ChatoneListItem(
             onClick = {
                 onEvent(SettingsEvent.OnOpenThemeCreator(null, ThemeCreatorSection.MODERATION_COLORS))
@@ -125,7 +144,7 @@ internal fun ModActionButtonsSection(
                 )
             },
             trailing = {
-                HelpHint(title = s.modButtonColors, text = s.modButtonColorHint, size = 28.dp)
+                HelpHint(title = stringResource(Res.string.mod_button_colors), text = stringResource(Res.string.mod_button_color_hint), size = 28.dp)
                 Icon(
                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
@@ -135,30 +154,30 @@ internal fun ModActionButtonsSection(
             }
         ) {
             Text(
-                s.modButtonColors,
+                stringResource(Res.string.mod_button_colors),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
 
         ModButtonsSwitchItem(
-            title = s.modSlider.buttonsInChat,
-            help = s.modSlider.buttonsInChatHelp,
-            subtitle = s.modSlider.buttonsInChatOff.takeUnless { state.modButtonsInChat },
+            title = stringResource(Res.string.mod_slider_buttons_in_chat),
+            help = stringResource(Res.string.mod_slider_buttons_in_chat_help),
+            subtitle = stringResource(Res.string.mod_slider_buttons_in_chat_off).takeUnless { state.modButtonsInChat },
             checked = state.modButtonsInChat,
             onCheckedChange = { onEvent(SettingsEvent.OnModButtonsInChatChanged(it)) }
         )
 
         if (state.modButtonsInChat && rememberInputCapabilities().pointer) {
             ModButtonsSwitchItem(
-                title = s.modButtonsOnHover,
-                help = s.modButtonsOnHoverDesc,
+                title = stringResource(Res.string.mod_buttons_on_hover),
+                help = stringResource(Res.string.mod_buttons_on_hover_desc),
                 checked = state.modButtonsOnHover,
                 onCheckedChange = { onEvent(SettingsEvent.OnModButtonsOnHoverChanged(it)) }
             )
         }
 
-        ChatoneFieldLabel(s.modPreviewLabel)
+        ChatoneFieldLabel(stringResource(Res.string.mod_preview_label))
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -175,7 +194,7 @@ internal fun ModActionButtonsSection(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
-        ChatoneFieldLabel(s.modPressDragReorder)
+        ChatoneFieldLabel(stringResource(Res.string.mod_press_drag_reorder))
         Column(verticalArrangement = Arrangement.spacedBy(ROW_SPACING)) {
             orderedButtons.forEachIndexed { index, button ->
                 key(button.id) {
@@ -256,9 +275,7 @@ internal fun ModActionButtonsSection(
         }
 
         ChatoneButton(
-            text = s.modAddTimeoutButtonCount
-                .replace("{0}", state.customModButtons.size.toString())
-                .replace("{1}", MAX_CUSTOM_MOD_BUTTONS.toString()),
+            text = stringResource(Res.string.mod_add_timeout_button_count, state.customModButtons.size, MAX_CUSTOM_MOD_BUTTONS),
             onClick = { showAddDialog = true },
             enabled = state.customModButtons.size < MAX_CUSTOM_MOD_BUTTONS,
             tone = ChatoneButtonTone.Neutral,
@@ -460,7 +477,6 @@ private fun ModButtonEditorDialog(
     onSave: (Int, String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     val timeoutTint = ChatoneTheme.extraColors.modTimeout
     var seconds by remember {
         mutableIntStateOf(initial?.durationSeconds?.takeIf { it > 0 } ?: DEFAULT_NEW_BUTTON_SECONDS)
@@ -470,22 +486,22 @@ private fun ModButtonEditorDialog(
 
     ChatoneDialog(
         onDismissRequest = onDismiss,
-        title = if (initial == null) s.modAddTimeoutButton else s.modEditTimeoutButton,
+        title = if (initial == null) stringResource(Res.string.mod_add_timeout_button) else stringResource(Res.string.mod_edit_timeout_button),
         maxWidth = 400.dp,
         actions = {
-            ChatoneButton(text = s.cancel, onClick = onDismiss, tone = ChatoneButtonTone.Neutral)
-            ChatoneButton(text = s.save, onClick = { onSave(seconds, label.trim()) })
+            ChatoneButton(text = stringResource(Res.string.cancel), onClick = onDismiss, tone = ChatoneButtonTone.Neutral)
+            ChatoneButton(text = stringResource(Res.string.save), onClick = { onSave(seconds, label.trim()) })
         }
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ChatoneFieldLabel(s.modPreviewLabel)
+            ChatoneFieldLabel(stringResource(Res.string.mod_preview_label))
             ModButtonTag(button = preview, onClick = null)
         }
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            ChatoneFieldLabel(s.modQuickPresets)
+            ChatoneFieldLabel(stringResource(Res.string.mod_quick_presets))
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -507,14 +523,14 @@ private fun ModButtonEditorDialog(
         ChatoneDurationField(
             totalSeconds = seconds,
             onValueChange = { seconds = it },
-            label = s.modDuration,
+            label = stringResource(Res.string.mod_duration),
             maxSeconds = ModActionButton.MAX_TIMEOUT_SECONDS,
             modifier = Modifier.fillMaxWidth()
         )
         ChatoneTextField(
             value = label,
             onValueChange = { label = it },
-            label = s.modCustomLabelOptional,
+            label = stringResource(Res.string.mod_custom_label_optional),
             placeholder = ModActionButton.formatDuration(seconds),
             singleLine = true,
             modifier = Modifier.fillMaxWidth()

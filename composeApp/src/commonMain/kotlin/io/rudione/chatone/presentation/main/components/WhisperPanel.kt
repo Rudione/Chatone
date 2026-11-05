@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.main
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.panel_message_placeholder
+import chatone.composeapp.generated.resources.panel_whispers
+import chatone.composeapp.generated.resources.panel_whispers_empty
+import chatone.composeapp.generated.resources.panel_whispers_hint
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,7 +33,6 @@ import io.rudione.chatone.domain.model.WhisperConversation
 import io.rudione.chatone.domain.model.WhisperMessage
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -106,7 +111,7 @@ fun WhisperPanel(
                         modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(10.dp))
-                    Text(LocalStrings.current.panelWhispers,
+                    Text(stringResource(Res.string.panel_whispers),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -163,10 +168,10 @@ fun WhisperPanel(
                                 modifier = Modifier.size(40.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f))
                             Spacer(Modifier.height(8.dp))
-                            Text(LocalStrings.current.panelWhispersEmpty,
+                            Text(stringResource(Res.string.panel_whispers_empty),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                            Text(LocalStrings.current.panelWhispersHint,
+                            Text(stringResource(Res.string.panel_whispers_hint),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f))
                         }
@@ -289,7 +294,7 @@ private fun WhisperChat(
                 value = inputText,
                 onValueChange = { inputText = it },
                 modifier = Modifier.weight(1f),
-                placeholder = LocalStrings.current.panelMessagePlaceholder.replace("{0}", conversation.username),
+                placeholder = stringResource(Res.string.panel_message_placeholder, (conversation.username)),
                 textStyle = MaterialTheme.typography.bodySmall,
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),

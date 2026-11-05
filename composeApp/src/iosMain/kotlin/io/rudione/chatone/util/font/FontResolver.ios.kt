@@ -1,5 +1,12 @@
 package io.rudione.chatone.util.font
 
+import androidx.compose.ui.text.platform.Font
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.addressOf
+import kotlinx.cinterop.usePinned
+import platform.Foundation.NSData
+import platform.Foundation.dataWithContentsOfFile
+import platform.posix.memcpy
 import androidx.compose.ui.text.font.FontFamily
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSString
@@ -43,7 +50,7 @@ actual fun resolveFontFamily(name: String, customPaths: List<String>): FontFamil
 
     for (path in customPaths) {
         if (fileExists(path) && fileNameWithoutExtension(path) == name) {
-            return guessGenericFamily(name)
+            return loadFontFile(path) ?: guessGenericFamily(name)
         }
     }
 
@@ -90,4 +97,16 @@ actual fun listAvailableFontNames(customPaths: List<String>): List<String> {
     }
 
     return result
+}
+
+private val loadedFonts = HashMap<String, FontFamily>()
+
+@OptIn(ExperimentalForeignApi::class)
+private fun loadFontFile(path: String): FontFamily? {
+    loadedFonts[path]?.let { return it }
+    val data = NSData.dataWithContentsOfFile(path) ?: return null
+    val length = data.length.toInt()
+    if (length == 0) return null
+    val bytes = ByteArray(length).also { out -> out.usePinned { memcpy(it.addressOf(0), data.bytes, data.length) } }
+    return runCatching { FontFamily(Font(identity = path, data = bytes)) }.getOrNull()?.also { loadedFonts[path] = it }
 }

@@ -8,6 +8,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -90,6 +91,12 @@ kotlin {
         }
         androidMain.get().dependsOn(mobileMain)
         iosMain.get().dependsOn(mobileMain)
+
+        val skiaMain = create("skiaMain") {
+            dependsOn(commonMain.get())
+        }
+        desktopMain.dependsOn(skiaMain)
+        iosMain.get().dependsOn(skiaMain)
 
         commonMain {
             kotlin.srcDir(layout.buildDirectory.dir("generated/source/buildConfig/commonMain/kotlin"))
@@ -573,5 +580,13 @@ tasks.register("publishRelease") {
         println("Release packages ready in build/compose/binaries/")
         println("Portable ZIP ready in build/distributions/")
         println("Windows setup (if built) in build/installer/")
+    }
+}
+
+tasks.withType<KotlinNativeSimulatorTest>().configureEach {
+    providers.gradleProperty("iosIntegrationDevice").orNull?.let { udid ->
+        device.set(udid)
+        standalone.set(false)
+        environment("SIMCTL_CHILD_CHATONE_IOS_INTEGRATION", "1")
     }
 }

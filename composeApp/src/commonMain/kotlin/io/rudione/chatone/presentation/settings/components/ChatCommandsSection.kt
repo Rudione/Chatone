@@ -1,5 +1,31 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.save
+import chatone.composeapp.generated.resources.settings_commands_add
+import chatone.composeapp.generated.resources.settings_commands_col_command
+import chatone.composeapp.generated.resources.settings_commands_col_hotkey
+import chatone.composeapp.generated.resources.settings_commands_create_macro
+import chatone.composeapp.generated.resources.settings_commands_desc
+import chatone.composeapp.generated.resources.settings_commands_edit
+import chatone.composeapp.generated.resources.settings_commands_empty
+import chatone.composeapp.generated.resources.settings_commands_hotkey
+import chatone.composeapp.generated.resources.settings_commands_hotkey_hint
+import chatone.composeapp.generated.resources.settings_commands_pick_macro
+import chatone.composeapp.generated.resources.settings_commands_replacement
+import chatone.composeapp.generated.resources.settings_commands_replacement_hint
+import chatone.composeapp.generated.resources.settings_commands_send_immediately
+import chatone.composeapp.generated.resources.settings_commands_send_immediately_desc
+import chatone.composeapp.generated.resources.settings_commands_title
+import chatone.composeapp.generated.resources.settings_commands_trigger
+import chatone.composeapp.generated.resources.settings_commands_trigger_hint
+import chatone.composeapp.generated.resources.settings_commands_type_macro
+import chatone.composeapp.generated.resources.settings_commands_type_text
+import chatone.composeapp.generated.resources.settings_commands_whole_only
+import chatone.composeapp.generated.resources.settings_commands_whole_only_desc
+import chatone.composeapp.generated.resources.settings_recording
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.components.expressive.HelpHint
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -36,7 +62,6 @@ import io.rudione.chatone.presentation.chat.keyToChar
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
@@ -152,27 +177,25 @@ private fun DividerThin() {
 
 @Composable
 private fun HeaderBlock() {
-    val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         BasicText(
-            s.settingsCommandsTitle,
+            stringResource(Res.string.settings_commands_title),
             modifier = Modifier.weight(1f, fill = false),
             style = MaterialTheme.typography.titleSmall.copy(
                 fontWeight = FontWeight.SemiBold,
                 color = scheme.onSurface
             )
         )
-        HelpHint(title = s.settingsCommandsTitle, text = s.settingsCommandsDesc, size = 28.dp)
+        HelpHint(title = stringResource(Res.string.settings_commands_title), text = stringResource(Res.string.settings_commands_desc), size = 28.dp)
     }
 }
 
 @Composable
 private fun Toolbar(count: Int, onAdd: () -> Unit) {
-    val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
@@ -188,7 +211,7 @@ private fun Toolbar(count: Int, onAdd: () -> Unit) {
             Icon(Icons.Filled.Add, null, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
             BasicText(
-                s.settingsCommandsAdd,
+                stringResource(Res.string.settings_commands_add),
                 style = MaterialTheme.typography.labelSmall.copy(color = scheme.onSecondaryContainer)
             )
         }
@@ -202,14 +225,13 @@ private fun Toolbar(count: Int, onAdd: () -> Unit) {
 
 @Composable
 private fun TableHeader() {
-    val s = LocalStrings.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TableHeaderCell(s.settingsCommandsTrigger, Modifier.weight(0.9f))
-        TableHeaderCell(s.settingsCommandsColCommand, Modifier.weight(2.2f))
-        TableHeaderCell(s.settingsCommandsColHotkey, Modifier.weight(1.0f))
+        TableHeaderCell(stringResource(Res.string.settings_commands_trigger), Modifier.weight(0.9f))
+        TableHeaderCell(stringResource(Res.string.settings_commands_col_command), Modifier.weight(2.2f))
+        TableHeaderCell(stringResource(Res.string.settings_commands_col_hotkey), Modifier.weight(1.0f))
         Spacer(Modifier.width(28.dp))
     }
 }
@@ -229,13 +251,12 @@ private fun TableHeaderCell(text: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun EmptyRow() {
-    val s = LocalStrings.current
     Box(
         modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
         contentAlignment = Alignment.Center
     ) {
         BasicText(
-            s.settingsCommandsEmpty,
+            stringResource(Res.string.settings_commands_empty),
             style = MaterialTheme.typography.bodySmall.copy(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -343,7 +364,6 @@ private fun CommandEditDialog(
     onDismiss: () -> Unit,
     onRequestCreateMacro: () -> Unit,
 ) {
-    val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
     var draft by remember(initial.id) { mutableStateOf(initial) }
 
@@ -364,7 +384,7 @@ private fun CommandEditDialog(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     BasicText(
-                        if (isNew) s.settingsCommandsAdd else s.settingsCommandsEdit,
+                        if (isNew) stringResource(Res.string.settings_commands_add) else stringResource(Res.string.settings_commands_edit),
                         style = MaterialTheme.typography.titleMedium.copy(
                             color = scheme.onSurface,
                             fontWeight = FontWeight.SemiBold
@@ -376,11 +396,11 @@ private fun CommandEditDialog(
                     }
                 }
 
-                CompactField(label = s.settingsCommandsTrigger) {
+                CompactField(label = stringResource(Res.string.settings_commands_trigger)) {
                     ChatoneTextField(
                         value = draft.trigger,
                         onValueChange = { draft = draft.copy(trigger = it.trim()) },
-                        placeholder = s.settingsCommandsTriggerHint,
+                        placeholder = stringResource(Res.string.settings_commands_trigger_hint),
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth()
@@ -393,24 +413,24 @@ private fun CommandEditDialog(
                 ) {
                     SegmentedChip(
                         selected = draft.kind == ChatCommandKind.TEXT,
-                        label = s.settingsCommandsTypeText,
+                        label = stringResource(Res.string.settings_commands_type_text),
                         onClick = { draft = draft.copy(kind = ChatCommandKind.TEXT) },
                         modifier = Modifier.weight(1f)
                     )
                     SegmentedChip(
                         selected = draft.kind == ChatCommandKind.MACRO,
-                        label = s.settingsCommandsTypeMacro,
+                        label = stringResource(Res.string.settings_commands_type_macro),
                         onClick = { draft = draft.copy(kind = ChatCommandKind.MACRO) },
                         modifier = Modifier.weight(1f)
                     )
                 }
 
                 if (draft.kind == ChatCommandKind.TEXT) {
-                    CompactField(label = s.settingsCommandsReplacement) {
+                    CompactField(label = stringResource(Res.string.settings_commands_replacement)) {
                         ChatoneTextField(
                             value = draft.replacement,
                             onValueChange = { draft = draft.copy(replacement = it) },
-                            placeholder = s.settingsCommandsReplacementHint,
+                            placeholder = stringResource(Res.string.settings_commands_replacement_hint),
                             singleLine = false,
                             maxLines = 6,
                             textStyle = MaterialTheme.typography.bodyMedium,
@@ -418,7 +438,7 @@ private fun CommandEditDialog(
                         )
                     }
                 } else {
-                    CompactField(label = s.settingsCommandsPickMacro) {
+                    CompactField(label = stringResource(Res.string.settings_commands_pick_macro)) {
                         MacroPicker(
                             selectedId = draft.macroId,
                             macros = macros,
@@ -428,7 +448,7 @@ private fun CommandEditDialog(
                     }
                 }
 
-                CompactField(label = s.settingsCommandsHotkey) {
+                CompactField(label = stringResource(Res.string.settings_commands_hotkey)) {
                     HotkeyCapture(
                         hotkey = draft.hotkey,
                         onChanged = { draft = draft.copy(hotkey = it) }
@@ -436,14 +456,14 @@ private fun CommandEditDialog(
                 }
 
                 ToggleRow(
-                    label = s.settingsCommandsWholeOnly,
-                    description = s.settingsCommandsWholeOnlyDesc,
+                    label = stringResource(Res.string.settings_commands_whole_only),
+                    description = stringResource(Res.string.settings_commands_whole_only_desc),
                     checked = draft.wholeMessageOnly,
                     onCheckedChange = { draft = draft.copy(wholeMessageOnly = it) }
                 )
                 ToggleRow(
-                    label = s.settingsCommandsSendImmediately,
-                    description = s.settingsCommandsSendImmediatelyDesc,
+                    label = stringResource(Res.string.settings_commands_send_immediately),
+                    description = stringResource(Res.string.settings_commands_send_immediately_desc),
                     checked = draft.sendImmediately,
                     onCheckedChange = { draft = draft.copy(sendImmediately = it) }
                 )
@@ -459,7 +479,7 @@ private fun CommandEditDialog(
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
                         BasicText(
-                            s.cancel,
+                            stringResource(Res.string.cancel),
                             style = MaterialTheme.typography.labelMedium.copy(color = scheme.primary)
                         )
                     }
@@ -474,7 +494,7 @@ private fun CommandEditDialog(
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
                         BasicText(
-                            s.save,
+                            stringResource(Res.string.save),
                             style = MaterialTheme.typography.labelMedium.copy(color = scheme.onPrimary)
                         )
                     }
@@ -534,7 +554,6 @@ private fun MacroPicker(
     onPick: (String) -> Unit,
     onCreate: () -> Unit
 ) {
-    val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
     val selectedMacro = macros.firstOrNull { it.id == selectedId }
     var expanded by remember { mutableStateOf(false) }
@@ -562,7 +581,7 @@ private fun MacroPicker(
                     )
                 } else {
                     BasicText(
-                        s.settingsCommandsPickMacro,
+                        stringResource(Res.string.settings_commands_pick_macro),
                         style = MaterialTheme.typography.bodySmall.copy(color = scheme.onSurfaceVariant),
                         modifier = Modifier.weight(1f)
                     )
@@ -589,7 +608,7 @@ private fun MacroPicker(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Add, null, modifier = Modifier.size(14.dp), tint = scheme.primary)
                         Spacer(Modifier.width(6.dp))
-                        BasicText(s.settingsCommandsCreateMacro, style = MaterialTheme.typography.bodySmall.copy(color = scheme.primary))
+                        BasicText(stringResource(Res.string.settings_commands_create_macro), style = MaterialTheme.typography.bodySmall.copy(color = scheme.primary))
                     }
                 },
                 onClick = { expanded = false; onCreate() }
@@ -600,7 +619,6 @@ private fun MacroPicker(
 
 @Composable
 private fun HotkeyCapture(hotkey: String, onChanged: (String) -> Unit) {
-    val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
     var recording by remember { mutableStateOf(false) }
     Row(
@@ -642,8 +660,8 @@ private fun HotkeyCapture(hotkey: String, onChanged: (String) -> Unit) {
         ) {
             BasicText(
                 when {
-                    recording -> s.settingsRecording
-                    hotkey.isBlank() -> s.settingsCommandsHotkeyHint
+                    recording -> stringResource(Res.string.settings_recording)
+                    hotkey.isBlank() -> stringResource(Res.string.settings_commands_hotkey_hint)
                     else -> hotkey.uppercase().replace("+", " + ")
                 },
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),

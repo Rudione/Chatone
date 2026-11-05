@@ -1,5 +1,21 @@
 package io.rudione.chatone.presentation.settings.sections
 
+import org.jetbrains.compose.resources.StringResource
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.mod_default_timeout_duration
+import chatone.composeapp.generated.resources.mod_local_automod
+import chatone.composeapp.generated.resources.mod_local_automod_desc
+import chatone.composeapp.generated.resources.mod_open_local_automod_editor
+import chatone.composeapp.generated.resources.mod_saved_ban_reason_label
+import chatone.composeapp.generated.resources.mod_saved_reasons_desc
+import chatone.composeapp.generated.resources.mod_saved_reasons_title
+import chatone.composeapp.generated.resources.mod_saved_timeout_reason_label
+import chatone.composeapp.generated.resources.mod_slider_buttons_in_slider_mode
+import chatone.composeapp.generated.resources.mod_slider_tab_buttons
+import chatone.composeapp.generated.resources.mod_slider_tab_general
+import chatone.composeapp.generated.resources.mod_slider_tab_macros
+import chatone.composeapp.generated.resources.mod_slider_tab_slider
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
@@ -41,13 +57,10 @@ import io.rudione.chatone.presentation.settings.components.ModActionButtonsSecti
 import io.rudione.chatone.presentation.settings.components.ModSliderSettings
 import io.rudione.chatone.presentation.settings.components.SettingsPair
 import io.rudione.chatone.presentation.settings.settingsAnchor
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.ModSliderStrings
 import io.rudione.chatone.util.system.isDesktopPlatform
 
 @Composable
 internal fun ModerationContent(state: SettingsState, onEvent: (SettingsEvent) -> Unit) {
-    val strings = LocalStrings.current.modSlider
     val page = LocalSettingsPage.current
     var localTab by remember { mutableStateOf(ModerationTab.GENERAL) }
     val tabs = ModerationTabs
@@ -57,7 +70,7 @@ internal fun ModerationContent(state: SettingsState, onEvent: (SettingsEvent) ->
         tabs = tabs,
         selected = selected,
         onSelect = select,
-        label = { tab -> moderationTabLabel(tab, strings) },
+        label = { tab -> moderationTabLabel(tab) },
         modifier = Modifier.padding(bottom = 10.dp)
     )
     AnimatedContent(
@@ -74,7 +87,7 @@ internal fun ModerationContent(state: SettingsState, onEvent: (SettingsEvent) ->
             ModerationTab.BUTTONS -> {
                 if (state.modSlider.enabled && isDesktopPlatform) {
                     Text(
-                        strings.buttonsInSliderMode,
+                        stringResource(Res.string.mod_slider_buttons_in_slider_mode),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 6.dp)
@@ -92,14 +105,13 @@ internal fun ModerationContent(state: SettingsState, onEvent: (SettingsEvent) ->
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ModerationGeneral(state: SettingsState, onEvent: (SettingsEvent) -> Unit) {
-    val s = LocalStrings.current
     var showAutomod by remember { mutableStateOf(false) }
     if (showAutomod) {
         DetachedAutomodWindow(currentChannelLogin = null, onClose = { showAutomod = false })
     }
     SettingsPair(
         first = {
-            SettingsCard(title = s.modDefaultTimeoutDuration) {
+            SettingsCard(title = stringResource(Res.string.mod_default_timeout_duration)) {
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -115,9 +127,9 @@ private fun ModerationGeneral(state: SettingsState, onEvent: (SettingsEvent) -> 
             }
         },
         second = {
-            SettingsCard(title = s.modLocalAutomod, help = s.modLocalAutomodDesc) {
+            SettingsCard(title = stringResource(Res.string.mod_local_automod), help = stringResource(Res.string.mod_local_automod_desc)) {
                 ChatoneButton(
-                    text = s.modOpenLocalAutomodEditor,
+                    text = stringResource(Res.string.mod_open_local_automod_editor),
                     onClick = { showAutomod = true },
                     tone = ChatoneButtonTone.Neutral,
                     icon = Lucide.Shield
@@ -125,20 +137,20 @@ private fun ModerationGeneral(state: SettingsState, onEvent: (SettingsEvent) -> 
             }
         }
     )
-    SettingsCard(title = s.modSavedReasonsTitle, help = s.modSavedReasonsDesc) {
+    SettingsCard(title = stringResource(Res.string.mod_saved_reasons_title), help = stringResource(Res.string.mod_saved_reasons_desc)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             ChatoneTextField(
                 value = state.savedTimeoutReason,
                 onValueChange = { onEvent(SettingsEvent.OnSavedTimeoutReasonChanged(it)) },
-                modifier = Modifier.weight(1f).settingsAnchor(s.modSavedTimeoutReasonLabel),
-                label = s.modSavedTimeoutReasonLabel,
+                modifier = Modifier.weight(1f).settingsAnchor(stringResource(Res.string.mod_saved_timeout_reason_label)),
+                label = stringResource(Res.string.mod_saved_timeout_reason_label),
                 singleLine = true
             )
             ChatoneTextField(
                 value = state.savedBanReason,
                 onValueChange = { onEvent(SettingsEvent.OnSavedBanReasonChanged(it)) },
-                modifier = Modifier.weight(1f).settingsAnchor(s.modSavedBanReasonLabel),
-                label = s.modSavedBanReasonLabel,
+                modifier = Modifier.weight(1f).settingsAnchor(stringResource(Res.string.mod_saved_ban_reason_label)),
+                label = stringResource(Res.string.mod_saved_ban_reason_label),
                 singleLine = true
             )
         }
@@ -156,9 +168,13 @@ private val DEFAULT_TIMEOUT_OPTIONS = listOf(
 
 private val ModerationTabs = ModerationTab.entries.filter { it != ModerationTab.SLIDER || isDesktopPlatform }
 
-internal fun moderationTabLabel(tab: ModerationTab, strings: ModSliderStrings): String = when (tab) {
-    ModerationTab.GENERAL -> strings.tabGeneral
-    ModerationTab.BUTTONS -> strings.tabButtons
-    ModerationTab.SLIDER -> strings.tabSlider
-    ModerationTab.MACROS -> strings.tabMacros
+internal fun ModerationTab.labelRes(): StringResource = when (this) {
+    ModerationTab.GENERAL -> Res.string.mod_slider_tab_general
+    ModerationTab.BUTTONS -> Res.string.mod_slider_tab_buttons
+    ModerationTab.SLIDER -> Res.string.mod_slider_tab_slider
+    ModerationTab.MACROS -> Res.string.mod_slider_tab_macros
 }
+
+
+@Composable
+internal fun moderationTabLabel(tab: ModerationTab): String = stringResource(tab.labelRes())

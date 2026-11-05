@@ -1,5 +1,20 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.creation_repeat_from_history
+import chatone.composeapp.generated.resources.poll_create_add_choice
+import chatone.composeapp.generated.resources.poll_create_choice_hint
+import chatone.composeapp.generated.resources.poll_create_duration
+import chatone.composeapp.generated.resources.poll_create_question_hint
+import chatone.composeapp.generated.resources.poll_create_submit
+import chatone.composeapp.generated.resources.poll_create_title
+import chatone.composeapp.generated.resources.prediction_create_add_outcome
+import chatone.composeapp.generated.resources.prediction_create_outcome_hint
+import chatone.composeapp.generated.resources.prediction_create_question_hint
+import chatone.composeapp.generated.resources.prediction_create_submit
+import chatone.composeapp.generated.resources.prediction_create_title
+import chatone.composeapp.generated.resources.prediction_create_window
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.drawBehind
@@ -37,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.ChartNoAxesColumn
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Plus
@@ -120,7 +134,7 @@ private fun HistoryRepeatRow(
     if (titles.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(
-            LocalStrings.current.creationRepeatFromHistory,
+            stringResource(Res.string.creation_repeat_from_history),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
@@ -256,7 +270,6 @@ internal fun PollCreationPanel(
     onSubmit: (title: String, choices: List<String>, durationSeconds: Int) -> Unit,
     onClose: () -> Unit
 ) {
-    val s = LocalStrings.current
     val accent = MaterialTheme.colorScheme.secondary
     var title by remember { mutableStateOf("") }
     var choices by remember { mutableStateOf(listOf("", "")) }
@@ -264,7 +277,7 @@ internal fun PollCreationPanel(
 
     CreationPanelFrame(
         icon = Lucide.Vote,
-        title = s.pollCreateTitle,
+        title = stringResource(Res.string.poll_create_title),
         accent = accent,
         onClose = onClose
     ) {
@@ -278,14 +291,14 @@ internal fun PollCreationPanel(
         ChatoneTextField(
             value = title,
             onValueChange = { title = it.take(60) },
-            placeholder = s.pollCreateQuestionHint,
+            placeholder = stringResource(Res.string.poll_create_question_hint),
             modifier = Modifier.fillMaxWidth()
         )
 
         choices.forEachIndexed { index, choice ->
             ChoiceInputRow(
                 value = choice,
-                placeholder = "${s.pollCreateChoiceHint} ${index + 1}",
+                placeholder = "${stringResource(Res.string.poll_create_choice_hint)} ${index + 1}",
                 onValueChange = { new -> choices = choices.toMutableList().also { it[index] = new.take(25) } },
                 onRemove = if (choices.size > 2) {
                     { choices = choices.toMutableList().also { it.removeAt(index) } }
@@ -293,18 +306,18 @@ internal fun PollCreationPanel(
             )
         }
         if (choices.size < 5) {
-            AddEntryButton(s.pollCreateAddChoice, accent) { choices = choices + "" }
+            AddEntryButton(stringResource(Res.string.poll_create_add_choice), accent) { choices = choices + "" }
         }
 
         Text(
-            s.pollCreateDuration,
+            stringResource(Res.string.poll_create_duration),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         DurationChipsRow(durationSeconds, accent) { durationSeconds = it }
 
         SubmitButton(
-            label = s.pollCreateSubmit,
+            label = stringResource(Res.string.poll_create_submit),
             accent = accent,
             enabled = title.isNotBlank() && choices.count { it.isNotBlank() } >= 2
         ) {
@@ -319,7 +332,6 @@ internal fun PredictionCreationPanel(
     onSubmit: (title: String, outcomes: List<String>, windowSeconds: Int) -> Unit,
     onClose: () -> Unit
 ) {
-    val s = LocalStrings.current
     val accent = MaterialTheme.colorScheme.tertiary
     var title by remember { mutableStateOf("") }
     var outcomes by remember { mutableStateOf(listOf("", "")) }
@@ -327,7 +339,7 @@ internal fun PredictionCreationPanel(
 
     CreationPanelFrame(
         icon = Lucide.ChartNoAxesColumn,
-        title = s.predictionCreateTitle,
+        title = stringResource(Res.string.prediction_create_title),
         accent = accent,
         onClose = onClose
     ) {
@@ -341,14 +353,14 @@ internal fun PredictionCreationPanel(
         ChatoneTextField(
             value = title,
             onValueChange = { title = it.take(45) },
-            placeholder = s.predictionCreateQuestionHint,
+            placeholder = stringResource(Res.string.prediction_create_question_hint),
             modifier = Modifier.fillMaxWidth()
         )
 
         outcomes.forEachIndexed { index, outcome ->
             ChoiceInputRow(
                 value = outcome,
-                placeholder = "${s.predictionCreateOutcomeHint} ${index + 1}",
+                placeholder = "${stringResource(Res.string.prediction_create_outcome_hint)} ${index + 1}",
                 onValueChange = { new -> outcomes = outcomes.toMutableList().also { it[index] = new.take(25) } },
                 onRemove = if (outcomes.size > 2) {
                     { outcomes = outcomes.toMutableList().also { it.removeAt(index) } }
@@ -356,18 +368,18 @@ internal fun PredictionCreationPanel(
             )
         }
         if (outcomes.size < 10) {
-            AddEntryButton(s.predictionCreateAddOutcome, accent) { outcomes = outcomes + "" }
+            AddEntryButton(stringResource(Res.string.prediction_create_add_outcome), accent) { outcomes = outcomes + "" }
         }
 
         Text(
-            s.predictionCreateWindow,
+            stringResource(Res.string.prediction_create_window),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         DurationChipsRow(windowSeconds, accent) { windowSeconds = it }
 
         SubmitButton(
-            label = s.predictionCreateSubmit,
+            label = stringResource(Res.string.prediction_create_submit),
             accent = accent,
             enabled = title.isNotBlank() && outcomes.count { it.isNotBlank() } >= 2
         ) {

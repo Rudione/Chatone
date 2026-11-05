@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.insights_tab_roles
+import chatone.composeapp.generated.resources.profile_tab_dossier
+import chatone.composeapp.generated.resources.profile_tab_history
+import chatone.composeapp.generated.resources.profile_tab_messages
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 internal enum class ProfileCardTab { Messages, Dossier, Roles, ModHistory }
 
@@ -23,7 +28,10 @@ internal fun ProfileCardTabRow(
     compact: Boolean,
     trailing: @Composable () -> Unit = {}
 ) {
-    val s = LocalStrings.current
+    val profileTabMessagesText = stringResource(Res.string.profile_tab_messages)
+    val profileTabDossierText = stringResource(Res.string.profile_tab_dossier)
+    val insightsTabRolesText = stringResource(Res.string.insights_tab_roles)
+    val profileTabHistoryText = stringResource(Res.string.profile_tab_history)
     val tabs = if (showHistory) ProfileCardTabsWithHistory else ProfileCardTabsWithoutHistory
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = if (compact) 2.dp else 4.dp, end = if (compact) 3.dp else 6.dp),
@@ -35,10 +43,10 @@ internal fun ProfileCardTabRow(
             onSelect = onSelect,
             label = { tab ->
                 when (tab) {
-                    ProfileCardTab.Messages -> s.profileTabMessages
-                    ProfileCardTab.Dossier -> s.profileTabDossier
-                    ProfileCardTab.Roles -> s.insights.tabRoles
-                    ProfileCardTab.ModHistory -> s.profileTabHistory
+                    ProfileCardTab.Messages -> profileTabMessagesText
+                    ProfileCardTab.Dossier -> profileTabDossierText
+                    ProfileCardTab.Roles -> insightsTabRolesText
+                    ProfileCardTab.ModHistory -> profileTabHistoryText
                 }
             },
             badge = { tab ->

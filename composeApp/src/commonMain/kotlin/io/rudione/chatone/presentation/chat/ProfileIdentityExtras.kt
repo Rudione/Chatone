@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.insights_aka_seen
+import chatone.composeapp.generated.resources.insights_aka_title
+import chatone.composeapp.generated.resources.insights_name_color
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +38,6 @@ import io.rudione.chatone.icons.lucide.Check
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.platform.setText
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -43,7 +47,6 @@ private const val COPY_FEEDBACK_MS = 1_400L
 @Composable
 internal fun ProfileAkaChip(names: List<NameHistoryEntry>) {
     if (names.isEmpty()) return
-    val insights = LocalStrings.current.insights
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -77,7 +80,7 @@ internal fun ProfileAkaChip(names: List<NameHistoryEntry>) {
             modifier = Modifier.widthIn(min = 200.dp)
         ) {
             Text(
-                insights.akaTitle,
+                stringResource(Res.string.insights_aka_title),
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = muted.copy(alpha = 0.7f),
@@ -90,7 +93,7 @@ internal fun ProfileAkaChip(names: List<NameHistoryEntry>) {
                     val to = entry.lastSeenMs?.let(::formatDate)
                     if (from != null && to != null) {
                         Text(
-                            insights.akaSeen(from, to),
+                            stringResource(Res.string.insights_aka_seen, from, to),
                             style = MaterialTheme.typography.labelSmall,
                             color = muted.copy(alpha = 0.6f)
                         )
@@ -104,7 +107,6 @@ internal fun ProfileAkaChip(names: List<NameHistoryEntry>) {
 @Composable
 internal fun ProfileColorChip(hex: String?) {
     val color = parseHexColor(hex) ?: return
-    val insights = LocalStrings.current.insights
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var copied by remember { mutableStateOf(false) }
@@ -114,7 +116,7 @@ internal fun ProfileColorChip(hex: String?) {
             copied = false
         }
     }
-    LiquidGlassTooltipBox(tooltip = insights.nameColor) {
+    LiquidGlassTooltipBox(tooltip = stringResource(Res.string.insights_name_color)) {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))

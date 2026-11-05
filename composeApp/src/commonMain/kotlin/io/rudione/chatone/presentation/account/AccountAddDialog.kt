@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.account
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.accounts_add
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.login_open_site_hint
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.Column
@@ -24,7 +29,6 @@ import io.rudione.chatone.data.repository.RightsHandoff
 import io.rudione.chatone.data.repository.WebLoginStage
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.presentation.auth.WebLoginPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 
 @Composable
@@ -33,7 +37,6 @@ fun AccountAddDialog(
     onAccountAdded: (TwitchAccount) -> Unit,
     controller: WebLoginController = koinInject()
 ) {
-    val strings = LocalStrings.current
     val uriHandler = LocalUriHandler.current
     val stage by controller.stage.collectAsState()
     val deviceState by controller.deviceAuthState.collectAsState()
@@ -62,11 +65,11 @@ fun AccountAddDialog(
             controller.reset()
             onDismiss()
         },
-        title = { Text(strings.accountsAdd) },
+        title = { Text(stringResource(Res.string.accounts_add)) },
         text = {
             Column(modifier = Modifier.widthIn(min = 340.dp, max = 460.dp)) {
                 Text(
-                    text = strings.loginOpenSiteHint,
+                    text = stringResource(Res.string.login_open_site_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -101,7 +104,7 @@ fun AccountAddDialog(
                     controller.reset()
                     onDismiss()
                 }
-            ) { Text(strings.cancel) }
+            ) { Text(stringResource(Res.string.cancel)) }
         }
     )
 }

@@ -19,7 +19,6 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -132,8 +131,8 @@ class TwitchEventSubClient(
                     val event = payload?.get("event")?.jsonObject ?: return null
                     when (subType) {
                         "channel.moderate" -> handleModerate(event)
-                        "automod.message.hold" -> handleAutoModHold(event)
-                        "automod.message.update" -> handleAutoModUpdate(event)
+                        RewardRedemptionParser.EVENTSUB_REDEMPTION_ADD ->
+                            RewardRedemptionParser.fromEventSub(event)?.let { _events.emit(IrcEvent.RewardRedeemed(it)) }
                     }
                 }
             }
@@ -155,20 +154,15 @@ class TwitchEventSubClient(
             condition = condition,
             sessionId = sessionId
         )
-        apiClient.createEventSubSubscription(
-            accessToken = currentToken,
-            type = "automod.message.hold",
-            version = "2",
-            condition = condition,
-            sessionId = sessionId
-        )
-        apiClient.createEventSubSubscription(
-            accessToken = currentToken,
-            type = "automod.message.update",
-            version = "2",
-            condition = condition,
-            sessionId = sessionId
-        )
+        if (currentUserId == currentChannelId) {
+            apiClient.createEventSubSubscription(
+                accessToken = currentToken,
+                type = RewardRedemptionParser.EVENTSUB_REDEMPTION_ADD,
+                version = "1",
+                condition = mapOf("broadcaster_user_id" to currentChannelId),
+                sessionId = sessionId
+            )
+        }
     }
 
     private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.content
@@ -222,54 +216,6 @@ class TwitchEventSubClient(
                 duration = duration,
                 reason = reason,
                 targetMessageId = targetMessageId
-            )
-        )
-    }
-
-    private suspend fun handleAutoModHold(event: JsonObject) {
-        val msgId = event.str("message_id") ?: return
-        val userId = event.str("user_id") ?: ""
-        val login = event.str("user_login") ?: ""
-        val displayName = event.str("user_name") ?: login
-        val messageObj = event["message"]?.jsonObject
-        val text = messageObj?.str("text")
-            ?: messageObj?.get("fragments")?.jsonArray
-                ?.joinToString("") { it.jsonObject.str("text") ?: "" }
-            ?: ""
-        val category = event["automod"]?.jsonObject?.str("category")
-            ?: event["category"]?.jsonPrimitive?.content
-        val level = event["automod"]?.jsonObject?.str("level")?.toIntOrNull()
-            ?: event["level"]?.jsonPrimitive?.content?.toIntOrNull()
-
-        _events.emit(
-            IrcEvent.AutoModHeld(
-                channel = currentChannelId,
-                msgId = msgId,
-                userId = userId,
-                username = login,
-                displayName = displayName,
-                message = text,
-                color = null,
-                reasonCategory = category,
-                reasonLevel = level
-            )
-        )
-    }
-
-    private suspend fun handleAutoModUpdate(event: JsonObject) {
-        val msgId = event.str("message_id") ?: return
-        val resolvedBy = event.str("moderator_user_login") ?: "a moderator"
-        val status = when (event.str("status")?.lowercase()) {
-            "approved" -> "ALLOWED"
-            "denied" -> "DENIED"
-            else -> return
-        }
-        _events.emit(
-            IrcEvent.AutoModResolved(
-                channel = currentChannelId,
-                msgId = msgId,
-                resolvedBy = resolvedBy,
-                action = status
             )
         )
     }

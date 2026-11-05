@@ -1,7 +1,36 @@
 package io.rudione.chatone.presentation.auth
 
-import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.ic_twitch
+import chatone.composeapp.generated.resources.auth_browser_body
+import chatone.composeapp.generated.resources.auth_browser_title
+import chatone.composeapp.generated.resources.auth_manual_entry
+import chatone.composeapp.generated.resources.auth_mirror
+import chatone.composeapp.generated.resources.auth_paste_action
+import chatone.composeapp.generated.resources.auth_paste_body
+import chatone.composeapp.generated.resources.auth_paste_manual
+import chatone.composeapp.generated.resources.auth_paste_title
+import chatone.composeapp.generated.resources.auth_preparing_link
+import chatone.composeapp.generated.resources.auth_reopen
+import chatone.composeapp.generated.resources.auth_rights_body
+import chatone.composeapp.generated.resources.auth_rights_failed
+import chatone.composeapp.generated.resources.auth_rights_in_browser
+import chatone.composeapp.generated.resources.auth_rights_on_site
+import chatone.composeapp.generated.resources.auth_rights_title
+import chatone.composeapp.generated.resources.auth_sign_in_action
+import chatone.composeapp.generated.resources.auth_sign_in_body
+import chatone.composeapp.generated.resources.auth_sign_in_body_manual
+import chatone.composeapp.generated.resources.auth_sign_in_title
+import chatone.composeapp.generated.resources.auth_skip
+import chatone.composeapp.generated.resources.auth_waiting
+import chatone.composeapp.generated.resources.loading
+import chatone.composeapp.generated.resources.login_code_accepted
+import chatone.composeapp.generated.resources.login_open_activation
+import chatone.composeapp.generated.resources.login_paste_manual_label
+import chatone.composeapp.generated.resources.login_retry_now
+import chatone.composeapp.generated.resources.login_retrying
+import chatone.composeapp.generated.resources.login_verifying
+import org.jetbrains.compose.resources.stringResource
+import chatone.composeapp.generated.resources.Res
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -58,9 +87,7 @@ import io.rudione.chatone.presentation.components.expressive.GlassIconButton
 import io.rudione.chatone.presentation.components.expressive.HeroPillButton
 import io.rudione.chatone.presentation.components.expressive.PillButton
 import io.rudione.chatone.presentation.components.expressive.PillTone
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.jetbrains.compose.resources.vectorResource
-import io.rudione.chatone.presentation.theme.i18n.format
 
 @Composable
 internal fun StepHeading(title: String, body: String) {
@@ -82,11 +109,10 @@ internal fun StepHeading(title: String, body: String) {
 
 @Composable
 internal fun ColumnScope.SignInPanel(state: AuthState, actions: AuthActions) {
-    val s = LocalStrings.current
-    StepHeading(s.authSignInTitle, if (state.automaticReturn) s.authSignInBody else s.authSignInBodyManual)
+    StepHeading(stringResource(Res.string.auth_sign_in_title), if (state.automaticReturn) stringResource(Res.string.auth_sign_in_body) else stringResource(Res.string.auth_sign_in_body_manual))
     PanelGap()
     HeroPillButton(
-        text = s.authSignInAction,
+        text = stringResource(Res.string.auth_sign_in_action),
         onClick = actions.onStartLogin,
         icon = vectorResource(Res.drawable.ic_twitch),
         loading = state.isPreparing,
@@ -94,25 +120,24 @@ internal fun ColumnScope.SignInPanel(state: AuthState, actions: AuthActions) {
     )
     when {
         state.isPreparing && state.prepareAttempt > 1 -> StatusChip(
-            s.format(s.loginRetrying, state.prepareAttempt, WebLoginController.DEVICE_ATTEMPTS),
+            stringResource(Res.string.login_retrying, state.prepareAttempt, WebLoginController.DEVICE_ATTEMPTS),
             progress = true
         )
-        state.failure != null -> ErrorChip(s.loginFailureText(state.failure))
+        state.failure != null -> ErrorChip(loginFailureText(state.failure))
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ColumnScope.PastePanel(state: AuthState, paste: LoginPasteWatcher, actions: AuthActions) {
-    val s = LocalStrings.current
     val busy = state.isPreparing || state.isVerifying
     var manualOpen by remember { mutableStateOf(false) }
     val automatic = state.automaticReturn
     if (automatic) {
-        StepHeading(s.authBrowserTitle, s.authBrowserBody)
+        StepHeading(stringResource(Res.string.auth_browser_title), stringResource(Res.string.auth_browser_body))
         PanelGap()
         PillButton(
-            text = s.authReopen,
+            text = stringResource(Res.string.auth_reopen),
             onClick = actions.onReopenBrowser,
             icon = Lucide.RefreshCw,
             tone = PillTone.Tonal,
@@ -121,10 +146,10 @@ internal fun ColumnScope.PastePanel(state: AuthState, paste: LoginPasteWatcher, 
             modifier = Modifier.fillMaxWidth()
         )
     } else {
-        StepHeading(s.authPasteTitle, s.authPasteBody)
+        StepHeading(stringResource(Res.string.auth_paste_title), stringResource(Res.string.auth_paste_body))
         PanelGap()
         PillButton(
-            text = s.authPasteAction,
+            text = stringResource(Res.string.auth_paste_action),
             onClick = paste::pasteFromClipboard,
             icon = Lucide.ClipboardPaste,
             loading = state.isVerifying,
@@ -137,12 +162,12 @@ internal fun ColumnScope.PastePanel(state: AuthState, paste: LoginPasteWatcher, 
         horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally)
     ) {
         if (automatic) {
-            PillButton(s.authPasteManual, paste::pasteFromClipboard, icon = Lucide.ClipboardPaste, tone = PillTone.Ghost, enabled = !busy, height = 44.dp)
+            PillButton(stringResource(Res.string.auth_paste_manual), paste::pasteFromClipboard, icon = Lucide.ClipboardPaste, tone = PillTone.Ghost, enabled = !busy, height = 44.dp)
         } else {
-            PillButton(s.authReopen, actions.onReopenBrowser, icon = Lucide.RefreshCw, tone = PillTone.Ghost, enabled = !busy, height = 44.dp)
+            PillButton(stringResource(Res.string.auth_reopen), actions.onReopenBrowser, icon = Lucide.RefreshCw, tone = PillTone.Ghost, enabled = !busy, height = 44.dp)
         }
-        PillButton(s.authMirror, actions.onOpenMirror, icon = Lucide.Globe, tone = PillTone.Ghost, enabled = !busy, height = 44.dp)
-        PillButton(s.authManualEntry, { manualOpen = !manualOpen }, tone = PillTone.Ghost, enabled = !busy, height = 44.dp)
+        PillButton(stringResource(Res.string.auth_mirror), actions.onOpenMirror, icon = Lucide.Globe, tone = PillTone.Ghost, enabled = !busy, height = 44.dp)
+        PillButton(stringResource(Res.string.auth_manual_entry), { manualOpen = !manualOpen }, tone = PillTone.Ghost, enabled = !busy, height = 44.dp)
     }
     AnimatedVisibility(
         visible = manualOpen,
@@ -153,13 +178,13 @@ internal fun ColumnScope.PastePanel(state: AuthState, paste: LoginPasteWatcher, 
             value = paste.manualPayload,
             onValueChange = paste::type,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            label = s.loginPasteManualLabel,
+            label = stringResource(Res.string.login_paste_manual_label),
             enabled = !busy,
             trailing = {
                 if (paste.manualPayload.isNotBlank() && !busy) {
                     GlassIconButton(
                         icon = Lucide.Check,
-                        contentDescription = s.loginPasteManualLabel,
+                        contentDescription = stringResource(Res.string.login_paste_manual_label),
                         onClick = paste::submitManual,
                         size = 40.dp
                     )
@@ -170,16 +195,16 @@ internal fun ColumnScope.PastePanel(state: AuthState, paste: LoginPasteWatcher, 
     val failure = state.failure
     when {
         state.isVerifying && state.verifyAttempt > 1 -> StatusChip(
-            s.format(s.loginRetrying, state.verifyAttempt, WebLoginController.VERIFY_ATTEMPTS),
+            stringResource(Res.string.login_retrying, state.verifyAttempt, WebLoginController.VERIFY_ATTEMPTS),
             progress = true
         )
-        state.isVerifying -> StatusChip(s.loginVerifying, progress = true)
-        failure != null -> ErrorChip(s.loginFailureText(failure))
-        paste.codeAccepted -> StatusChip(s.loginCodeAccepted, icon = Lucide.Check)
+        state.isVerifying -> StatusChip(stringResource(Res.string.login_verifying), progress = true)
+        failure != null -> ErrorChip(loginFailureText(failure))
+        paste.codeAccepted -> StatusChip(stringResource(Res.string.login_code_accepted), icon = Lucide.Check)
     }
     if (failure == LoginFailure.Network) {
         PillButton(
-            text = s.loginRetryNow,
+            text = stringResource(Res.string.login_retry_now),
             onClick = actions.onRetryPayload,
             icon = Lucide.RefreshCw,
             tone = PillTone.Tonal,
@@ -192,29 +217,28 @@ internal fun ColumnScope.PastePanel(state: AuthState, paste: LoginPasteWatcher, 
 
 @Composable
 internal fun ColumnScope.RightsPanel(state: AuthState, actions: AuthActions) {
-    val s = LocalStrings.current
     val device = state.deviceState
     val failed = state.failure == LoginFailure.RightsNotGranted
     val onSite = device == DeviceAuthState.ConfirmingOnLoginPage
     val inBrowser = state.rightsHandoff == RightsHandoff.InBrowser
     StepHeading(
-        s.authRightsTitle,
+        stringResource(Res.string.auth_rights_title),
         when {
-            onSite -> s.authRightsOnSite
-            inBrowser -> s.authRightsInBrowser
-            else -> s.authRightsBody
+            onSite -> stringResource(Res.string.auth_rights_on_site)
+            inBrowser -> stringResource(Res.string.auth_rights_in_browser)
+            else -> stringResource(Res.string.auth_rights_body)
         }
     )
     PanelGap()
     when {
         failed -> PillButton(
-            text = s.loginRetryNow,
+            text = stringResource(Res.string.login_retry_now),
             onClick = actions.onRetryRights,
             icon = Lucide.RefreshCw,
             modifier = Modifier.fillMaxWidth()
         )
         !onSite -> PillButton(
-            text = if (inBrowser) s.authReopen else s.loginOpenActivation,
+            text = if (inBrowser) stringResource(Res.string.auth_reopen) else stringResource(Res.string.login_open_activation),
             onClick = actions.onOpenActivation,
             icon = if (inBrowser) Lucide.RefreshCw else Lucide.ExternalLink,
             tone = if (inBrowser) PillTone.Tonal else PillTone.Primary,
@@ -223,17 +247,17 @@ internal fun ColumnScope.RightsPanel(state: AuthState, actions: AuthActions) {
         )
     }
     PillButton(
-        text = s.authSkip,
+        text = stringResource(Res.string.auth_skip),
         onClick = actions.onContinueWithoutRights,
         tone = PillTone.Ghost,
         height = 44.dp,
         modifier = Modifier.padding(top = 6.dp)
     )
     when {
-        failed -> ErrorChip(s.authRightsFailed)
-        device == DeviceAuthState.Validating -> StatusChip(s.loginVerifying, progress = true)
-        state.activationUrl == null && !onSite -> StatusChip(s.authPreparingLink, progress = true)
-        else -> StatusChip(s.authWaiting, progress = true)
+        failed -> ErrorChip(stringResource(Res.string.auth_rights_failed))
+        device == DeviceAuthState.Validating -> StatusChip(stringResource(Res.string.login_verifying), progress = true)
+        state.activationUrl == null && !onSite -> StatusChip(stringResource(Res.string.auth_preparing_link), progress = true)
+        else -> StatusChip(stringResource(Res.string.auth_waiting), progress = true)
     }
 }
 
@@ -305,7 +329,7 @@ private fun Chip(
 internal fun CheckingPanel() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            LocalStrings.current.loading,
+            stringResource(Res.string.loading),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

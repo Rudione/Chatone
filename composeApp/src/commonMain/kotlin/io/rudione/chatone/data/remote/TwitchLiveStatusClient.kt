@@ -9,6 +9,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.content.TextContent
 import io.ktor.http.isSuccess
+import io.rudione.chatone.domain.channel.ChannelSnapshot
 import io.rudione.chatone.domain.model.LiveStreamSnapshot
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
@@ -27,21 +28,32 @@ class TwitchLiveStatusClient(private val httpClient: HttpClient) {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun liveStreams(logins: Collection<String>): Map<String, LiveStreamSnapshot>? {
+    suspend fun liveStreams(logins: Collection<String>): Map<String, LiveStreamSnapshot>? =
+        collect(logins, USERS_QUERY, ::snapshotOf) { it.login }
+
+    suspend fun profiles(logins: Collection<String>): Map<String, ChannelSnapshot>? =
+        collect(logins, PROFILES_QUERY, ::profileOf) { it.login }
+
+    private suspend fun <T> collect(
+        logins: Collection<String>,
+        gql: String,
+        parse: (JsonObject) -> T?,
+        keyOf: (T) -> String
+    ): Map<String, T>? {
         val valid =
             logins.map { it.trim().lowercase() }.filter { LOGIN_PATTERN.matches(it) }.distinct()
         if (valid.isEmpty()) return emptyMap()
-        val result = HashMap<String, LiveStreamSnapshot>()
+        val result = HashMap<String, T>()
         for (chunk in valid.chunked(MAX_LOGINS_PER_REQUEST)) {
-            val users = query(chunk) ?: return null
-            users.forEach { user -> snapshotOf(user)?.let { result[it.login] = it } }
+            val users = query(gql, chunk) ?: return null
+            users.forEach { user -> parse(user)?.let { result[keyOf(it)] = it } }
         }
         return result
     }
 
-    private suspend fun query(logins: List<String>): List<JsonObject>? = try {
+    private suspend fun query(gql: String, logins: List<String>): List<JsonObject>? = try {
         val payload = buildJsonObject {
-            put("query", USERS_QUERY)
+            put("query", gql)
             putJsonObject("variables") { putJsonArray("logins") { logins.forEach { add(it) } } }
         }
         val response = httpClient.post(GQL_ENDPOINT) {
@@ -81,6 +93,16 @@ class TwitchLiveStatusClient(private val httpClient: HttpClient) {
         )
     }
 
+    private fun profileOf(user: JsonObject): ChannelSnapshot? {
+        val login =
+            user.string("login")?.lowercase()?.takeIf { LOGIN_PATTERN.matches(it) } ?: return null
+        return ChannelSnapshot(
+            login = login,
+            displayName = user.string("displayName")?.takeIf { it.isNotBlank() } ?: login,
+            avatarUrl = user.string("profileImageURL").orEmpty()
+        )
+    }
+
     private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 
     private companion object {
@@ -92,6 +114,8 @@ class TwitchLiveStatusClient(private val httpClient: HttpClient) {
         const val USERS_QUERY =
             "query(\$logins: [String!]) { users(logins: \$logins) { login displayName " +
                     "stream { id createdAt title game { displayName } } } }"
+        const val PROFILES_QUERY =
+            "query(\$logins: [String!]) { users(logins: \$logins) { login displayName profileImageURL(width: 70) } }"
         val LOGIN_PATTERN = Regex("^[a-z0-9_]{1,25}$")
     }
 }

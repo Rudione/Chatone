@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import chatone.composeapp.generated.resources.ui_close
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.main_move_to_folder
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -55,7 +59,6 @@ import io.rudione.chatone.presentation.components.CountChipTone
 import io.rudione.chatone.presentation.components.ChatoneCountChip
 import io.rudione.chatone.presentation.components.ChatoneCountBadge
 import io.rudione.chatone.presentation.components.GlowSurface
-import io.rudione.chatone.presentation.components.GradientButton
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
@@ -75,7 +78,6 @@ import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.util.media.WallpaperLoader
 import io.rudione.chatone.util.system.handleHover
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -145,7 +147,8 @@ internal fun CompactChannelAvatar(
                                 val event = awaitPointerEvent()
                                 when (event.type) {
                                     PointerEventType.Enter -> {
-                                        val pos = event.changes.firstOrNull()?.position ?: Offset.Zero
+                                        val pos =
+                                            event.changes.firstOrNull()?.position ?: Offset.Zero
                                         tooltipOffset = IntOffset(
                                             pos.x.toInt() + tooltipGapPx,
                                             pos.y.toInt() - tooltipLiftPx
@@ -154,7 +157,8 @@ internal fun CompactChannelAvatar(
                                     }
 
                                     PointerEventType.Move -> {
-                                        val pos = event.changes.firstOrNull()?.position ?: Offset.Zero
+                                        val pos =
+                                            event.changes.firstOrNull()?.position ?: Offset.Zero
                                         tooltipOffset = IntOffset(
                                             pos.x.toInt() + tooltipGapPx,
                                             pos.y.toInt() - tooltipLiftPx
@@ -324,7 +328,7 @@ internal fun ChannelItemWithDrag(
                 ) {
                     Icon(
                         Lucide.Folder,
-                        contentDescription = LocalStrings.current.mainMoveToFolder,
+                        contentDescription = stringResource(Res.string.main_move_to_folder),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
@@ -354,7 +358,7 @@ internal fun ChannelItemWithDrag(
                 ChatoneIconButton(onClick = onClose, modifier = Modifier.size(20.dp)) {
                     Icon(
                         Lucide.X,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(Res.string.ui_close),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )

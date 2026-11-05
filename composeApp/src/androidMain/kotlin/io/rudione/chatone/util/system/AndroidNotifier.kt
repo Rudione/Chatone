@@ -1,5 +1,15 @@
 package io.rudione.chatone.util.system
 
+import chatone.composeapp.generated.resources.notification_channel_mentions
+import chatone.composeapp.generated.resources.notification_channel_live
+import chatone.composeapp.generated.resources.notification_channel_background
+import chatone.composeapp.generated.resources.background_connection_title
+import chatone.composeapp.generated.resources.background_connection_text
+import chatone.composeapp.generated.resources.background_connection_stop
+import chatone.composeapp.generated.resources.Res
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.compose.resources.getString
+import org.jetbrains.compose.resources.StringResource
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -13,7 +23,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.shared.R
 import kotlin.random.Random
 
@@ -36,23 +45,22 @@ object AndroidNotifier {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         runCatching {
             val manager = context.getSystemService(NotificationManager::class.java) ?: return
-            val strings = strings()
             manager.createNotificationChannels(
                 listOf(
                     NotificationChannel(CHANNEL_GENERAL, "Chatone", NotificationManager.IMPORTANCE_DEFAULT),
                     NotificationChannel(
                         CHANNEL_MENTIONS,
-                        strings.notificationChannelMentions,
+                        text(Res.string.notification_channel_mentions),
                         NotificationManager.IMPORTANCE_HIGH
                     ),
                     NotificationChannel(
                         CHANNEL_LIVE,
-                        strings.notificationChannelLive,
+                        text(Res.string.notification_channel_live),
                         NotificationManager.IMPORTANCE_DEFAULT
                     ),
                     NotificationChannel(
                         CHANNEL_BACKGROUND,
-                        strings.notificationChannelBackground,
+                        text(Res.string.notification_channel_background),
                         NotificationManager.IMPORTANCE_MIN
                     ).apply { setShowBadge(false) }
                 )
@@ -121,18 +129,17 @@ object AndroidNotifier {
 
     fun backgroundConnectionNotification(context: Context, stopIntent: PendingIntent): Notification {
         ensureChannels(context)
-        val strings = strings()
         return NotificationCompat.Builder(context, CHANNEL_BACKGROUND)
             .setSmallIcon(R.drawable.chatbubbles)
-            .setContentTitle(strings.backgroundConnectionTitle)
-            .setContentText(strings.backgroundConnectionText)
+            .setContentTitle(text(Res.string.background_connection_title))
+            .setContentText(text(Res.string.background_connection_text))
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setOngoing(true)
             .setShowWhen(false)
             .setSilent(true)
             .setContentIntent(contentIntent(context, null))
-            .addAction(0, strings.backgroundConnectionStop, stopIntent)
+            .addAction(0, text(Res.string.background_connection_stop), stopIntent)
             .build()
     }
 
@@ -168,5 +175,8 @@ object AndroidNotifier {
         else Intent(Intent.ACTION_MAIN).setPackage(packageName)
     }
 
-    private fun strings(): AppStrings = AppStrings.forLocale(SettingsViewModel.currentLanguage())
+    private fun text(resource: StringResource): String {
+        SettingsViewModel.currentLanguage()
+        return runBlocking { getString(resource) }
+    }
 }

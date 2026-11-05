@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.auth
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.auth_guest
+import chatone.composeapp.generated.resources.auth_support
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -52,7 +56,6 @@ import io.rudione.chatone.presentation.components.expressive.ScallopBadge
 import io.rudione.chatone.presentation.components.expressive.ambientHaze
 import io.rudione.chatone.presentation.components.expressive.expressiveGlass
 import io.rudione.chatone.presentation.components.expressive.touchHaze
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Immutable
 data class AuthActions(
@@ -185,7 +188,6 @@ fun AuthLayout(
 
 @Composable
 private fun AuthToolbar(language: String, actions: AuthActions) {
-    val s = LocalStrings.current
     Row(
         modifier = Modifier
             .expressiveGlass(CircleShape)
@@ -201,7 +203,7 @@ private fun AuthToolbar(language: String, actions: AuthActions) {
             )
         }
         PillButton(
-            text = s.authGuest,
+            text = stringResource(Res.string.auth_guest),
             onClick = actions.onGuest,
             icon = Lucide.User,
             tone = PillTone.Tonal,
@@ -209,7 +211,7 @@ private fun AuthToolbar(language: String, actions: AuthActions) {
         )
         GlassIconButton(
             icon = Icons.AutoMirrored.Filled.Send,
-            contentDescription = s.authSupport,
+            contentDescription = stringResource(Res.string.auth_support),
             onClick = actions.onOpenSupport
         )
     }

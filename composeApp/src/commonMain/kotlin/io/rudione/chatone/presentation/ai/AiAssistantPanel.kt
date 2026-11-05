@@ -1,5 +1,41 @@
 package io.rudione.chatone.presentation.ai
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ai_action_applied
+import chatone.composeapp.generated.resources.ai_action_apply
+import chatone.composeapp.generated.resources.ai_action_dismiss
+import chatone.composeapp.generated.resources.ai_action_proposed_rule
+import chatone.composeapp.generated.resources.ai_assistant_title
+import chatone.composeapp.generated.resources.ai_attach_chat
+import chatone.composeapp.generated.resources.ai_close
+import chatone.composeapp.generated.resources.ai_greeting_body
+import chatone.composeapp.generated.resources.ai_greeting_title
+import chatone.composeapp.generated.resources.ai_history
+import chatone.composeapp.generated.resources.ai_history_empty
+import chatone.composeapp.generated.resources.ai_input_placeholder
+import chatone.composeapp.generated.resources.ai_model
+import chatone.composeapp.generated.resources.ai_new_chat
+import chatone.composeapp.generated.resources.ai_preset_idea
+import chatone.composeapp.generated.resources.ai_preset_idea_prompt
+import chatone.composeapp.generated.resources.ai_preset_mentions
+import chatone.composeapp.generated.resources.ai_preset_mentions_prompt
+import chatone.composeapp.generated.resources.ai_preset_mood
+import chatone.composeapp.generated.resources.ai_preset_mood_prompt
+import chatone.composeapp.generated.resources.ai_preset_reply
+import chatone.composeapp.generated.resources.ai_preset_reply_prompt
+import chatone.composeapp.generated.resources.ai_preset_risky
+import chatone.composeapp.generated.resources.ai_preset_risky_prompt
+import chatone.composeapp.generated.resources.ai_preset_rule
+import chatone.composeapp.generated.resources.ai_preset_rule_prompt
+import chatone.composeapp.generated.resources.ai_preset_summary
+import chatone.composeapp.generated.resources.ai_preset_summary_prompt
+import chatone.composeapp.generated.resources.ai_role_you
+import chatone.composeapp.generated.resources.ai_server_unreachable
+import chatone.composeapp.generated.resources.ai_setup_manage
+import chatone.composeapp.generated.resources.ai_thinking
+import chatone.composeapp.generated.resources.chat_send
+import chatone.composeapp.generated.resources.delete
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -88,7 +124,6 @@ import io.rudione.chatone.presentation.ai.components.AiMessageActions
 import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.data.repository.AiThread
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -157,19 +192,32 @@ internal fun AiAssistantPanel(
     session: AiAssistantSession = rememberAiAssistantSession(controller, client),
     bottomClearance: Dp = 0.dp
 ) {
-    val s = LocalStrings.current
+    val aiPresetSummaryText = stringResource(Res.string.ai_preset_summary)
+    val aiPresetSummaryPromptText = stringResource(Res.string.ai_preset_summary_prompt)
+    val aiPresetMoodText = stringResource(Res.string.ai_preset_mood)
+    val aiPresetMoodPromptText = stringResource(Res.string.ai_preset_mood_prompt)
+    val aiPresetMentionsText = stringResource(Res.string.ai_preset_mentions)
+    val aiPresetMentionsPromptText = stringResource(Res.string.ai_preset_mentions_prompt)
+    val aiPresetRiskyText = stringResource(Res.string.ai_preset_risky)
+    val aiPresetRiskyPromptText = stringResource(Res.string.ai_preset_risky_prompt)
+    val aiPresetReplyText = stringResource(Res.string.ai_preset_reply)
+    val aiPresetReplyPromptText = stringResource(Res.string.ai_preset_reply_prompt)
+    val aiPresetIdeaText = stringResource(Res.string.ai_preset_idea)
+    val aiPresetIdeaPromptText = stringResource(Res.string.ai_preset_idea_prompt)
+    val aiPresetRuleText = stringResource(Res.string.ai_preset_rule)
+    val aiPresetRulePromptText = stringResource(Res.string.ai_preset_rule_prompt)
     val scope = rememberCoroutineScope()
     val config by controller.config.collectAsState()
 
-    val presets = remember(s) {
+    val presets = remember(aiPresetSummaryText) {
         listOf(
-            Preset(s.aiPresetSummary, "📋", true, false, s.aiPresetSummaryPrompt),
-            Preset(s.aiPresetMood, "🎭", true, false, s.aiPresetMoodPrompt),
-            Preset(s.aiPresetMentions, "🔔", true, true, s.aiPresetMentionsPrompt),
-            Preset(s.aiPresetRisky, "🛡️", true, false, s.aiPresetRiskyPrompt),
-            Preset(s.aiPresetReply, "✍️", true, false, s.aiPresetReplyPrompt),
-            Preset(s.aiPresetIdea, "💡", false, false, s.aiPresetIdeaPrompt),
-            Preset(s.aiPresetRule, "🛠️", true, false, s.aiPresetRulePrompt)
+            Preset(aiPresetSummaryText, "📋", true, false, aiPresetSummaryPromptText),
+            Preset(aiPresetMoodText, "🎭", true, false, aiPresetMoodPromptText),
+            Preset(aiPresetMentionsText, "🔔", true, true, aiPresetMentionsPromptText),
+            Preset(aiPresetRiskyText, "🛡️", true, false, aiPresetRiskyPromptText),
+            Preset(aiPresetReplyText, "✍️", true, false, aiPresetReplyPromptText),
+            Preset(aiPresetIdeaText, "💡", false, false, aiPresetIdeaPromptText),
+            Preset(aiPresetRuleText, "🛠️", true, false, aiPresetRulePromptText)
         )
     }
     val clipboard = LocalClipboard.current
@@ -186,6 +234,10 @@ internal fun AiAssistantPanel(
     val pendingPrompt by controller.pendingPrompt.collectAsState()
     SideEffect(session, pendingPrompt) {
         controller.consumePendingPrompt()?.let { session.runPendingPrompt(it, localReachable = isDesktopPlatform) }
+    }
+    val pendingDraft by controller.pendingDraft.collectAsState()
+    SideEffect(session, pendingDraft) {
+        controller.consumePendingDraft()?.let { session.input = it }
     }
 
     Surface(
@@ -220,25 +272,25 @@ internal fun AiAssistantPanel(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    s.aiAssistantTitle,
+                    stringResource(Res.string.ai_assistant_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
                 )
                 ChatoneIconButton(onClick = { session.showSetup = !session.showSetup }, modifier = Modifier.size(34.dp)) {
-                    Icon(Icons.Outlined.Tune, s.aiSetupManage, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.Tune, stringResource(Res.string.ai_setup_manage), modifier = Modifier.size(18.dp))
                 }
                 ChatoneIconButton(
                     onClick = { session.showHistory = !session.showHistory },
                     modifier = Modifier.size(34.dp)
                 ) {
-                    Icon(Icons.Outlined.History, s.aiHistory, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Outlined.History, stringResource(Res.string.ai_history), modifier = Modifier.size(18.dp))
                 }
                 ChatoneIconButton(onClick = session::newThread, modifier = Modifier.size(34.dp)) {
-                    Icon(Icons.Filled.Add, s.aiNewChat, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Add, stringResource(Res.string.ai_new_chat), modifier = Modifier.size(18.dp))
                 }
                 ChatoneIconButton(onClick = { controller.close() }, modifier = Modifier.size(34.dp)) {
-                    Icon(Icons.Filled.Close, s.aiClose, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.Close, stringResource(Res.string.ai_close), modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -289,7 +341,7 @@ internal fun AiAssistantPanel(
                                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    s.aiThinking,
+                                    stringResource(Res.string.ai_thinking),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -322,7 +374,7 @@ internal fun AiAssistantPanel(
                         enabled = !sending
                     )
                     AiChip(
-                        label = s.aiAttachChat,
+                        label = stringResource(Res.string.ai_attach_chat),
                         leadingEmoji = "📎",
                         selected = session.attachChat,
                         enabled = !sending,
@@ -354,14 +406,14 @@ internal fun AiAssistantPanel(
                         value = session.input,
                         onValueChange = { session.input = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = s.aiInputPlaceholder,
+                        placeholder = stringResource(Res.string.ai_input_placeholder),
                         singleLine = false,
                         maxLines = 4,
                         keyboardOptions = KeyboardOptions.Default
                     )
                     AiSendButton(
                         enabled = session.input.isNotBlank() && !sending,
-                        contentDescription = s.chatSend,
+                        contentDescription = stringResource(Res.string.chat_send),
                         onClick = { session.send(session.input, includeChat = session.attachChat, useMentions = false) }
                     )
                 }
@@ -439,7 +491,6 @@ private fun ModelPickerChip(
     config: AiAssistantController.Config,
     enabled: Boolean
 ) {
-    val s = LocalStrings.current
     val scope = rememberCoroutineScope()
     var menuOpen by remember { mutableStateOf(false) }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -464,7 +515,7 @@ private fun ModelPickerChip(
         )
         ChatoneDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             Text(
-                s.aiModel,
+                stringResource(Res.string.ai_model),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
@@ -487,7 +538,7 @@ private fun ModelPickerChip(
                 models.isEmpty() -> DropdownMenuItem(
                     text = {
                         Text(
-                            s.aiServerUnreachable,
+                            stringResource(Res.string.ai_server_unreachable),
                             style = MaterialTheme.typography.bodySmall
                         )
                     },
@@ -530,7 +581,6 @@ private fun ModelPickerChip(
 
 @Composable
 private fun EmptyState() {
-    val s = LocalStrings.current
     Column(
         Modifier.fillMaxWidth().padding(top = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -543,12 +593,12 @@ private fun EmptyState() {
             modifier = Modifier.size(40.dp)
         )
         Text(
-            s.aiGreetingTitle,
+            stringResource(Res.string.ai_greeting_title),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold
         )
         Text(
-            s.aiGreetingBody,
+            stringResource(Res.string.ai_greeting_body),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -587,7 +637,7 @@ private fun MessageBubble(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    if (isUser) LocalStrings.current.aiRoleYou else "CHATONE AI",
+                    if (isUser) stringResource(Res.string.ai_role_you) else "CHATONE AI",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontSize = 9.sp,
                         letterSpacing = 1.4.sp
@@ -621,7 +671,6 @@ private fun MessageBubble(
 
 @Composable
 private fun AiRuleActionCard(proposal: AiRuleProposal) {
-    val s = LocalStrings.current
     val repo = koinInject<io.rudione.chatone.data.repository.AutomodRepository>()
     val rule = remember(proposal) { AiActions.toChatRule(proposal) } ?: return
     var state by remember(proposal) { mutableStateOf(0) }
@@ -635,7 +684,7 @@ private fun AiRuleActionCard(proposal: AiRuleProposal) {
     ) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                s.aiActionProposedRule,
+                stringResource(Res.string.ai_action_proposed_rule),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -653,7 +702,7 @@ private fun AiRuleActionCard(proposal: AiRuleProposal) {
             }
             if (state == 1) {
                 Text(
-                    s.aiActionApplied,
+                    stringResource(Res.string.ai_action_applied),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -662,8 +711,8 @@ private fun AiRuleActionCard(proposal: AiRuleProposal) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
                         repo.upsertChatRule(rule); state = 1
-                    }) { Text(s.aiActionApply) }
-                    TextButton(onClick = { state = 2 }) { Text(s.aiActionDismiss) }
+                    }) { Text(stringResource(Res.string.ai_action_apply)) }
+                    TextButton(onClick = { state = 2 }) { Text(stringResource(Res.string.ai_action_dismiss)) }
                 }
             }
         }
@@ -676,11 +725,10 @@ private fun ThreadHistory(
     onOpen: (AiThread) -> Unit,
     onDelete: (AiThread) -> Unit
 ) {
-    val s = LocalStrings.current
     if (threads.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                s.aiHistoryEmpty,
+                stringResource(Res.string.ai_history_empty),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -715,7 +763,7 @@ private fun ThreadHistory(
                     ChatoneIconButton(onClick = { onDelete(t) }, modifier = Modifier.size(28.dp)) {
                         Icon(
                             Icons.Outlined.Delete,
-                            s.delete,
+                            stringResource(Res.string.delete),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.error
                         )

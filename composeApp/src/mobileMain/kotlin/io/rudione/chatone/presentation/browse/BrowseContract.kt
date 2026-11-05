@@ -18,6 +18,7 @@ data class BrowseState(
     val searchResult: BrowseSearchResult? = null,
     val tab: BrowseTab = BrowseTab.FOLLOWING,
     val signedIn: Boolean = false,
+    val followsNeedSignIn: Boolean = false,
     val category: BrowseCategory? = null,
     val filter: StreamFilter = StreamFilter()
 ) : UiState {

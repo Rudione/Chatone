@@ -1,19 +1,10 @@
 package io.rudione.chatone.presentation.chat
 
-import io.rudione.chatone.data.remote.LogMonth
 import io.rudione.chatone.presentation.chat.roles.groupDigits
-import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStringsEn
-import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStringsRu
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ProfileInsightFormattingTest {
-
-    @Test
-    fun monthsAreShortWithTwoDigitYear() {
-        assertEquals("sep'26", shortMonthLabel(ProfileInsightStringsEn, LogMonth(2026, 9)))
-        assertEquals("янв'05", shortMonthLabel(ProfileInsightStringsRu, LogMonth(2005, 1)))
-    }
 
     @Test
     fun followerCountsAreGrouped() {
@@ -23,10 +14,11 @@ class ProfileInsightFormattingTest {
     }
 
     @Test
-    fun russianPluralsFollowTheCount() {
-        assertEquals("1 канал", ProfileInsightStringsRu.rolesChannels(1))
-        assertEquals("3 канала", ProfileInsightStringsRu.rolesChannels(3))
-        assertEquals("12 каналов", ProfileInsightStringsRu.rolesChannels(12))
-        assertEquals("21 канал", ProfileInsightStringsRu.rolesChannels(21))
+    fun ageUsesTheLargestWholeUnit() {
+        val minute = 60_000L
+        assertEquals(Age(5, AgeUnit.MINUTES), ageOf(0L, 5 * minute))
+        assertEquals(Age(3, AgeUnit.HOURS), ageOf(0L, 3 * 60 * minute))
+        assertEquals(Age(2, AgeUnit.DAYS), ageOf(0L, 2 * 24 * 60 * minute))
+        assertEquals(Age(1, AgeUnit.YEARS), ageOf(0L, 400L * 24 * 60 * minute))
     }
 }

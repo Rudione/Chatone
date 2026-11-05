@@ -1,5 +1,35 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.actions_add
+import chatone.composeapp.generated.resources.actions_all_channels
+import chatone.composeapp.generated.resources.actions_all_channels_badge
+import chatone.composeapp.generated.resources.actions_automations
+import chatone.composeapp.generated.resources.actions_automations_hint
+import chatone.composeapp.generated.resources.actions_cancel
+import chatone.composeapp.generated.resources.actions_edit
+import chatone.composeapp.generated.resources.actions_empty
+import chatone.composeapp.generated.resources.actions_field_channel
+import chatone.composeapp.generated.resources.actions_field_cooldown
+import chatone.composeapp.generated.resources.actions_field_interval
+import chatone.composeapp.generated.resources.actions_field_keyword
+import chatone.composeapp.generated.resources.actions_field_message
+import chatone.composeapp.generated.resources.actions_hint
+import chatone.composeapp.generated.resources.actions_kind_reply
+import chatone.composeapp.generated.resources.actions_kind_sound
+import chatone.composeapp.generated.resources.actions_kind_timer
+import chatone.composeapp.generated.resources.actions_list_every
+import chatone.composeapp.generated.resources.actions_list_sound
+import chatone.composeapp.generated.resources.actions_mention_badge
+import chatone.composeapp.generated.resources.actions_muted_phrase_placeholder
+import chatone.composeapp.generated.resources.actions_muted_phrases
+import chatone.composeapp.generated.resources.actions_muted_phrases_hint
+import chatone.composeapp.generated.resources.actions_only_mention
+import chatone.composeapp.generated.resources.actions_safety_note
+import chatone.composeapp.generated.resources.actions_save
+import chatone.composeapp.generated.resources.actions_unit_minutes
+import chatone.composeapp.generated.resources.actions_unit_seconds
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.components.expressive.HelpHint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,7 +61,6 @@ import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.ExpressiveCheckbox
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlin.time.Clock
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 
@@ -110,12 +139,11 @@ fun ActionsSection(
     state: SettingsState,
     onEvent: (SettingsEvent) -> Unit
 ) {
-    val s = LocalStrings.current
     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
         SectionCard {
             CardTitle(
-                s.actionsAutomations,
-                listOf(s.actionsHint, s.actionsAutomationsHint, s.actionsSafetyNote).joinToString(" ")
+                stringResource(Res.string.actions_automations),
+                listOf(stringResource(Res.string.actions_hint), stringResource(Res.string.actions_automations_hint), stringResource(Res.string.actions_safety_note)).joinToString(" ")
             )
 
             var editingId by remember { mutableStateOf<String?>(null) }
@@ -141,7 +169,7 @@ fun ActionsSection(
 
             if (state.automations.isEmpty()) {
                 Text(
-                    s.actionsEmpty,
+                    stringResource(Res.string.actions_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
@@ -160,9 +188,9 @@ fun ActionsSection(
                         .padding(horizontal = 2.dp)
                 ) {
                     val kindLabel = when (auto.kind) {
-                        AutomationKind.TIMED_MESSAGE -> s.actionsKindTimer
-                        AutomationKind.AUTO_REPLY -> s.actionsKindReply
-                        AutomationKind.KEYWORD_SOUND -> s.actionsKindSound
+                        AutomationKind.TIMED_MESSAGE -> stringResource(Res.string.actions_kind_timer)
+                        AutomationKind.AUTO_REPLY -> stringResource(Res.string.actions_kind_reply)
+                        AutomationKind.KEYWORD_SOUND -> stringResource(Res.string.actions_kind_sound)
                     }
                     Text(
                         kindLabel,
@@ -175,22 +203,20 @@ fun ActionsSection(
                     )
                     Text(
                         buildString {
-                            if (auto.channelLogin == "*") append("[${s.actionsAllChannelsBadge}] ")
+                            if (auto.channelLogin == "*") append("[${stringResource(Res.string.actions_all_channels_badge)}] ")
                             else append("#${auto.channelLogin} ")
                             when (auto.kind) {
                                 AutomationKind.TIMED_MESSAGE ->
                                     append(
-                                        s.actionsListEvery
-                                            .replace("{0}", auto.effectiveIntervalMinutes.toString())
-                                            .replace("{1}", auto.message)
+                                        stringResource(Res.string.actions_list_every, auto.effectiveIntervalMinutes, auto.message)
                                     )
                                 AutomationKind.AUTO_REPLY -> {
-                                    if (auto.onlyWhenMentioned) append("[${s.actionsMentionBadge}] ")
+                                    if (auto.onlyWhenMentioned) append("[${stringResource(Res.string.actions_mention_badge)}] ")
                                     if (auto.keyword.isNotBlank()) append("«${auto.keyword}» → ${auto.message}")
                                     else append("→ ${auto.message}")
                                 }
                                 AutomationKind.KEYWORD_SOUND ->
-                                    append(s.actionsListSound.replace("{0}", auto.keyword))
+                                    append(stringResource(Res.string.actions_list_sound, (auto.keyword)))
                             }
                         },
                         style = MaterialTheme.typography.bodySmall,
@@ -217,7 +243,7 @@ fun ActionsSection(
                         modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
-                            Icons.Filled.Edit, s.actionsEdit,
+                            Icons.Filled.Edit, stringResource(Res.string.actions_edit),
                             modifier = Modifier.size(13.dp),
                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                         )
@@ -265,24 +291,24 @@ fun ActionsSection(
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
-                kindChip(AutomationKind.TIMED_MESSAGE, s.actionsKindTimer)
-                kindChip(AutomationKind.AUTO_REPLY, s.actionsKindReply)
-                kindChip(AutomationKind.KEYWORD_SOUND, s.actionsKindSound)
+                kindChip(AutomationKind.TIMED_MESSAGE, stringResource(Res.string.actions_kind_timer))
+                kindChip(AutomationKind.AUTO_REPLY, stringResource(Res.string.actions_kind_reply))
+                kindChip(AutomationKind.KEYWORD_SOUND, stringResource(Res.string.actions_kind_sound))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f).alpha(if (allChannels) 0.4f else 1f)) {
                     ActionField(
                         channel, { channel = it.lowercase().trim() },
-                        s.actionsFieldChannel, Modifier.fillMaxWidth()
+                        stringResource(Res.string.actions_field_channel), Modifier.fillMaxWidth()
                     )
                 }
                 if (kind == AutomationKind.TIMED_MESSAGE) {
-                    ActionField(interval, { interval = it }, s.actionsFieldInterval, Modifier.width(64.dp), numeric = true)
+                    ActionField(interval, { interval = it }, stringResource(Res.string.actions_field_interval), Modifier.width(64.dp), numeric = true)
                 } else {
-                    ActionField(cooldown, { cooldown = it }, s.actionsFieldCooldown, Modifier.width(64.dp), numeric = true)
+                    ActionField(cooldown, { cooldown = it }, stringResource(Res.string.actions_field_cooldown), Modifier.width(64.dp), numeric = true)
                 }
                 Text(
-                    if (kind == AutomationKind.TIMED_MESSAGE) s.actionsUnitMinutes else s.actionsUnitSeconds,
+                    if (kind == AutomationKind.TIMED_MESSAGE) stringResource(Res.string.actions_unit_minutes) else stringResource(Res.string.actions_unit_seconds),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
@@ -297,7 +323,7 @@ fun ActionsSection(
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
                 Text(
-                    s.actionsAllChannels,
+                    stringResource(Res.string.actions_all_channels),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (allChannels) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
@@ -309,7 +335,7 @@ fun ActionsSection(
                 )
             }
             if (kind != AutomationKind.TIMED_MESSAGE) {
-                ActionField(keyword, { keyword = it }, s.actionsFieldKeyword, Modifier.fillMaxWidth())
+                ActionField(keyword, { keyword = it }, stringResource(Res.string.actions_field_keyword), Modifier.fillMaxWidth())
             }
             if (kind == AutomationKind.AUTO_REPLY) {
                 Row(
@@ -326,7 +352,7 @@ fun ActionsSection(
                         boxSize = 14
                     )
                     Text(
-                        s.actionsOnlyMention,
+                        stringResource(Res.string.actions_only_mention),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (onlyMention) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
@@ -334,7 +360,7 @@ fun ActionsSection(
                 }
             }
             if (kind != AutomationKind.KEYWORD_SOUND) {
-                ActionField(message, { message = it }, s.actionsFieldMessage, Modifier.fillMaxWidth())
+                ActionField(message, { message = it }, stringResource(Res.string.actions_field_message), Modifier.fillMaxWidth())
             }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -381,7 +407,7 @@ fun ActionsSection(
                         Spacer(Modifier.width(4.dp))
                     }
                     Text(
-                        if (editingId != null) s.actionsSave else s.actionsAdd,
+                        if (editingId != null) stringResource(Res.string.actions_save) else stringResource(Res.string.actions_add),
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
@@ -391,14 +417,14 @@ fun ActionsSection(
                         modifier = Modifier.height(28.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp)
                     ) {
-                        Text(s.actionsCancel, style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(Res.string.actions_cancel), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
         }
 
         SectionCard {
-            CardTitle(s.actionsMutedPhrases, s.actionsMutedPhrasesHint)
+            CardTitle(stringResource(Res.string.actions_muted_phrases), stringResource(Res.string.actions_muted_phrases_hint))
             state.mutedPhrases.forEach { phrase ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -426,7 +452,7 @@ fun ActionsSection(
             }
             var newPhrase by remember { mutableStateOf("") }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                ActionField(newPhrase, { newPhrase = it }, s.actionsMutedPhrasePlaceholder, Modifier.weight(1f))
+                ActionField(newPhrase, { newPhrase = it }, stringResource(Res.string.actions_muted_phrase_placeholder), Modifier.weight(1f))
                 FilledTonalButton(
                     onClick = {
                         if (newPhrase.isNotBlank()) {
@@ -438,7 +464,7 @@ fun ActionsSection(
                     modifier = Modifier.height(28.dp),
                     contentPadding = PaddingValues(horizontal = 10.dp)
                 ) {
-                    Text(s.actionsAdd, style = MaterialTheme.typography.labelSmall)
+                    Text(stringResource(Res.string.actions_add), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

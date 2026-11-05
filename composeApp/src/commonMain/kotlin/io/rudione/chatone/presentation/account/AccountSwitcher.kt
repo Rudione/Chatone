@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.account
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.accounts_active
+import chatone.composeapp.generated.resources.accounts_add
+import chatone.composeapp.generated.resources.accounts_none_added
+import chatone.composeapp.generated.resources.accounts_switcher_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -33,7 +39,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.TwitchAccount
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 fun AccountSwitcher(
@@ -43,7 +48,6 @@ fun AccountSwitcher(
     onAddAccount: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val strings = LocalStrings.current
     var expanded by remember { mutableStateOf(false) }
 
     Column(
@@ -60,7 +64,7 @@ fun AccountSwitcher(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = strings.accountsSwitcherTitle,
+                text = stringResource(Res.string.accounts_switcher_title),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
@@ -77,7 +81,7 @@ fun AccountSwitcher(
             Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
             if (accounts.isEmpty()) {
                 Text(
-                    strings.accountsNoneAdded,
+                    stringResource(Res.string.accounts_none_added),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
@@ -113,7 +117,7 @@ fun AccountSwitcher(
                 )
                 Spacer(Modifier.size(8.dp))
                 Text(
-                    strings.accountsAdd,
+                    stringResource(Res.string.accounts_add),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -128,7 +132,6 @@ private fun AccountRow(
     isActive: Boolean,
     onClick: () -> Unit
 ) {
-    val strings = LocalStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -159,7 +162,7 @@ private fun AccountRow(
         if (isActive) {
             Icon(
                 Icons.Outlined.Check,
-                contentDescription = strings.accountsActive,
+                contentDescription = stringResource(Res.string.accounts_active),
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.primary
             )

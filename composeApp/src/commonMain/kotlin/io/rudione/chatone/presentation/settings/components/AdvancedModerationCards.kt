@@ -1,5 +1,37 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.ext_rights_approve_as
+import chatone.composeapp.generated.resources.ext_rights_code_label
+import chatone.composeapp.generated.resources.ext_rights_connect
+import chatone.composeapp.generated.resources.ext_rights_connected
+import chatone.composeapp.generated.resources.ext_rights_disconnect
+import chatone.composeapp.generated.resources.ext_rights_for_account
+import chatone.composeapp.generated.resources.ext_rights_manual
+import chatone.composeapp.generated.resources.ext_rights_manual_hide
+import chatone.composeapp.generated.resources.ext_rights_manual_show
+import chatone.composeapp.generated.resources.ext_rights_mismatch
+import chatone.composeapp.generated.resources.ext_rights_not_connected
+import chatone.composeapp.generated.resources.ext_rights_open_twitch
+import chatone.composeapp.generated.resources.ext_rights_reconnect
+import chatone.composeapp.generated.resources.ext_rights_title
+import chatone.composeapp.generated.resources.ext_rights_unlocks
+import chatone.composeapp.generated.resources.ext_rights_waiting
+import chatone.composeapp.generated.resources.ext_rights_what
+import chatone.composeapp.generated.resources.streamer_hide_mod
+import chatone.composeapp.generated.resources.streamer_hide_thumbs
+import chatone.composeapp.generated.resources.streamer_mask_channels
+import chatone.composeapp.generated.resources.streamer_mask_tokens
+import chatone.composeapp.generated.resources.streamer_mode_hide_data
+import chatone.composeapp.generated.resources.streamer_mode_obs
+import chatone.composeapp.generated.resources.streamer_mode_title
+import chatone.composeapp.generated.resources.streamer_stays_on
+import chatone.composeapp.generated.resources.streamer_suppress_notif
+import chatone.composeapp.generated.resources.token_card_label
+import chatone.composeapp.generated.resources.token_card_rejected
+import chatone.composeapp.generated.resources.token_card_validate
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,8 +80,6 @@ import io.rudione.chatone.presentation.components.SettingsCard
 import io.rudione.chatone.presentation.components.expressive.HelpHint
 import io.rudione.chatone.presentation.components.rememberSecretVisibility
 import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 import io.rudione.chatone.util.link.openUrl
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -61,7 +91,7 @@ fun FirstPartyTokenCard(
     accountManager: AccountManager = koinInject(),
     accountLoader: AccountListLoader = koinInject()
 ) {
-    val s = LocalStrings.current
+    val tokenCardRejectedText = stringResource(Res.string.token_card_rejected)
     val scope = rememberCoroutineScope()
     val identity by store.identity.collectAsState()
     val deviceState by deviceController.state.collectAsState()
@@ -80,28 +110,28 @@ fun FirstPartyTokenCard(
     val boundElsewhere = (deviceState as? DeviceAuthState.Success)
         ?.takeIf { activeAccountId.isNotBlank() && it.userId != activeAccountId }
 
-    SettingsCard(title = s.extRightsTitle) {
+    SettingsCard(title = stringResource(Res.string.ext_rights_title)) {
         ExtRightsStatusRow(connected = connected, label = identity?.let {
             it.displayName.ifBlank { it.login }
         })
 
         if (activeLabel.isNotBlank()) {
             Text(
-                s.format(s.extRightsForAccount, activeLabel),
+                stringResource(Res.string.ext_rights_for_account, activeLabel),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
         Text(
-            s.extRightsWhat,
+            stringResource(Res.string.ext_rights_what),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         if (!connected) {
             Text(
-                s.extRightsUnlocks,
+                stringResource(Res.string.ext_rights_unlocks),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -109,7 +139,11 @@ fun FirstPartyTokenCard(
 
         boundElsewhere?.let { mismatch ->
             ExtRightsBanner(
-                text = s.format(s.extRightsMismatch, mismatch.displayName, activeLabel),
+                text = stringResource(
+                    Res.string.ext_rights_mismatch,
+                    mismatch.displayName,
+                    activeLabel
+                ),
                 tone = MaterialTheme.colorScheme.error
             )
         }
@@ -122,12 +156,12 @@ fun FirstPartyTokenCard(
                 ) {
                     if (activeLabel.isNotBlank()) {
                         ExtRightsBanner(
-                            text = s.format(s.extRightsApproveAs, activeLabel),
+                            text = stringResource(Res.string.ext_rights_approve_as, activeLabel),
                             tone = MaterialTheme.colorScheme.tertiary
                         )
                     }
                     Text(
-                        s.extRightsCodeLabel,
+                        stringResource(Res.string.ext_rights_code_label),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -149,10 +183,10 @@ fun FirstPartyTokenCard(
                         Button(onClick = {
                             openUrl(ds.verificationUri, SettingsState.LinkOpenMode.DEFAULT)
                         }) {
-                            ChatoneButtonText(s.extRightsOpenTwitch)
+                            ChatoneButtonText(stringResource(Res.string.ext_rights_open_twitch))
                         }
                         OutlinedButton(onClick = { deviceController.cancel() }) {
-                            ChatoneButtonText(s.cancel)
+                            ChatoneButtonText(stringResource(Res.string.cancel))
                         }
                     }
                 }
@@ -168,7 +202,10 @@ fun FirstPartyTokenCard(
                         modifier = Modifier.width(16.dp).height(16.dp),
                         strokeWidth = 2.dp
                     )
-                    Text(s.extRightsWaiting, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        stringResource(Res.string.ext_rights_waiting),
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
 
@@ -189,21 +226,29 @@ fun FirstPartyTokenCard(
                 enabled = !busy,
                 modifier = Modifier.widthIn(min = 150.dp)
             ) {
-                ChatoneButtonText(if (connected) s.extRightsReconnect else s.extRightsConnect)
+                ChatoneButtonText(
+                    if (connected) stringResource(Res.string.ext_rights_reconnect) else stringResource(
+                        Res.string.ext_rights_connect
+                    )
+                )
             }
             if (connected) {
                 OutlinedButton(onClick = { store.clear(); input = ""; error = null }) {
-                    ChatoneButtonText(s.extRightsDisconnect)
+                    ChatoneButtonText(stringResource(Res.string.ext_rights_disconnect))
                 }
             }
             OutlinedButton(onClick = { showManual = !showManual }) {
-                ChatoneButtonText(if (showManual) s.extRightsManualHide else s.extRightsManualShow)
+                ChatoneButtonText(
+                    if (showManual) stringResource(Res.string.ext_rights_manual_hide) else stringResource(
+                        Res.string.ext_rights_manual_show
+                    )
+                )
             }
         }
 
         if (showManual) {
             Text(
-                s.extRightsManual,
+                stringResource(Res.string.ext_rights_manual),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp)
@@ -212,7 +257,7 @@ fun FirstPartyTokenCard(
                 value = input,
                 onValueChange = { input = it; error = null },
                 modifier = Modifier.fillMaxWidth(),
-                label = s.tokenCardLabel,
+                label = stringResource(Res.string.token_card_label),
                 isError = error != null,
                 hint = error
             )
@@ -225,7 +270,7 @@ fun FirstPartyTokenCard(
                     scope.launch {
                         val id = store.setAndValidate(token)
                         validating = false
-                        if (id == null) error = s.tokenCardRejected else input = ""
+                        if (id == null) error = tokenCardRejectedText else input = ""
                     }
                 },
                 enabled = !validating && input.isNotBlank(),
@@ -237,7 +282,7 @@ fun FirstPartyTokenCard(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    ChatoneButtonText(s.tokenCardValidate)
+                    ChatoneButtonText(stringResource(Res.string.token_card_validate))
                 }
             }
         }
@@ -246,8 +291,8 @@ fun FirstPartyTokenCard(
 
 @Composable
 private fun ExtRightsStatusRow(connected: Boolean, label: String?) {
-    val s = LocalStrings.current
-    val tone = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val tone =
+        if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -259,7 +304,7 @@ private fun ExtRightsStatusRow(connected: Boolean, label: String?) {
             modifier = Modifier.width(16.dp).height(16.dp)
         )
         Text(
-            if (connected) s.extRightsConnected else s.extRightsNotConnected,
+            if (connected) stringResource(Res.string.ext_rights_connected) else stringResource(Res.string.ext_rights_not_connected),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = tone
@@ -293,24 +338,23 @@ private fun ExtRightsBanner(text: String, tone: androidx.compose.ui.graphics.Col
 
 @Composable
 fun StreamerModeCard(controller: StreamerModeController = koinInject()) {
-    val s = LocalStrings.current
     val state by controller.state.collectAsState()
 
-    SettingsCard(title = s.streamerModeTitle) {
+    SettingsCard(title = stringResource(Res.string.streamer_mode_title)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    s.streamerModeHideData,
+                    stringResource(Res.string.streamer_mode_hide_data),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f, fill = false)
                 )
                 HelpHint(
-                    title = s.streamerModeHideData,
-                    text = "${s.streamerModeObs} ${s.streamerStaysOn}",
+                    title = stringResource(Res.string.streamer_mode_hide_data),
+                    text = "${stringResource(Res.string.streamer_mode_obs)} ${stringResource(Res.string.streamer_stays_on)}",
                     size = 28.dp
                 )
             }
@@ -322,19 +366,34 @@ fun StreamerModeCard(controller: StreamerModeController = koinInject()) {
 
         if (state.enabled) {
             Spacer(Modifier.height(4.dp))
-            StreamerToggle(s.streamerMaskTokens, state.options.hideTokens) { v ->
+            StreamerToggle(
+                stringResource(Res.string.streamer_mask_tokens),
+                state.options.hideTokens
+            ) { v ->
                 controller.setOptions { it.copy(hideTokens = v) }
             }
-            StreamerToggle(s.streamerHideMod, state.options.hideModActions) { v ->
+            StreamerToggle(
+                stringResource(Res.string.streamer_hide_mod),
+                state.options.hideModActions
+            ) { v ->
                 controller.setOptions { it.copy(hideModActions = v) }
             }
-            StreamerToggle(s.streamerMaskChannels, state.options.hideChannelNames) { v ->
+            StreamerToggle(
+                stringResource(Res.string.streamer_mask_channels),
+                state.options.hideChannelNames
+            ) { v ->
                 controller.setOptions { it.copy(hideChannelNames = v) }
             }
-            StreamerToggle(s.streamerHideThumbs, state.options.hideThumbnails) { v ->
+            StreamerToggle(
+                stringResource(Res.string.streamer_hide_thumbs),
+                state.options.hideThumbnails
+            ) { v ->
                 controller.setOptions { it.copy(hideThumbnails = v) }
             }
-            StreamerToggle(s.streamerSuppressNotif, state.options.suppressNotifications) { v ->
+            StreamerToggle(
+                stringResource(Res.string.streamer_suppress_notif),
+                state.options.suppressNotifications
+            ) { v ->
                 controller.setOptions { it.copy(suppressNotifications = v) }
             }
         }
@@ -352,6 +411,10 @@ private fun StreamerToggle(label: String, checked: Boolean, onChange: (Boolean) 
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.weight(1f)
         )
-        ChatoneSwitch(checked = checked, onCheckedChange = onChange, modifier = Modifier.height(26.dp))
+        ChatoneSwitch(
+            checked = checked,
+            onCheckedChange = onChange,
+            modifier = Modifier.height(26.dp)
+        )
     }
 }

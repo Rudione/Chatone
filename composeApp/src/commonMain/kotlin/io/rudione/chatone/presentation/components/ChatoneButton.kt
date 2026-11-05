@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
@@ -86,15 +87,19 @@ fun ChatoneButton(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(16.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(16.dp)
+            )
         }
-        Text(
+        FitText(
             text,
             style = MaterialTheme.typography.labelLarge,
             color = contentColor,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            minFontSize = 10.sp
         )
     }
 }
@@ -118,6 +123,7 @@ private fun buttonPalette(tone: ChatoneButtonTone): ButtonPalette {
             content = scheme.onPrimary,
             border = Color.Transparent
         )
+
         ChatoneButtonTone.Neutral -> ButtonPalette(
             container = scheme.surfaceContainerHighest,
             hovered = lerp(scheme.surfaceContainerHighest, scheme.onSurface, 0.08f),
@@ -125,6 +131,7 @@ private fun buttonPalette(tone: ChatoneButtonTone): ButtonPalette {
             content = scheme.onSurface,
             border = scheme.outlineVariant.copy(alpha = 0.55f)
         )
+
         ChatoneButtonTone.Danger -> ButtonPalette(
             container = scheme.error.copy(alpha = 0.14f),
             hovered = scheme.error.copy(alpha = 0.22f),

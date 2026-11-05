@@ -165,6 +165,7 @@ object IrcMessageParser {
         val replyParentName = unescape(tags["reply-parent-display-name"])?.takeIf { it.isNotBlank() }
             ?: replyParentLogin
         val replyParentBody = unescape(tags["reply-parent-msg-body"])
+        val replyThreadRootId = tags["reply-thread-parent-msg-id"]?.takeIf { it.isNotBlank() } ?: replyParentId
 
         val replyMentionPrefixLength = replyParentLogin?.let { login ->
             sequenceOf("@$login ", replyParentName?.let { "@$it " })
@@ -208,6 +209,7 @@ object IrcMessageParser {
             replyParentUserLogin = replyParentLogin,
             replyParentDisplayName = replyParentName,
             replyParentMsgBody = replyParentBody,
+            replyThreadParentMsgId = replyThreadRootId,
             gifs = displayGifs
         )
     }

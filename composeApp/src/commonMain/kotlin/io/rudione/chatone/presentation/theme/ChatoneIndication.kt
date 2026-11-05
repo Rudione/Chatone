@@ -18,6 +18,7 @@ import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
+import io.rudione.chatone.util.platform.currentFormFactor
 import kotlinx.coroutines.launch
 
 private val CompactTargetMaxSize: Dp = 64.dp
@@ -26,6 +27,10 @@ private const val HOVER_SCALE = 1.04f
 private const val HOVER_OVERLAY_ALPHA = 0.07f
 private const val PRESS_OVERLAY_ALPHA = 0.12f
 private const val FOCUS_OVERLAY_ALPHA = 0.10f
+private const val REMOTE_FOCUS_OVERLAY_ALPHA = 0.34f
+private val focusOverlayAlpha by lazy {
+    if (currentFormFactor().isLeanBack) REMOTE_FOCUS_OVERLAY_ALPHA else FOCUS_OVERLAY_ALPHA
+}
 
 object ChatoneIndication : IndicationNodeFactory {
 
@@ -70,7 +75,7 @@ private class ChatoneIndicationNode(
         val targetOverlay = when {
             pressed -> PRESS_OVERLAY_ALPHA
             hovered -> HOVER_OVERLAY_ALPHA
-            focused -> FOCUS_OVERLAY_ALPHA
+            focused -> focusOverlayAlpha
             else -> 0f
         }
         val targetScale = when {

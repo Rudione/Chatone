@@ -28,9 +28,9 @@ class StreamAmbience internal constructor() : VideoFrameSink {
     private var intensity = 0f
     private var intensityTarget = 0f
     private var version by mutableIntStateOf(0)
-    private var glowConsumers by mutableIntStateOf(0)
+    private var viewers by mutableIntStateOf(0)
 
-    internal val glowAttached: Boolean get() = glowConsumers > 0
+    internal val hasViewers: Boolean get() = viewers > 0
 
     override fun accept(argb: IntArray) {
         AmbientColors.analyze(argb, sampleWidth, sampleHeight, sample)
@@ -72,12 +72,12 @@ class StreamAmbience internal constructor() : VideoFrameSink {
         }
     }
 
-    internal fun attachGlow() {
-        glowConsumers++
+    internal fun attachViewer() {
+        viewers++
     }
 
-    internal fun detachGlow() {
-        glowConsumers = (glowConsumers - 1).coerceAtLeast(0)
+    internal fun detachViewer() {
+        viewers = (viewers - 1).coerceAtLeast(0)
     }
 
     internal fun visibleIntensity(): Float {
@@ -87,6 +87,9 @@ class StreamAmbience internal constructor() : VideoFrameSink {
 
     internal fun barColors(edge: AmbientEdge, alpha: Float): List<Color> =
         List(AmbientColors.STOPS) { stop -> AmbientColors.barColor(current, AmbientColors.index(edge, stop), alpha) }
+
+    internal fun surroundColors(edge: AmbientEdge, alpha: Float): List<Color> =
+        List(AmbientColors.STOPS) { stop -> AmbientColors.surroundColor(current, AmbientColors.index(edge, stop), alpha) }
 
     internal fun glowColors(edge: AmbientEdge, alpha: Float, darkBackground: Boolean): List<Color> =
         List(AmbientColors.STOPS) { stop ->

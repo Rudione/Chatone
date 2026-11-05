@@ -59,7 +59,9 @@ class BrowseViewModel(
                         enablePlaceholders = false
                     ),
                     pagingSourceFactory = {
-                        FollowedStreamsPagingSource(directory, account.userId, account.token, filter)
+                        FollowedStreamsPagingSource(directory, account.userId, filter) {
+                            accountProvider.account(accountProvider.activeAccountId.value)?.token ?: account.token
+                        }
                     }
                 ).flow.onStart { emit(PagingData.empty(LoadingStates)) }
             }
@@ -121,7 +123,11 @@ class BrowseViewModel(
                 update { current ->
                     val signedIn = account != null
                     val tab = if (!signedIn && current.tab == BrowseTab.FOLLOWING) BrowseTab.POPULAR else current.tab
-                    current.copy(signedIn = signedIn, tab = tab)
+                    current.copy(
+                        signedIn = signedIn,
+                        followsNeedSignIn = account?.canReadFollows == false,
+                        tab = tab
+                    )
                 }
             }
         }

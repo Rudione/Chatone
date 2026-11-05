@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.gif_favorites
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,7 +31,6 @@ import io.rudione.chatone.data.repository.GifRepository
 import io.rudione.chatone.domain.model.GifSearchItem
 import io.rudione.chatone.presentation.chat.AnimatedEmoteImage
 import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.util.link.openChatUrl
 import io.rudione.chatone.util.media.GiphyMedia
@@ -107,7 +109,7 @@ internal fun GifFavoriteStar(
 ) {
     Icon(
         imageVector = Lucide.Star,
-        contentDescription = LocalStrings.current.gifFavorites,
+        contentDescription = stringResource(Res.string.gif_favorites),
         tint = if (isFavorite) FAVORITE_STAR_COLOR else Color.White.copy(alpha = 0.75f),
         modifier = modifier
             .clip(CircleShape)

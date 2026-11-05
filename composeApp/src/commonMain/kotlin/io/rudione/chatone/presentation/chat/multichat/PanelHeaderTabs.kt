@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.multi_chat_close_panel
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
@@ -32,7 +34,6 @@ fun PanelHeaderTabs(
     panelManager: ChatPanelManager,
     modifier: Modifier = Modifier
 ) {
-    val strings = LocalStrings.current
     val panels by panelManager.panels.collectAsState()
     val activeId by panelManager.activePanelId.collectAsState()
 
@@ -70,7 +71,7 @@ fun PanelHeaderTabs(
                 ) {
                     Icon(
                         Lucide.X,
-                        contentDescription = strings.multiChatClosePanel,
+                        contentDescription = stringResource(Res.string.multi_chat_close_panel),
                         modifier = Modifier.size(12.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -255,6 +255,22 @@ class SevenTvCosmeticsClient(
         }
     }
 
+    @OptIn(InternalCoroutinesApi::class)
+    fun applyLocally(
+        twitchUserId: String,
+        sevenTvId: String,
+        paint: SevenTvCosmetics.Paint?,
+        badge: SevenTvCosmetics.Badge?
+    ) {
+        if (twitchUserId.isBlank() || sevenTvId.isBlank()) return
+        val updated = synchronized(cacheLock) {
+            val base = userCosmeticsCache[twitchUserId] ?: SevenTvUserCosmetic(sevenTvId = sevenTvId)
+            base.copy(sevenTvId = sevenTvId, paint = paint, badge = badge).also { userCosmeticsCache[twitchUserId] = it }
+        }
+        _cosmetics.update { it + (twitchUserId to updated) }
+        _paints.update { if (paint == null) it - twitchUserId else it + (twitchUserId to paint) }
+    }
+
     fun getCachedCosmetics(twitchUserId: String): SevenTvUserCosmetic? =
         readCached(twitchUserId)?.takeIf { it.sevenTvId.isNotEmpty() }
 

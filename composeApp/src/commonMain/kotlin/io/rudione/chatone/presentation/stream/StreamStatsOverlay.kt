@@ -1,5 +1,30 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.player_decimal_separator
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_close
+import chatone.composeapp.generated.resources.player_stat_backend
+import chatone.composeapp.generated.resources.player_stat_bandwidth
+import chatone.composeapp.generated.resources.player_stat_buffer
+import chatone.composeapp.generated.resources.player_stat_codecs
+import chatone.composeapp.generated.resources.player_stat_download_bitrate
+import chatone.composeapp.generated.resources.player_stat_download_resolution
+import chatone.composeapp.generated.resources.player_stat_fps
+import chatone.composeapp.generated.resources.player_stat_latency
+import chatone.composeapp.generated.resources.player_stat_latency_low
+import chatone.composeapp.generated.resources.player_stat_latency_mode
+import chatone.composeapp.generated.resources.player_stat_latency_normal
+import chatone.composeapp.generated.resources.player_stat_play_session
+import chatone.composeapp.generated.resources.player_stat_protocol
+import chatone.composeapp.generated.resources.player_stat_render_resolution
+import chatone.composeapp.generated.resources.player_stat_render_surface
+import chatone.composeapp.generated.resources.player_stat_serving_id
+import chatone.composeapp.generated.resources.player_stat_skipped_frames
+import chatone.composeapp.generated.resources.player_stat_viewport_resolution
+import chatone.composeapp.generated.resources.player_unit_kbps
+import chatone.composeapp.generated.resources.player_unit_seconds
+import chatone.composeapp.generated.resources.player_video_stats
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,8 +65,6 @@ import androidx.compose.ui.unit.sp
 import io.rudione.chatone.data.repository.StreamerModeController
 import io.rudione.chatone.domain.stream.StreamStats
 import org.koin.compose.koinInject
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.StreamPlayerStrings
 
 @Composable
 internal fun BoxScope.StreamStatsOverlay(
@@ -50,12 +73,9 @@ internal fun BoxScope.StreamStatsOverlay(
     compact: Boolean
 ) {
     val stats by host.stats.collectAsState()
-    val strings = LocalStrings.current.player
     val streamerMode by koinInject<StreamerModeController>().state.collectAsState()
     val maskIdentifiers = streamerMode.enabled && streamerMode.options.hideTokens
-    val rows = remember(stats, strings, maskIdentifiers) {
-        stats?.let { statsRows(it, strings, maskIdentifiers) }.orEmpty()
-    }
+    val rows = stats?.let { statsRows(it, maskIdentifiers) }.orEmpty()
     val labelSize = if (compact) 9.5.sp else 11.5.sp
     Column(
         modifier = Modifier
@@ -79,7 +99,7 @@ internal fun BoxScope.StreamStatsOverlay(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = strings.videoStats,
+                text = stringResource(Res.string.player_video_stats),
                 color = Color.White,
                 fontSize = labelSize,
                 fontWeight = FontWeight.SemiBold,
@@ -97,7 +117,7 @@ internal fun BoxScope.StreamStatsOverlay(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Close, contentDescription = strings.close, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(Icons.Rounded.Close, contentDescription = stringResource(Res.string.player_close), tint = Color.White, modifier = Modifier.size(16.dp))
             }
         }
         Column(
@@ -134,29 +154,32 @@ internal fun BoxScope.StreamStatsOverlay(
     }
 }
 
-private fun statsRows(stats: StreamStats, strings: StreamPlayerStrings, maskIdentifiers: Boolean): List<Pair<String, String>> {
+@Composable
+private fun statsRows(stats: StreamStats, maskIdentifiers: Boolean): List<Pair<String, String>> {
     fun identifier(value: String): String = if (maskIdentifiers) MASK else value
-    val separator = strings.decimalSeparator
+    val separator = stringResource(Res.string.player_decimal_separator).first()
+    val secondsUnit = stringResource(Res.string.player_unit_seconds)
+    val kbpsUnit = stringResource(Res.string.player_unit_kbps)
     fun seconds(value: Float?): String =
-        value?.let { "${StreamFormatting.decimal(it, 2, separator)} ${strings.unitSeconds}" } ?: DASH
-    fun kbps(value: Int?): String = value?.let { "$it ${strings.unitKbps}" } ?: DASH
+        value?.let { "${StreamFormatting.decimal(it, 2, separator)} $secondsUnit" } ?: DASH
+    fun kbps(value: Int?): String = value?.let { "$it $kbpsUnit" } ?: DASH
     return listOfNotNull(
-        strings.statDownloadResolution to stats.downloadResolution,
-        strings.statRenderResolution to stats.renderResolution,
-        strings.statViewportResolution to stats.viewportResolution,
-        strings.statDownloadBitrate to kbps(stats.downloadBitrateKbps),
-        strings.statBandwidth to kbps(stats.bandwidthEstimateKbps),
-        strings.statFps to (stats.framesPerSecond?.let { StreamFormatting.decimal(it, 0, separator) } ?: DASH),
-        strings.statSkippedFrames to stats.droppedFrames.toString(),
-        strings.statBuffer to seconds(stats.bufferSeconds),
-        strings.statLatency to seconds(stats.latencySeconds),
-        strings.statCodecs to stats.codecs,
-        strings.statProtocol to stats.protocol,
-        strings.statLatencyMode to if (stats.lowLatency) strings.statLatencyLow else strings.statLatencyNormal,
-        strings.statRenderSurface to stats.renderSurface,
-        strings.statBackend to stats.backendVersion,
-        strings.statPlaySession to identifier(stats.playSessionId),
-        stats.servingId?.let { strings.statServingId to identifier(it) }
+        stringResource(Res.string.player_stat_download_resolution) to stats.downloadResolution,
+        stringResource(Res.string.player_stat_render_resolution) to stats.renderResolution,
+        stringResource(Res.string.player_stat_viewport_resolution) to stats.viewportResolution,
+        stringResource(Res.string.player_stat_download_bitrate) to kbps(stats.downloadBitrateKbps),
+        stringResource(Res.string.player_stat_bandwidth) to kbps(stats.bandwidthEstimateKbps),
+        stringResource(Res.string.player_stat_fps) to (stats.framesPerSecond?.let { StreamFormatting.decimal(it, 0, separator) } ?: DASH),
+        stringResource(Res.string.player_stat_skipped_frames) to stats.droppedFrames.toString(),
+        stringResource(Res.string.player_stat_buffer) to seconds(stats.bufferSeconds),
+        stringResource(Res.string.player_stat_latency) to seconds(stats.latencySeconds),
+        stringResource(Res.string.player_stat_codecs) to stats.codecs,
+        stringResource(Res.string.player_stat_protocol) to stats.protocol,
+        stringResource(Res.string.player_stat_latency_mode) to if (stats.lowLatency) stringResource(Res.string.player_stat_latency_low) else stringResource(Res.string.player_stat_latency_normal),
+        stringResource(Res.string.player_stat_render_surface) to stats.renderSurface,
+        stringResource(Res.string.player_stat_backend) to stats.backendVersion,
+        stringResource(Res.string.player_stat_play_session) to identifier(stats.playSessionId),
+        stats.servingId?.let { stringResource(Res.string.player_stat_serving_id) to identifier(it) }
     )
 }
 

@@ -1,5 +1,6 @@
 package io.rudione.chatone
 
+import chatone.composeapp.generated.resources.icon
 import io.rudione.chatone.presentation.components.PopupPortalHost
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,6 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.icon
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
@@ -37,7 +37,7 @@ import io.rudione.chatone.presentation.window.TitleBarState
 import io.rudione.chatone.presentation.window.resolveTitleBar
 import io.rudione.chatone.presentation.window.useCustomTitleBar
 import io.rudione.chatone.data.repository.AccountManager
-import io.rudione.chatone.util.emote.AnimatedEmoteLoader
+import io.rudione.chatone.util.emote.AnimatedEmoteProxy
 import io.rudione.chatone.util.media.AppImageLoaderInstaller
 import io.rudione.chatone.util.system.AutoUpdater
 import io.rudione.chatone.util.system.DesktopMainWindow
@@ -76,7 +76,7 @@ fun main() {
 
     koin.get<AppImageLoaderInstaller>().install()
     val accountManager = koin.get<AccountManager>()
-    AnimatedEmoteLoader.setProxyProvider { accountManager.activeProxy.value }
+    AnimatedEmoteProxy.setProvider { accountManager.activeProxy.value }
     koin.startNotificationServices()
 
     CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {

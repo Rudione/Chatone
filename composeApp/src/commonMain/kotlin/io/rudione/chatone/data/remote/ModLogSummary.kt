@@ -59,10 +59,24 @@ internal object ModLogSummaryParser {
             id = id,
             type = type,
             timestampMs = timestamp.toEpochMilliseconds(),
-            label = label?.string("fallbackString")?.trim()?.takeIf { it.isNotEmpty() },
+            label = label?.string("fallbackString")?.let { detailOf(it, type) },
             moderatorLogin = label?.let { moderatorOf(it, targetId) }
         )
     }
+
+    fun detailOf(fallback: String, type: ModLogActionType): String? {
+        val text = fallback.trim()
+        val bare = text.trimEnd('.').lowercase()
+        return text.takeIf { it.isNotEmpty() && bare !in genericLabels.getValue(type) }
+    }
+
+    private val genericLabels: Map<ModLogActionType, Set<String>> = mapOf(
+        ModLogActionType.BAN to setOf("banned", "ban"),
+        ModLogActionType.TIMEOUT to setOf("timed out", "timeout"),
+        ModLogActionType.UNBAN to setOf("unbanned", "unban"),
+        ModLogActionType.UNTIMEOUT to setOf("untimed out", "timeout removed", "untimeout"),
+        ModLogActionType.WARN to setOf("warned", "warning")
+    )
 
     private fun moderatorOf(label: JsonObject, targetId: String): String? {
         val fragments = label["localizedStringFragments"] as? JsonArray ?: return null

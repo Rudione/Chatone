@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat.components
 
+import io.rudione.chatone.presentation.chat.slashCommandDescription
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,7 +78,7 @@ fun SlashCommandSuggestionsRow(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        LocalStrings.current.slashCommandDescription(cmd.name),
+                        slashCommandDescription(cmd.name),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

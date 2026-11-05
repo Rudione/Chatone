@@ -9,5 +9,6 @@ expect fun openAuthTab(url: String)
 fun openChatUrl(url: String, mode: SettingsState.LinkOpenMode) {
     val host = httpUrlHost(url) ?: return
     if (!OutboundUrlPolicy.isPublicHost(host)) return
+    if (InAppLinkRouter.dispatch(url)) return
     openUrl(url, mode)
 }

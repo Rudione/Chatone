@@ -1,5 +1,43 @@
 package io.rudione.chatone.presentation.ai
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ai_dl_cancel
+import chatone.composeapp.generated.resources.ai_dl_downloading
+import chatone.composeapp.generated.resources.ai_dl_failed
+import chatone.composeapp.generated.resources.ai_dl_resume_note
+import chatone.composeapp.generated.resources.ai_dl_retry
+import chatone.composeapp.generated.resources.ai_dl_retrying
+import chatone.composeapp.generated.resources.ai_dl_verifying
+import chatone.composeapp.generated.resources.ai_local_model_generic_hint
+import chatone.composeapp.generated.resources.ai_model_note_deepseek_r17b
+import chatone.composeapp.generated.resources.ai_model_note_gemma22b
+import chatone.composeapp.generated.resources.ai_model_note_llama321b
+import chatone.composeapp.generated.resources.ai_model_note_llama323b
+import chatone.composeapp.generated.resources.ai_model_note_mistral7b
+import chatone.composeapp.generated.resources.ai_model_note_phi3_mini
+import chatone.composeapp.generated.resources.ai_model_note_qwen253b
+import chatone.composeapp.generated.resources.ai_model_note_qwen257b
+import chatone.composeapp.generated.resources.ai_provider_needs_key_hint
+import chatone.composeapp.generated.resources.ai_provider_no_key_hint
+import chatone.composeapp.generated.resources.ai_server_reachable
+import chatone.composeapp.generated.resources.ai_server_unreachable
+import chatone.composeapp.generated.resources.ai_setup_active
+import chatone.composeapp.generated.resources.ai_setup_api_key
+import chatone.composeapp.generated.resources.ai_setup_cloud
+import chatone.composeapp.generated.resources.ai_setup_get_key
+import chatone.composeapp.generated.resources.ai_setup_install
+import chatone.composeapp.generated.resources.ai_setup_installed
+import chatone.composeapp.generated.resources.ai_setup_intro
+import chatone.composeapp.generated.resources.ai_setup_local
+import chatone.composeapp.generated.resources.ai_setup_local_source
+import chatone.composeapp.generated.resources.ai_setup_need_ollama
+import chatone.composeapp.generated.resources.ai_setup_save
+import chatone.composeapp.generated.resources.ai_setup_skip
+import chatone.composeapp.generated.resources.ai_setup_title
+import chatone.composeapp.generated.resources.ai_setup_use
+import chatone.composeapp.generated.resources.ai_temperature
+import chatone.composeapp.generated.resources.ai_temperature_hint
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
@@ -62,8 +100,6 @@ import io.rudione.chatone.presentation.ai.components.AiSectionLabel
 import io.rudione.chatone.presentation.ai.components.AiStatusDot
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.link.openUrl
 import io.rudione.chatone.util.system.isDesktopPlatform
 import kotlinx.coroutines.launch
@@ -79,7 +115,6 @@ fun AiSetupContent(
     scrollable: Boolean = true,
     showHeader: Boolean = true
 ) {
-    val s = LocalStrings.current
     val scope = rememberCoroutineScope()
     val config by controller.config.collectAsState()
 
@@ -123,18 +158,18 @@ fun AiSetupContent(
         ) {
             if (showHeader) {
                 Text(
-                    s.aiSetupTitle,
+                    stringResource(Res.string.ai_setup_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    s.aiSetupIntro,
+                    stringResource(Res.string.ai_setup_intro),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            AiSectionLabel(s.aiSetupCloud)
+            AiSectionLabel(stringResource(Res.string.ai_setup_cloud))
             AiProviders.cloud.forEach { p ->
                 CloudProviderRow(
                     provider = p,
@@ -168,13 +203,13 @@ fun AiSetupContent(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 )
 
-                AiSectionLabel(s.aiSetupLocal)
+                AiSectionLabel(stringResource(Res.string.ai_setup_local))
                 when (localReachable) {
-                    true -> AiStatusDot(true, s.aiServerReachable)
+                    true -> AiStatusDot(true, stringResource(Res.string.ai_server_reachable))
                     false -> {
-                        AiStatusDot(false, s.aiServerUnreachable)
+                        AiStatusDot(false, stringResource(Res.string.ai_server_unreachable))
                         Text(
-                            s.aiSetupNeedOllama,
+                            stringResource(Res.string.ai_setup_need_ollama),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -194,7 +229,7 @@ fun AiSetupContent(
                     null -> {}
                 }
                 Text(
-                    "${s.aiSetupLocalSource} · ${s.aiDlResumeNote}",
+                    "${stringResource(Res.string.ai_setup_local_source)} · ${stringResource(Res.string.ai_dl_resume_note)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -224,7 +259,7 @@ fun AiSetupContent(
                 }
 
                 if (installed.isNotEmpty()) {
-                    AiSectionLabel(s.aiSetupInstalled)
+                    AiSectionLabel(stringResource(Res.string.ai_setup_installed))
                     installed.forEach { im ->
 
                         val isActive = config.baseUrl == AiProviders.LOCAL_BASE_URL &&
@@ -249,7 +284,7 @@ fun AiSetupContent(
                             }
                             if (isActive) {
                                 Text(
-                                    "✓ ${s.aiSetupActive}",
+                                    "✓ ${stringResource(Res.string.ai_setup_active)}",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.SemiBold
@@ -273,7 +308,7 @@ fun AiSetupContent(
                                     modifier = Modifier.height(30.dp)
                                 ) {
                                     Text(
-                                        s.aiSetupUse,
+                                        stringResource(Res.string.ai_setup_use),
                                         style = MaterialTheme.typography.labelMedium
                                     )
                                 }
@@ -300,7 +335,7 @@ fun AiSetupContent(
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                AiSectionLabel(s.aiTemperature, Modifier.weight(1f))
+                AiSectionLabel(stringResource(Res.string.ai_temperature), Modifier.weight(1f))
                 Text(
                     ((config.temperature * 10).toInt() / 10.0).toString(),
                     style = MaterialTheme.typography.labelMedium,
@@ -314,7 +349,7 @@ fun AiSetupContent(
                 valueRange = 0f..1.5f
             )
             Text(
-                s.aiTemperatureHint,
+                stringResource(Res.string.ai_temperature_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -326,7 +361,7 @@ fun AiSetupContent(
                     onDone()
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text(s.aiSetupSkip) }
+            ) { Text(stringResource(Res.string.ai_setup_skip)) }
         }
     }
 }
@@ -390,14 +425,15 @@ private fun CloudProviderRow(
     onGetKey: () -> Unit,
     onSave: () -> Unit
 ) {
-    val s = LocalStrings.current
     AiCard(selected = expanded, onClick = onSelect) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             LiquidGlassTooltipBox(
-                tooltip = if (provider.needsKey) s.aiProviderNeedsKeyHint else s.aiProviderNoKeyHint
+                tooltip = if (provider.needsKey) stringResource(Res.string.ai_provider_needs_key_hint) else stringResource(
+                    Res.string.ai_provider_no_key_hint
+                )
             ) {
                 ProviderAvatar(provider.name)
             }
@@ -420,7 +456,7 @@ private fun CloudProviderRow(
                     value = apiKey,
                     onValueChange = onApiKeyChange,
                     modifier = Modifier.fillMaxWidth(),
-                    label = s.aiSetupApiKey,
+                    label = stringResource(Res.string.ai_setup_api_key),
                     textStyle = MaterialTheme.typography.bodySmall
                 )
                 Row(
@@ -433,7 +469,10 @@ private fun CloudProviderRow(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                             modifier = Modifier.height(32.dp)
                         ) {
-                            Text(s.aiSetupGetKey, style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                stringResource(Res.string.ai_setup_get_key),
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         }
                     }
                     OutlinedButton(
@@ -441,27 +480,33 @@ private fun CloudProviderRow(
                         enabled = apiKey.isNotBlank(),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
                         modifier = Modifier.height(32.dp)
-                    ) { Text(s.aiSetupSave, style = MaterialTheme.typography.labelMedium) }
+                    ) {
+                        Text(
+                            stringResource(Res.string.ai_setup_save),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
                 }
             } else {
                 OutlinedButton(
                     onClick = onSave,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text(s.aiSetupSave) }
+                ) { Text(stringResource(Res.string.ai_setup_save)) }
             }
         }
     }
 }
 
-private fun localModelNote(s: AppStrings, modelName: String): String = when (modelName) {
-    "llama3.2:1b" -> s.aiModelNoteLlama321b
-    "llama3.2:3b" -> s.aiModelNoteLlama323b
-    "qwen2.5:3b" -> s.aiModelNoteQwen253b
-    "gemma2:2b" -> s.aiModelNoteGemma22b
-    "phi3:mini" -> s.aiModelNotePhi3Mini
-    "qwen2.5:7b" -> s.aiModelNoteQwen257b
-    "deepseek-r1:7b" -> s.aiModelNoteDeepseekR17b
-    "mistral:7b" -> s.aiModelNoteMistral7b
+@Composable
+private fun localModelNote(modelName: String): String = when (modelName) {
+    "llama3.2:1b" -> stringResource(Res.string.ai_model_note_llama321b)
+    "llama3.2:3b" -> stringResource(Res.string.ai_model_note_llama323b)
+    "qwen2.5:3b" -> stringResource(Res.string.ai_model_note_qwen253b)
+    "gemma2:2b" -> stringResource(Res.string.ai_model_note_gemma22b)
+    "phi3:mini" -> stringResource(Res.string.ai_model_note_phi3_mini)
+    "qwen2.5:7b" -> stringResource(Res.string.ai_model_note_qwen257b)
+    "deepseek-r1:7b" -> stringResource(Res.string.ai_model_note_deepseek_r17b)
+    "mistral:7b" -> stringResource(Res.string.ai_model_note_mistral7b)
     else -> ""
 }
 
@@ -476,12 +521,11 @@ private fun LocalModelRow(
     onRetry: () -> Unit,
     onUse: () -> Unit
 ) {
-    val s = LocalStrings.current
-    val note = localModelNote(s, model.name)
+    val note = localModelNote(model.name)
     AiCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
             LiquidGlassTooltipBox(
-                tooltip = note.ifBlank { s.aiLocalModelGenericHint }
+                tooltip = note.ifBlank { stringResource(Res.string.ai_local_model_generic_hint) }
             ) {
                 LocalModelAvatar()
             }
@@ -510,16 +554,16 @@ private fun LocalModelRow(
             }
             when {
                 download is ModelDownloadState.Running || download is ModelDownloadState.Queued ->
-                    TextButton(onClick = onCancel) { Text(s.aiDlCancel) }
+                    TextButton(onClick = onCancel) { Text(stringResource(Res.string.ai_dl_cancel)) }
 
                 download is ModelDownloadState.Failed ->
-                    OutlinedButton(onClick = onRetry) { Text(s.aiDlRetry) }
+                    OutlinedButton(onClick = onRetry) { Text(stringResource(Res.string.ai_dl_retry)) }
 
                 installed || download is ModelDownloadState.Completed ->
-                    OutlinedButton(onClick = onUse) { Text(s.aiSetupSave) }
+                    OutlinedButton(onClick = onUse) { Text(stringResource(Res.string.ai_setup_save)) }
 
                 else ->
-                    OutlinedButton(onClick = onInstall) { Text(s.aiSetupInstall) }
+                    OutlinedButton(onClick = onInstall) { Text(stringResource(Res.string.ai_setup_install)) }
             }
         }
 
@@ -528,7 +572,7 @@ private fun LocalModelRow(
             is ModelDownloadState.Queued -> LinearProgressIndicator(Modifier.fillMaxWidth())
             is ModelDownloadState.Failed ->
                 Text(
-                    "${s.aiDlFailed}: ${download.message}",
+                    "${stringResource(Res.string.ai_dl_failed)}: ${download.message}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -544,11 +588,10 @@ private fun LocalModelRow(
 
 @Composable
 private fun DownloadProgress(state: ModelDownloadState.Running) {
-    val s = LocalStrings.current
     val label = when (state.phase) {
-        ModelDownloadState.Phase.DOWNLOADING -> s.aiDlDownloading
-        ModelDownloadState.Phase.VERIFYING -> s.aiDlVerifying
-        ModelDownloadState.Phase.RETRYING -> s.aiDlRetrying
+        ModelDownloadState.Phase.DOWNLOADING -> stringResource(Res.string.ai_dl_downloading)
+        ModelDownloadState.Phase.VERIFYING -> stringResource(Res.string.ai_dl_verifying)
+        ModelDownloadState.Phase.RETRYING -> stringResource(Res.string.ai_dl_retrying)
     }
     val determinate = state.phase == ModelDownloadState.Phase.DOWNLOADING && state.totalBytes > 0
     if (determinate) {

@@ -1,5 +1,20 @@
 package io.rudione.chatone.presentation.chat
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.close
+import chatone.composeapp.generated.resources.profile_ban
+import chatone.composeapp.generated.resources.profile_block
+import chatone.composeapp.generated.resources.profile_detach_card
+import chatone.composeapp.generated.resources.profile_mute_chip_global
+import chatone.composeapp.generated.resources.profile_note
+import chatone.composeapp.generated.resources.profile_pin_card
+import chatone.composeapp.generated.resources.profile_send_whisper
+import chatone.composeapp.generated.resources.profile_timeouts_label
+import chatone.composeapp.generated.resources.profile_unban
+import chatone.composeapp.generated.resources.profile_unblock
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,36 +29,21 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.DisableSelection
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,14 +55,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.data.remote.GqlUsercardMessage
-import io.rudione.chatone.domain.model.ChatMessage
-import io.rudione.chatone.domain.model.DisplayMessage
-import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.coroutines.flow.first
 import io.rudione.chatone.icons.lucide.Ban
 import io.rudione.chatone.icons.lucide.BellOff
 import io.rudione.chatone.icons.lucide.CalendarDays
@@ -73,7 +67,6 @@ import io.rudione.chatone.icons.lucide.Heart
 import io.rudione.chatone.icons.lucide.LockOpen
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.MessageCircle
-import io.rudione.chatone.icons.lucide.MessageSquare
 import io.rudione.chatone.icons.lucide.NotebookPen
 import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.Shield
@@ -194,7 +187,7 @@ internal fun ProfileCardHeaderActions(
         ChatoneIconButton(onClick = onTogglePin, modifier = Modifier.size(24.dp)) {
             Icon(
                 Lucide.Pin,
-                contentDescription = LocalStrings.current.profilePinCard,
+                contentDescription = stringResource(Res.string.profile_pin_card),
                 modifier = Modifier.size(14.dp),
                 tint = if (isPinned) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
@@ -204,7 +197,7 @@ internal fun ProfileCardHeaderActions(
             ChatoneIconButton(onClick = onDetach, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Lucide.ExternalLink,
-                    contentDescription = LocalStrings.current.profileDetachCard,
+                    contentDescription = stringResource(Res.string.profile_detach_card),
                     modifier = Modifier.size(13.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                 )
@@ -214,7 +207,7 @@ internal fun ProfileCardHeaderActions(
             ChatoneIconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
                 Icon(
                     Lucide.X,
-                    contentDescription = LocalStrings.current.close,
+                    contentDescription = stringResource(Res.string.close),
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                 )
@@ -234,7 +227,6 @@ internal fun ProfileModerationStrip(
     modifier: Modifier = Modifier
 ) {
     if (!canModerate || targetIsBroadcaster) return
-    val s = LocalStrings.current
     val extra = ChatoneTheme.extraColors
     val pillHeight = if (compact) 22.dp else 26.dp
 
@@ -247,21 +239,21 @@ internal fun ProfileModerationStrip(
             if (!compact) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        s.profileUnban,
+                        stringResource(Res.string.profile_unban),
                         style = MaterialTheme.typography.labelSmall,
                         color = extra.modUnban.copy(alpha = 0.85f),
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.weight(1f))
                     Text(
-                        s.profileTimeoutsLabel,
+                        stringResource(Res.string.profile_timeouts_label),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.weight(1f))
                     Text(
-                        s.profileBan,
+                        stringResource(Res.string.profile_ban),
                         style = MaterialTheme.typography.labelSmall,
                         color = extra.modBan.copy(alpha = 0.85f),
                         fontWeight = FontWeight.SemiBold
@@ -286,7 +278,7 @@ internal fun ProfileModerationStrip(
                     ModerationSquare(
                         icon = Lucide.CircleCheck,
                         tint = extra.modUnban,
-                        contentDescription = s.profileUnban,
+                        contentDescription = stringResource(Res.string.profile_unban),
                         height = pillHeight,
                         onClick = onUnban
                     )
@@ -302,7 +294,7 @@ internal fun ProfileModerationStrip(
                     ModerationSquare(
                         icon = Lucide.Ban,
                         tint = extra.modBan,
-                        contentDescription = s.profileBan,
+                        contentDescription = stringResource(Res.string.profile_ban),
                         height = pillHeight,
                         onClick = onBan
                     )
@@ -319,7 +311,6 @@ private fun ProfileTimeoutGrid(
     onBan: () -> Unit,
     onUnban: () -> Unit
 ) {
-    val s = LocalStrings.current
     val extra = ChatoneTheme.extraColors
     val half = (PROFILE_TIMEOUT_PRESETS.size + 1) / 2
 
@@ -332,7 +323,7 @@ private fun ProfileTimeoutGrid(
             ModerationSquare(
                 icon = Lucide.CircleCheck,
                 tint = extra.modUnban,
-                contentDescription = s.profileUnban,
+                contentDescription = stringResource(Res.string.profile_unban),
                 height = pillHeight,
                 onClick = onUnban
             )
@@ -363,7 +354,7 @@ private fun ProfileTimeoutGrid(
             ModerationSquare(
                 icon = Lucide.Ban,
                 tint = extra.modBan,
-                contentDescription = s.profileBan,
+                contentDescription = stringResource(Res.string.profile_ban),
                 height = pillHeight,
                 onClick = onBan
             )
@@ -453,7 +444,6 @@ internal fun ProfileQuickActions(
     compact: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
     val extra = ChatoneTheme.extraColors
     FlowRow(
         modifier = modifier.fillMaxWidth().padding(
@@ -465,7 +455,7 @@ internal fun ProfileQuickActions(
     ) {
         QuickActionChip(
             icon = Lucide.MessageCircle,
-            label = s.profileSendWhisper,
+            label = stringResource(Res.string.profile_send_whisper),
             tint = MaterialTheme.colorScheme.primary,
             active = false,
             compact = compact,
@@ -473,7 +463,7 @@ internal fun ProfileQuickActions(
         )
         QuickActionChip(
             icon = Lucide.NotebookPen,
-            label = s.profileNote,
+            label = stringResource(Res.string.profile_note),
             tint = MaterialTheme.colorScheme.tertiary,
             active = notesOpen || noteFilled,
             compact = compact,
@@ -481,7 +471,7 @@ internal fun ProfileQuickActions(
         )
         QuickActionChip(
             icon = Lucide.BellOff,
-            label = s.profileMuteChipGlobal,
+            label = stringResource(Res.string.profile_mute_chip_global),
             tint = MaterialTheme.colorScheme.error,
             active = mentionsMuted,
             compact = compact,
@@ -490,7 +480,7 @@ internal fun ProfileQuickActions(
         if (!targetIsBroadcaster) {
             QuickActionChip(
                 icon = if (isBlocked) Lucide.LockOpen else Lucide.UserX,
-                label = if (isBlocked) s.profileUnblock else s.profileBlock,
+                label = if (isBlocked) stringResource(Res.string.profile_unblock) else stringResource(Res.string.profile_block),
                 tint = MaterialTheme.colorScheme.error,
                 active = isBlocked,
                 compact = compact,
@@ -563,136 +553,6 @@ private fun QuickActionChip(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-    }
-}
-
-@Composable
-internal fun ProfileMessageFeed(
-    sessionMessages: List<DisplayMessage.PrivMsg>,
-    localHistory: List<ChatMessage>,
-    remoteHistory: List<GqlUsercardMessage>,
-    displayName: String,
-    userColor: String?,
-    login: String = "",
-    isHistoryLoading: Boolean,
-    hasMoreHistory: Boolean,
-    onLoadHistory: (() -> Unit)?,
-    highlightRules: List<HighlightRule>,
-    chatFontSizeSp: Float,
-    modifier: Modifier = Modifier
-) {
-    val s = LocalStrings.current
-    val listState = rememberLazyListState()
-    val nameColor = rememberNickColors().of(userColor, login.ifBlank { displayName })
-
-    val isEmpty = sessionMessages.isEmpty() && localHistory.isEmpty() &&
-            remoteHistory.isEmpty() && !isHistoryLoading
-
-    var stickToBottom by remember { mutableStateOf(true) }
-
-    LaunchedEffect(sessionMessages.size) {
-        if (!stickToBottom) return@LaunchedEffect
-        val total = snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
-        listState.scrollToItem(total - 1)
-    }
-
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            last >= info.totalItemsCount - 2
-        }.collect { atBottom -> stickToBottom = atBottom }
-    }
-
-    if (onLoadHistory != null && hasMoreHistory) {
-        LaunchedEffect(listState, hasMoreHistory, isHistoryLoading) {
-            snapshotFlow { listState.firstVisibleItemIndex }
-                .collect { first ->
-                    if (first <= 2 && !isHistoryLoading) onLoadHistory()
-                }
-        }
-    }
-
-    if (isEmpty) {
-        Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Icon(
-                    Lucide.MessageSquare,
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                )
-                Text(
-                    s.profileNoMessagesInSession,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-                if (onLoadHistory != null && hasMoreHistory) {
-                    TextButton(onClick = onLoadHistory) { Text(s.profileLoadHistory) }
-                }
-            }
-        }
-        return
-    }
-
-    SelectionContainer(modifier = modifier) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
-        ) {
-            item(key = "history-controls", contentType = "history-controls") {
-                DisableSelection {
-                    when {
-                        isHistoryLoading -> Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(13.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                s.profileLoadingHistory,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        hasMoreHistory && onLoadHistory != null -> TextButton(
-                            onClick = onLoadHistory,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                s.profileLoadMoreHistory,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
-                    }
-                }
-            }
-
-            items(remoteHistory, key = { "remote_${it.id}" }, contentType = { "remote" }) { entry ->
-                GqlHistoryMessageItem(entry, displayName, nameColor)
-            }
-            items(localHistory, key = { "local_${it.id}" }, contentType = { "local" }) { entry ->
-                LocalHistoryMessageItem(entry, displayName, nameColor)
-            }
-            items(sessionMessages, key = { it.id }, contentType = { "session" }) { message ->
-                PrivMsgItem(
-                    message = message,
-                    chatFontSizeSp = chatFontSizeSp,
-                    highlightRules = highlightRules,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
     }
 }
 

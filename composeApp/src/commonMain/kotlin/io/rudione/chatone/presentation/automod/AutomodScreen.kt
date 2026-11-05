@@ -1,7 +1,135 @@
 package io.rudione.chatone.presentation.automod
 
+import chatone.composeapp.generated.resources.ui_add
+import chatone.composeapp.generated.resources.ui_close
+import chatone.composeapp.generated.resources.ui_options
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.add
+import chatone.composeapp.generated.resources.automod_add_variant
+import chatone.composeapp.generated.resources.automod_alternates
+import chatone.composeapp.generated.resources.automod_back_to_list
+import chatone.composeapp.generated.resources.automod_case_sensitive
+import chatone.composeapp.generated.resources.automod_case_sensitive_desc
+import chatone.composeapp.generated.resources.automod_case_sensitive_guide
+import chatone.composeapp.generated.resources.automod_channel_login
+import chatone.composeapp.generated.resources.automod_channel_placeholder
+import chatone.composeapp.generated.resources.automod_delete_rule
+import chatone.composeapp.generated.resources.automod_exempt_mods
+import chatone.composeapp.generated.resources.automod_exempt_subs
+import chatone.composeapp.generated.resources.automod_exempt_vips
+import chatone.composeapp.generated.resources.automod_export_csv
+import chatone.composeapp.generated.resources.automod_export_json
+import chatone.composeapp.generated.resources.automod_export_xlsx
+import chatone.composeapp.generated.resources.automod_filter_all
+import chatone.composeapp.generated.resources.automod_filter_global
+import chatone.composeapp.generated.resources.automod_filter_local
+import chatone.composeapp.generated.resources.automod_ignore_links
+import chatone.composeapp.generated.resources.automod_ignore_links_desc
+import chatone.composeapp.generated.resources.automod_ignore_links_guide
+import chatone.composeapp.generated.resources.automod_import
+import chatone.composeapp.generated.resources.automod_install_starter
+import chatone.composeapp.generated.resources.automod_local_title
+import chatone.composeapp.generated.resources.automod_no_rules
+import chatone.composeapp.generated.resources.automod_no_rules_hint
+import chatone.composeapp.generated.resources.automod_note_label
+import chatone.composeapp.generated.resources.automod_note_placeholder
+import chatone.composeapp.generated.resources.automod_pattern_placeholder
+import chatone.composeapp.generated.resources.automod_regex_desc
+import chatone.composeapp.generated.resources.automod_regex_guide
+import chatone.composeapp.generated.resources.automod_regular_expression
+import chatone.composeapp.generated.resources.automod_rule_active
+import chatone.composeapp.generated.resources.automod_rule_disabled
+import chatone.composeapp.generated.resources.automod_scope_global
+import chatone.composeapp.generated.resources.automod_scope_local_channel
+import chatone.composeapp.generated.resources.automod_search_placeholder
+import chatone.composeapp.generated.resources.automod_section_action
+import chatone.composeapp.generated.resources.automod_section_exemptions
+import chatone.composeapp.generated.resources.automod_section_frequency
+import chatone.composeapp.generated.resources.automod_section_matching
+import chatone.composeapp.generated.resources.automod_section_note
+import chatone.composeapp.generated.resources.automod_section_pattern
+import chatone.composeapp.generated.resources.automod_section_scope
+import chatone.composeapp.generated.resources.automod_select_rule_hint
+import chatone.composeapp.generated.resources.automod_tab_chat_rules
+import chatone.composeapp.generated.resources.automod_tab_words
+import chatone.composeapp.generated.resources.automod_timeout_ms
+import chatone.composeapp.generated.resources.automod_trigger_threshold
+import chatone.composeapp.generated.resources.automod_trigger_threshold_desc
+import chatone.composeapp.generated.resources.automod_whole_word_desc
+import chatone.composeapp.generated.resources.automod_whole_word_guide
+import chatone.composeapp.generated.resources.automod_whole_word_only
+import chatone.composeapp.generated.resources.automod_window_ms
+import chatone.composeapp.generated.resources.automod_word_or_phrase
+import chatone.composeapp.generated.resources.chat_rule_action_ban
+import chatone.composeapp.generated.resources.chat_rule_action_delete
+import chatone.composeapp.generated.resources.chat_rule_action_timeout
+import chatone.composeapp.generated.resources.chat_rule_caps_min_length
+import chatone.composeapp.generated.resources.chat_rule_caps_min_length_desc
+import chatone.composeapp.generated.resources.chat_rule_caps_percent
+import chatone.composeapp.generated.resources.chat_rule_caps_percent_desc
+import chatone.composeapp.generated.resources.chat_rule_channel_filter_all
+import chatone.composeapp.generated.resources.chat_rule_chars_suffix
+import chatone.composeapp.generated.resources.chat_rule_consecutive_numbers
+import chatone.composeapp.generated.resources.chat_rule_consecutive_numbers_desc
+import chatone.composeapp.generated.resources.chat_rule_delete
+import chatone.composeapp.generated.resources.chat_rule_disabled
+import chatone.composeapp.generated.resources.chat_rule_duplicate_min
+import chatone.composeapp.generated.resources.chat_rule_duplicate_min_desc
+import chatone.composeapp.generated.resources.chat_rule_emotes_max
+import chatone.composeapp.generated.resources.chat_rule_emotes_max_desc
+import chatone.composeapp.generated.resources.chat_rule_enabled
+import chatone.composeapp.generated.resources.chat_rule_event_delay
+import chatone.composeapp.generated.resources.chat_rule_event_delay_desc
+import chatone.composeapp.generated.resources.chat_rule_event_message
+import chatone.composeapp.generated.resources.chat_rule_event_message_desc
+import chatone.composeapp.generated.resources.chat_rule_event_repeat
+import chatone.composeapp.generated.resources.chat_rule_event_repeat_desc
+import chatone.composeapp.generated.resources.chat_rule_exempt_mods
+import chatone.composeapp.generated.resources.chat_rule_exempt_subs
+import chatone.composeapp.generated.resources.chat_rule_exempt_vips
+import chatone.composeapp.generated.resources.chat_rule_exemptions_hint
+import chatone.composeapp.generated.resources.chat_rule_length_max
+import chatone.composeapp.generated.resources.chat_rule_length_max_desc
+import chatone.composeapp.generated.resources.chat_rule_links_allow_clips
+import chatone.composeapp.generated.resources.chat_rule_links_allow_clips_desc
+import chatone.composeapp.generated.resources.chat_rule_links_allowed_sites
+import chatone.composeapp.generated.resources.chat_rule_links_allowed_sites_desc
+import chatone.composeapp.generated.resources.chat_rule_links_clips_allowed_channels
+import chatone.composeapp.generated.resources.chat_rule_links_clips_allowed_channels_desc
+import chatone.composeapp.generated.resources.chat_rule_links_clips_same_channel_only
+import chatone.composeapp.generated.resources.chat_rule_links_clips_same_channel_only_desc
+import chatone.composeapp.generated.resources.chat_rule_links_require_https
+import chatone.composeapp.generated.resources.chat_rule_links_require_https_desc
+import chatone.composeapp.generated.resources.chat_rule_new_user_account_age
+import chatone.composeapp.generated.resources.chat_rule_new_user_account_age_desc
+import chatone.composeapp.generated.resources.chat_rule_no_rules
+import chatone.composeapp.generated.resources.chat_rule_no_rules_hint
+import chatone.composeapp.generated.resources.chat_rule_reply_section
+import chatone.composeapp.generated.resources.chat_rule_section_action
+import chatone.composeapp.generated.resources.chat_rule_section_config
+import chatone.composeapp.generated.resources.chat_rule_section_exemptions
+import chatone.composeapp.generated.resources.chat_rule_section_scope
+import chatone.composeapp.generated.resources.chat_rule_select_hint
+import chatone.composeapp.generated.resources.chat_rule_spam_messages
+import chatone.composeapp.generated.resources.chat_rule_spam_messages_desc
+import chatone.composeapp.generated.resources.chat_rule_spam_window
+import chatone.composeapp.generated.resources.chat_rule_spam_window_desc
+import chatone.composeapp.generated.resources.chat_rule_timeout_duration
+import chatone.composeapp.generated.resources.chat_rule_type
+import chatone.composeapp.generated.resources.chat_rule_type_caps
+import chatone.composeapp.generated.resources.chat_rule_type_consecutive_numbers
+import chatone.composeapp.generated.resources.chat_rule_type_duplicate
+import chatone.composeapp.generated.resources.chat_rule_type_emotes
+import chatone.composeapp.generated.resources.chat_rule_type_first_message_greeting
+import chatone.composeapp.generated.resources.chat_rule_type_length
+import chatone.composeapp.generated.resources.chat_rule_type_links
+import chatone.composeapp.generated.resources.chat_rule_type_new_user
+import chatone.composeapp.generated.resources.chat_rule_type_raid_welcome
+import chatone.composeapp.generated.resources.chat_rule_type_spam
+import chatone.composeapp.generated.resources.chat_rule_type_stream_offline
+import chatone.composeapp.generated.resources.chat_rule_type_stream_online
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.draw.drawBehind
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
 import androidx.compose.animation.animateColorAsState
@@ -50,7 +178,6 @@ import io.rudione.chatone.presentation.components.ChatoneSegmentedControl
 import io.rudione.chatone.presentation.components.DurationUnit
 import io.rudione.chatone.presentation.components.ExpressiveCheckChip
 import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.automod.AutomodImportExport
 import kotlin.time.Clock
 import org.koin.compose.koinInject
@@ -67,10 +194,11 @@ import io.rudione.chatone.icons.lucide.X
 
 enum class AutomodFilter { ALL, GLOBAL, LOCAL }
 
-private fun AutomodFilter.label(s: AppStrings): String = when (this) {
-    AutomodFilter.ALL -> s.automodFilterAll
-    AutomodFilter.GLOBAL -> s.automodFilterGlobal
-    AutomodFilter.LOCAL -> s.automodFilterLocal
+@Composable
+private fun AutomodFilter.label(): String = when (this) {
+    AutomodFilter.ALL -> stringResource(Res.string.automod_filter_all)
+    AutomodFilter.GLOBAL -> stringResource(Res.string.automod_filter_global)
+    AutomodFilter.LOCAL -> stringResource(Res.string.automod_filter_local)
 }
 private enum class AutomodTab { WORDS, CHAT_RULES }
 
@@ -136,7 +264,7 @@ fun AutomodScreen(
                 ) {
                     Column(Modifier.fillMaxSize()) {
                         LeftHeader(
-                            title = LocalStrings.current.automodLocalTitle,
+                            title = stringResource(Res.string.automod_local_title),
                             subtitle = currentChannelLogin?.let { "#$it" },
                             activeTab = activeTab,
                             onTabChange = { activeTab = it },
@@ -233,7 +361,7 @@ fun AutomodScreen(
             ) {
                 Column(Modifier.fillMaxSize()) {
                     LeftHeader(
-                        title = LocalStrings.current.automodLocalTitle,
+                        title = stringResource(Res.string.automod_local_title),
                         subtitle = currentChannelLogin?.let { "#$it" },
                         activeTab = activeTab, onTabChange = { activeTab = it }, onClose = onClose,
                         showImportExport = true, wordRules = wordRules, chatRules = chatRules,
@@ -295,8 +423,9 @@ private fun LeftHeader(
     onExportCsv: () -> Unit,
     onInstallDefaults: () -> Unit
 ) {
+    val automodTabWordsText = stringResource(Res.string.automod_tab_words)
+    val automodTabChatRulesText = stringResource(Res.string.automod_tab_chat_rules)
     var menuOpen by remember { mutableStateOf(false) }
-    val s = LocalStrings.current
 
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -322,33 +451,33 @@ private fun LeftHeader(
                 Box {
                     ChatoneIconButton(onClick = { menuOpen = true }) {
                         Icon(
-                            Lucide.Download, contentDescription = "Options",
+                            Lucide.Download, contentDescription = stringResource(Res.string.ui_options),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     ChatoneDropdownMenu(menuOpen, { menuOpen = false }) {
                         DropdownMenuItem(
-                            { Text(s.automodImport) },
+                            { Text(stringResource(Res.string.automod_import)) },
                             { menuOpen = false; onImport() })
                         DropdownMenuItem(
-                            { Text(s.automodExportJson) },
+                            { Text(stringResource(Res.string.automod_export_json)) },
                             { menuOpen = false; onExportJson() })
                         DropdownMenuItem(
-                            { Text(s.automodExportXlsx) },
+                            { Text(stringResource(Res.string.automod_export_xlsx)) },
                             { menuOpen = false; onExportXlsx() })
                         DropdownMenuItem(
-                            { Text(s.automodExportCsv) },
+                            { Text(stringResource(Res.string.automod_export_csv)) },
                             { menuOpen = false; onExportCsv() })
                         HorizontalDivider()
                         DropdownMenuItem(
-                            { Text(s.automodInstallStarter) },
+                            { Text(stringResource(Res.string.automod_install_starter)) },
                             { menuOpen = false; onInstallDefaults() })
                     }
                 }
             }
             ChatoneIconButton(onClick = onClose) {
                 Icon(
-                    Lucide.X, contentDescription = "Close",
+                    Lucide.X, contentDescription = stringResource(Res.string.ui_close),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -357,7 +486,7 @@ private fun LeftHeader(
             tabs = AutomodTab.entries,
             selected = activeTab,
             onSelect = onTabChange,
-            label = { if (it == AutomodTab.WORDS) s.automodTabWords else s.automodTabChatRules },
+            label = { if (it == AutomodTab.WORDS) automodTabWordsText else automodTabChatRulesText },
             badge = { if (it == AutomodTab.WORDS) wordRules.size else chatRules.size },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)
         )
@@ -376,7 +505,6 @@ private fun WordListPane(
 ) {
     var filter by remember { mutableStateOf(AutomodFilter.ALL) }
     var query by remember { mutableStateOf("") }
-    val s = LocalStrings.current
     val selected = rules.firstOrNull { it.id == selectedId }
 
     val filtered = remember(rules, filter, query) {
@@ -424,7 +552,7 @@ private fun WordListPane(
                 tabs = AutomodFilter.entries,
                 selected = filter,
                 onSelect = { filter = it },
-                label = { it.label(s) },
+                label = { it.label() },
                 fill = false,
                 size = ExpressiveTabSize.Compact,
                 divider = false,
@@ -432,7 +560,7 @@ private fun WordListPane(
             )
             AutomodActionButton(
                 icon = Lucide.Plus,
-                contentDescription = "Add",
+                contentDescription = stringResource(Res.string.ui_add),
                 onClick = {
                     val fresh = AutomodRule(
                         id = AutomodImportExport.newId(),
@@ -445,10 +573,10 @@ private fun WordListPane(
                 }
             )
         }
-        Md3SearchBar(query, { query = it }, s.automodSearchPlaceholder)
+        Md3SearchBar(query, { query = it }, stringResource(Res.string.automod_search_placeholder))
         Spacer(Modifier.height(4.dp))
         if (filtered.isEmpty()) {
-            EmptyHint(s.automodNoRules, s.automodNoRulesHint, Modifier.fillMaxSize())
+            EmptyHint(stringResource(Res.string.automod_no_rules), stringResource(Res.string.automod_no_rules_hint), Modifier.fillMaxSize())
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(filtered, key = { it.id }, contentType = { "rule" }) { rule ->
@@ -476,7 +604,6 @@ private fun ChatRuleListPane(
     var filter by remember { mutableStateOf(AutomodFilter.ALL) }
     var query by remember { mutableStateOf("") }
     var channelFilter by remember { mutableStateOf<String?>(null) }
-    val s = LocalStrings.current
 
     val knownChannels = remember(rules) {
         rules.mapNotNull { it.channelLogin?.takeIf { c -> c.isNotBlank() } }
@@ -533,7 +660,7 @@ private fun ChatRuleListPane(
                 tabs = AutomodFilter.entries,
                 selected = filter,
                 onSelect = { filter = it },
-                label = { it.label(s) },
+                label = { it.label() },
                 fill = false,
                 size = ExpressiveTabSize.Compact,
                 divider = false,
@@ -541,7 +668,7 @@ private fun ChatRuleListPane(
             )
             AutomodActionButton(
                 icon = Lucide.Plus,
-                contentDescription = "Add",
+                contentDescription = stringResource(Res.string.ui_add),
                 onClick = {
                     val fresh = ChatRule(
                         id = AutomodImportExport.newId(),
@@ -555,7 +682,7 @@ private fun ChatRuleListPane(
                 }
             )
         }
-        Md3SearchBar(query, { query = it }, s.automodSearchPlaceholder)
+        Md3SearchBar(query, { query = it }, stringResource(Res.string.automod_search_placeholder))
         if (knownChannels.isNotEmpty()) {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
@@ -563,7 +690,7 @@ private fun ChatRuleListPane(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 ChatoneChip(
-                    label = s.chatRuleChannelFilterAll,
+                    label = stringResource(Res.string.chat_rule_channel_filter_all),
                     onClick = { channelFilter = null },
                     selected = channelFilter == null,
                     height = 26.dp
@@ -580,7 +707,7 @@ private fun ChatRuleListPane(
         }
         Spacer(Modifier.height(4.dp))
         if (filtered.isEmpty()) {
-            EmptyHint(s.chatRuleNoRules, s.chatRuleNoRulesHint, Modifier.fillMaxSize())
+            EmptyHint(stringResource(Res.string.chat_rule_no_rules), stringResource(Res.string.chat_rule_no_rules_hint), Modifier.fillMaxSize())
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
                 items(filtered, key = { it.id }, contentType = { "rule" }) { rule ->
@@ -664,9 +791,8 @@ private fun WordDetailContent(
     onChange: (AutomodRule) -> Unit,
     onDelete: (AutomodRule) -> Unit
 ) {
-    val s = LocalStrings.current
     if (rule == null) {
-        EmptyHint(s.automodSelectRuleHint, "", Modifier.fillMaxSize()); return
+        EmptyHint(stringResource(Res.string.automod_select_rule_hint), "", Modifier.fillMaxSize()); return
     }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -674,10 +800,10 @@ private fun WordDetailContent(
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         if (onBack != null) {
-            TextButton(onClick = onBack) { Text("← ${s.automodBackToList}") }
+            TextButton(onClick = onBack) { Text("← ${stringResource(Res.string.automod_back_to_list)}") }
         }
 
-        DetailSection(s.automodSectionScope) {
+        DetailSection(stringResource(Res.string.automod_section_scope)) {
             ScopeSelector(rule.scope) { scope ->
                 onChange(
                     if (scope == AutomodScope.GLOBAL) rule.copy(scope = scope, channelLogin = null)
@@ -689,8 +815,8 @@ private fun WordDetailContent(
             }
             if (rule.scope == AutomodScope.LOCAL) {
                 Md3TextField(
-                    s.automodChannelLogin, rule.channelLogin.orEmpty(),
-                    currentChannelLogin ?: s.automodChannelPlaceholder
+                    stringResource(Res.string.automod_channel_login), rule.channelLogin.orEmpty(),
+                    currentChannelLogin ?: stringResource(Res.string.automod_channel_placeholder)
                 ) {
                     onChange(
                         rule.copy(
@@ -700,57 +826,57 @@ private fun WordDetailContent(
             }
         }
 
-        DetailSection(s.automodSectionPattern) {
+        DetailSection(stringResource(Res.string.automod_section_pattern)) {
             Md3TextField(
-                s.automodWordOrPhrase,
+                stringResource(Res.string.automod_word_or_phrase),
                 rule.pattern,
-                s.automodPatternPlaceholder
+                stringResource(Res.string.automod_pattern_placeholder)
             ) { onChange(rule.copy(pattern = it)) }
             AlternatesEditor(rule.alternates) { onChange(rule.copy(alternates = it)) }
         }
 
-        DetailSection(s.automodSectionMatching) {
+        DetailSection(stringResource(Res.string.automod_section_matching)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Md3Toggle(
-                    s.automodCaseSensitive,
-                    s.automodCaseSensitiveDesc,
+                    stringResource(Res.string.automod_case_sensitive),
+                    stringResource(Res.string.automod_case_sensitive_desc),
                     rule.caseSensitive,
                     Modifier.weight(1f),
-                    guide = s.automodCaseSensitiveGuide
+                    guide = stringResource(Res.string.automod_case_sensitive_guide)
                 ) { onChange(rule.copy(caseSensitive = it)) }
                 Md3Toggle(
-                    s.automodWholeWordOnly,
-                    s.automodWholeWordDesc,
+                    stringResource(Res.string.automod_whole_word_only),
+                    stringResource(Res.string.automod_whole_word_desc),
                     rule.wholeWord,
                     Modifier.weight(1f),
-                    guide = s.automodWholeWordGuide
+                    guide = stringResource(Res.string.automod_whole_word_guide)
                 ) { onChange(rule.copy(wholeWord = it)) }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Md3Toggle(
-                    s.automodRegularExpression,
-                    s.automodRegexDesc,
+                    stringResource(Res.string.automod_regular_expression),
+                    stringResource(Res.string.automod_regex_desc),
                     rule.isRegex,
                     Modifier.weight(1f),
-                    guide = s.automodRegexGuide
+                    guide = stringResource(Res.string.automod_regex_guide)
                 ) { onChange(rule.copy(isRegex = it)) }
                 Md3Toggle(
-                    s.automodIgnoreLinks,
-                    s.automodIgnoreLinksDesc,
+                    stringResource(Res.string.automod_ignore_links),
+                    stringResource(Res.string.automod_ignore_links_desc),
                     rule.ignoreLinks,
                     Modifier.weight(1f),
-                    guide = s.automodIgnoreLinksGuide
+                    guide = stringResource(Res.string.automod_ignore_links_guide)
                 ) { onChange(rule.copy(ignoreLinks = it)) }
             }
         }
 
-        DetailSection(s.automodSectionAction) {
+        DetailSection(stringResource(Res.string.automod_section_action)) {
             val extra = ChatoneTheme.extraColors
             ChatoneSegmentedControl(
                 options = listOf(
-                    AutomodAction.DELETE to s.chatRuleActionDelete,
-                    AutomodAction.TIMEOUT to s.chatRuleActionTimeout,
-                    AutomodAction.BAN to s.chatRuleActionBan
+                    AutomodAction.DELETE to stringResource(Res.string.chat_rule_action_delete),
+                    AutomodAction.TIMEOUT to stringResource(Res.string.chat_rule_action_timeout),
+                    AutomodAction.BAN to stringResource(Res.string.chat_rule_action_ban)
                 ),
                 selected = rule.action,
                 onSelect = { onChange(rule.copy(action = it)) },
@@ -767,18 +893,18 @@ private fun WordDetailContent(
                 ChatoneDurationField(
                     totalSeconds = (rule.timeoutMs / 1000L).toInt().coerceAtLeast(1),
                     onValueChange = { onChange(rule.copy(timeoutMs = it * 1000L)) },
-                    label = s.automodTimeoutMs,
+                    label = stringResource(Res.string.automod_timeout_ms),
                     maxSeconds = ModActionButton.MAX_TIMEOUT_SECONDS,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
 
-        DetailSection(s.automodSectionFrequency) {
+        DetailSection(stringResource(Res.string.automod_section_frequency)) {
             Md3NumberField(
-                s.automodTriggerThreshold,
+                stringResource(Res.string.automod_trigger_threshold),
                 rule.frequencyThreshold.toLong(),
-                s.automodTriggerThresholdDesc
+                stringResource(Res.string.automod_trigger_threshold_desc)
             ) {
                 onChange(rule.copy(frequencyThreshold = it.toInt().coerceIn(0, 999)))
             }
@@ -786,35 +912,35 @@ private fun WordDetailContent(
                 ChatoneDurationField(
                     totalSeconds = (rule.frequencyWindowMs / 1000L).toInt().coerceAtLeast(1),
                     onValueChange = { onChange(rule.copy(frequencyWindowMs = it * 1000L)) },
-                    label = s.automodWindowMs,
+                    label = stringResource(Res.string.automod_window_ms),
                     units = listOf(DurationUnit.SECONDS, DurationUnit.MINUTES, DurationUnit.HOURS),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
 
-        DetailSection(s.automodSectionExemptions) {
+        DetailSection(stringResource(Res.string.automod_section_exemptions)) {
             ExemptionChips(
                 rule.exemptMods, rule.exemptVips, rule.exemptSubs,
-                s.automodExemptMods, s.automodExemptVips, s.automodExemptSubs,
+                stringResource(Res.string.automod_exempt_mods), stringResource(Res.string.automod_exempt_vips), stringResource(Res.string.automod_exempt_subs),
                 { onChange(rule.copy(exemptMods = it)) },
                 { onChange(rule.copy(exemptVips = it)) },
                 { onChange(rule.copy(exemptSubs = it)) }
             )
         }
 
-        DetailSection(s.automodSectionNote) {
+        DetailSection(stringResource(Res.string.automod_section_note)) {
             Md3TextField(
-                s.automodNoteLabel,
+                stringResource(Res.string.automod_note_label),
                 rule.note,
-                s.automodNotePlaceholder,
+                stringResource(Res.string.automod_note_placeholder),
                 multiline = true
             ) { onChange(rule.copy(note = it)) }
         }
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (rule.enabled) s.automodRuleActive else s.automodRuleDisabled,
+                if (rule.enabled) stringResource(Res.string.automod_rule_active) else stringResource(Res.string.automod_rule_disabled),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (rule.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -834,7 +960,7 @@ private fun WordDetailContent(
         ) {
             Icon(Lucide.Trash2, null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(s.automodDeleteRule)
+            Text(stringResource(Res.string.automod_delete_rule))
         }
     }
 }
@@ -914,18 +1040,17 @@ private fun ChatRuleDetailContent(
     onChange: (ChatRule) -> Unit,
     onDelete: (ChatRule) -> Unit
 ) {
-    val s = LocalStrings.current
     if (rule == null) {
-        EmptyHint(s.chatRuleSelectHint, "", Modifier.fillMaxSize()); return
+        EmptyHint(stringResource(Res.string.chat_rule_select_hint), "", Modifier.fillMaxSize()); return
     }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        if (onBack != null) TextButton(onClick = onBack) { Text("← ${s.automodBackToList}") }
+        if (onBack != null) TextButton(onClick = onBack) { Text("← ${stringResource(Res.string.automod_back_to_list)}") }
 
-        DetailSection(s.chatRuleSectionScope) {
+        DetailSection(stringResource(Res.string.chat_rule_section_scope)) {
             ScopeSelector(rule.scope) { scope ->
                 onChange(
                     if (scope == AutomodScope.GLOBAL) rule.copy(scope = scope, channelLogin = null)
@@ -937,8 +1062,8 @@ private fun ChatRuleDetailContent(
             }
             if (rule.scope == AutomodScope.LOCAL) {
                 Md3TextField(
-                    s.automodChannelLogin, rule.channelLogin.orEmpty(),
-                    currentChannelLogin ?: s.automodChannelPlaceholder
+                    stringResource(Res.string.automod_channel_login), rule.channelLogin.orEmpty(),
+                    currentChannelLogin ?: stringResource(Res.string.automod_channel_placeholder)
                 ) {
                     onChange(
                         rule.copy(
@@ -948,20 +1073,20 @@ private fun ChatRuleDetailContent(
             }
         }
 
-        DetailSection(s.chatRuleType) {
+        DetailSection(stringResource(Res.string.chat_rule_type)) {
             val types = listOf(
-                ChatRuleType.SPAM_RATE to s.chatRuleTypeSpam,
-                ChatRuleType.ALL_CAPS to s.chatRuleTypeCaps,
-                ChatRuleType.LINKS to s.chatRuleTypeLinks,
-                ChatRuleType.EMOTE_SPAM to s.chatRuleTypeEmotes,
-                ChatRuleType.NEW_ACCOUNT to s.chatRuleTypeNewUser,
-                ChatRuleType.DUPLICATE_MESSAGE to s.chatRuleTypeDuplicate,
-                ChatRuleType.CONSECUTIVE_NUMBERS to s.chatRuleTypeConsecutiveNumbers,
-                ChatRuleType.MESSAGE_LENGTH to s.chatRuleTypeLength,
-                ChatRuleType.STREAM_ONLINE to s.chatRuleTypeStreamOnline,
-                ChatRuleType.STREAM_OFFLINE to s.chatRuleTypeStreamOffline,
-                ChatRuleType.FIRST_MESSAGE_GREETING to s.chatRuleTypeFirstMessageGreeting,
-                ChatRuleType.RAID_WELCOME to s.chatRuleTypeRaidWelcome
+                ChatRuleType.SPAM_RATE to stringResource(Res.string.chat_rule_type_spam),
+                ChatRuleType.ALL_CAPS to stringResource(Res.string.chat_rule_type_caps),
+                ChatRuleType.LINKS to stringResource(Res.string.chat_rule_type_links),
+                ChatRuleType.EMOTE_SPAM to stringResource(Res.string.chat_rule_type_emotes),
+                ChatRuleType.NEW_ACCOUNT to stringResource(Res.string.chat_rule_type_new_user),
+                ChatRuleType.DUPLICATE_MESSAGE to stringResource(Res.string.chat_rule_type_duplicate),
+                ChatRuleType.CONSECUTIVE_NUMBERS to stringResource(Res.string.chat_rule_type_consecutive_numbers),
+                ChatRuleType.MESSAGE_LENGTH to stringResource(Res.string.chat_rule_type_length),
+                ChatRuleType.STREAM_ONLINE to stringResource(Res.string.chat_rule_type_stream_online),
+                ChatRuleType.STREAM_OFFLINE to stringResource(Res.string.chat_rule_type_stream_offline),
+                ChatRuleType.FIRST_MESSAGE_GREETING to stringResource(Res.string.chat_rule_type_first_message_greeting),
+                ChatRuleType.RAID_WELCOME to stringResource(Res.string.chat_rule_type_raid_welcome)
             )
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 types.chunked(2).forEach { chunk ->
@@ -991,7 +1116,7 @@ private fun ChatRuleDetailContent(
             }
         }
 
-        DetailSection(s.chatRuleSectionConfig) {
+        DetailSection(stringResource(Res.string.chat_rule_section_config)) {
             when (rule.type) {
                 ChatRuleType.SPAM_RATE -> {
                     Row(
@@ -999,17 +1124,17 @@ private fun ChatRuleDetailContent(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Md3NumberField(
-                            s.chatRuleSpamMessages,
+                            stringResource(Res.string.chat_rule_spam_messages),
                             rule.spamMaxMessages.toLong(),
-                            s.chatRuleSpamMessagesDesc,
+                            stringResource(Res.string.chat_rule_spam_messages_desc),
                             Modifier.weight(1f)
                         ) {
                             onChange(rule.copy(spamMaxMessages = it.toInt().coerceIn(1, 100)))
                         }
                         Md3NumberField(
-                            s.chatRuleSpamWindow,
+                            stringResource(Res.string.chat_rule_spam_window),
                             rule.spamWindowSeconds.toLong(),
-                            s.chatRuleSpamWindowDesc,
+                            stringResource(Res.string.chat_rule_spam_window_desc),
                             Modifier.weight(1f)
                         ) {
                             onChange(rule.copy(spamWindowSeconds = it.toInt().coerceIn(1, 3600)))
@@ -1023,17 +1148,17 @@ private fun ChatRuleDetailContent(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Md3NumberField(
-                            s.chatRuleCapsPercent,
+                            stringResource(Res.string.chat_rule_caps_percent),
                             rule.capsThresholdPercent.toLong(),
-                            s.chatRuleCapsPercentDesc,
+                            stringResource(Res.string.chat_rule_caps_percent_desc),
                             Modifier.weight(1f)
                         ) {
                             onChange(rule.copy(capsThresholdPercent = it.toInt().coerceIn(10, 100)))
                         }
                         Md3NumberField(
-                            s.chatRuleCapsMinLength,
+                            stringResource(Res.string.chat_rule_caps_min_length),
                             rule.capsMinLength.toLong(),
-                            s.chatRuleCapsMinLengthDesc,
+                            stringResource(Res.string.chat_rule_caps_min_length_desc),
                             Modifier.weight(1f)
                         ) {
                             onChange(rule.copy(capsMinLength = it.toInt().coerceIn(1, 500)))
@@ -1043,16 +1168,16 @@ private fun ChatRuleDetailContent(
 
                 ChatRuleType.LINKS -> {
                     Md3Toggle(
-                        s.chatRuleLinksAllowClips,
-                        s.chatRuleLinksAllowClipsDesc,
+                        stringResource(Res.string.chat_rule_links_allow_clips),
+                        stringResource(Res.string.chat_rule_links_allow_clips_desc),
                         rule.linksAllowClips
                     ) {
                         onChange(rule.copy(linksAllowClips = it))
                     }
                     if (rule.linksAllowClips) {
                         Md3Toggle(
-                            s.chatRuleLinksClipsSameChannelOnly,
-                            s.chatRuleLinksClipsSameChannelOnlyDesc,
+                            stringResource(Res.string.chat_rule_links_clips_same_channel_only),
+                            stringResource(Res.string.chat_rule_links_clips_same_channel_only_desc),
                             rule.linksClipsSameChannelOnly
                         ) { onChange(rule.copy(linksClipsSameChannelOnly = it)) }
                         if (rule.linksClipsSameChannelOnly) {
@@ -1068,8 +1193,8 @@ private fun ChatRuleDetailContent(
                                         .filter { it.isNotBlank() }
                                     onChange(rule.copy(linksClipsAllowedChannels = chans))
                                 },
-                                label = s.chatRuleLinksClipsAllowedChannels,
-                                hint = s.chatRuleLinksClipsAllowedChannelsDesc,
+                                label = stringResource(Res.string.chat_rule_links_clips_allowed_channels),
+                                hint = stringResource(Res.string.chat_rule_links_clips_allowed_channels_desc),
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 2,
                                 maxLines = 6,
@@ -1079,8 +1204,8 @@ private fun ChatRuleDetailContent(
                         }
                     }
                     Md3Toggle(
-                        s.chatRuleLinksRequireHttps,
-                        s.chatRuleLinksRequireHttpsDesc,
+                        stringResource(Res.string.chat_rule_links_require_https),
+                        stringResource(Res.string.chat_rule_links_require_https_desc),
                         rule.linksRequireHttps
                     ) {
                         onChange(rule.copy(linksRequireHttps = it))
@@ -1096,8 +1221,8 @@ private fun ChatRuleDetailContent(
                                 v.lines().map { it.trim().lowercase() }.filter { it.isNotBlank() }
                             onChange(rule.copy(linksAllowedSites = sites))
                         },
-                        label = s.chatRuleLinksAllowedSites,
-                        hint = s.chatRuleLinksAllowedSitesDesc,
+                        label = stringResource(Res.string.chat_rule_links_allowed_sites),
+                        hint = stringResource(Res.string.chat_rule_links_allowed_sites_desc),
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 3,
                         maxLines = 6,
@@ -1107,33 +1232,33 @@ private fun ChatRuleDetailContent(
                 }
 
                 ChatRuleType.EMOTE_SPAM -> Md3NumberField(
-                    s.chatRuleEmotesMax,
+                    stringResource(Res.string.chat_rule_emotes_max),
                     rule.emoteMaxCount.toLong(),
-                    s.chatRuleEmotesMaxDesc
+                    stringResource(Res.string.chat_rule_emotes_max_desc)
                 ) {
                     onChange(rule.copy(emoteMaxCount = it.toInt().coerceIn(1, 200)))
                 }
 
                 ChatRuleType.NEW_ACCOUNT -> Md3NumberField(
-                    s.chatRuleNewUserAccountAge,
+                    stringResource(Res.string.chat_rule_new_user_account_age),
                     rule.newAccountAgeDays.toLong(),
-                    s.chatRuleNewUserAccountAgeDesc
+                    stringResource(Res.string.chat_rule_new_user_account_age_desc)
                 ) {
                     onChange(rule.copy(newAccountAgeDays = it.toInt().coerceIn(1, 3650)))
                 }
 
                 ChatRuleType.DUPLICATE_MESSAGE -> Md3NumberField(
-                    s.chatRuleDuplicateMin,
+                    stringResource(Res.string.chat_rule_duplicate_min),
                     rule.duplicateMinLength.toLong(),
-                    s.chatRuleDuplicateMinDesc
+                    stringResource(Res.string.chat_rule_duplicate_min_desc)
                 ) {
                     onChange(rule.copy(duplicateMinLength = it.toInt().coerceIn(1, 500)))
                 }
 
                 ChatRuleType.CONSECUTIVE_NUMBERS -> Md3NumberField(
-                    s.chatRuleConsecutiveNumbers,
+                    stringResource(Res.string.chat_rule_consecutive_numbers),
                     rule.consecutiveNumbersThreshold.toLong(),
-                    s.chatRuleConsecutiveNumbersDesc
+                    stringResource(Res.string.chat_rule_consecutive_numbers_desc)
                 ) {
                     onChange(rule.copy(consecutiveNumbersThreshold = it.toInt().coerceIn(2, 100)))
                 }
@@ -1141,10 +1266,10 @@ private fun ChatRuleDetailContent(
                 ChatRuleType.MESSAGE_LENGTH -> ChatoneNumberField(
                     value = rule.messageMaxLength,
                     onValueChange = { onChange(rule.copy(messageMaxLength = it)) },
-                    label = s.chatRuleLengthMax,
-                    hint = s.chatRuleLengthMaxDesc,
+                    label = stringResource(Res.string.chat_rule_length_max),
+                    hint = stringResource(Res.string.chat_rule_length_max_desc),
                     range = 1..ChatRule.MAX_MESSAGE_LENGTH,
-                    suffix = s.chatRuleCharsSuffix,
+                    suffix = stringResource(Res.string.chat_rule_chars_suffix),
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -1155,8 +1280,8 @@ private fun ChatRuleDetailContent(
                     ChatoneTextField(
                         value = rule.eventMessage,
                         onValueChange = { onChange(rule.copy(eventMessage = it)) },
-                        label = s.chatRuleEventMessage,
-                        hint = s.chatRuleEventMessageDesc,
+                        label = stringResource(Res.string.chat_rule_event_message),
+                        hint = stringResource(Res.string.chat_rule_event_message_desc),
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2,
                         maxLines = 4,
@@ -1168,17 +1293,17 @@ private fun ChatRuleDetailContent(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Md3NumberField(
-                            s.chatRuleEventRepeat,
+                            stringResource(Res.string.chat_rule_event_repeat),
                             rule.eventRepeat.toLong(),
-                            s.chatRuleEventRepeatDesc,
+                            stringResource(Res.string.chat_rule_event_repeat_desc),
                             Modifier.weight(1f)
                         ) {
                             onChange(rule.copy(eventRepeat = it.toInt().coerceIn(1, 10)))
                         }
                         Md3NumberField(
-                            s.chatRuleEventDelay,
+                            stringResource(Res.string.chat_rule_event_delay),
                             rule.eventDelaySeconds.toLong(),
-                            s.chatRuleEventDelayDesc,
+                            stringResource(Res.string.chat_rule_event_delay_desc),
                             Modifier.weight(1f)
                         ) {
                             onChange(rule.copy(eventDelaySeconds = it.toInt().coerceIn(0, 600)))
@@ -1189,13 +1314,13 @@ private fun ChatRuleDetailContent(
         }
 
         if (rule.type.supportsReply) {
-            DetailSection(s.chatRuleSectionAction) {
+            DetailSection(stringResource(Res.string.chat_rule_section_action)) {
                 val extra = ChatoneTheme.extraColors
                 ChatoneSegmentedControl(
                     options = listOf(
-                        ChatRuleAction.DELETE to s.chatRuleActionDelete,
-                        ChatRuleAction.TIMEOUT to s.chatRuleActionTimeout,
-                        ChatRuleAction.BAN to s.chatRuleActionBan
+                        ChatRuleAction.DELETE to stringResource(Res.string.chat_rule_action_delete),
+                        ChatRuleAction.TIMEOUT to stringResource(Res.string.chat_rule_action_timeout),
+                        ChatRuleAction.BAN to stringResource(Res.string.chat_rule_action_ban)
                     ),
                     selected = rule.action,
                     onSelect = { onChange(rule.copy(action = it)) },
@@ -1213,27 +1338,27 @@ private fun ChatRuleDetailContent(
                     ChatoneDurationField(
                         totalSeconds = rule.timeoutSeconds.coerceAtLeast(1),
                         onValueChange = { onChange(rule.copy(timeoutSeconds = it)) },
-                        label = s.chatRuleTimeoutDuration,
+                        label = stringResource(Res.string.chat_rule_timeout_duration),
                         maxSeconds = ModActionButton.MAX_TIMEOUT_SECONDS,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
-            DetailSection(s.chatRuleReplySection) {
+            DetailSection(stringResource(Res.string.chat_rule_reply_section)) {
                 ChatRuleReplySection(rule = rule, onChange = onChange)
             }
         }
 
-        DetailSection(s.chatRuleSectionExemptions) {
+        DetailSection(stringResource(Res.string.chat_rule_section_exemptions)) {
             ExemptionChips(
                 rule.exemptMods, rule.exemptVips, rule.exemptSubs,
-                s.chatRuleExemptMods, s.chatRuleExemptVips, s.chatRuleExemptSubs,
+                stringResource(Res.string.chat_rule_exempt_mods), stringResource(Res.string.chat_rule_exempt_vips), stringResource(Res.string.chat_rule_exempt_subs),
                 { onChange(rule.copy(exemptMods = it)) },
                 { onChange(rule.copy(exemptVips = it)) },
                 { onChange(rule.copy(exemptSubs = it)) }
             )
             Text(
-                s.chatRuleExemptionsHint,
+                stringResource(Res.string.chat_rule_exemptions_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1241,7 +1366,7 @@ private fun ChatRuleDetailContent(
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (rule.enabled) s.chatRuleEnabled else s.chatRuleDisabled,
+                if (rule.enabled) stringResource(Res.string.chat_rule_enabled) else stringResource(Res.string.chat_rule_disabled),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (rule.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1262,7 +1387,7 @@ private fun ChatRuleDetailContent(
         ) {
             Icon(Lucide.Trash2, null, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(s.chatRuleDelete)
+            Text(stringResource(Res.string.chat_rule_delete))
         }
     }
 }
@@ -1307,11 +1432,10 @@ private fun DetailSection(title: String, content: @Composable ColumnScope.() -> 
 
 @Composable
 private fun ScopeSelector(scope: AutomodScope, onSelect: (AutomodScope) -> Unit) {
-    val s = LocalStrings.current
     ChatoneSegmentedControl(
         options = listOf(
-            AutomodScope.GLOBAL to s.automodScopeGlobal,
-            AutomodScope.LOCAL to s.automodScopeLocalChannel
+            AutomodScope.GLOBAL to stringResource(Res.string.automod_scope_global),
+            AutomodScope.LOCAL to stringResource(Res.string.automod_scope_local_channel)
         ),
         selected = scope,
         onSelect = onSelect,
@@ -1540,7 +1664,7 @@ private fun AlternatesEditor(alternates: List<String>, onChange: (List<String>) 
     var draft by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            LocalStrings.current.automodAlternates,
+            stringResource(Res.string.automod_alternates),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1574,7 +1698,7 @@ private fun AlternatesEditor(alternates: List<String>, onChange: (List<String>) 
             ChatoneTextField(
                 value = draft,
                 onValueChange = { draft = it },
-                placeholder = LocalStrings.current.automodAddVariant,
+                placeholder = stringResource(Res.string.automod_add_variant),
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodySmall
@@ -1584,7 +1708,7 @@ private fun AlternatesEditor(alternates: List<String>, onChange: (List<String>) 
                 if (v.isNotEmpty() && v !in alternates) {
                     onChange(alternates + v); draft = ""
                 }
-            }) { Text(LocalStrings.current.add) }
+            }) { Text(stringResource(Res.string.add)) }
         }
     }
 }

@@ -12,6 +12,8 @@ enum class DeviceFormFactor {
 
     val isHandheld: Boolean get() = this == PHONE || this == TABLET
 
+    val playsStreams: Boolean get() = isHandheld || isLeanBack
+
     val hasPointer: Boolean get() = this == DESKTOP || this == XR
 
     val prefersLargeTargets: Boolean get() = this == TV || this == XR || this == WATCH

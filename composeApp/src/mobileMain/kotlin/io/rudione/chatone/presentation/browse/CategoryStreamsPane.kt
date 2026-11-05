@@ -1,5 +1,16 @@
 package io.rudione.chatone.presentation.browse
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.browse_filters
+import chatone.composeapp.generated.resources.browse_hide_mature
+import chatone.composeapp.generated.resources.browse_load_failed
+import chatone.composeapp.generated.resources.browse_no_streams
+import chatone.composeapp.generated.resources.browse_reset_filters
+import chatone.composeapp.generated.resources.browse_retry
+import chatone.composeapp.generated.resources.browse_sort_recent
+import chatone.composeapp.generated.resources.browse_sort_viewers_high
+import chatone.composeapp.generated.resources.browse_sort_viewers_low
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -45,7 +56,6 @@ import io.rudione.chatone.domain.browse.BrowseStream
 import io.rudione.chatone.domain.browse.StreamFilter
 import io.rudione.chatone.domain.browse.StreamSort
 import io.rudione.chatone.presentation.components.ChatoneChip
-import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
 
@@ -59,7 +69,6 @@ internal fun CategoryStreamsPane(
     category: BrowseCategory,
     filter: StreamFilter,
     streams: LazyPagingItems<BrowseStream>,
-    strings: BrowseStrings,
     bottomInset: Dp,
     onEvent: (BrowseEvent) -> Unit,
     onOpenFilters: () -> Unit,
@@ -88,9 +97,9 @@ internal fun CategoryStreamsPane(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            fullSpanItem("hero") { CategoryHero(category, strings) }
+            fullSpanItem("hero") { CategoryHero(category) }
             fullSpanItem("filters") {
-                ActiveFiltersBar(filter, strings, onOpenFilters, onChange = { onEvent(BrowseEvent.ApplyFilter(it)) })
+                ActiveFiltersBar(filter, onOpenFilters, onChange = { onEvent(BrowseEvent.ApplyFilter(it)) })
             }
             when (streams.content) {
                 PagedContent.Loading -> items(
@@ -100,13 +109,13 @@ internal fun CategoryStreamsPane(
                 ) { PlaceholderBlock(aspectRatio = 16f / 9f) }
 
                 PagedContent.Failed -> fullSpanItem("streams_error") {
-                    BrowseMessage(strings.loadFailed, strings.retry, streams::retry)
+                    BrowseMessage(stringResource(Res.string.browse_load_failed), stringResource(Res.string.browse_retry), streams::retry)
                 }
 
                 PagedContent.Empty -> fullSpanItem("streams_empty") {
                     BrowseMessage(
-                        text = strings.noStreams,
-                        actionLabel = strings.resetFilters.takeUnless { filter.isDefault },
+                        text = stringResource(Res.string.browse_no_streams),
+                        actionLabel = stringResource(Res.string.browse_reset_filters).takeUnless { filter.isDefault },
                         onAction = { onEvent(BrowseEvent.ResetFilters) }
                     )
                 }
@@ -120,23 +129,22 @@ internal fun CategoryStreamsPane(
                         val stream = streams[index] ?: return@items
                         StreamCard(
                             stream = stream,
-                            strings = strings,
                             nowMs = nowMs,
                             onClick = { onOpenStream(stream) },
                             onAskAi = { onAskAi(stream) },
                             modifier = Modifier.animateItem()
                         )
                     }
-                    pagingFooter(streams, strings, "streams")
+                    pagingFooter(streams, "streams")
                 }
             }
         }
-        ScrollToTopButton(gridState, strings, bottomInset)
+        ScrollToTopButton(gridState, bottomInset)
     }
 }
 
 @Composable
-private fun CategoryHero(category: BrowseCategory, strings: BrowseStrings) {
+private fun CategoryHero(category: BrowseCategory) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -166,8 +174,8 @@ private fun CategoryHero(category: BrowseCategory, strings: BrowseStrings) {
             )
             Text(
                 listOf(
-                    BrowseFormatting.viewers(category.viewers, strings),
-                    BrowseFormatting.channels(category.broadcasters, strings)
+                    BrowseFormatting.viewers(category.viewers),
+                    BrowseFormatting.channels(category.broadcasters)
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -181,9 +189,7 @@ private fun CategoryHero(category: BrowseCategory, strings: BrowseStrings) {
 internal fun PopularStreamsPane(
     streams: LazyPagingItems<BrowseStream>,
     filter: StreamFilter,
-    strings: BrowseStrings,
     bottomInset: Dp,
-    header: @Composable () -> Unit,
     onEvent: (BrowseEvent) -> Unit,
     onOpenFilters: () -> Unit,
     onOpenStream: (BrowseStream) -> Unit,
@@ -214,9 +220,8 @@ internal fun PopularStreamsPane(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            fullSpanItem("popular_header") { header() }
             fullSpanItem("popular_filters") {
-                ActiveFiltersBar(filter, strings, onOpenFilters, onChange = { onEvent(BrowseEvent.ApplyFilter(it)) })
+                ActiveFiltersBar(filter, onOpenFilters, onChange = { onEvent(BrowseEvent.ApplyFilter(it)) })
             }
             when (streams.content) {
                 PagedContent.Loading -> items(
@@ -226,13 +231,13 @@ internal fun PopularStreamsPane(
                 ) { PlaceholderBlock(aspectRatio = 16f / 9f) }
 
                 PagedContent.Failed -> fullSpanItem("popular_error") {
-                    BrowseMessage(failedText ?: strings.loadFailed, strings.retry, streams::retry)
+                    BrowseMessage(failedText ?: stringResource(Res.string.browse_load_failed), stringResource(Res.string.browse_retry), streams::retry)
                 }
 
                 PagedContent.Empty -> fullSpanItem("popular_empty") {
                     BrowseMessage(
-                        text = emptyText ?: strings.noStreams,
-                        actionLabel = if (emptyAction) strings.resetFilters.takeUnless { filter.isDefault } else null,
+                        text = emptyText ?: stringResource(Res.string.browse_no_streams),
+                        actionLabel = if (emptyAction) stringResource(Res.string.browse_reset_filters).takeUnless { filter.isDefault } else null,
                         onAction = { onEvent(BrowseEvent.ResetFilters) }
                     )
                 }
@@ -246,25 +251,23 @@ internal fun PopularStreamsPane(
                         val stream = streams[index] ?: return@items
                         StreamCard(
                             stream = stream,
-                            strings = strings,
                             nowMs = nowMs,
                             onClick = { onOpenStream(stream) },
                             onAskAi = { onAskAi(stream) },
                             modifier = Modifier.animateItem()
                         )
                     }
-                    pagingFooter(streams, strings, "popular")
+                    pagingFooter(streams, "popular")
                 }
             }
         }
-        ScrollToTopButton(gridState, strings, bottomInset)
+        ScrollToTopButton(gridState, bottomInset)
     }
 }
 
 @Composable
 internal fun ActiveFiltersBar(
     filter: StreamFilter,
-    strings: BrowseStrings,
     onOpenFilters: () -> Unit,
     onChange: (StreamFilter) -> Unit
 ) {
@@ -275,13 +278,13 @@ internal fun ActiveFiltersBar(
     ) {
         val count = filter.activeCount
         ChatoneChip(
-            label = if (count > 0) "${strings.filters} · $count" else strings.filters,
+            label = if (count > 0) "${stringResource(Res.string.browse_filters)} · $count" else stringResource(Res.string.browse_filters),
             selected = count > 0,
             leadingIcon = Icons.Rounded.Tune,
             onClick = onOpenFilters
         )
         if (filter.sort != StreamSort.VIEWERS_HIGH) {
-            RemovableChip(sortLabel(filter.sort, strings)) { onChange(filter.copy(sort = StreamSort.VIEWERS_HIGH)) }
+            RemovableChip(sortLabel(filter.sort)) { onChange(filter.copy(sort = StreamSort.VIEWERS_HIGH)) }
         }
         filter.language?.let { language ->
             RemovableChip(language) { onChange(filter.copy(language = null)) }
@@ -290,12 +293,12 @@ internal fun ActiveFiltersBar(
             RemovableChip(tag) { onChange(filter.copy(tag = null)) }
         }
         if (filter.minViewers > 0) {
-            RemovableChip("≥ " + BrowseFormatting.viewers(filter.minViewers, strings)) {
+            RemovableChip("≥ " + BrowseFormatting.viewers(filter.minViewers)) {
                 onChange(filter.copy(minViewers = 0))
             }
         }
         if (filter.hideMature) {
-            RemovableChip(strings.hideMature) { onChange(filter.copy(hideMature = false)) }
+            RemovableChip(stringResource(Res.string.browse_hide_mature)) { onChange(filter.copy(hideMature = false)) }
         }
     }
 }
@@ -311,8 +314,9 @@ private fun RemovableChip(label: String, onRemove: () -> Unit) {
     )
 }
 
-internal fun sortLabel(sort: StreamSort, strings: BrowseStrings): String = when (sort) {
-    StreamSort.VIEWERS_HIGH -> strings.sortViewersHigh
-    StreamSort.VIEWERS_LOW -> strings.sortViewersLow
-    StreamSort.RECENT -> strings.sortRecent
+@Composable
+internal fun sortLabel(sort: StreamSort): String = when (sort) {
+    StreamSort.VIEWERS_HIGH -> stringResource(Res.string.browse_sort_viewers_high)
+    StreamSort.VIEWERS_LOW -> stringResource(Res.string.browse_sort_viewers_low)
+    StreamSort.RECENT -> stringResource(Res.string.browse_sort_recent)
 }

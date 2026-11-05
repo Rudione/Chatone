@@ -1,5 +1,6 @@
 package io.rudione.chatone
 
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -34,7 +36,9 @@ import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import io.rudione.chatone.presentation.auth.AuthScreen
 import io.rudione.chatone.presentation.chat.ChatMediaSettings
 import io.rudione.chatone.presentation.chat.LocalChatMediaSettings
-import io.rudione.chatone.presentation.components.SystemBarsAppearance
+import io.rudione.chatone.presentation.components.AppSystemBars
+import io.rudione.chatone.presentation.components.LocalStatusBarOverrides
+import io.rudione.chatone.presentation.components.StatusBarOverrides
 import io.rudione.chatone.presentation.main.MainScreen
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
@@ -49,8 +53,7 @@ import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperController
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
+import io.rudione.chatone.presentation.theme.i18n.LocalAppLocale
 import io.rudione.chatone.util.concurrent.IoDispatcher
 import io.rudione.chatone.util.font.resolveFontFamilyWithBundled
 import io.rudione.chatone.util.media.WallpaperLoader
@@ -58,6 +61,12 @@ import kotlinx.coroutines.withContext
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+
+@Immutable
+class AppScreens(
+    val auth: @Composable (onAuthenticated: () -> Unit) -> Unit,
+    val main: @Composable (onSignedOut: () -> Unit) -> Unit
+)
 
 private sealed interface RootRoute {
     data object Loading : RootRoute
@@ -101,7 +110,8 @@ fun App(
     onAlwaysOnTopModeChanged: (AlwaysOnTopMode) -> Unit = {},
     onThemeChanged: ((Boolean) -> Unit)? = null,
     onThemeTopBarColorChanged: ((Color?) -> Unit)? = null,
-    onTitleBarModeChanged: ((TitleBarMode) -> Unit)? = null
+    onTitleBarModeChanged: ((TitleBarMode) -> Unit)? = null,
+    screens: AppScreens? = null
 ) {
     val customThemeManager: CustomThemeManager = koinInject()
     val activeCustomTheme by customThemeManager.currentTheme.collectAsState()
@@ -188,13 +198,12 @@ fun App(
 
         val wallpaper by remember { derivedStateOf { wallpaperController.state } }
 
-        SideEffect(customThemeManager.savedThemes.value, activeCustomTheme) {
-            settingsViewModel.sendEvent(
-                SettingsEvent.OnCustomThemesJsonChanged(customThemeManager.serialize())
-            )
-            customThemeManager.currentTheme.value?.let {
-                settingsViewModel.sendEvent(SettingsEvent.OnActiveCustomThemeIdChanged(it.id))
-            }
+        var customThemesRestored by remember { mutableStateOf(false) }
+        val savedCustomThemes by customThemeManager.savedThemes.collectAsState()
+        LaunchedEffect(customThemesRestored, savedCustomThemes, activeCustomTheme) {
+            if (!customThemesRestored) return@LaunchedEffect
+            settingsViewModel.sendEvent(SettingsEvent.OnCustomThemesJsonChanged(customThemeManager.serialize()))
+            settingsViewModel.sendEvent(SettingsEvent.OnActiveCustomThemeIdChanged(activeCustomTheme?.id))
         }
 
         val launchReadiness: LaunchReadiness = koinInject()
@@ -206,6 +215,7 @@ fun App(
                     themes.find { it.id == id }?.let { customThemeManager.setTheme(it) }
                 }
             }
+            customThemesRestored = true
             val route = try {
                 if (getFirstValidAccount() != null) RootRoute.Main else RootRoute.Auth
             } catch (e: Exception) {
@@ -218,9 +228,6 @@ fun App(
         }
 
         val uiScale = settingsState.uiScale
-        val currentStrings = remember(settingsState.language) {
-            AppStrings.forLocale(settingsState.language)
-        }
         val resolvedChatFontFamily = resolveFontFamilyWithBundled(
             settingsState.fontFamilyName, settingsState.customFontPaths
         )
@@ -249,8 +256,10 @@ fun App(
                 strikethrough = settingsState.fontStrikethrough
             )
         }
+        val statusBarOverrides = remember { StatusBarOverrides() }
         CompositionLocalProvider(
-            LocalStrings provides currentStrings,
+            LocalStatusBarOverrides provides statusBarOverrides,
+            LocalAppLocale provides settingsState.language,
             LocalWallpaperController provides wallpaperController,
             LocalCustomThemeManager provides customThemeManager,
             io.rudione.chatone.presentation.chat.LocalNicknames provides nicknames,
@@ -270,69 +279,79 @@ fun App(
                 LocalDensity.current.fontScale
             )
         ) {
-            ChatoneTheme(
-                darkTheme = true,
-                accentColorIndex = settingsState.accentColorIndex,
-                customTheme = activeCustomTheme,
-                fontSettings = chatFontSettings,
-                colorTokens = settingsState.colorTokens
-            ) {
-                SystemBarsAppearance(
-                    lightBackground = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
-                )
-                val resolvedTopBarColor = io.rudione.chatone.presentation.theme.topBarBackgroundColor(
-                    wallpaper,
-                    androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer
-                )
-                LaunchedEffect(resolvedTopBarColor) {
-                    onThemeTopBarColorChanged?.invoke(resolvedTopBarColor)
-                }
-                Box(
-                    modifier = androidx.compose.ui.Modifier
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    if (event.type == PointerEventType.Scroll) {
-                                        val isCtrl = event.keyboardModifiers.isCtrlPressed
-                                        if (isCtrl) {
-                                            val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
-                                            val newScale = (uiScale - delta * 0.05f).coerceIn(0.7f, 2.0f)
-                                            settingsViewModel.sendEvent(SettingsEvent.OnUiScaleChanged(newScale))
+            key(settingsState.language) {
+                ChatoneTheme(
+                    darkTheme = true,
+                    accentColorIndex = settingsState.accentColorIndex,
+                    customTheme = activeCustomTheme,
+                    fontSettings = chatFontSettings,
+                    colorTokens = settingsState.colorTokens
+                ) {
+                    AppSystemBars(
+                        lightBackground = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
+                    )
+                    val resolvedTopBarColor = io.rudione.chatone.presentation.theme.topBarBackgroundColor(
+                        wallpaper,
+                        androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer
+                    )
+                    LaunchedEffect(resolvedTopBarColor) {
+                        onThemeTopBarColorChanged?.invoke(resolvedTopBarColor)
+                    }
+                    Box(
+                        modifier = androidx.compose.ui.Modifier
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        if (event.type == PointerEventType.Scroll) {
+                                            val isCtrl = event.keyboardModifiers.isCtrlPressed
+                                            if (isCtrl) {
+                                                val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                                                val newScale = (uiScale - delta * 0.05f).coerceIn(0.7f, 2.0f)
+                                                settingsViewModel.sendEvent(SettingsEvent.OnUiScaleChanged(newScale))
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                ) {
-                    val currentRoute = backStack.lastOrNull() ?: RootRoute.Loading
-                    AnimatedContent(
-                        targetState = currentRoute,
-                        transitionSpec = {
-                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
-                        },
-                        label = "root-route"
-                    ) { route ->
-                        when (route) {
-                            RootRoute.Loading -> Box(androidx.compose.ui.Modifier.fillMaxSize())
-                            RootRoute.Auth -> AuthScreen(
-                                onAuthSuccess = { backStack.replaceWith(RootRoute.Main) },
-                                language = settingsState.language,
-                                onLanguageChange = { code ->
-                                    settingsViewModel.sendEvent(SettingsEvent.OnLanguageChanged(code))
+                    ) {
+                        val currentRoute = backStack.lastOrNull() ?: RootRoute.Loading
+                        AnimatedContent(
+                            targetState = currentRoute,
+                            transitionSpec = {
+                                fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                            },
+                            label = "root-route"
+                        ) { route ->
+                            when (route) {
+                                RootRoute.Loading -> Box(androidx.compose.ui.Modifier.fillMaxSize())
+                                RootRoute.Auth -> if (screens != null) {
+                                    screens.auth { backStack.replaceWith(RootRoute.Main) }
+                                } else {
+                                    AuthScreen(
+                                        onAuthSuccess = { backStack.replaceWith(RootRoute.Main) },
+                                        language = settingsState.language,
+                                        onLanguageChange = { code ->
+                                            settingsViewModel.sendEvent(SettingsEvent.OnLanguageChanged(code))
+                                        }
+                                    )
                                 }
-                            )
 
-                            RootRoute.Main -> MainScreen(
-                                onNavigateToAuth = { backStack.replaceWith(RootRoute.Auth) },
-                                onThemeChanged = { dark ->
-                                    isDarkTheme = dark
-                                    onThemeChanged?.invoke(dark)
+                                RootRoute.Main -> if (screens != null) {
+                                    screens.main { backStack.replaceWith(RootRoute.Auth) }
+                                } else {
+                                    MainScreen(
+                                        onNavigateToAuth = { backStack.replaceWith(RootRoute.Auth) },
+                                        onThemeChanged = { dark ->
+                                            isDarkTheme = dark
+                                            onThemeChanged?.invoke(dark)
+                                        }
+                                    )
                                 }
-                            )
+                            }
                         }
+                        LaunchSplashOverlay()
                     }
-                    LaunchSplashOverlay()
                 }
             }
         }

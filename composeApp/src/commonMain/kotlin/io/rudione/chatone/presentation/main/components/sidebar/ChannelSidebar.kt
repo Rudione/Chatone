@@ -1,5 +1,31 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import chatone.composeapp.generated.resources.ui_close
+import chatone.composeapp.generated.resources.ai_assistant_content_description
+import chatone.composeapp.generated.resources.channel_page_my_profile
+import chatone.composeapp.generated.resources.chat_whisper_tab
+import chatone.composeapp.generated.resources.main_add_channel_to_folder
+import chatone.composeapp.generated.resources.main_channel_options
+import chatone.composeapp.generated.resources.main_channels_header
+import chatone.composeapp.generated.resources.main_collapse_sidebar
+import chatone.composeapp.generated.resources.main_delete_folder
+import chatone.composeapp.generated.resources.main_edit_folder
+import chatone.composeapp.generated.resources.main_login_to_twitch
+import chatone.composeapp.generated.resources.main_no_channels_to_add
+import chatone.composeapp.generated.resources.open_channel_special_header
+import chatone.composeapp.generated.resources.panel_mentions_title
+import chatone.composeapp.generated.resources.settings_title
+import chatone.composeapp.generated.resources.sidebar_add_channel_button
+import chatone.composeapp.generated.resources.sidebar_add_folder_button
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.points_streak_description
+import io.rudione.chatone.presentation.points.StreakBadge
+import io.rudione.chatone.presentation.points.rememberWatchStreak
+import org.jetbrains.compose.resources.stringResource
+import androidx.compose.foundation.clickable
+import io.rudione.chatone.presentation.profile.PageNavigator
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -33,11 +59,10 @@ import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import io.rudione.chatone.presentation.components.RailAction
 import io.rudione.chatone.presentation.components.ChatoneIconRail
-import io.rudione.chatone.presentation.components.GradientButton
+import io.rudione.chatone.presentation.components.TonalButton
 import io.rudione.chatone.presentation.theme.ChatoneColors
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.presentation.main.MainState
@@ -66,7 +91,7 @@ import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.icons.lucide.User
 import io.rudione.chatone.icons.lucide.X
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun ChannelSidebar(
     state: MainState,
@@ -92,9 +117,9 @@ internal fun ChannelSidebar(
     LaunchedEffect(dragState.isDragging) {
         if (dragState.isDragging) dragState.autoScroll(listState, density)
     }
-    val s = LocalStrings.current
     val filteredUnfoldered = remember(state.folders, state.unfolderedChannels) {
-        val folderedLogins = state.folders.flatMapTo(HashSet()) { folder -> folder.channels.map { it.login } }
+        val folderedLogins =
+            state.folders.flatMapTo(HashSet()) { folder -> folder.channels.map { it.login } }
         state.unfolderedChannels.filter { it.login !in folderedLogins }
     }
     val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
@@ -168,7 +193,7 @@ internal fun ChannelSidebar(
                         if (state.sidebarCollapsed)
                             Lucide.ChevronLeft
                         else Lucide.ChevronRight,
-                        contentDescription = LocalStrings.current.mainCollapseSidebar,
+                        contentDescription = stringResource(Res.string.main_collapse_sidebar),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -180,7 +205,7 @@ internal fun ChannelSidebar(
                 ) {
                     Icon(
                         Lucide.X,
-                        contentDescription = "Close",
+                        contentDescription = stringResource(Res.string.ui_close),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
@@ -189,30 +214,58 @@ internal fun ChannelSidebar(
         }
 
         state.selectedAccount?.let { account ->
+            val profiles: PageNavigator = koinInject()
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (account.profileImageUrl.isNotEmpty()) {
-                    AsyncImage(
-                        model = account.profileImageUrl,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp).clip(CircleShape)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = account.displayName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    if (state.activeChannelLogin != null) {
-                        Text(
-                            text = "#${state.activeChannelLogin}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                Row(
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
+                        .clickable(enabled = profiles.isSupported) {
+                            onEvent(MainEvent.CloseSidebar)
+                            profiles.openChannel(account.login)
+                        },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (account.profileImageUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = account.profileImageUrl,
+                            contentDescription = stringResource(Res.string.channel_page_my_profile),
+                            modifier = Modifier.size(24.dp).clip(CircleShape)
                         )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        val streak by rememberWatchStreak(state.activeChannelLogin)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            itemVerticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = account.displayName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            val activeLogin = state.activeChannelLogin
+                            streak?.takeIf { activeLogin != null }?.let { current ->
+                                StreakBadge(
+                                    count = current.current,
+                                    description = stringResource(
+                                        Res.string.points_streak_description,
+                                        activeLogin.orEmpty(),
+                                        current.current
+                                    )
+                                )
+                            }
+                        }
+                        if (state.activeChannelLogin != null) {
+                            Text(
+                                text = "#${state.activeChannelLogin}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
                     }
                 }
                 val aiControllerAcct = koinInject<AiAssistantController>()
@@ -222,13 +275,14 @@ internal fun ChannelSidebar(
                 ) {
                     Icon(
                         Lucide.Sparkles,
-                        contentDescription = LocalStrings.current.aiAssistantContentDescription,
+                        contentDescription = stringResource(Res.string.ai_assistant_content_description),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
                 if (state.activeChannelLogin != null) {
-                    val isBroadcaster = state.activeChannelLogin.equals(account.login, ignoreCase = true)
+                    val isBroadcaster =
+                        state.activeChannelLogin.equals(account.login, ignoreCase = true)
                     val isModForActive = state.activeChatChannelId.isNotEmpty() &&
                             state.activeChatChannelId in state.moderatedChannelIds
                     Box {
@@ -239,7 +293,7 @@ internal fun ChannelSidebar(
                         ) {
                             Icon(
                                 Lucide.EllipsisVertical,
-                                contentDescription = LocalStrings.current.mainChannelOptions,
+                                contentDescription = stringResource(Res.string.main_channel_options),
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -284,7 +338,7 @@ internal fun ChannelSidebar(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text(LocalStrings.current.mainLoginToTwitch)
+                    Text(stringResource(Res.string.main_login_to_twitch))
                 }
             }
         }
@@ -313,7 +367,7 @@ internal fun ChannelSidebar(
         ) {
             if (onOpenBrowse != null) {
                 item(key = "browse_entry", contentType = "browse_entry") {
-                    BrowseEntryItem(strings = s.explore, onClick = onOpenBrowse)
+                    BrowseEntryItem(onClick = onOpenBrowse)
                 }
             }
             itemsIndexed(
@@ -368,7 +422,7 @@ internal fun ChannelSidebar(
                 val isEjectTarget = dragState.source?.folderId != null &&
                         dropTarget == SidebarDropTarget.Unfoldered
                 Text(
-                    LocalStrings.current.mainChannelsHeader,
+                    stringResource(Res.string.main_channels_header),
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isEjectTarget) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -413,13 +467,15 @@ internal fun ChannelSidebar(
 
             if (state.recentChannels.isNotEmpty()) {
                 item(key = "recent_header", contentType = "section_header") {
-                    RecentChannelsHeader(strings = s.explore, modifier = Modifier.animateItem())
+                    RecentChannelsHeader(modifier = Modifier.animateItem())
                 }
-                items(state.recentChannels, key = { "recent_${it.login}" }, contentType = { "recent" }) { channel ->
+                items(
+                    state.recentChannels,
+                    key = { "recent_${it.login}" },
+                    contentType = { "recent" }) { channel ->
                     RecentChannelItem(
                         channel = channel,
                         isActive = channel.login == state.activeChannelLogin,
-                        strings = s.explore,
                         onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
                         onKeep = { onEvent(MainEvent.KeepRecentChannel(channel.login)) },
                         onForget = { onEvent(MainEvent.ForgetRecentChannel(channel.login)) },
@@ -431,14 +487,17 @@ internal fun ChannelSidebar(
             if (state.monitorTabs.isNotEmpty()) {
                 item(key = "monitor_header", contentType = "section_header") {
                     Text(
-                        LocalStrings.current.openChannelSpecialHeader,
+                        stringResource(Res.string.open_channel_special_header),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         letterSpacing = 1.sp,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-                items(state.monitorTabs.size, key = { "monitor_${state.monitorTabs[it]}" }, contentType = { "monitor" }) { i ->
+                items(
+                    state.monitorTabs.size,
+                    key = { "monitor_${state.monitorTabs[it]}" },
+                    contentType = { "monitor" }) { i ->
                     val login = state.monitorTabs[i]
                     MonitorTabSidebarItem(
                         login = login,
@@ -462,25 +521,21 @@ internal fun ChannelSidebar(
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
 
-            GradientButton(
-                text = LocalStrings.current.sidebarAddChannelButton,
+            TonalButton(
+                text = stringResource(Res.string.sidebar_add_channel_button),
                 onClick = { onEvent(MainEvent.ShowAddChannelDialog) },
-                modifier = Modifier.weight(1f),
-                gradientColors = listOf(
-                    MaterialTheme.colorScheme.primary,
-                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.85f)
-                )
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(8.dp))
 
-            GradientButton(
-                text = LocalStrings.current.sidebarAddFolderButton,
+            TonalButton(
+                text = stringResource(Res.string.sidebar_add_folder_button),
                 onClick = { onEvent(MainEvent.ShowCreateFolderDialog()) },
-                modifier = Modifier.weight(1f),
-                gradientColors = listOf(
-                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.85f),
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                )
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f)
             )
         }
 
@@ -488,19 +543,19 @@ internal fun ChannelSidebar(
             actions = listOf(
                 RailAction(
                     icon = Lucide.AtSign,
-                    label = s.panelMentionsTitle,
+                    label = stringResource(Res.string.panel_mentions_title),
                     badge = state.unreadMentionsCount,
                     onClick = { onEvent(MainEvent.ToggleMentionsFeed) }
                 ),
                 RailAction(
                     icon = Lucide.MessageCircle,
-                    label = s.chatWhisperTab,
+                    label = stringResource(Res.string.chat_whisper_tab),
                     badge = state.totalUnreadWhispers,
                     onClick = { onEvent(MainEvent.ToggleWhisperPanel) }
                 ),
                 RailAction(
                     icon = Lucide.Settings,
-                    label = s.settingsTitle,
+                    label = stringResource(Res.string.settings_title),
                     onClick = { onEvent(MainEvent.ShowSettings) }
                 )
             ),
@@ -629,7 +684,7 @@ internal fun FolderItem(
                     ) {
                         Icon(
                             Lucide.Plus,
-                            contentDescription = LocalStrings.current.mainAddChannelToFolder,
+                            contentDescription = stringResource(Res.string.main_add_channel_to_folder),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                         )
@@ -641,7 +696,7 @@ internal fun FolderItem(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        LocalStrings.current.mainNoChannelsToAdd,
+                                        stringResource(Res.string.main_no_channels_to_add),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 },
@@ -674,7 +729,7 @@ internal fun FolderItem(
                 onDismissRequest = { showFolderMenu = false }
             ) {
                 DropdownMenuItem(
-                    text = { Text(LocalStrings.current.mainEditFolder) },
+                    text = { Text(stringResource(Res.string.main_edit_folder)) },
                     onClick = { showFolderMenu = false; onEdit() },
                     leadingIcon = {
                         Icon(
@@ -686,7 +741,7 @@ internal fun FolderItem(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text(LocalStrings.current.mainDeleteFolder) },
+                    text = { Text(stringResource(Res.string.main_delete_folder)) },
                     onClick = { showFolderMenu = false; onDelete() },
                     leadingIcon = {
                         Icon(
@@ -701,7 +756,7 @@ internal fun FolderItem(
     }
 }
 
-internal fun parseFolderColor(hex: String): Color {
+fun parseFolderColor(hex: String): Color {
     return try {
         val cleaned = hex.removePrefix("#")
         val colorInt = cleaned.toLong(16)

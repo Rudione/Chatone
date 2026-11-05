@@ -90,6 +90,18 @@ class AiAssistantController(private val settings: Settings) {
 
     fun consumePendingPrompt(): String? = _pendingPrompt.getAndUpdate { null }
 
+    private val _pendingDraft = MutableStateFlow<String?>(null)
+    val pendingDraft: StateFlow<String?> = _pendingDraft.asStateFlow()
+
+    fun openWithDraft(draft: String) {
+        val text = draft.trim().takeIf { it.isNotEmpty() } ?: return
+        _pendingDraft.value = text
+        _floating.value = true
+        _isOpen.value = true
+    }
+
+    fun consumePendingDraft(): String? = _pendingDraft.getAndUpdate { null }
+
     fun isReady(localReachable: Boolean): Boolean {
         val c = _config.value
         if (c.baseUrl.isBlank() || c.model.isBlank()) return false

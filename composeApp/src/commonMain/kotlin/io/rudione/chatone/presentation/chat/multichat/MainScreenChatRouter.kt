@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.multichat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.multi_chat_close_panel
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Lucide
@@ -57,7 +59,6 @@ fun MainScreenChatRouter(
 
         val totalPanels = 1 + extraPanels.size
         val isCompact = totalPanels >= 4
-        val strings = LocalStrings.current
 
         Row(
             modifier = Modifier
@@ -75,7 +76,7 @@ fun MainScreenChatRouter(
                     title = activeChannel,
                     onClose = null,
                     compact = isCompact,
-                    closeLabel = strings.multiChatClosePanel
+                    closeLabel = stringResource(Res.string.multi_chat_close_panel)
                 )
                 Spacer(Modifier.height(2.dp))
                 Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(if (isCompact) 6.dp else 10.dp))) {
@@ -93,7 +94,7 @@ fun MainScreenChatRouter(
                         title = panel.channelLogin,
                         onClose = { panelManager.closePanel(panel.panelId) },
                         compact = isCompact,
-                        closeLabel = strings.multiChatClosePanel
+                        closeLabel = stringResource(Res.string.multi_chat_close_panel)
                     )
                     Spacer(Modifier.height(2.dp))
                     Box(modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(if (isCompact) 6.dp else 10.dp))) {

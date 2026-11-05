@@ -1,5 +1,23 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.apply
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.highlight_rule_channel_points
+import chatone.composeapp.generated.resources.highlight_rule_first_message
+import chatone.composeapp.generated.resources.highlight_rule_mention_accent
+import chatone.composeapp.generated.resources.highlight_rule_search_match
+import chatone.composeapp.generated.resources.highlight_rule_subscriptions
+import chatone.composeapp.generated.resources.highlight_rule_substring
+import chatone.composeapp.generated.resources.highlight_rule_substring_desc
+import chatone.composeapp.generated.resources.highlight_rule_username
+import chatone.composeapp.generated.resources.highlight_rule_whispers
+import chatone.composeapp.generated.resources.settings_highlight_color
+import chatone.composeapp.generated.resources.settings_hub_highlight_remove
+import chatone.composeapp.generated.resources.settings_hub_highlight_sound
+import chatone.composeapp.generated.resources.settings_hue
+import chatone.composeapp.generated.resources.settings_regex
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -51,15 +69,11 @@ import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.presentation.settings.settingsAnchor
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 internal fun HighlightRuleRow(rule: HighlightRule, vm: SettingsViewModel, modifier: Modifier = Modifier) {
-    val s = LocalStrings.current
-    val hub = s.settingsHub
     val isCustom = rule.id.startsWith(CUSTOM_PREFIX)
-    val label = highlightRuleLabel(rule, s)
+    val label = highlightRuleLabel(rule)
     val color = Color(rule.color)
     var picking by remember { mutableStateOf(false) }
     Row(
@@ -95,16 +109,16 @@ internal fun HighlightRuleRow(rule: HighlightRule, vm: SettingsViewModel, modifi
             )
             if (isCustom && rule.isRegex) {
                 Text(
-                    s.settingsRegex,
+                    stringResource(Res.string.settings_regex),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
         if (isCustom && !rule.isRegex) {
-            LiquidGlassTooltipBox(tooltip = s.highlightRuleSubstringDesc) {
+            LiquidGlassTooltipBox(tooltip = stringResource(Res.string.highlight_rule_substring_desc)) {
                 ChatoneChip(
-                    label = s.highlightRuleSubstring,
+                    label = stringResource(Res.string.highlight_rule_substring),
                     onClick = { vm.sendEvent(SettingsEvent.OnHighlightRuleSubstringToggled(rule.id, !rule.matchSubstring)) },
                     selected = rule.matchSubstring,
                     accent = color,
@@ -112,14 +126,14 @@ internal fun HighlightRuleRow(rule: HighlightRule, vm: SettingsViewModel, modifi
                 )
             }
         }
-        LiquidGlassTooltipBox(tooltip = hub.highlightSound) {
+        LiquidGlassTooltipBox(tooltip = stringResource(Res.string.settings_hub_highlight_sound)) {
             ChatoneIconButton(
                 onClick = { vm.sendEvent(SettingsEvent.OnHighlightRuleSoundToggled(rule.id, !rule.playSound)) },
                 modifier = Modifier.size(28.dp)
             ) {
                 Icon(
                     if (rule.playSound) Lucide.Bell else Lucide.BellOff,
-                    contentDescription = hub.highlightSound,
+                    contentDescription = stringResource(Res.string.settings_hub_highlight_sound),
                     modifier = Modifier.size(15.dp),
                     tint = if (rule.playSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -137,7 +151,7 @@ internal fun HighlightRuleRow(rule: HighlightRule, vm: SettingsViewModel, modifi
             ) {
                 Icon(
                     Lucide.X,
-                    contentDescription = hub.highlightRemove,
+                    contentDescription = stringResource(Res.string.settings_hub_highlight_remove),
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.error
                 )
@@ -156,15 +170,16 @@ internal fun HighlightRuleRow(rule: HighlightRule, vm: SettingsViewModel, modifi
     }
 }
 
-internal fun highlightRuleLabel(rule: HighlightRule, s: AppStrings): String = rule.pattern.ifEmpty {
+@Composable
+internal fun highlightRuleLabel(rule: HighlightRule): String = rule.pattern.ifEmpty {
     when (rule.id) {
-        "username" -> s.highlightRuleUsername
-        "whispers" -> s.highlightRuleWhispers
-        "subscriptions" -> s.highlightRuleSubscriptions
-        "first_message" -> s.highlightRuleFirstMessage
-        "search_match" -> s.highlightRuleSearchMatch
-        "mention_accent" -> s.highlightRuleMentionAccent
-        "channel_points" -> s.highlightRuleChannelPoints
+        "username" -> stringResource(Res.string.highlight_rule_username)
+        "whispers" -> stringResource(Res.string.highlight_rule_whispers)
+        "subscriptions" -> stringResource(Res.string.highlight_rule_subscriptions)
+        "first_message" -> stringResource(Res.string.highlight_rule_first_message)
+        "search_match" -> stringResource(Res.string.highlight_rule_search_match)
+        "mention_accent" -> stringResource(Res.string.highlight_rule_mention_accent)
+        "channel_points" -> stringResource(Res.string.highlight_rule_channel_points)
         else -> rule.id.replace("_", " ").replaceFirstChar { it.uppercase() }
     }
 }
@@ -177,12 +192,11 @@ private fun HighlightColorPickerDialog(
     onConfirm: (Color) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     var picked by remember { mutableStateOf(initial) }
     val hue = remember(picked) { hueOf(picked) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(s.settingsHighlightColor) },
+        title = { Text(stringResource(Res.string.settings_highlight_color)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
@@ -200,7 +214,7 @@ private fun HighlightColorPickerDialog(
                         )
                     }
                 }
-                Text(s.settingsHue, style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(Res.string.settings_hue), style = MaterialTheme.typography.labelSmall)
                 ChatoneSlider(
                     value = hue,
                     onValueChange = { h -> picked = Color.hsl(h, 0.85f, 0.55f) },
@@ -210,8 +224,8 @@ private fun HighlightColorPickerDialog(
                 )
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(picked) }) { Text(s.apply) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(s.cancel) } }
+        confirmButton = { Button(onClick = { onConfirm(picked) }) { Text(stringResource(Res.string.apply)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) } }
     )
 }
 

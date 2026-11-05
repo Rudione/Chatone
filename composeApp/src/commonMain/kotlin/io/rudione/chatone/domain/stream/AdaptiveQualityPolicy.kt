@@ -15,41 +15,37 @@ class TransferSampler(
     private var firstNs = UNSET
     private var lastNs = UNSET
     private var totalBytes = 0L
-    private var runStartNs = UNSET
-    private var runBytes = 0L
-    private var bestRunBps = 0L
+    private var leadBytes = 0L
+    private var leadClosed = false
+    private var leadBps = 0L
 
     fun onBytes(nowNs: Long, bytes: Int) {
         if (bytes <= 0) return
         totalBytes += bytes
         if (firstNs == UNSET) {
             firstNs = nowNs
-            runStartNs = nowNs
             lastNs = nowNs
             return
         }
-        if (nowNs - lastNs > burstGapNs) {
-            closeRun()
-            runStartNs = nowNs
-            runBytes = 0L
-        } else {
-            runBytes += bytes
+        if (!leadClosed) {
+            if (nowNs - lastNs > burstGapNs) closeLead() else leadBytes += bytes
         }
         lastNs = nowNs
     }
 
     fun finish(): TransferSample? {
-        closeRun()
+        if (!leadClosed) closeLead()
         if (totalBytes < minTransferBytes || firstNs == UNSET) return null
         val span = lastNs - firstNs
         val steady = if (span >= minSteadyNs) bitsPerSecond(totalBytes, span) else 0L
-        return TransferSample(totalBytes, bestRunBps, steady)
+        return TransferSample(totalBytes, leadBps, steady)
     }
 
-    private fun closeRun() {
-        val span = lastNs - runStartNs
-        if (runStartNs != UNSET && runBytes >= minRunBytes && span >= minRunNs) {
-            bestRunBps = max(bestRunBps, bitsPerSecond(runBytes, span))
+    private fun closeLead() {
+        leadClosed = true
+        val span = lastNs - firstNs
+        if (firstNs != UNSET && leadBytes >= minRunBytes && span >= minRunNs) {
+            leadBps = bitsPerSecond(leadBytes, span)
         }
     }
 
@@ -72,9 +68,10 @@ class AdaptiveQualityPolicy(private val tuning: Tuning = Tuning()) {
         val startupMs: Long = 8_000L,
         val upgradeHoldMs: Long = 8_000L,
         val probeIntervalMs: Long = 15_000L,
+        val probeBufferUs: Long = 800_000L,
         val blockMs: Long = 15_000L,
-        val maxBlockMs: Long = 120_000L,
-        val calmResetMs: Long = 120_000L,
+        val maxBlockMs: Long = 240_000L,
+        val calmResetMs: Long = 600_000L,
         val maxCapacityBps: Long = 400_000_000L
     )
 
@@ -85,6 +82,7 @@ class AdaptiveQualityPolicy(private val tuning: Tuning = Tuning()) {
     private var sessionStartMs = 0L
     private var lastSwitchMs = NEVER
     private var healthySinceMs = 0L
+    private var lastTroubleMs = NEVER
     private var probing = false
     private var blockedBitrate = Long.MAX_VALUE
     private var blockedUntilMs = NEVER
@@ -118,11 +116,11 @@ class AdaptiveQualityPolicy(private val tuning: Tuning = Tuning()) {
         trouble(loadingBitrate, nowMs)
     }
 
-    fun select(bitrates: IntArray, current: Int, isAllowed: (Int) -> Boolean, nowMs: Long): Int {
+    fun select(bitrates: IntArray, current: Int, bufferedUs: Long, isAllowed: (Int) -> Boolean, nowMs: Long): Int {
         if (bitrates.isEmpty()) return 0
-        if (nowMs - healthySinceMs >= tuning.calmResetMs) blockMs = tuning.blockMs
+        if (lastTroubleMs != NEVER && nowMs - lastTroubleMs >= tuning.calmResetMs) blockMs = tuning.blockMs
         val usable = { index: Int -> isAllowed(index) && !isBlocked(bitrates[index], nowMs) }
-        maybeProbe(bitrates, current, usable, nowMs)
+        if (bufferedUs >= tuning.probeBufferUs) maybeProbe(bitrates, current, usable, nowMs)
         val target = idealIndex(bitrates, usable, isAllowed)
         val inStartup = nowMs - sessionStartMs < tuning.startupMs
         if (current !in bitrates.indices || !isAllowed(current) || inStartup) return switchTo(current, target, nowMs)
@@ -166,6 +164,7 @@ class AdaptiveQualityPolicy(private val tuning: Tuning = Tuning()) {
 
     private fun trouble(loadingBitrate: Long, nowMs: Long) {
         healthySinceMs = nowMs
+        lastTroubleMs = nowMs
         probing = false
         if (loadingBitrate <= 0L) return
         blockedBitrate = loadingBitrate

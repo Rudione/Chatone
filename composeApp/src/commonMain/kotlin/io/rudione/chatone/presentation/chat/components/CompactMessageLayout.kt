@@ -1,5 +1,17 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.chat.threads.threadRootId
+import io.rudione.chatone.presentation.chat.threads.LocalReplyThreadOpener
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.LinkAnnotation
+import chatone.composeapp.generated.resources.ui_pin
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_copy_message
+import chatone.composeapp.generated.resources.chat_delete_message
+import chatone.composeapp.generated.resources.chat_reply_to
+import chatone.composeapp.generated.resources.chat_timeout_user
+import chatone.composeapp.generated.resources.chat_translate
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.chat.modslider.ModSliderHandle
 import io.github.aakira.napier.Napier
 import androidx.compose.animation.AnimatedVisibility
@@ -52,7 +64,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.appendInlineContent
+import io.rudione.chatone.presentation.chat.rendering.appendInlineGlyph
+import io.rudione.chatone.presentation.chat.rendering.inlineTextSemantics
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -114,7 +127,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.foundation.text.selection.SelectionContainer
+import io.rudione.chatone.presentation.chat.rendering.ChatSelectionContainer
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -187,7 +200,6 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.presentation.theme.chatPaneBackgroundColor
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.luminance
 import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
@@ -202,7 +214,6 @@ import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.util.system.isDesktopPlatform
 import io.rudione.chatone.presentation.chat.rendering.ChatterColors
 import io.rudione.chatone.presentation.chat.rendering.ModPrefixWidthCache
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.SlashCommand
 import io.rudione.chatone.util.link.openChatUrl
 import kotlinx.coroutines.delay
@@ -213,7 +224,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.roundToInt
-import io.rudione.chatone.icons.lucide.Ban
 import io.rudione.chatone.icons.lucide.Copy
 import io.rudione.chatone.icons.lucide.Languages
 import io.rudione.chatone.icons.lucide.Lucide
@@ -253,6 +263,8 @@ internal fun CompactMessageLayout(
     onTimeout: () -> Unit,
     onCustomTimeout: (Int) -> Unit,
     onBan: () -> Unit,
+    onUnban: () -> Unit,
+    isTargetBanned: Boolean,
     onDelete: () -> Unit,
     actorCanModerate: Boolean,
     actorIsBroadcaster: Boolean,
@@ -260,7 +272,6 @@ internal fun CompactMessageLayout(
     mentionColor: Color,
     backgroundColor: Color,
     hasAccentBar: Boolean,
-    s: AppStrings,
     userColorByLogin: ChatterColors = ChatterColors.None,
     translationStore: TranslationStore
 ) {
@@ -285,6 +296,7 @@ internal fun CompactMessageLayout(
         append('|').append(showCustomModButtons).append('|').append(chatFontSizeSp)
         append('|').append(density.density).append('|').append(density.fontScale)
     }
+    val firstLine = remember { FirstLineAnchor() }
     var prefixWidthPx by remember(prefixKey) {
         mutableStateOf(prefixKey?.let { ModPrefixWidthCache[it] } ?: 0f)
     }
@@ -294,6 +306,7 @@ internal fun CompactMessageLayout(
         val replyParentBody = message.rawMessage?.replyParentMsgBody
         val replyParentLogin = message.rawMessage?.replyParentUserLogin
         if (replyParentName != null && replyParentBody != null && replyParentLogin != null) {
+            val threadOpener = LocalReplyThreadOpener.current
             val replyNickColors = rememberNickColors()
             val parentColor = replyNickColors.adjust(
                 userColorByLogin[replyParentLogin.lowercase()] ?: stableUserColor(replyParentLogin)
@@ -318,14 +331,14 @@ internal fun CompactMessageLayout(
                         Spacer(Modifier.width(3.dp))
                         Text(
                             text = buildAnnotatedString {
-                                pushStringAnnotation("mention", "@$replyParentLogin")
-                                withStyle(
-                                    SpanStyle(
-                                        color = parentColor,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                ) { append("@$replyParentName") }
-                                pop()
+                                withLink(LinkAnnotation.Clickable(REPLY_AUTHOR_TAG) { onMentionClick("@$replyParentLogin") }) {
+                                    withStyle(
+                                        SpanStyle(
+                                            color = parentColor,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    ) { append("@$replyParentName") }
+                                }
                                 withStyle(
                                     SpanStyle(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
@@ -341,7 +354,11 @@ internal fun CompactMessageLayout(
                             modifier = Modifier.clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
-                            ) { onMentionClick("@$replyParentLogin") }
+                            ) {
+                                val rootId = message.threadRootId()
+                                if (threadOpener != null && rootId != null) threadOpener.open(rootId)
+                                else onMentionClick("@$replyParentLogin")
+                            }
                         )
                     }
                 }
@@ -370,16 +387,17 @@ internal fun CompactMessageLayout(
                 mentionColor = mentionColor,
                 backgroundColor = backgroundColor,
                 hasAccentBar = hasAccentBar,
-                s = s,
                 prefixWidthPx = prefixWidthPx,
                 userColorByLogin = userColorByLogin,
                 translationStore = translationStore,
-                sliderHandle = sliderHandle
+                sliderHandle = sliderHandle,
+                firstLine = firstLine
             )
             Row(
                 modifier = Modifier
                     .wrapContentWidth()
                     .height(chatFirstLineHeight(chatFontSizeSp))
+                    .centerOnFirstLine(firstLine)
                     .onSizeChanged { size ->
                         val width = size.width.toFloat()
                         prefixKey?.let { ModPrefixWidthCache[it] = width }
@@ -402,25 +420,24 @@ internal fun CompactMessageLayout(
                                     when (btn.id) {
                                         "default_delete" -> if (showDefaultDeleteButton && (canAct || isOwnMessage)) ModActionIconBtn(
                                             icon = Lucide.Trash2,
-                                            label = s.chatDeleteMessage,
+                                            label = stringResource(Res.string.chat_delete_message),
                                             tint = extraColors.modDelete,
                                             onClick = onDelete
                                         )
 
                                         "default_timeout" -> if (showDefaultTimeoutButton && canAct && !isOwnMessage) ModActionIconBtn(
                                             icon = Lucide.Timer,
-                                            label = s.chatTimeoutUser,
+                                            label = stringResource(Res.string.chat_timeout_user),
                                             tint = extraColors.modTimeout,
                                             onClick = onTimeout,
                                             amount = ModActionButton.DEFAULT_TIMEOUT.durationParts?.first,
                                             unit = ModActionButton.DEFAULT_TIMEOUT.durationParts?.second
                                         )
 
-                                        "default_ban" -> if (showDefaultBanButton && canAct && !isOwnMessage) ModActionIconBtn(
-                                            icon = Lucide.Ban,
-                                            label = s.chatBanUser,
-                                            tint = extraColors.modBan,
-                                            onClick = onBan
+                                        "default_ban" -> if (showDefaultBanButton && canAct && !isOwnMessage) BanToggleButton(
+                                            isBanned = isTargetBanned,
+                                            onBan = onBan,
+                                            onUnban = onUnban
                                         )
 
                                         else -> if (showCustomModButtons && canAct && !isOwnMessage) ModActionIconBtn(
@@ -465,11 +482,11 @@ internal fun CompactMessageContentWithIndent(
     mentionColor: Color,
     backgroundColor: Color,
     hasAccentBar: Boolean,
-    s: AppStrings,
     prefixWidthPx: Float,
     userColorByLogin: ChatterColors = ChatterColors.None,
     translationStore: TranslationStore,
-    sliderHandle: ModSliderHandle? = null
+    sliderHandle: ModSliderHandle? = null,
+    firstLine: FirstLineAnchor? = null
 ) {
     val lineHeightSp = when (chatFontSizeSp) {
         13f -> 20f; 15f -> 22f; 17f -> 24f; else -> chatFontSizeSp + 6f
@@ -523,7 +540,7 @@ internal fun CompactMessageContentWithIndent(
         }
         if (badgeVisuals.isNotEmpty()) {
             val badgeBlockWidthSp = badgeVisuals.size * 18f + (badgeVisuals.size - 1) * 4f + 6f
-            appendInlineContent("badges_cluster", " ")
+            appendInlineGlyph("badges_cluster", "")
             inlineContent["badges_cluster"] = InlineTextContent(
                 Placeholder(badgeBlockWidthSp.sp, 18.sp, PlaceholderVerticalAlign.TextCenter)
             ) {
@@ -565,7 +582,7 @@ internal fun CompactMessageContentWithIndent(
             pushStringAnnotation("username", message.userId)
             val nickPaint = resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
             if (nickPaint != null) {
-                appendInlineContent("nick_paint", shownName)
+                appendInlineGlyph("nick_paint", shownName)
                 if (message.isAction) append(" ") else append(": ")
             } else if (message.isAction) {
                 withStyle(
@@ -599,7 +616,7 @@ internal fun CompactMessageContentWithIndent(
 
                     is MessageToken.TwitchEmoteToken -> {
                         val key = "emote_${emoteCounter++}"
-                        appendInlineContent(key, token.name)
+                        appendInlineGlyph(key, token.name)
                         inlineContent[key] = InlineTextContent(
                             Placeholder(
                                 emoteSizeSp,
@@ -617,7 +634,7 @@ internal fun CompactMessageContentWithIndent(
 
                     is MessageToken.ThirdPartyEmoteToken -> {
                         val key = "emote_${emoteCounter++}"
-                        appendInlineContent(key, token.emote.code)
+                        appendInlineGlyph(key, token.emote.code)
                         val (emoteW, emoteH) = computeEmoteDisplaySize(
                             token.emote.width,
                             token.emote.height,
@@ -660,7 +677,7 @@ internal fun CompactMessageContentWithIndent(
 
                     is MessageToken.Cheer -> {
                         val key = "cheer_${emoteCounter++}"
-                        appendInlineContent(key, "${token.prefix}${token.amount}")
+                        appendInlineGlyph(key, "${token.prefix}${token.amount}")
                         inlineContent[key] = InlineTextContent(
                             Placeholder(
                                 (chatFontSizeSp * (1.6f + 0.62f * token.amount.toString().length)).sp,
@@ -733,6 +750,7 @@ internal fun CompactMessageContentWithIndent(
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth()
+                    .inlineTextSemantics(annotatedString)
                     .pointerInput(annotatedString) {
                         detectTapGestures(
                             onTap = { offset ->
@@ -801,8 +819,16 @@ internal fun CompactMessageContentWithIndent(
                                             charOffset,
                                             charOffset
                                         ).isNotEmpty()
+                                        val mention = annotatedString.getStringAnnotations(
+                                            "mention",
+                                            charOffset,
+                                            charOffset
+                                        ).firstOrNull()?.item
                                         if (onUsername) {
                                             onRightClickUsername(message.displayName)
+                                            event.changes.forEach { it.consume() }
+                                        } else if (mention != null) {
+                                            onRightClickUsername(mention)
                                             event.changes.forEach { it.consume() }
                                         } else {
                                             contextMenuOffset =
@@ -821,11 +847,12 @@ internal fun CompactMessageContentWithIndent(
                     }),
                 onTextLayout = { layout ->
                     textLayoutResult = layout
+                    firstLine?.update(layout)
                     sliderHandle?.reportTimestamp(layout, timestampLength)
                 }
             )
         }
-        if (isDesktopPlatform) SelectionContainer(content = messageText) else messageText()
+        if (isDesktopPlatform) ChatSelectionContainer(content = messageText) else messageText()
         hoveredUrl?.let { url ->
             PortalPopup(
                 popupPositionProvider = object : PopupPositionProvider {
@@ -876,7 +903,7 @@ internal fun CompactMessageContentWithIndent(
                     Column {
                         if (isMod) {
                             LiquidGlassDropdownItem(
-                                text = "Pin",
+                                text = stringResource(Res.string.ui_pin),
                                 icon = Lucide.Pin,
                                 iconTint = MaterialTheme.colorScheme.primary,
                                 onClick = { showContextMenu = false; onPin() })
@@ -886,12 +913,12 @@ internal fun CompactMessageContentWithIndent(
                             )
                         }
                         LiquidGlassDropdownItem(
-                            text = s.chatReplyTo,
+                            text = stringResource(Res.string.chat_reply_to),
                             icon = Lucide.Reply,
                             iconTint = MaterialTheme.colorScheme.primary,
                             onClick = { showContextMenu = false; onReply() })
                         LiquidGlassDropdownItem(
-                            text = s.chatCopyMessage,
+                            text = stringResource(Res.string.chat_copy_message),
                             icon = Lucide.Copy,
                             iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                             onClick = {
@@ -902,7 +929,7 @@ internal fun CompactMessageContentWithIndent(
                                 scope.launch { clipboard.setText(rawText) }
                             })
                         LiquidGlassDropdownItem(
-                            text = if (translationStore.states.containsKey(message.id)) "${s.chatTranslate} ✓" else s.chatTranslate,
+                            text = if (translationStore.states.containsKey(message.id)) "${stringResource(Res.string.chat_translate)} ✓" else stringResource(Res.string.chat_translate),
                             icon = Lucide.Languages,
                             iconTint = MaterialTheme.colorScheme.primary,
                             onClick = {

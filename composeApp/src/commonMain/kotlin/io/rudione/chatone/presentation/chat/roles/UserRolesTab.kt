@@ -1,5 +1,24 @@
 package io.rudione.chatone.presentation.chat.roles
 
+import chatone.composeapp.generated.resources.insights_thousands_separator
+import chatone.composeapp.generated.resources.insights_roles_granted
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.insights_role_artists
+import chatone.composeapp.generated.resources.insights_role_founders
+import chatone.composeapp.generated.resources.insights_role_moderators
+import chatone.composeapp.generated.resources.insights_role_vips
+import chatone.composeapp.generated.resources.insights_roles_account_created
+import chatone.composeapp.generated.resources.insights_roles_affiliate
+import chatone.composeapp.generated.resources.insights_roles_channels
+import chatone.composeapp.generated.resources.insights_roles_empty
+import chatone.composeapp.generated.resources.insights_roles_failed
+import chatone.composeapp.generated.resources.insights_roles_followers
+import chatone.composeapp.generated.resources.insights_roles_open_web
+import chatone.composeapp.generated.resources.insights_roles_partner
+import chatone.composeapp.generated.resources.insights_roles_retry
+import chatone.composeapp.generated.resources.insights_roles_since
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
 import androidx.compose.foundation.background
@@ -54,8 +73,6 @@ import io.rudione.chatone.icons.lucide.Users
 import io.rudione.chatone.presentation.chat.compactCount
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.chat.formatDate
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.ProfileInsightStrings
 
 private val PartnerColor = Color(0xFF9146FF)
 private val AffiliateColor = Color(0xFF34B3B8)
@@ -67,7 +84,6 @@ internal fun UserRolesTab(
     onOpenChannel: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val insights = LocalStrings.current.insights
     LaunchedEffect(state) { state.ensureLoaded() }
 
     Column(modifier = modifier) {
@@ -75,8 +91,8 @@ internal fun UserRolesTab(
             UserRolesState.Status.Idle, UserRolesState.Status.Loading -> CenteredSpinner(Modifier.weight(1f))
 
             UserRolesState.Status.Failed -> CenteredMessage(
-                text = insights.rolesFailed,
-                action = insights.rolesRetry,
+                text = stringResource(Res.string.insights_roles_failed),
+                action = stringResource(Res.string.insights_roles_retry),
                 onAction = state::ensureLoaded,
                 modifier = Modifier.weight(1f)
             )
@@ -85,7 +101,7 @@ internal fun UserRolesTab(
                 val held = state.counts.held
                 val selected = state.selected
                 if (held.isEmpty() || selected == null) {
-                    CenteredMessage(text = insights.rolesEmpty, modifier = Modifier.weight(1f))
+                    CenteredMessage(text = stringResource(Res.string.insights_roles_empty), modifier = Modifier.weight(1f))
                 } else {
                     RoleTabs(
                         roles = held,
@@ -116,12 +132,11 @@ private fun RoleTabs(
     countOf: (ChannelRole) -> Int,
     onSelect: (ChannelRole) -> Unit
 ) {
-    val insights = LocalStrings.current.insights
     ExpressiveTabs(
         tabs = roles,
         selected = selected,
         onSelect = onSelect,
-        label = { roleTitle(insights, it) },
+        label = { roleTitle(it) },
         badge = countOf,
         size = ExpressiveTabSize.Compact
     )
@@ -134,10 +149,9 @@ private fun RoleChannelsList(
     onOpenChannel: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val insights = LocalStrings.current.insights
     if (list.channels.isEmpty()) {
         when {
-            list.failed -> CenteredMessage(insights.rolesFailed, insights.rolesRetry, onLoadMore, modifier)
+            list.failed -> CenteredMessage(stringResource(Res.string.insights_roles_failed), stringResource(Res.string.insights_roles_retry), onLoadMore, modifier)
             else -> CenteredSpinner(modifier)
         }
         return
@@ -164,7 +178,7 @@ private fun RoleChannelsList(
                         CircularProgressIndicator(modifier = Modifier.size(13.dp), strokeWidth = 2.dp)
                     } else {
                         TextButton(onClick = onLoadMore) {
-                            Text(insights.rolesRetry, style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(Res.string.insights_roles_retry), style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
@@ -175,7 +189,6 @@ private fun RoleChannelsList(
 
 @Composable
 private fun RoleChannelRow(channel: RoleChannel, onClick: () -> Unit) {
-    val insights = LocalStrings.current.insights
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
@@ -223,9 +236,9 @@ private fun RoleChannelRow(channel: RoleChannel, onClick: () -> Unit) {
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 channel.grantedAtMs?.let { granted ->
-                    LiquidGlassTooltipBox(tooltip = datesTooltip(insights, granted, channel.createdAtMs)) {
+                    LiquidGlassTooltipBox(tooltip = datesTooltip(granted, channel.createdAtMs)) {
                         Text(
-                            insights.rolesSince(formatDate(granted)),
+                            stringResource(Res.string.insights_roles_since, formatDate(granted)),
                             style = MaterialTheme.typography.labelSmall,
                             color = muted.copy(alpha = 0.65f),
                             maxLines = 1
@@ -234,10 +247,7 @@ private fun RoleChannelRow(channel: RoleChannel, onClick: () -> Unit) {
                 }
                 if (channel.followers > 0) {
                     LiquidGlassTooltipBox(
-                        tooltip = insights.rolesFollowers(
-                            channel.followers,
-                            groupDigits(channel.followers, insights.thousandsSeparator)
-                        )
+                        tooltip = pluralStringResource(Res.plurals.insights_roles_followers, channel.followers, groupDigits(channel.followers, stringResource(Res.string.insights_thousands_separator)))
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                             Icon(Lucide.Users, contentDescription = null, modifier = Modifier.size(10.dp), tint = muted.copy(alpha = 0.55f))
@@ -252,15 +262,15 @@ private fun RoleChannelRow(channel: RoleChannel, onClick: () -> Unit) {
                 }
             }
         }
-        StatusChip(channel, insights)
+        StatusChip(channel)
     }
 }
 
 @Composable
-private fun StatusChip(channel: RoleChannel, insights: ProfileInsightStrings) {
+private fun StatusChip(channel: RoleChannel) {
     val (label, color) = when {
-        channel.isPartner -> insights.rolesPartner to PartnerColor
-        channel.isAffiliate -> insights.rolesAffiliate to AffiliateColor
+        channel.isPartner -> stringResource(Res.string.insights_roles_partner) to PartnerColor
+        channel.isAffiliate -> stringResource(Res.string.insights_roles_affiliate) to AffiliateColor
         else -> return
     }
     Text(
@@ -279,7 +289,6 @@ private fun StatusChip(channel: RoleChannel, insights: ProfileInsightStrings) {
 
 @Composable
 private fun RolesFooter(total: Int, login: String) {
-    val insights = LocalStrings.current.insights
     val uriHandler = LocalUriHandler.current
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
@@ -288,7 +297,7 @@ private fun RolesFooter(total: Int, login: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            insights.rolesChannels(total),
+            pluralStringResource(Res.plurals.insights_roles_channels, total, total),
             style = MaterialTheme.typography.labelSmall,
             color = muted.copy(alpha = 0.65f),
             modifier = Modifier.weight(1f)
@@ -305,7 +314,7 @@ private fun RolesFooter(total: Int, login: String) {
                 Text("roles.tv", style = MaterialTheme.typography.labelSmall, color = muted.copy(alpha = 0.7f))
                 Icon(
                     Lucide.ExternalLink,
-                    contentDescription = insights.rolesOpenWeb,
+                    contentDescription = stringResource(Res.string.insights_roles_open_web),
                     modifier = Modifier.size(10.dp),
                     tint = muted.copy(alpha = 0.7f)
                 )
@@ -344,17 +353,19 @@ private fun CenteredMessage(
     }
 }
 
-private fun roleTitle(insights: ProfileInsightStrings, role: ChannelRole): String = when (role) {
-    ChannelRole.MODERATOR -> insights.roleModerators
-    ChannelRole.VIP -> insights.roleVips
-    ChannelRole.FOUNDER -> insights.roleFounders
-    ChannelRole.ARTIST -> insights.roleArtists
+@Composable
+private fun roleTitle(role: ChannelRole): String = when (role) {
+    ChannelRole.MODERATOR -> stringResource(Res.string.insights_role_moderators)
+    ChannelRole.VIP -> stringResource(Res.string.insights_role_vips)
+    ChannelRole.FOUNDER -> stringResource(Res.string.insights_role_founders)
+    ChannelRole.ARTIST -> stringResource(Res.string.insights_role_artists)
 }
 
-private fun datesTooltip(insights: ProfileInsightStrings, grantedMs: Long, createdMs: Long?): String =
+@Composable
+private fun datesTooltip(grantedMs: Long, createdMs: Long?): String =
     listOfNotNull(
-        insights.rolesGranted(formatDate(grantedMs)),
-        createdMs?.let { insights.rolesAccountCreated(formatDate(it)) }
+        stringResource(Res.string.insights_roles_granted, formatDate(grantedMs)),
+        createdMs?.let { stringResource(Res.string.insights_roles_account_created, formatDate(it)) }
     ).joinToString("\n")
 
 internal fun groupDigits(value: Int, separator: String): String =

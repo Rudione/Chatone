@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.settings
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.settings_hub_search_back_to_results
+import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.unit.sp
+import io.rudione.chatone.presentation.components.FitText
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandVertically
@@ -47,7 +52,6 @@ import io.rudione.chatone.presentation.components.expressive.PillTone
 import io.rudione.chatone.presentation.components.expressive.ScallopShape
 import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
 import io.rudione.chatone.presentation.settings.search.SettingsSubsection
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 internal fun SectionPane(
@@ -59,7 +63,6 @@ internal fun SectionPane(
     onBackToResults: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val s = LocalStrings.current
     key(section) {
         val scrollState = rememberScrollState()
         Box(modifier = modifier) {
@@ -85,7 +88,7 @@ internal fun SectionPane(
                     }
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        section.localizedLabel(s),
+                        section.localizedLabel(),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -93,7 +96,7 @@ internal fun SectionPane(
                     )
                     if (resultCount != null) {
                         PillButton(
-                            text = s.settingsHub.searchBackToResults + " · " + resultCount,
+                            text = stringResource(Res.string.settings_hub_search_back_to_results) + " · " + resultCount,
                             onClick = onBackToResults,
                             icon = Lucide.ArrowLeft,
                             tone = PillTone.Ghost,
@@ -124,7 +127,6 @@ internal fun SidebarNavItem(
     count: Int,
     onClick: () -> Unit
 ) {
-    val s = LocalStrings.current
     val scheme = MaterialTheme.colorScheme
     val bg by animateColorAsState(
         if (isSelected) scheme.primary.copy(alpha = 0.16f) else Color.Transparent,
@@ -144,7 +146,7 @@ internal fun SidebarNavItem(
     ) {
         Icon(section.icon, null, modifier = Modifier.size(16.dp), tint = contentColor)
         HighlightedSettingsText(
-            section.localizedLabel(s),
+            section.localizedLabel(),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (isSelected) scheme.onSurface else scheme.onSurfaceVariant,
@@ -215,13 +217,12 @@ private fun SidebarSubsectionItem(title: String, selected: Boolean, onClick: () 
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
+        FitText(
             title,
             style = MaterialTheme.typography.bodySmall,
             fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
             color = if (selected) scheme.primary else scheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            minFontSize = 9.sp
         )
     }
 }

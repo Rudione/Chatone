@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ui_ai_assistant
+import chatone.composeapp.generated.resources.ui_refresh
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -39,7 +43,7 @@ fun MultiChatToolbar(
         ) {
             Icon(
                 Lucide.Sparkles,
-                contentDescription = "AI Assistant",
+                contentDescription = stringResource(Res.string.ui_ai_assistant),
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -50,7 +54,7 @@ fun MultiChatToolbar(
         ) {
             Icon(
                 Lucide.RefreshCw,
-                contentDescription = "Refresh",
+                contentDescription = stringResource(Res.string.ui_refresh),
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )

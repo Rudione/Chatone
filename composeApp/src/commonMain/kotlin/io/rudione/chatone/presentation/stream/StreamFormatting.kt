@@ -1,14 +1,25 @@
 package io.rudione.chatone.presentation.stream
 
+import androidx.compose.runtime.Composable
+import org.jetbrains.compose.resources.StringResource
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_decimal_separator
+import chatone.composeapp.generated.resources.player_error_codec
+import chatone.composeapp.generated.resources.player_error_forbidden
+import chatone.composeapp.generated.resources.player_error_geoblocked
+import chatone.composeapp.generated.resources.player_error_network
+import chatone.composeapp.generated.resources.player_error_not_found
+import chatone.composeapp.generated.resources.player_error_subscribers_only
+import chatone.composeapp.generated.resources.player_error_unknown
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.domain.stream.StreamErrorKind
-import io.rudione.chatone.presentation.theme.i18n.StreamPlayerStrings
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-internal object StreamFormatting {
+object StreamFormatting {
 
     fun decimal(value: Float, fractionDigits: Int, separator: Char): String {
         if (!value.isFinite()) return "—"
@@ -47,13 +58,19 @@ internal object StreamFormatting {
         return if (hours > 0) "$hours:$mm:$ss" else "$minutes:$ss"
     }
 
-    fun errorMessage(kind: StreamErrorKind?, strings: StreamPlayerStrings): String = when (kind) {
-        StreamErrorKind.NETWORK -> strings.errorNetwork
-        StreamErrorKind.FORBIDDEN -> strings.errorForbidden
-        StreamErrorKind.GEOBLOCKED -> strings.errorGeoblocked
-        StreamErrorKind.SUBSCRIBERS_ONLY -> strings.errorSubscribersOnly
-        StreamErrorKind.UNSUPPORTED_CODEC -> strings.errorCodec
-        StreamErrorKind.NOT_FOUND -> strings.errorNotFound
-        StreamErrorKind.UNKNOWN, null -> strings.errorUnknown
+    fun errorMessageRes(kind: StreamErrorKind?): StringResource = when (kind) {
+        StreamErrorKind.NETWORK -> Res.string.player_error_network
+        StreamErrorKind.FORBIDDEN -> Res.string.player_error_forbidden
+        StreamErrorKind.GEOBLOCKED -> Res.string.player_error_geoblocked
+        StreamErrorKind.SUBSCRIBERS_ONLY -> Res.string.player_error_subscribers_only
+        StreamErrorKind.UNSUPPORTED_CODEC -> Res.string.player_error_codec
+        StreamErrorKind.NOT_FOUND -> Res.string.player_error_not_found
+        StreamErrorKind.UNKNOWN, null -> Res.string.player_error_unknown
     }
+
+    @Composable
+    fun errorMessage(kind: StreamErrorKind?): String = stringResource(errorMessageRes(kind))
 }
+
+@Composable
+internal fun decimalSeparator(): Char = stringResource(Res.string.player_decimal_separator).first()

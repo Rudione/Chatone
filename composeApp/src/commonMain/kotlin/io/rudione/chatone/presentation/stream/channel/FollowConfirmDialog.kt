@@ -1,5 +1,14 @@
 package io.rudione.chatone.presentation.stream.channel
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.stream_channel_follow
+import chatone.composeapp.generated.resources.stream_channel_follow_confirm_hint
+import chatone.composeapp.generated.resources.stream_channel_follow_confirm_title
+import chatone.composeapp.generated.resources.stream_channel_unfollow_confirm_hint
+import chatone.composeapp.generated.resources.stream_channel_unfollow_confirm_title
+import chatone.composeapp.generated.resources.stream_channel_unfollow_hold
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
@@ -52,8 +61,6 @@ import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.presentation.components.expressive.PillButton
 import io.rudione.chatone.presentation.components.expressive.PillTone
 import io.rudione.chatone.presentation.components.expressive.ScallopShape
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.format
 
 private val CardShape = RoundedCornerShape(32.dp)
 private val AvatarShape = ScallopShape(lobes = 10, depth = 0.07f)
@@ -66,8 +73,6 @@ internal fun FollowConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val strings = LocalStrings.current
-    val s = strings.streamChannel
     val name = channel.displayName.ifBlank { channel.login }
     val shown = remember { MutableTransitionState(false).apply { targetState = true } }
     var afterClose by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -117,7 +122,7 @@ internal fun FollowConfirmDialog(
                     ScallopAvatar(channel)
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        strings.format(if (following) s.unfollowConfirmTitle else s.followConfirmTitle, name),
+                        stringResource(if (following) Res.string.stream_channel_unfollow_confirm_title else Res.string.stream_channel_follow_confirm_title, name),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -125,7 +130,7 @@ internal fun FollowConfirmDialog(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        if (following) s.unfollowConfirmHint else s.followConfirmHint,
+                        if (following) stringResource(Res.string.stream_channel_unfollow_confirm_hint) else stringResource(Res.string.stream_channel_follow_confirm_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -133,19 +138,19 @@ internal fun FollowConfirmDialog(
                     Spacer(Modifier.height(20.dp))
                     if (following) {
                         HoldToBreakHeart(
-                            label = s.unfollowHold,
+                            label = stringResource(Res.string.stream_channel_unfollow_hold),
                             onBroken = { close { confirm(); dismiss() } }
                         )
                         Spacer(Modifier.height(16.dp))
                         PillButton(
-                            text = strings.cancel,
+                            text = stringResource(Res.string.cancel),
                             onClick = { close { dismiss() } },
                             tone = PillTone.Ghost,
                             height = 44.dp
                         )
                     } else {
                         PillButton(
-                            text = s.follow,
+                            text = stringResource(Res.string.stream_channel_follow),
                             onClick = { close { confirm(); dismiss() } },
                             icon = Lucide.Heart,
                             height = 52.dp,
@@ -153,7 +158,7 @@ internal fun FollowConfirmDialog(
                         )
                         Spacer(Modifier.height(8.dp))
                         PillButton(
-                            text = strings.cancel,
+                            text = stringResource(Res.string.cancel),
                             onClick = { close { dismiss() } },
                             tone = PillTone.Ghost,
                             height = 44.dp

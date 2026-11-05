@@ -1,12 +1,15 @@
 package io.rudione.chatone.presentation.ai
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ai_assist_error_model_local_hint
+import chatone.composeapp.generated.resources.ai_assist_error_network_title
+import chatone.composeapp.generated.resources.ai_assist_error_overloaded_title
+import chatone.composeapp.generated.resources.ai_connect_error_title
 import io.rudione.chatone.data.remote.AiFailure
 import io.rudione.chatone.data.remote.AiFailureKind
 import io.rudione.chatone.data.remote.AiProviders
-import io.rudione.chatone.presentation.theme.i18n.StringsRu
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AiFailureTextTest {
@@ -14,34 +17,34 @@ class AiFailureTextTest {
     private val gemini = AiProviders.cloud.first { it.name.startsWith("Gemini") }
 
     @Test
-    fun overloadedGeminiNamesGeminiAndNotOllama() {
-        val text = aiFailureText(AiFailure(AiFailureKind.OVERLOADED, 503), gemini.baseUrl, gemini.defaultModel, StringsRu)
+    fun overloadedGeminiNamesGemini() {
+        val message = aiFailureMessage(AiFailure(AiFailureKind.OVERLOADED, 503), gemini.baseUrl, gemini.defaultModel)
 
-        assertEquals(StringsRu.aiAssist.errorOverloadedTitle, text.title)
-        assertTrue(text.hint.contains("Gemini"))
-        assertFalse(text.hint.contains("Ollama"))
+        assertEquals(Res.string.ai_assist_error_overloaded_title, message.title)
+        assertTrue(message.hintArgs.any { it.contains("Gemini") })
     }
 
     @Test
-    fun cloudNetworkErrorDoesNotMentionOllama() {
-        val text = aiFailureText(AiFailure(AiFailureKind.NETWORK), gemini.baseUrl, gemini.defaultModel, StringsRu)
+    fun cloudNetworkErrorUsesTheCloudText() {
+        val message = aiFailureMessage(AiFailure(AiFailureKind.NETWORK), gemini.baseUrl, gemini.defaultModel)
 
-        assertTrue(text.title.contains("Gemini"))
-        assertFalse(text.hint.contains("Ollama"))
+        assertEquals(Res.string.ai_assist_error_network_title, message.title)
+        assertTrue(message.titleArgs.any { it.contains("Gemini") })
     }
 
     @Test
     fun localNetworkErrorKeepsTheOllamaHint() {
-        val text = aiFailureText(AiFailure(AiFailureKind.NETWORK), AiProviders.LOCAL_BASE_URL, "llama3.2", StringsRu)
+        val message = aiFailureMessage(AiFailure(AiFailureKind.NETWORK), AiProviders.LOCAL_BASE_URL, "llama3.2")
 
-        assertEquals(StringsRu.aiConnectErrorTitle, text.title)
-        assertTrue(text.hint.contains("Ollama"))
+        assertEquals(Res.string.ai_connect_error_title, message.title)
+        assertEquals(listOf(AiProviders.LOCAL_BASE_URL), message.hintArgs)
     }
 
     @Test
     fun missingLocalModelSuggestsPullingIt() {
-        val text = aiFailureText(AiFailure(AiFailureKind.MODEL_NOT_FOUND, 404), AiProviders.LOCAL_BASE_URL, "qwen2.5:3b", StringsRu)
+        val message = aiFailureMessage(AiFailure(AiFailureKind.MODEL_NOT_FOUND, 404), AiProviders.LOCAL_BASE_URL, "qwen2.5:3b")
 
-        assertTrue(text.hint.contains("ollama pull qwen2.5:3b"))
+        assertEquals(Res.string.ai_assist_error_model_local_hint, message.hint)
+        assertTrue(message.hintArgs.contains("qwen2.5:3b"))
     }
 }

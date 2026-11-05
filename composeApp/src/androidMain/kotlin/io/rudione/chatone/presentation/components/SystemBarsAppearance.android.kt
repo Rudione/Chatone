@@ -11,15 +11,15 @@ import androidx.core.view.WindowCompat
 import io.rudione.chatone.presentation.stream.findActivity
 
 @Composable
-actual fun SystemBarsAppearance(lightBackground: Boolean) {
+actual fun SystemBarsAppearance(lightBackground: Boolean, lightStatusBar: Boolean) {
     val view = LocalView.current
     if (view.isInEditMode) return
     val window = (view.parent as? DialogWindowProvider)?.window ?: view.context.findActivity()?.window ?: return
-    SideEffect { window.applyTransparentBars(lightBackground) }
+    SideEffect { window.applyTransparentBars(lightStatusBar, lightBackground) }
 }
 
 @Suppress("DEPRECATION")
-private fun Window.applyTransparentBars(lightBackground: Boolean) {
+private fun Window.applyTransparentBars(lightStatusBar: Boolean, lightNavigationBar: Boolean) {
     statusBarColor = Color.TRANSPARENT
     navigationBarColor = Color.TRANSPARENT
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -27,7 +27,7 @@ private fun Window.applyTransparentBars(lightBackground: Boolean) {
         isNavigationBarContrastEnforced = false
     }
     WindowCompat.getInsetsController(this, decorView).apply {
-        isAppearanceLightStatusBars = lightBackground
-        isAppearanceLightNavigationBars = lightBackground
+        isAppearanceLightStatusBars = lightStatusBar
+        isAppearanceLightNavigationBars = lightNavigationBar
     }
 }

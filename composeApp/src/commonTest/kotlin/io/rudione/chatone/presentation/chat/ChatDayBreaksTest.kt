@@ -1,8 +1,6 @@
 package io.rudione.chatone.presentation.chat
 
 import io.rudione.chatone.domain.model.DisplayMessage
-import io.rudione.chatone.presentation.theme.i18n.ChatTimelineStringsEn
-import io.rudione.chatone.presentation.theme.i18n.ChatTimelineStringsRu
 import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,9 +38,9 @@ class ChatDayBreaksTest {
     @Test
     fun labelsAreRelativeForRecentDaysAndOmitTheCurrentYear() {
         val today = localEpochDay(now, TimeZone.UTC)
-        assertEquals("Today", chatDayLabel(ChatTimelineStringsEn, today, today))
-        assertEquals("Вчера", chatDayLabel(ChatTimelineStringsRu, today - 1, today))
-        assertEquals("19 марта", chatDayLabel(ChatTimelineStringsRu, today - 194, today))
-        assertEquals("September 29, 2025", chatDayLabel(ChatTimelineStringsEn, today - 365, today))
+        assertEquals(DayLabel.Today, dayLabelOf(today, today))
+        assertEquals(DayLabel.Yesterday, dayLabelOf(today - 1, today))
+        assertEquals(DayLabel.Date(19, 3, null), dayLabelOf(today - 194, today))
+        assertEquals(DayLabel.Date(29, 9, 2025), dayLabelOf(today - 365, today))
     }
 }

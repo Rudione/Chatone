@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.prediction_bet_all_in
+import chatone.composeapp.generated.resources.prediction_bet_balance
+import chatone.composeapp.generated.resources.prediction_bet_cancel
+import chatone.composeapp.generated.resources.prediction_bet_place
+import chatone.composeapp.generated.resources.prediction_bet_potential_return
+import chatone.composeapp.generated.resources.prediction_bet_title
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,7 +50,6 @@ import androidx.compose.ui.window.DialogProperties
 import io.rudione.chatone.presentation.components.ChatoneSlider
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.icons.TwitchPointsIcon
 
 private const val TWITCH_MAX_BET = 250_000L
@@ -73,7 +80,6 @@ internal fun PredictionBetDialog(
     onConfirm: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     val maxBet = minOf(pointsBalance, TWITCH_MAX_BET).coerceAtLeast(0L)
     var amount by remember { mutableStateOf(0L) }
     val clamped = amount.coerceIn(0L, maxBet)
@@ -105,7 +111,7 @@ internal fun PredictionBetDialog(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    s.predictionBetTitle.replace("{0}", outcomeTitle),
+                    stringResource(Res.string.prediction_bet_title, outcomeTitle),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -117,7 +123,7 @@ internal fun PredictionBetDialog(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    s.predictionBetBalance,
+                    stringResource(Res.string.prediction_bet_balance),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -220,7 +226,7 @@ internal fun PredictionBetDialog(
                     ) { amount = chipAmount }
                 }
                 BankChip(
-                    label = s.predictionBetAllIn,
+                    label = stringResource(Res.string.prediction_bet_all_in),
                     selected = clamped == maxBet && maxBet > 0L,
                     accent = outcomeColor,
                     modifier = Modifier.weight(1f)
@@ -229,7 +235,7 @@ internal fun PredictionBetDialog(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    s.predictionBetPotentialReturn,
+                    stringResource(Res.string.prediction_bet_potential_return),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -260,7 +266,7 @@ internal fun PredictionBetDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 DialogActionButton(
-                    label = s.predictionBetCancel,
+                    label = stringResource(Res.string.prediction_bet_cancel),
                     filled = false,
                     accent = outcomeColor,
                     enabled = true,
@@ -268,7 +274,7 @@ internal fun PredictionBetDialog(
                     onClick = onDismiss
                 )
                 DialogActionButton(
-                    label = s.predictionBetPlace,
+                    label = stringResource(Res.string.prediction_bet_place),
                     filled = true,
                     accent = outcomeColor,
                     enabled = clamped > 0L,

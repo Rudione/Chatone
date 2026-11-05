@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.screenchat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.screen_chat_waiting
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -51,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.ScreenChatSettings
 import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.window.WindowGrip
 import io.rudione.chatone.presentation.window.windowGrip
 import kotlinx.coroutines.delay
@@ -175,7 +177,7 @@ fun ScreenChatSurface(
                 CompositionLocalProvider(LocalDensity provides scaled) {
                     if (messages.isEmpty()) {
                         Text(
-                            LocalStrings.current.screenChat.waiting,
+                            stringResource(Res.string.screen_chat_waiting),
                             color = Color.White.copy(alpha = 0.7f),
                             modifier = Modifier.align(Alignment.BottomStart).padding(10.dp)
                         )

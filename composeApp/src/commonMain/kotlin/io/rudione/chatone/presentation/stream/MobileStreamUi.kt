@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_live
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -20,11 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import io.rudione.chatone.presentation.chat.ChatViewModel
 import io.rudione.chatone.presentation.stream.ambient.StreamAmbience
+import io.rudione.chatone.presentation.stream.ambient.rememberStreamAmbience
 import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
 import io.rudione.chatone.data.repository.StreamerModeController
 import io.rudione.chatone.domain.stream.StreamMediaInfo
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -167,19 +170,6 @@ fun rememberMobileStreamUi(
     )
 }
 
-@Composable
-private fun rememberStreamAmbience(host: StreamPlayerHost): StreamAmbience {
-    val ambience = remember(host) { StreamAmbience() }
-    LaunchedEffect(ambience) { ambience.animate() }
-    LaunchedEffect(host, ambience) {
-        host.state
-            .map { it.isOpen && !it.needsAttention }
-            .distinctUntilChanged()
-            .collect { showing -> if (!showing) ambience.fadeOut() }
-    }
-    return ambience
-}
-
 @Stable
 private class TheaterLayoutController(expandedInitially: Boolean) : StreamOrientationController {
     var expanded by mutableStateOf(expandedInitially)
@@ -240,12 +230,12 @@ private fun StreamWindowEffects(
 }
 
 @Composable
-private fun StreamMediaInfoEffect(host: StreamPlayerHost, channelLogin: String?) {
+fun StreamMediaInfoEffect(host: StreamPlayerHost, channelLogin: String?) {
+    val playerLiveText = stringResource(Res.string.player_live)
     if (channelLogin == null) return
     val chatViewModel: ChatViewModel = koinViewModel()
     val streamerMode: StreamerModeController = koinInject()
-    val strings = LocalStrings.current
-    LaunchedEffect(host, chatViewModel, streamerMode, channelLogin, strings) {
+    LaunchedEffect(host, chatViewModel, streamerMode, channelLogin, playerLiveText) {
         combine(chatViewModel.state, streamerMode.state) { chat, mode ->
             val live = chat.liveStream?.takeIf { chat.channelLogin.equals(channelLogin, ignoreCase = true) }
                 ?: return@combine null
@@ -253,7 +243,7 @@ private fun StreamMediaInfoEffect(host: StreamPlayerHost, channelLogin: String?)
             val hideThumbnail = mode.enabled && mode.options.hideThumbnails
             StreamMediaInfo(
                 channelLogin = channelLogin,
-                title = if (hideNames) strings.player.live else live.title,
+                title = if (hideNames) playerLiveText else live.title,
                 channelName = if (hideNames) APP_NAME else chat.channelDisplayName.ifBlank { live.userName },
                 artworkUrl = live.thumbnailUrl
                     .takeUnless { hideThumbnail || it.isBlank() }

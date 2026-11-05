@@ -68,9 +68,23 @@ sealed class DisplayMessage {
         val moderatorLogin: String? = null
     ) : DisplayMessage() {
         enum class ModerationAction {
-            BAN, TIMEOUT, DELETE, CLEAR, UNBAN, UNTIMEOUT, MOD, UNMOD, VIP, UNVIP
+            BAN, TIMEOUT, DELETE, CLEAR, UNBAN, UNTIMEOUT, MOD, UNMOD, VIP, UNVIP, AUTOMOD_ALLOWED, AUTOMOD_DENIED
         }
     }
+
+    data class RewardRedemptionMsg(
+        override val id: String,
+        override val timestamp: Long,
+        override val channel: String,
+        val userId: String,
+        val login: String,
+        val displayName: String,
+        val color: String?,
+        val rewardTitle: String,
+        val cost: Long,
+        val imageUrl: String? = null,
+        val backgroundColor: Long? = null
+    ) : DisplayMessage()
 
     data class NotableChatterMsg(
         override val id: String,
@@ -98,7 +112,9 @@ sealed class DisplayMessage {
         val status: AutoModStatus = AutoModStatus.PENDING,
         val reasonCategory: String? = null,
         val reasonLevel: Int? = null,
-        val flaggedFragments: List<String> = emptyList()
+        val flaggedFragments: List<String> = emptyList(),
+        val preview: PrivMsg? = null,
+        val context: io.rudione.chatone.domain.moderation.AutoModContext? = null
     ) : DisplayMessage() {
         enum class AutoModStatus { PENDING, ALLOWED, DENIED }
     }

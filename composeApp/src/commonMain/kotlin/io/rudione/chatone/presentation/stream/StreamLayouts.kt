@@ -1,7 +1,13 @@
 package io.rudione.chatone.presentation.stream
 
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import io.rudione.chatone.presentation.chat.LocalChatSpill
+import io.rudione.chatone.presentation.chat.ChatSpill
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -43,19 +49,38 @@ import io.rudione.chatone.presentation.chat.ChatSurfaceStyle
 import io.rudione.chatone.presentation.chat.LocalChatSurfaceStyle
 import io.rudione.chatone.presentation.components.ChatoneWindowSize
 import io.rudione.chatone.presentation.components.LocalWindowSize
+import io.rudione.chatone.presentation.components.StatusBarOverDarkContent
+import io.rudione.chatone.presentation.stream.ambient.AmbienceViewer
+import io.rudione.chatone.presentation.stream.ambient.AmbientEdge
 import io.rudione.chatone.presentation.stream.ambient.AmbientGlow
+import io.rudione.chatone.presentation.stream.ambient.AmbientInsetStrip
+import io.rudione.chatone.presentation.stream.ambient.AmbientSurroundInsets
+import io.rudione.chatone.presentation.stream.ambient.ambientSurround
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import kotlin.math.roundToInt
 
 @Composable
 fun PortraitStreamPlayer(
     ui: MobileStreamUi,
     modifier: Modifier = Modifier,
+    topInset: Dp = 0.dp,
     glowHeight: Dp = 0.dp,
     channelPanel: (@Composable (login: String, modifier: Modifier) -> Unit)? = null
 ) {
     val reveal = rememberChannelPanelReveal(ui, enabled = channelPanel != null)
     Box(modifier.zIndex(1f)) {
         Column {
+            if (topInset > 0.dp) {
+                StatusBarOverDarkContent()
+                AmbientInsetStrip(
+                    ambience = ui.ambience,
+                    videoSide = AmbientEdge.TOP,
+                    modifier = Modifier.fillMaxWidth().height(topInset)
+                )
+            }
             ui.Player(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -93,6 +118,8 @@ fun LandscapeStreamLayout(
     var fraction by remember { mutableFloatStateOf(preferences.sideChatFraction) }
     SideEffect(preferences.sideChatFraction) { fraction = preferences.sideChatFraction }
     var totalWidthPx by remember { mutableIntStateOf(0) }
+    val surround = rememberLandscapeSurround(sideChat = mode == LandscapeChatMode.SIDE)
+    if (!surround.isEmpty) AmbienceViewer(ui.ambience)
 
     Row(
         modifier = modifier
@@ -101,14 +128,13 @@ fun LandscapeStreamLayout(
             .onSizeChanged { totalWidthPx = it.width }
     ) {
         ui.Player(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
+            modifier = Modifier.weight(1f).fillMaxHeight().ambientSurround(ui.ambience, surround),
             fullscreen = true,
             overlay = if (mode == LandscapeChatMode.OVERLAY) {
                 {
                     OverlayChatWindow(
                         bounds = preferences.overlayBounds,
-                        opacity = preferences.overlayOpacity,
-                        messageOpacity = preferences.overlayMessageOpacity,
+                        look = OverlayChatLook.from(preferences),
                         locked = preferences.overlayLocked,
                         onBoundsCommitted = { host.onEvent(StreamPlayerEvent.SetOverlayBounds(it)) },
                         onLockedChange = { host.onEvent(StreamPlayerEvent.SetOverlayLocked(it)) },
@@ -135,6 +161,17 @@ fun LandscapeStreamLayout(
             SideChatPane(fraction = { fraction }, chat = chat)
         }
     }
+}
+
+@Composable
+private fun rememberLandscapeSurround(sideChat: Boolean): AmbientSurroundInsets {
+    val safe = WindowInsets.safeDrawing
+    val density = LocalDensity.current
+    val direction = LocalLayoutDirection.current
+    val left = safe.getLeft(density, direction).toFloat()
+    val top = safe.getTop(density).toFloat()
+    val right = if (sideChat) 0f else safe.getRight(density, direction).toFloat()
+    return remember(left, top, right) { AmbientSurroundInsets(left = left, top = top, right = right, bottom = 0f) }
 }
 
 private val SideHandleWidth = 6.dp
@@ -185,21 +222,42 @@ private fun SideChatHandle(onDrag: (Float) -> Unit, onDragFinished: () -> Unit) 
 
 @Composable
 private fun SideChatPane(fraction: () -> Float, chat: @Composable (Modifier) -> Unit) {
+    val spill = remember { ChatSpill() }
+    val reach = animateFloatAsState(
+        targetValue = if (spill.active) 1f else 0f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+        label = "sideChatSpill"
+    )
+    val spillShape = RoundedCornerShape(topStart = SpillCorner, bottomStart = SpillCorner)
     Box(
         modifier = Modifier
             .fillMaxHeight()
+            .zIndex(1f)
             .layout { measurable, constraints ->
                 val totalWidth = constraints.maxWidth + SideHandleWidth.roundToPx()
                 val chatWidth = (totalWidth * fraction()).roundToInt().coerceIn(0, constraints.maxWidth)
-                val placeable = measurable.measure(Constraints.fixed(chatWidth, constraints.maxHeight))
-                layout(chatWidth, constraints.maxHeight) { placeable.place(0, 0) }
+                val playerWidth = (totalWidth - chatWidth - SideHandleWidth.roundToPx()).coerceAtLeast(0)
+                val extra = (playerWidth * SPILL_FRACTION * reach.value).roundToInt()
+                val placeable = measurable.measure(Constraints.fixed(chatWidth + extra, constraints.maxHeight))
+                layout(chatWidth, constraints.maxHeight) { placeable.place(-extra, 0) }
+            }
+            .graphicsLayer {
+                val progress = reach.value
+                shadowElevation = SpillElevation.toPx() * progress
+                shape = spillShape
+                clip = progress > 0f
             }
     ) {
         CompositionLocalProvider(
             LocalWindowSize provides ChatoneWindowSize.Compact,
-            LocalChatSurfaceStyle provides SideChatStyle
+            LocalChatSurfaceStyle provides SideChatStyle,
+            LocalChatSpill provides spill
         ) {
             chat(Modifier.fillMaxSize())
         }
     }
 }
+
+private const val SPILL_FRACTION = 0.4f
+private val SpillCorner = 18.dp
+private val SpillElevation = 18.dp

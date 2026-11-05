@@ -26,10 +26,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.presentation.theme.ChatoneTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +43,7 @@ fun ChatoneSlider(
     knobSize: Dp = 13.dp,
     fullTrackBrush: Brush? = null
 ) {
-    val gradient = ChatoneTheme.extraColors.accentGradient
+    val active = MaterialTheme.colorScheme.primary
     val inactive = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.13f)
 
     Slider(
@@ -58,7 +56,7 @@ fun ChatoneSlider(
         modifier = modifier,
         colors = SliderDefaults.colors(
             thumbColor = Color.White,
-            activeTrackColor = gradient.last(),
+            activeTrackColor = active,
             inactiveTrackColor = inactive
         ),
         thumb = {
@@ -91,11 +89,7 @@ fun ChatoneSlider(
                             .fillMaxWidth(fraction.coerceIn(0f, 1f))
                             .fillMaxHeight()
                             .clip(CircleShape)
-                            .background(
-                                Brush.horizontalGradient(
-                                    if (enabled) gradient else gradient.map { it.copy(alpha = 0.45f) }
-                                )
-                            )
+                            .background(if (enabled) active else active.copy(alpha = 0.45f))
                     )
                 }
             }
@@ -125,9 +119,7 @@ fun ChatoneSliderRow(
                 label,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.weight(1f).padding(end = 8.dp)
             )
             Text(
                 valueLabel,

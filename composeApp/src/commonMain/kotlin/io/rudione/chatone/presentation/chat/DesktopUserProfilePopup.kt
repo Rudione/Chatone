@@ -1,5 +1,14 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.chat_ban_reason_hint
+import chatone.composeapp.generated.resources.chat_ban_reason_placeholder
+import chatone.composeapp.generated.resources.profile_ban
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.data.repository.AccountManager
+import io.rudione.chatone.presentation.profile.editor.ProfileEditorLauncher
+import org.koin.compose.koinInject
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,7 +44,6 @@ import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.link.openUrl
 
 private const val KEY_CARD_WIDTH = "profile_card_width"
@@ -80,8 +89,10 @@ internal fun DesktopUserProfilePopup(
     onBanWithReason: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     val settings = remember { Settings() }
+    val accountManager: AccountManager = koinInject()
+    val activeAccountId by accountManager.activeAccountId.collectAsState()
+    val editorLauncher: ProfileEditorLauncher = koinInject()
     val settingsState = remember { SettingsViewModel.loadInitialState() }
 
     remember {
@@ -225,7 +236,11 @@ internal fun DesktopUserProfilePopup(
                         )
                     },
                     onDetach = null,
-                    onDismiss = onDismiss
+                    onDismiss = onDismiss,
+                    onEditProfile = {
+                        onDismiss()
+                        editorLauncher.open(channelLogin)
+                    }.takeIf { userId.isNotBlank() && userId == activeAccountId }
                 )
             )
         }
@@ -234,11 +249,11 @@ internal fun DesktopUserProfilePopup(
     if (banReasonPrompt) {
         AlertDialog(
             onDismissRequest = { banReasonPrompt = false },
-            title = { Text("${s.profileBan}: $displayName") },
+            title = { Text("${stringResource(Res.string.profile_ban)}: $displayName") },
             text = {
                 Column {
                     Text(
-                        s.chatBanReasonHint,
+                        stringResource(Res.string.chat_ban_reason_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -247,7 +262,7 @@ internal fun DesktopUserProfilePopup(
                         value = banReasonText,
                         onValueChange = { banReasonText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = s.chatBanReasonPlaceholder,
+                        placeholder = stringResource(Res.string.chat_ban_reason_placeholder),
                         singleLine = false
                     )
                 }
@@ -257,10 +272,10 @@ internal fun DesktopUserProfilePopup(
                     onBanWithReason(banReasonText.trim())
                     banReasonPrompt = false
                     onDismiss()
-                }) { Text(s.profileBan) }
+                }) { Text(stringResource(Res.string.profile_ban)) }
             },
             dismissButton = {
-                TextButton(onClick = { banReasonPrompt = false }) { Text(s.cancel) }
+                TextButton(onClick = { banReasonPrompt = false }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }

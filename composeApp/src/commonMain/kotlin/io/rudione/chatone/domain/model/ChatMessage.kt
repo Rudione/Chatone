@@ -30,6 +30,7 @@ data class ChatMessage(
     val replyParentUserLogin: String? = null,
     val replyParentDisplayName: String? = null,
     val replyParentMsgBody: String? = null,
+    val replyThreadParentMsgId: String? = null,
     val bits: Int = 0,
     val gifs: List<ChatGif> = emptyList(),
 )

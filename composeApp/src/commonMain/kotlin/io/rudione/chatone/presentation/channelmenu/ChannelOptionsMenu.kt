@@ -1,5 +1,15 @@
 package io.rudione.chatone.presentation.channelmenu
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.channel_page_menu_profile
+import chatone.composeapp.generated.resources.main_channel_badges_bits
+import chatone.composeapp.generated.resources.main_toggle_pinned_message
+import chatone.composeapp.generated.resources.main_viewers_list
+import chatone.composeapp.generated.resources.mute_mentions_for_channel
+import chatone.composeapp.generated.resources.screen_chat_menu_close
+import chatone.composeapp.generated.resources.screen_chat_menu_open
+import chatone.composeapp.generated.resources.unmute_mentions_for_channel
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.DropdownMenuItem
@@ -18,6 +28,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.icons.lucide.Bell
+import io.rudione.chatone.icons.lucide.CircleUser
 import io.rudione.chatone.icons.lucide.BellOff
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.MessageSquare
@@ -25,8 +36,8 @@ import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.Star
 import io.rudione.chatone.icons.lucide.User
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import io.rudione.chatone.presentation.profile.PageNavigator
 import io.rudione.chatone.presentation.screenchat.ScreenChatController
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.system.ChannelPanelRequestBus
 import org.koin.compose.koinInject
 
@@ -60,13 +71,19 @@ fun ChannelOptionsMenu(
     offset: DpOffset = DpOffset(0.dp, 0.dp),
     leadingItems: (@Composable ColumnScope.(close: () -> Unit) -> Unit)? = null
 ) {
-    val strings = LocalStrings.current
     val login = model.channelLogin
     val mutes: MentionMuteRepository = koinInject()
     val screenChats: ScreenChatController = koinInject()
     val openScreenChats by screenChats.open.collectAsState()
     val muted = remember(login, expanded) { mutes.isChannelMuted(login) }
+    val profiles: PageNavigator = koinInject()
     ChatoneDropdownMenu(expanded = expanded, onDismissRequest = onDismissRequest, offset = offset) {
+        if (profiles.isSupported && login.isNotBlank()) {
+            ChannelMenuItem(stringResource(Res.string.channel_page_menu_profile), Lucide.CircleUser) {
+                onDismissRequest()
+                profiles.openChannel(login)
+            }
+        }
         if (leadingItems != null) {
             leadingItems(onDismissRequest)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -74,7 +91,7 @@ fun ChannelOptionsMenu(
         if (screenChats.isSupported) {
             val open = login.lowercase() in openScreenChats
             ChannelMenuItem(
-                label = if (open) strings.screenChat.menuClose else strings.screenChat.menuOpen,
+                label = if (open) stringResource(Res.string.screen_chat_menu_close) else stringResource(Res.string.screen_chat_menu_open),
                 icon = Lucide.MessageSquare
             ) {
                 onDismissRequest()
@@ -82,23 +99,23 @@ fun ChannelOptionsMenu(
             }
         }
         if (model.canSeeViewers) {
-            ChannelMenuItem(strings.mainViewersList, Lucide.User) {
+            ChannelMenuItem(stringResource(Res.string.main_viewers_list), Lucide.User) {
                 onDismissRequest()
                 model.actions.onShowViewers()
             }
         }
         ChannelMenuItem(
-            label = if (muted) strings.unmuteMentionsForChannel else strings.muteMentionsForChannel,
+            label = if (muted) stringResource(Res.string.unmute_mentions_for_channel) else stringResource(Res.string.mute_mentions_for_channel),
             icon = if (muted) Lucide.Bell else Lucide.BellOff
         ) {
             onDismissRequest()
             model.actions.onSetMentionsMuted(!muted)
         }
-        ChannelMenuItem(strings.mainChannelBadgesBits, Lucide.Star) {
+        ChannelMenuItem(stringResource(Res.string.main_channel_badges_bits), Lucide.Star) {
             onDismissRequest()
             ChannelPanelRequestBus.requestOpenPointsBitsPanel(login)
         }
-        ChannelMenuItem(strings.mainTogglePinnedMessage, Lucide.Pin) {
+        ChannelMenuItem(stringResource(Res.string.main_toggle_pinned_message), Lucide.Pin) {
             onDismissRequest()
             ChannelPanelRequestBus.requestToggleHiddenEvents(login)
         }

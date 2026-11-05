@@ -1,5 +1,13 @@
 package io.rudione.chatone.presentation.settings.sections
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.settings_add_highlight_pattern
+import chatone.composeapp.generated.resources.settings_add_rule
+import chatone.composeapp.generated.resources.settings_highlight_rules_hint
+import chatone.composeapp.generated.resources.settings_hub_highlight_built_in
+import chatone.composeapp.generated.resources.settings_hub_highlight_custom
+import chatone.composeapp.generated.resources.settings_hub_highlight_custom_empty
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.border
@@ -38,20 +46,18 @@ import io.rudione.chatone.presentation.settings.components.SettingsGrid
 import io.rudione.chatone.presentation.settings.components.SettingsGroup
 import io.rudione.chatone.presentation.settings.components.isCustom
 import io.rudione.chatone.presentation.settings.settingsAnchor
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 
 @Composable
 internal fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
-    val hub = LocalStrings.current.settingsHub
     val (custom, builtIn) = remember(state.highlightRules) { state.highlightRules.partition { it.isCustom } }
-    SettingsGroup(hub.highlightBuiltIn) {
+    SettingsGroup(stringResource(Res.string.settings_hub_highlight_built_in)) {
         SettingsGrid(
             items = builtIn,
             minCellWidth = BUILT_IN_CELL,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
         ) { rule -> HighlightRuleRow(rule, vm) }
     }
-    SettingsGroup(hub.highlightCustom) {
+    SettingsGroup(stringResource(Res.string.settings_hub_highlight_custom)) {
         Column(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -59,7 +65,7 @@ internal fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
             AddHighlightRuleField(vm)
             if (custom.isEmpty()) {
                 Text(
-                    hub.highlightCustomEmpty,
+                    stringResource(Res.string.settings_hub_highlight_custom_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
@@ -68,7 +74,7 @@ internal fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
                 custom.forEach { rule -> key(rule.id) { HighlightRuleRow(rule, vm) } }
             }
             Text(
-                LocalStrings.current.settingsHighlightRulesHint,
+                stringResource(Res.string.settings_highlight_rules_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                 modifier = Modifier.padding(horizontal = 6.dp)
@@ -79,7 +85,6 @@ internal fun HighlightContent(state: SettingsState, vm: SettingsViewModel) {
 
 @Composable
 private fun AddHighlightRuleField(vm: SettingsViewModel) {
-    val s = LocalStrings.current
     var pattern by remember { mutableStateOf("") }
     val submit = {
         if (pattern.isNotBlank()) {
@@ -89,7 +94,7 @@ private fun AddHighlightRuleField(vm: SettingsViewModel) {
     }
     Row(
         modifier = Modifier
-            .settingsAnchor(s.settingsAddRule)
+            .settingsAnchor(stringResource(Res.string.settings_add_rule))
             .fillMaxWidth()
             .clip(FieldShape)
             .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), FieldShape)
@@ -108,11 +113,11 @@ private fun AddHighlightRuleField(vm: SettingsViewModel) {
                         true
                     } else false
                 },
-            placeholder = s.settingsAddHighlightPattern,
+            placeholder = stringResource(Res.string.settings_add_highlight_pattern),
             singleLine = true
         )
         FilledIconButton(onClick = submit, enabled = pattern.isNotBlank(), modifier = Modifier.size(36.dp)) {
-            Icon(Lucide.Plus, contentDescription = s.settingsAddRule, modifier = Modifier.size(18.dp))
+            Icon(Lucide.Plus, contentDescription = stringResource(Res.string.settings_add_rule), modifier = Modifier.size(18.dp))
         }
     }
 }

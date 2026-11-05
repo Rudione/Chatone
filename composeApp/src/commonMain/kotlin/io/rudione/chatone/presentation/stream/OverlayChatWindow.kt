@@ -1,5 +1,11 @@
 package io.rudione.chatone.presentation.stream
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.player_chat_hidden
+import chatone.composeapp.generated.resources.player_chat_side
+import chatone.composeapp.generated.resources.player_overlay_lock
+import chatone.composeapp.generated.resources.player_overlay_unlock
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
@@ -45,6 +51,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -72,17 +79,19 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.stream.LandscapeChatMode
 import io.rudione.chatone.domain.stream.OverlayChatBounds
+import io.rudione.chatone.domain.stream.StreamPlayerPreferences
+import io.rudione.chatone.presentation.chat.ChatRemoteScroll
 import io.rudione.chatone.presentation.chat.ChatSurfaceStyle
+import io.rudione.chatone.presentation.chat.LocalChatRemoteScroll
 import io.rudione.chatone.presentation.chat.LocalChatSurfaceStyle
 import io.rudione.chatone.presentation.components.ChatoneWindowSize
 import io.rudione.chatone.presentation.components.LocalWindowSize
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import io.rudione.chatone.presentation.theme.i18n.StreamPlayerStrings
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -90,14 +99,37 @@ private val WindowShape = RoundedCornerShape(16.dp)
 private val WindowCorner = 16.dp
 private val GripTouchSize = 32.dp
 private val BarHeight = 30.dp
-private const val IDLE_HIDE_DELAY_MS = 2_000L
 private const val BORDER_ALPHA = 0.12f
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 private val EmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
-private val ActiveChatStyle = ChatSurfaceStyle(transparentBackground = true, showHeader = false, showPinnedMessage = false)
+private val ActiveChatStyle =
+    ChatSurfaceStyle(transparentBackground = true, showHeader = false, showPinnedMessage = false)
 private val IdleChatStyle = ActiveChatStyle.copy(showInput = false, showScrollbar = false)
 
 private enum class ResizeCorner { BOTTOM_START, BOTTOM_END }
+
+@Immutable
+internal data class OverlayChatLook(
+    val backgroundOpacity: Float,
+    val idleOpacity: Float,
+    val messageOpacity: Float,
+    val backdropAlpha: Float,
+    val scale: Float,
+    val hideDelayMs: Long,
+    val autoLockMs: Long
+) {
+    companion object {
+        fun from(preferences: StreamPlayerPreferences) = OverlayChatLook(
+            backgroundOpacity = preferences.overlayOpacity,
+            idleOpacity = preferences.overlayIdleOpacity,
+            messageOpacity = preferences.overlayMessageOpacity,
+            backdropAlpha = if (preferences.overlayBackdrop) preferences.overlayBackdropOpacity else 0f,
+            scale = preferences.overlayScale,
+            hideDelayMs = preferences.overlayHideDelaySeconds * 1_000L,
+            autoLockMs = preferences.overlayAutoLockSeconds * 1_000L
+        )
+    }
+}
 
 @Stable
 private class OverlayChrome {
@@ -119,8 +151,7 @@ private class OverlayChrome {
 @Composable
 internal fun OverlayChatWindow(
     bounds: OverlayChatBounds,
-    opacity: Float,
-    messageOpacity: Float,
+    look: OverlayChatLook,
     locked: Boolean,
     onBoundsCommitted: (OverlayChatBounds) -> Unit,
     onLockedChange: (Boolean) -> Unit,
@@ -135,27 +166,46 @@ internal fun OverlayChatWindow(
     val heightPx by rememberUpdatedState(containerSize.height.coerceAtLeast(1))
     val density = LocalDensity.current
     val gripPx = with(density) { GripTouchSize.roundToPx() }
-    val strings = LocalStrings.current.player
     val chrome = remember { OverlayChrome() }
     var inputFocused by remember { mutableStateOf(false) }
     val ime = WindowInsets.ime
     val imeOpen by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
     val typing = inputFocused && imeOpen
+    val remoteScroll = remember { ChatRemoteScroll() }
+    val lockedNow by rememberUpdatedState(locked)
+    val lock by rememberUpdatedState(onLockedChange)
 
-    LaunchedEffect(chrome.revealed, chrome.pressed, chrome.touches, typing) {
+    LaunchedEffect(chrome.revealed, chrome.pressed, chrome.touches, typing, look.hideDelayMs) {
         if (chrome.revealed && !chrome.pressed && !typing) {
-            delay(IDLE_HIDE_DELAY_MS)
+            delay(look.hideDelayMs)
             chrome.revealed = false
         }
     }
 
-    val revealed = chrome.revealed
-    val chatStyle = remember(revealed, messageOpacity) {
-        (if (revealed) ActiveChatStyle else IdleChatStyle).copy(messageAlpha = messageOpacity)
+    LaunchedEffect(chrome.touches, chrome.pressed, typing, look.autoLockMs, locked) {
+        if (look.autoLockMs > 0 && !chrome.pressed && !typing) {
+            delay(look.autoLockMs)
+            remoteScroll.toLatest()
+            if (!lockedNow) lock(true)
+        }
     }
+
+    val revealed = chrome.revealed
+    val opacity = look.backgroundOpacity
+    val chatStyle = remember(revealed, look.messageOpacity, look.backdropAlpha) {
+        (if (revealed) ActiveChatStyle else IdleChatStyle).copy(
+            messageAlpha = look.messageOpacity,
+            messageBackdropAlpha = look.backdropAlpha
+        )
+    }
+    val scaledDensity =
+        remember(density, look.scale) { Density(density.density * look.scale, density.fontScale) }
     val backgroundAlpha = animateFloatAsState(
-        targetValue = if (revealed) opacity else 0f,
-        animationSpec = if (revealed) tween(200, easing = EmphasizedDecelerate) else tween(350, easing = EmphasizedAccelerate),
+        targetValue = if (revealed) opacity else look.idleOpacity,
+        animationSpec = if (revealed) tween(200, easing = EmphasizedDecelerate) else tween(
+            350,
+            easing = EmphasizedAccelerate
+        ),
         label = "overlayBackground"
     )
     val borderAlpha = animateFloatAsState(
@@ -200,10 +250,16 @@ internal fun OverlayChatWindow(
             AnimatedVisibility(
                 visible = revealed,
                 enter = expandVertically(
-                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
+                    spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    ),
                     expandFrom = Alignment.Top
                 ) + fadeIn(tween(160, easing = EmphasizedDecelerate)),
-                exit = shrinkVertically(tween(220, easing = EmphasizedAccelerate), shrinkTowards = Alignment.Top) +
+                exit = shrinkVertically(
+                    tween(220, easing = EmphasizedAccelerate),
+                    shrinkTowards = Alignment.Top
+                ) +
                         fadeOut(tween(140, easing = EmphasizedAccelerate))
             ) {
                 val dragModifier = if (locked) {
@@ -226,7 +282,6 @@ internal fun OverlayChatWindow(
                 OverlayWindowBar(
                     locked = locked,
                     opacity = opacity,
-                    strings = strings,
                     onLockedChange = onLockedChange,
                     onModeChange = onModeChange,
                     modifier = dragModifier
@@ -235,7 +290,9 @@ internal fun OverlayChatWindow(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 CompositionLocalProvider(
                     LocalChatSurfaceStyle provides chatStyle,
-                    LocalWindowSize provides ChatoneWindowSize.Compact
+                    LocalChatRemoteScroll provides remoteScroll,
+                    LocalWindowSize provides ChatoneWindowSize.Compact,
+                    LocalDensity provides scaledDensity
                 ) {
                     content(Modifier.fillMaxSize())
                 }
@@ -252,7 +309,8 @@ internal fun OverlayChatWindow(
                             val left = (window.x * widthPx).roundToInt()
                             val right = ((window.x + window.width) * widthPx).roundToInt()
                             val bottom = ((window.y + window.height) * heightPx).roundToInt()
-                            val x = if (corner == ResizeCorner.BOTTOM_START) left - gripPx / 3 else right - gripPx * 2 / 3
+                            val x =
+                                if (corner == ResizeCorner.BOTTOM_START) left - gripPx / 3 else right - gripPx * 2 / 3
                             val y = bottom - gripPx * 2 / 3
                             IntOffset(
                                 x.coerceIn(0, (widthPx - gripPx).coerceAtLeast(0)),
@@ -266,7 +324,8 @@ internal fun OverlayChatWindow(
                                 onDragCancel = { commit(local) },
                                 onDrag = { change, drag ->
                                     change.consume()
-                                    local = resized(local, corner, drag.x / widthPx, drag.y / heightPx)
+                                    local =
+                                        resized(local, corner, drag.x / widthPx, drag.y / heightPx)
                                 }
                             )
                         }
@@ -280,7 +339,6 @@ internal fun OverlayChatWindow(
 private fun OverlayWindowBar(
     locked: Boolean,
     opacity: Float,
-    strings: StreamPlayerStrings,
     onLockedChange: (Boolean) -> Unit,
     onModeChange: (LandscapeChatMode) -> Unit,
     modifier: Modifier = Modifier
@@ -296,9 +354,14 @@ private fun OverlayWindowBar(
     ) {
         WindowBarButton(
             icon = if (locked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
-            description = if (locked) strings.overlayUnlock else strings.overlayLock
+            description = if (locked) stringResource(Res.string.player_overlay_unlock) else stringResource(
+                Res.string.player_overlay_lock
+            )
         ) { onLockedChange(!locked) }
-        WindowBarButton(Icons.Rounded.VerticalSplit, strings.chatSide) { onModeChange(LandscapeChatMode.SIDE) }
+        WindowBarButton(
+            Icons.Rounded.VerticalSplit,
+            stringResource(Res.string.player_chat_side)
+        ) { onModeChange(LandscapeChatMode.SIDE) }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
             if (!locked) {
                 Box(
@@ -310,7 +373,10 @@ private fun OverlayWindowBar(
                 )
             }
         }
-        WindowBarButton(Icons.Rounded.CommentsDisabled, strings.chatHidden) { onModeChange(LandscapeChatMode.HIDDEN) }
+        WindowBarButton(
+            Icons.Rounded.CommentsDisabled,
+            stringResource(Res.string.player_chat_hidden)
+        ) { onModeChange(LandscapeChatMode.HIDDEN) }
     }
 }
 
@@ -345,13 +411,19 @@ private fun Modifier.swallowTaps(): Modifier = pointerInput(Unit) {
     }
 }
 
-private fun resized(bounds: OverlayChatBounds, corner: ResizeCorner, dx: Float, dy: Float): OverlayChatBounds {
+private fun resized(
+    bounds: OverlayChatBounds,
+    corner: ResizeCorner,
+    dx: Float,
+    dy: Float
+): OverlayChatBounds {
     val height = (bounds.height + dy).coerceIn(OverlayChatBounds.MIN_HEIGHT, 1f - bounds.y)
     return when (corner) {
         ResizeCorner.BOTTOM_END -> bounds.copy(
             width = (bounds.width + dx).coerceIn(OverlayChatBounds.MIN_WIDTH, 1f - bounds.x),
             height = height
         )
+
         ResizeCorner.BOTTOM_START -> {
             val right = bounds.x + bounds.width
             val x = (bounds.x + dx).coerceIn(0f, right - OverlayChatBounds.MIN_WIDTH)
@@ -375,7 +447,12 @@ private fun WindowBarButton(icon: ImageVector, description: String, onClick: () 
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(16.dp))
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.85f),
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 

@@ -14,6 +14,8 @@ internal object AmbientColors {
     private const val SATURATION = 1.1f
     private const val BAR_DIM = 0.36f
     private const val BAR_MAX_LUMINANCE = 0.055f
+    private const val SURROUND_DIM = 0.5f
+    private const val SURROUND_MAX_LUMINANCE = 0.08f
     private const val GLOW_DIM = 0.6f
     private const val GLOW_MAX_LUMINANCE = 0.14f
     private const val GLOW_ALPHA = 0.8f
@@ -44,6 +46,9 @@ internal object AmbientColors {
 
     fun barColor(palette: FloatArray, offset: Int, alpha: Float): Color =
         scaled(palette, offset, BAR_DIM, BAR_MAX_LUMINANCE, alpha)
+
+    fun surroundColor(palette: FloatArray, offset: Int, alpha: Float): Color =
+        scaled(palette, offset, SURROUND_DIM, SURROUND_MAX_LUMINANCE, alpha)
 
     fun glowColor(palette: FloatArray, offset: Int, alpha: Float, darkBackground: Boolean): Color {
         if (darkBackground) return scaled(palette, offset, GLOW_DIM, GLOW_MAX_LUMINANCE, alpha * GLOW_ALPHA)

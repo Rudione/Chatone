@@ -1,7 +1,26 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.chat.threads.threadRootId
+import io.rudione.chatone.presentation.chat.threads.LocalReplyThreadOpener
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.LinkAnnotation
+import chatone.composeapp.generated.resources.ui_image_preview
+import chatone.composeapp.generated.resources.ui_pin
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_ban_user
+import chatone.composeapp.generated.resources.chat_click_to_reveal
+import chatone.composeapp.generated.resources.chat_copy_message
+import chatone.composeapp.generated.resources.chat_delete_message
+import chatone.composeapp.generated.resources.chat_reply_to
+import chatone.composeapp.generated.resources.chat_timeout_user
+import chatone.composeapp.generated.resources.chat_translate
+import chatone.composeapp.generated.resources.reward_channel_points
+import chatone.composeapp.generated.resources.reward_highlight_my_message
+import chatone.composeapp.generated.resources.reward_redeemed_prefix
+import org.jetbrains.compose.resources.stringResource
 import io.github.aakira.napier.Napier
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -53,7 +72,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.appendInlineContent
+import io.rudione.chatone.presentation.chat.rendering.appendInlineGlyph
+import io.rudione.chatone.presentation.chat.rendering.inlineTextSemantics
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -116,7 +136,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.foundation.text.selection.SelectionContainer
+import io.rudione.chatone.presentation.chat.rendering.ChatSelectionContainer
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -198,10 +218,13 @@ import io.rudione.chatone.presentation.settings.PauseHotkeyMode
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatBackgroundLayer
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.presentation.components.tactilePress
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import chatone.composeapp.generated.resources.chat_unban_user
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.WallpaperState
 import io.rudione.chatone.presentation.theme.chatPaneBackgroundColor
-import io.rudione.chatone.presentation.theme.i18n.AppStrings
 import io.rudione.chatone.presentation.theme.luminance
 import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
@@ -215,7 +238,6 @@ import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.util.system.isDesktopPlatform
 import io.rudione.chatone.presentation.chat.rendering.ChatterColors
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.util.chat.SlashCommand
 import io.rudione.chatone.util.link.openChatUrl
 import kotlinx.coroutines.delay
@@ -228,12 +250,14 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.roundToInt
 import io.rudione.chatone.icons.lucide.Ban
+import io.rudione.chatone.icons.lucide.CircleCheck
+import io.rudione.chatone.util.icons.TwitchPointsIcon
 import io.rudione.chatone.icons.lucide.Copy
 import io.rudione.chatone.icons.lucide.Languages
+import io.rudione.chatone.icons.lucide.Highlighter
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.Reply
-import io.rudione.chatone.icons.lucide.Star
 import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.presentation.chat.components.TwitchClipCard
@@ -274,6 +298,7 @@ fun PrivMsgItem(
     onBan: () -> Unit = {},
     onDelete: () -> Unit = {},
     onUnban: () -> Unit = {},
+    isTargetBanned: Boolean = false,
     modSlider: ModSliderBinding? = null,
     actorCanModerate: Boolean = false,
     actorIsBroadcaster: Boolean = false,
@@ -291,7 +316,7 @@ fun PrivMsgItem(
     val resolvedModButtons = allModButtons
     val mentionColor =
         if (message.highlightColor != null) Color(message.highlightColor) else MaterialTheme.colorScheme.primary
-    val s = LocalStrings.current
+
     fun ruleColor(id: String, default: Long) =
         Color(highlightRules.firstOrNull { it.id == id }?.color ?: default)
 
@@ -308,8 +333,15 @@ fun PrivMsgItem(
     val mentionBgColor = Color(ChatoneTheme.colorTokens.mentionBg)
     val mentionAccentColor = ruleColor("username", ChatoneTheme.colorTokens.mentionAccent)
     val isOwnMessage = currentUserId.isNotEmpty() && message.userId == currentUserId
-    val isSearchMatch = searchHighlightQuery.isNotBlank() && remember(message.rawMessage, messageRawText, searchHighlightQuery) {
-        (message.rawMessage?.message ?: messageRawText).contains(searchHighlightQuery, ignoreCase = true)
+    val isSearchMatch = searchHighlightQuery.isNotBlank() && remember(
+        message.rawMessage,
+        messageRawText,
+        searchHighlightQuery
+    ) {
+        (message.rawMessage?.message ?: messageRawText).contains(
+            searchHighlightQuery,
+            ignoreCase = true
+        )
     }
     val backgroundColor = when {
         isSearchMatch -> searchBgColor
@@ -382,7 +414,10 @@ fun PrivMsgItem(
     val hoverTarget = if (rowHovered && backgroundColor == Color.Transparent) {
         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)
     } else Color.Transparent
-    val hoverOverlay = if (isDesktopPlatform) animateColorAsState(hoverTarget, tween(100)) else rememberUpdatedState(hoverTarget)
+    val hoverOverlay = if (isDesktopPlatform) animateColorAsState(
+        hoverTarget,
+        tween(100)
+    ) else rememberUpdatedState(hoverTarget)
     val modActionsAllowed = showModActions && (actorCanModerate || actorIsBroadcaster)
     val modActionsVisible = modActionsAllowed && (!modActionsOnHover || rowHovered)
     val sliderHandle = if (modSlider != null && modActionsAllowed) {
@@ -413,10 +448,12 @@ fun PrivMsgItem(
     val defaultDeleteShown = showDefaultDeleteButton && sliderHandle == null
     val defaultTimeoutShown = showDefaultTimeoutButton && sliderHandle == null
     val defaultBanShown = showDefaultBanButton && sliderHandle == null
-    val sliderPrefixButtons = sliderHandle != null && modButtonsVisible && showCustomModButtons && !isOwnMessage &&
-        sliderHandle.track.backward != null &&
-        (resolvedModButtons.ifEmpty { customModButtons }).any { !it.isDefault && it.enabled }
-    val prefixVisible = modActionsVisible && modButtonsVisible && (sliderHandle == null || sliderPrefixButtons)
+    val sliderPrefixButtons =
+        sliderHandle != null && modButtonsVisible && showCustomModButtons && !isOwnMessage &&
+                sliderHandle.track.backward != null &&
+                (resolvedModButtons.ifEmpty { customModButtons }).any { !it.isDefault && it.enabled }
+    val prefixVisible =
+        modActionsVisible && modButtonsVisible && (sliderHandle == null || sliderPrefixButtons)
     val sliderGutter = modSlider != null && modActionsAllowed
     val sliderRowModifier = if (sliderHandle != null && modSlider != null) {
         Modifier.modSliderRow(sliderHandle.state, modSlider.style)
@@ -428,7 +465,8 @@ fun PrivMsgItem(
         hasAccentBar -> 8.dp
         else -> 4.dp
     }
-    val rowHoverModifier = Modifier.handleHover(onEnter = { rowHovered = true }, onExit = { rowHovered = false })
+    val rowHoverModifier =
+        Modifier.handleHover(onEnter = { rowHovered = true }, onExit = { rowHovered = false })
     val rowBodyModifier = Modifier.fillMaxWidth()
         .drawBehind {
             val overlay = hoverOverlay.value
@@ -448,34 +486,19 @@ fun PrivMsgItem(
             bottom = rowVerticalPadding
         )
     val rowBody: @Composable ColumnScope.() -> Unit = {
-        if (message.rewardName != null) {
+        if (message.rewardName != null || message.customRewardId != null) {
+            val isHighlightReward = message.rewardName == "Highlight My Message"
             val rewardLabel = when (message.rewardName) {
-                "Highlight My Message" -> s.rewardHighlightMyMessage
-                "Channel Points Reward" -> s.rewardChannelPoints
+                null, "Channel Points Reward" -> stringResource(Res.string.reward_channel_points)
+                "Highlight My Message" -> stringResource(Res.string.reward_highlight_my_message)
                 else -> message.rewardName
             }
-            Row(
-                modifier = Modifier
-                    .padding(bottom = 2.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(highlightedMessageColor.copy(alpha = 0.18f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Lucide.Star,
-                    contentDescription = null,
-                    tint = highlightedMessageColor,
-                    modifier = Modifier.size(11.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    "${s.rewardRedeemedPrefix}: $rewardLabel",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = highlightedMessageColor,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            NoticeHeader(
+                icon = if (isHighlightReward) Lucide.Highlighter else TwitchPointsIcon,
+                text = "${stringResource(Res.string.reward_redeemed_prefix)} · $rewardLabel",
+                color = highlightedMessageColor,
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
         }
         val showTimestamp = timestampFormat != SettingsState.TimestampFormat.OFF
         val hasBadges = showBadges && (message.badges.any { it.imageUrl.isNotEmpty() } ||
@@ -512,6 +535,8 @@ fun PrivMsgItem(
                 onTimeout = onTimeout,
                 onCustomTimeout = onCustomTimeout,
                 onBan = onBan,
+                onUnban = onUnban,
+                isTargetBanned = isTargetBanned,
                 onDelete = onDelete,
                 actorCanModerate = actorCanModerate,
                 actorIsBroadcaster = actorIsBroadcaster,
@@ -519,7 +544,6 @@ fun PrivMsgItem(
                 mentionColor = mentionColor,
                 backgroundColor = backgroundColor,
                 hasAccentBar = hasAccentBar,
-                s = s,
                 userColorByLogin = userColorByLogin,
                 translationStore = translationStore
             )
@@ -528,6 +552,7 @@ fun PrivMsgItem(
             val replyParentBodyOuter = message.rawMessage?.replyParentMsgBody
             val replyParentLoginOuter = message.rawMessage?.replyParentUserLogin
             if (replyParentNameOuter != null && replyParentBodyOuter != null) {
+                val threadOpener = LocalReplyThreadOpener.current
                 val replyNickColors = rememberNickColors()
                 val parentColor = replyParentLoginOuter?.lowercase()?.let { login ->
                     replyNickColors.adjust(userColorByLogin[login] ?: stableUserColor(login))
@@ -553,14 +578,20 @@ fun PrivMsgItem(
                             Spacer(Modifier.width(3.dp))
                             Text(
                                 text = buildAnnotatedString {
-                                    pushStringAnnotation("mention", "@$replyParentLoginOuter")
-                                    withStyle(
-                                        SpanStyle(
-                                            color = parentColor,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    ) { append("@$replyParentNameOuter") }
-                                    pop()
+                                    withLink(LinkAnnotation.Clickable(REPLY_AUTHOR_TAG) {
+                                        replyParentLoginOuter?.let { login ->
+                                            onMentionClick(
+                                                "@$login"
+                                            )
+                                        }
+                                    }) {
+                                        withStyle(
+                                            SpanStyle(
+                                                color = parentColor,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        ) { append("@$replyParentNameOuter") }
+                                    }
                                     withStyle(
                                         SpanStyle(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
@@ -577,7 +608,11 @@ fun PrivMsgItem(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) {
-                                    replyParentLoginOuter?.let { login -> onMentionClick("@$login") }
+                                    val rootId = message.threadRootId()
+                                    if (threadOpener != null && rootId != null) threadOpener.open(
+                                        rootId
+                                    )
+                                    else replyParentLoginOuter?.let { login -> onMentionClick("@$login") }
                                 }
                             )
                         }
@@ -585,7 +620,12 @@ fun PrivMsgItem(
                 }
             }
             val badgeVisuals = if (showBadges) {
-                collectBadgeVisuals(message.username, message.userId, message.badges, message.sevenTvBadge)
+                collectBadgeVisuals(
+                    message.username,
+                    message.userId,
+                    message.badges,
+                    message.sevenTvBadge
+                )
             } else emptyList()
 
             Row(
@@ -593,9 +633,10 @@ fun PrivMsgItem(
                 verticalAlignment = Alignment.Top
             ) {
                 val firstLineHeight = chatFirstLineHeight(chatFontSizeSp)
+                val firstLine = remember { FirstLineAnchor() }
                 if (prefixVisible) {
                     Row(
-                        modifier = Modifier.height(firstLineHeight),
+                        modifier = Modifier.height(firstLineHeight).centerOnFirstLine(firstLine),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Start
                     ) {
@@ -610,10 +651,11 @@ fun PrivMsgItem(
                             targetIsGrandMod = message.isGrandMod
                         )
 
-                        val modOrderKey = "$modButtonsVersion:" + if (resolvedModButtons.isNotEmpty())
-                            resolvedModButtons.joinToString("|") { "${it.id}:${it.sortOrder}:${it.enabled}" }
-                        else
-                            customModButtons.joinToString("|") { it.id }
+                        val modOrderKey =
+                            "$modButtonsVersion:" + if (resolvedModButtons.isNotEmpty())
+                                resolvedModButtons.joinToString("|") { "${it.id}:${it.sortOrder}:${it.enabled}" }
+                            else
+                                customModButtons.joinToString("|") { it.id }
                         key(modOrderKey) {
                             Row(
                                 modifier = Modifier.padding(end = 4.dp),
@@ -633,7 +675,7 @@ fun PrivMsgItem(
                                                 if (defaultDeleteShown && (canAct || isOwnMessage)) {
                                                     ModActionIconBtn(
                                                         icon = Lucide.Trash2,
-                                                        label = s.chatDeleteMessage,
+                                                        label = stringResource(Res.string.chat_delete_message),
                                                         tint = extraColors.modDelete,
                                                         onClick = onDelete
                                                     )
@@ -642,10 +684,11 @@ fun PrivMsgItem(
 
                                             "default_timeout" -> {
                                                 if (defaultTimeoutShown && canAct && !isOwnMessage) {
-                                                    val parts = ModActionButton.DEFAULT_TIMEOUT.durationParts
+                                                    val parts =
+                                                        ModActionButton.DEFAULT_TIMEOUT.durationParts
                                                     ModActionIconBtn(
                                                         icon = Lucide.Timer,
-                                                        label = s.chatTimeoutUser,
+                                                        label = stringResource(Res.string.chat_timeout_user),
                                                         tint = extraColors.modTimeout,
                                                         onClick = onTimeout,
                                                         amount = parts?.first,
@@ -656,11 +699,10 @@ fun PrivMsgItem(
 
                                             "default_ban" -> {
                                                 if (defaultBanShown && canAct && !isOwnMessage) {
-                                                    ModActionIconBtn(
-                                                        icon = Lucide.Ban,
-                                                        label = s.chatBanUser,
-                                                        tint = extraColors.modBan,
-                                                        onClick = onBan
+                                                    BanToggleButton(
+                                                        isBanned = isTargetBanned,
+                                                        onBan = onBan,
+                                                        onUnban = onUnban
                                                     )
                                                 }
                                             }
@@ -720,10 +762,15 @@ fun PrivMsgItem(
                         }
                     }
                     if (badgeVisuals.isNotEmpty()) {
-                        val badgeBlockWidthSp = badgeVisuals.size * 18f + (badgeVisuals.size - 1) * 4f + 6f
-                        appendInlineContent("badges_cluster", " ")
+                        val badgeBlockWidthSp =
+                            badgeVisuals.size * 18f + (badgeVisuals.size - 1) * 4f + 6f
+                        appendInlineGlyph("badges_cluster", "")
                         inlineContent["badges_cluster"] = InlineTextContent(
-                            Placeholder(badgeBlockWidthSp.sp, 18.sp, PlaceholderVerticalAlign.TextCenter)
+                            Placeholder(
+                                badgeBlockWidthSp.sp,
+                                18.sp,
+                                PlaceholderVerticalAlign.TextCenter
+                            )
                         ) {
                             Box(modifier = Modifier.fillMaxSize()) {
                                 Row(
@@ -739,7 +786,13 @@ fun PrivMsgItem(
                     }
                     if (message.isDeleted) {
                         pushStringAnnotation("username", message.userId)
-                        withStyle(SpanStyle(color = userColor, fontWeight = FontWeight.Bold, fontSize = nickFontSize)) {
+                        withStyle(
+                            SpanStyle(
+                                color = userColor,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = nickFontSize
+                            )
+                        ) {
                             append(
                                 shownName
                             )
@@ -759,9 +812,10 @@ fun PrivMsgItem(
                         }
                     } else {
                         pushStringAnnotation("username", message.userId)
-                        val nickPaint = resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
+                        val nickPaint =
+                            resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
                         if (nickPaint != null) {
-                            appendInlineContent("nick_paint", shownName)
+                            appendInlineGlyph("nick_paint", shownName)
                             if (message.isAction) append(" ") else append(": ")
                         } else if (message.isAction) {
                             withStyle(
@@ -797,10 +851,8 @@ fun PrivMsgItem(
                                 }
 
                                 is MessageToken.TwitchEmoteToken -> {
-                                    val key = "emote_${emoteCounter++}"; appendInlineContent(
-                                        key,
-                                        token.name
-                                    )
+                                    val key = "emote_${emoteCounter++}"
+                                    appendInlineGlyph(key, token.name)
                                     inlineContent[key] = InlineTextContent(
                                         Placeholder(
                                             emoteSizeSp,
@@ -817,10 +869,8 @@ fun PrivMsgItem(
                                 }
 
                                 is MessageToken.ThirdPartyEmoteToken -> {
-                                    val key = "emote_${emoteCounter++}"; appendInlineContent(
-                                        key,
-                                        token.emote.code
-                                    )
+                                    val key = "emote_${emoteCounter++}"
+                                    appendInlineGlyph(key, token.emote.code)
                                     val (emoteW, emoteH) = computeEmoteDisplaySize(
                                         token.emote.width,
                                         token.emote.height,
@@ -852,7 +902,8 @@ fun PrivMsgItem(
                                 }
 
                                 is MessageToken.Link -> {
-                                    val clipTitle = clipInfoByUrl[token.url]?.title?.takeIf { it.isNotBlank() }
+                                    val clipTitle =
+                                        clipInfoByUrl[token.url]?.title?.takeIf { it.isNotBlank() }
                                     pushStringAnnotation("url", token.url)
                                     withStyle(
                                         SpanStyle(
@@ -864,7 +915,9 @@ fun PrivMsgItem(
                                     if (clipTitle != null) {
                                         withStyle(
                                             SpanStyle(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                    alpha = 0.55f
+                                                ),
                                                 fontSize = (resolvedChatFontSize - 1).sp
                                             )
                                         ) { append(" (clips.twitch.tv)") }
@@ -873,7 +926,7 @@ fun PrivMsgItem(
 
                                 is MessageToken.Cheer -> {
                                     val key = "cheer_${emoteCounter++}"
-                                    appendInlineContent(key, "${token.prefix}${token.amount}")
+                                    appendInlineGlyph(key, "${token.prefix}${token.amount}")
                                     val cheerWidth =
                                         (resolvedChatFontSize * (1.6f + 0.62f * token.amount.toString().length)).sp
                                     inlineContent[key] = InlineTextContent(
@@ -940,19 +993,20 @@ fun PrivMsgItem(
                 var hoverOffset by remember { mutableStateOf(IntOffset.Zero) }
 
                 if (!message.isDeleted) {
-                    resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }?.let { paint ->
-                        registerPaintedNick(
-                            inlineContent = inlineContent,
-                            key = "nick_paint",
-                            name = shownName,
-                            paint = paint,
-                            fontSizeSp = resolvedChatFontSize + 1f,
-                            isAction = message.isAction,
-                            userColor = userColor,
-                            onClick = onUsernameClick,
-                            onRightClick = { onRightClickUsername(message.displayName) }
-                        )
-                    }
+                    resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
+                        ?.let { paint ->
+                            registerPaintedNick(
+                                inlineContent = inlineContent,
+                                key = "nick_paint",
+                                name = shownName,
+                                paint = paint,
+                                fontSizeSp = resolvedChatFontSize + 1f,
+                                isAction = message.isAction,
+                                userColor = userColor,
+                                onClick = onUsernameClick,
+                                onRightClick = { onRightClickUsername(message.displayName) }
+                            )
+                        }
                 }
                 Box(modifier = Modifier.weight(1f)) {
                     val messageText: @Composable () -> Unit = {
@@ -984,6 +1038,7 @@ fun PrivMsgItem(
                             ),
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.fillMaxWidth()
+                                .inlineTextSemantics(annotatedString)
                                 .focusable()
                                 .onPreviewKeyEvent { event ->
                                     if (event.type == KeyEventType.KeyDown &&
@@ -1047,66 +1102,33 @@ fun PrivMsgItem(
                                         }
                                     )
                                 }
-                                .then(if (!isDesktopPlatform) Modifier else Modifier.pointerInput(message.id, annotatedString, emoteKeyMap) {
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                            val pos =
-                                                event.changes.firstOrNull()?.position ?: continue
+                                .then(
+                                    if (!isDesktopPlatform) Modifier else Modifier.pointerInput(
+                                        message.id,
+                                        annotatedString,
+                                        emoteKeyMap
+                                    ) {
+                                        awaitPointerEventScope {
+                                            while (true) {
+                                                val event =
+                                                    awaitPointerEvent(PointerEventPass.Initial)
+                                                val pos =
+                                                    event.changes.firstOrNull()?.position
+                                                        ?: continue
 
-                                            when (event.type) {
-                                                PointerEventType.Move, PointerEventType.Enter -> {
-                                                    textLayoutResult?.let { layout ->
-                                                        val charOffset =
-                                                            layout.getOffsetForPosition(pos)
-
-                                                        val urlAnn =
-                                                            annotatedString.getStringAnnotations(
-                                                                "url",
-                                                                charOffset,
-                                                                charOffset
-                                                            ).firstOrNull()
-                                                        hoveredUrl = urlAnn?.item
-
-                                                        val inlineAnn =
-                                                            annotatedString.getStringAnnotations(
-                                                                "androidx.compose.foundation.text.inlineContent",
-                                                                charOffset,
-                                                                charOffset
-                                                            ).firstOrNull()
-
-                                                        var newHoveredEmote: GenericEmote? = null
-                                                        if (inlineAnn != null) {
-                                                            val bbox =
-                                                                layout.getBoundingBox(charOffset)
-                                                            if (bbox.contains(
-                                                                    Offset(
-                                                                        pos.x,
-                                                                        pos.y
-                                                                    )
-                                                                )
-                                                            ) {
-                                                                newHoveredEmote =
-                                                                    emoteKeyMap[inlineAnn.item]
-                                                            }
-                                                        }
-                                                        if (newHoveredEmote != hoveredEmote) hoveredEmote =
-                                                            newHoveredEmote
-                                                        hoverOffset =
-                                                            IntOffset(pos.x.toInt(), pos.y.toInt())
-                                                    }
-                                                }
-
-                                                PointerEventType.Exit -> {
-                                                    hoveredUrl = null
-                                                    if (hoveredEmote != null) hoveredEmote = null
-                                                }
-
-                                                PointerEventType.Press -> {
-                                                    if (event.buttons.isSecondaryPressed && event.changes.none { it.isConsumed }) {
+                                                when (event.type) {
+                                                    PointerEventType.Move, PointerEventType.Enter -> {
                                                         textLayoutResult?.let { layout ->
                                                             val charOffset =
                                                                 layout.getOffsetForPosition(pos)
+
+                                                            val urlAnn =
+                                                                annotatedString.getStringAnnotations(
+                                                                    "url",
+                                                                    charOffset,
+                                                                    charOffset
+                                                                ).firstOrNull()
+                                                            hoveredUrl = urlAnn?.item
 
                                                             val inlineAnn =
                                                                 annotatedString.getStringAnnotations(
@@ -1115,7 +1137,8 @@ fun PrivMsgItem(
                                                                     charOffset
                                                                 ).firstOrNull()
 
-                                                            var handled = false
+                                                            var newHoveredEmote: GenericEmote? =
+                                                                null
                                                             if (inlineAnn != null) {
                                                                 val bbox =
                                                                     layout.getBoundingBox(charOffset)
@@ -1126,34 +1149,101 @@ fun PrivMsgItem(
                                                                         )
                                                                     )
                                                                 ) {
-                                                                    val emote =
+                                                                    newHoveredEmote =
                                                                         emoteKeyMap[inlineAnn.item]
-                                                                    if (emote != null && emote.provider == EmoteProvider.SEVEN_TV && emote.id.isNotEmpty()) {
-                                                                        try {
-                                                                            uriHandler.openUri("https://7tv.app/emotes/${emote.id}")
-                                                                        } catch (_: Exception) {
+                                                                }
+                                                            }
+                                                            if (newHoveredEmote != hoveredEmote) hoveredEmote =
+                                                                newHoveredEmote
+                                                            hoverOffset =
+                                                                IntOffset(
+                                                                    pos.x.toInt(),
+                                                                    pos.y.toInt()
+                                                                )
+                                                        }
+                                                    }
+
+                                                    PointerEventType.Exit -> {
+                                                        hoveredUrl = null
+                                                        if (hoveredEmote != null) hoveredEmote =
+                                                            null
+                                                    }
+
+                                                    PointerEventType.Press -> {
+                                                        if (event.buttons.isSecondaryPressed && event.changes.none { it.isConsumed }) {
+                                                            textLayoutResult?.let { layout ->
+                                                                val charOffset =
+                                                                    layout.getOffsetForPosition(pos)
+
+                                                                val inlineAnn =
+                                                                    annotatedString.getStringAnnotations(
+                                                                        "androidx.compose.foundation.text.inlineContent",
+                                                                        charOffset,
+                                                                        charOffset
+                                                                    ).firstOrNull()
+
+                                                                var handled = false
+                                                                if (inlineAnn != null) {
+                                                                    val bbox =
+                                                                        layout.getBoundingBox(
+                                                                            charOffset
+                                                                        )
+                                                                    if (bbox.contains(
+                                                                            Offset(
+                                                                                pos.x,
+                                                                                pos.y
+                                                                            )
+                                                                        )
+                                                                    ) {
+                                                                        val emote =
+                                                                            emoteKeyMap[inlineAnn.item]
+                                                                        if (emote != null && emote.provider == EmoteProvider.SEVEN_TV && emote.id.isNotEmpty()) {
+                                                                            try {
+                                                                                uriHandler.openUri("https://7tv.app/emotes/${emote.id}")
+                                                                            } catch (_: Exception) {
+                                                                            }
+                                                                            event.changes.forEach { it.consume() }
+                                                                            handled = true
                                                                         }
+                                                                    }
+                                                                }
+
+                                                                if (!handled) {
+                                                                    val onUsername =
+                                                                        annotatedString.getStringAnnotations(
+                                                                            "username",
+                                                                            charOffset,
+                                                                            charOffset
+                                                                        ).isNotEmpty()
+                                                                    if (onUsername) {
+                                                                        onRightClickUsername(message.displayName)
                                                                         event.changes.forEach { it.consume() }
                                                                         handled = true
                                                                     }
                                                                 }
-                                                            }
 
-                                                            if (!handled) {
-                                                                val onUsername =
+                                                                if (!handled) {
                                                                     annotatedString.getStringAnnotations(
-                                                                        "username",
+                                                                        "mention",
                                                                         charOffset,
                                                                         charOffset
-                                                                    ).isNotEmpty()
-                                                                if (onUsername) {
-                                                                    onRightClickUsername(message.displayName)
-                                                                    event.changes.forEach { it.consume() }
-                                                                    handled = true
+                                                                    ).firstOrNull()?.let { mention ->
+                                                                        onRightClickUsername(mention.item)
+                                                                        event.changes.forEach { it.consume() }
+                                                                        handled = true
+                                                                    }
                                                                 }
-                                                            }
 
-                                                            if (!handled) {
+                                                                if (!handled) {
+                                                                    contextMenuOffset = IntOffset(
+                                                                        pos.x.toInt(),
+                                                                        pos.y.toInt()
+                                                                    )
+                                                                    showContextMenu = true
+                                                                    event.changes.forEach { it.consume() }
+                                                                }
+
+                                                            } ?: run {
                                                                 contextMenuOffset = IntOffset(
                                                                     pos.x.toInt(),
                                                                     pos.y.toInt()
@@ -1161,30 +1251,22 @@ fun PrivMsgItem(
                                                                 showContextMenu = true
                                                                 event.changes.forEach { it.consume() }
                                                             }
-
-                                                        } ?: run {
-                                                            contextMenuOffset = IntOffset(
-                                                                pos.x.toInt(),
-                                                                pos.y.toInt()
-                                                            )
-                                                            showContextMenu = true
-                                                            event.changes.forEach { it.consume() }
                                                         }
                                                     }
-                                                }
 
-                                                else -> {}
+                                                    else -> {}
+                                                }
                                             }
                                         }
-                                    }
-                                }),
+                                    }),
                             onTextLayout = { layout ->
                                 textLayoutResult = layout
+                                firstLine.update(layout)
                                 sliderHandle?.reportTimestamp(layout, timestampLength)
                             }
                         )
                     }
-                    if (isDesktopPlatform) SelectionContainer(content = messageText) else messageText()
+                    if (isDesktopPlatform) ChatSelectionContainer(content = messageText) else messageText()
 
                     hoveredUrl?.let { url ->
                         PortalPopup(
@@ -1241,7 +1323,7 @@ fun PrivMsgItem(
                             Column {
                                 if (isMod) {
                                     LiquidGlassDropdownItem(
-                                        text = "Pin",
+                                        text = stringResource(Res.string.ui_pin),
                                         icon = Lucide.Pin,
                                         iconTint = MaterialTheme.colorScheme.primary,
                                         onClick = { showContextMenu = false; onPin() }
@@ -1252,13 +1334,13 @@ fun PrivMsgItem(
                                     )
                                 }
                                 LiquidGlassDropdownItem(
-                                    text = s.chatReplyTo,
+                                    text = stringResource(Res.string.chat_reply_to),
                                     icon = Lucide.Reply,
                                     iconTint = MaterialTheme.colorScheme.primary,
                                     onClick = { showContextMenu = false; onReply() }
                                 )
                                 LiquidGlassDropdownItem(
-                                    text = s.chatCopyMessage,
+                                    text = stringResource(Res.string.chat_copy_message),
                                     icon = Lucide.Copy,
                                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     onClick = {
@@ -1270,7 +1352,11 @@ fun PrivMsgItem(
                                     }
                                 )
                                 LiquidGlassDropdownItem(
-                                    text = if (translationStore.states.containsKey(message.id)) "${s.chatTranslate} ✓" else s.chatTranslate,
+                                    text = if (translationStore.states.containsKey(message.id)) "${
+                                        stringResource(
+                                            Res.string.chat_translate
+                                        )
+                                    } ✓" else stringResource(Res.string.chat_translate),
                                     icon = Lucide.Languages,
                                     iconTint = MaterialTheme.colorScheme.primary,
                                     onClick = {
@@ -1311,7 +1397,8 @@ fun PrivMsgItem(
                 var isRevealed by remember(link.url) {
                     mutableStateOf(isAutoLoadHost && inlineSettings.showInlineImages == InlineImageMode.ON)
                 }
-                val resolvedImageUrl = if (isLoadAllowed) rememberResolvedImageUrl(link.url) else null
+                val resolvedImageUrl =
+                    if (isLoadAllowed) rememberResolvedImageUrl(link.url) else null
                 if (!isLoadAllowed) {
                     Box(
                         modifier = Modifier
@@ -1325,7 +1412,7 @@ fun PrivMsgItem(
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            LocalStrings.current.chatClickToReveal,
+                            stringResource(Res.string.chat_click_to_reveal),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1346,7 +1433,7 @@ fun PrivMsgItem(
                     ) {
                         AsyncImage(
                             model = resolvedImageUrl,
-                            contentDescription = "Image preview",
+                            contentDescription = stringResource(Res.string.ui_image_preview),
                             modifier = Modifier
                                 .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
                                 .widthIn(max = 400.dp)
@@ -1360,7 +1447,7 @@ fun PrivMsgItem(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    LocalStrings.current.chatClickToReveal,
+                                    stringResource(Res.string.chat_click_to_reveal),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color.White
                                 )
@@ -1400,7 +1487,10 @@ fun PrivMsgItem(
             )
         }
     } else {
-        Column(modifier = modifier.fillMaxWidth().then(rowHoverModifier).then(rowBodyModifier), content = rowBody)
+        Column(
+            modifier = modifier.fillMaxWidth().then(rowHoverModifier).then(rowBodyModifier),
+            content = rowBody
+        )
     }
 }
 
@@ -1428,12 +1518,14 @@ internal fun ModActionIconBtn(
     val interactionSource = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
+            .tactilePress(interactionSource, pressedScale = 0.86f)
             .clip(RoundedCornerShape(4.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
                 onClick = onClick
             )
+            .pointerHoverIcon(PointerIcon.Hand)
             .padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1481,6 +1573,28 @@ internal fun ModActionIconBtn(
 }
 
 @Composable
+internal fun BanToggleButton(isBanned: Boolean, onBan: () -> Unit, onUnban: () -> Unit) {
+    val extraColors = ChatoneTheme.extraColors
+    Crossfade(targetState = isBanned, animationSpec = tween(180), label = "banToggle") { banned ->
+        if (banned) {
+            ModActionIconBtn(
+                icon = Lucide.CircleCheck,
+                label = stringResource(Res.string.chat_unban_user),
+                tint = extraColors.modUnban,
+                onClick = onUnban
+            )
+        } else {
+            ModActionIconBtn(
+                icon = Lucide.Ban,
+                label = stringResource(Res.string.chat_ban_user),
+                tint = extraColors.modBan,
+                onClick = onBan
+            )
+        }
+    }
+}
+
+@Composable
 internal fun rememberResolvedImageUrl(pageUrl: String): String? {
     val immediate = remember(pageUrl) {
         LinkImageResolver.resolveImmediate(pageUrl)
@@ -1502,3 +1616,5 @@ internal fun rememberResolvedImageUrl(pageUrl: String): String? {
     }
     return resolved
 }
+
+internal const val REPLY_AUTHOR_TAG = "reply_author"

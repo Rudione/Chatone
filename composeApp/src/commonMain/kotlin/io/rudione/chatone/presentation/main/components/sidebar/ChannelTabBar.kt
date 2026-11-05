@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.ui_close_named
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -68,7 +71,8 @@ internal fun ChannelTabBar(
             }
         }
     }
-    val collapsedFolders = remember(folders) { folders.filterNot { it.isExpanded }.mapTo(HashSet()) { it.id } }
+    val collapsedFolders =
+        remember(folders) { folders.filterNot { it.isExpanded }.mapTo(HashSet()) { it.id } }
     SideEffect(folders, channels) {
         io.github.aakira.napier.Napier.d(
             "ChannelTabBar: folders=${folders.size} (${folders.joinToString { it.name + "[${it.channels.size}]" }}), channels=${channels.size}, mapped=${folderByLogin.size}",
@@ -231,7 +235,8 @@ internal fun ChannelTabBar(
 
                                         val hitFolderId =
                                             folderChipCoords.entries.firstOrNull { (_, coords) ->
-                                                coords.isAttached && coords.boundsInRoot().contains(currentDragPos)
+                                                coords.isAttached && coords.boundsInRoot()
+                                                    .contains(currentDragPos)
                                             }?.key
                                         if (hitFolderId != null) {
                                             folderDropTargetId = hitFolderId
@@ -239,7 +244,9 @@ internal fun ChannelTabBar(
                                         } else {
                                             folderDropTargetId = null
                                             dropTargetIndex = tabCoords.entries
-                                                .mapNotNull { (i, coords) -> coords.centerInRootOrNull()?.let { i to it } }
+                                                .mapNotNull { (i, coords) ->
+                                                    coords.centerInRootOrNull()?.let { i to it }
+                                                }
                                                 .minByOrNull { (_, center) ->
                                                     hypot(
                                                         currentDragPos.x - center.x,
@@ -334,7 +341,10 @@ internal fun ChannelTabBar(
                             ) {
                                 Icon(
                                     Lucide.X,
-                                    contentDescription = "Close ${channel.displayName}",
+                                    contentDescription = stringResource(
+                                        Res.string.ui_close_named,
+                                        channel.displayName
+                                    ),
                                     modifier = Modifier.size(10.dp),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
@@ -370,13 +380,22 @@ internal fun ChannelTabBar(
                         modifier = Modifier
                             .zIndex(10f)
                             .layout { measurable, constraints ->
-                                val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                                val placeable = measurable.measure(
+                                    constraints.copy(
+                                        minWidth = 0,
+                                        minHeight = 0
+                                    )
+                                )
                                 layout(0, 0) {
                                     val container = containerAnchor.coords
                                     val tab = tabCoords[idx]
-                                    val center = if (container != null && container.isAttached && tab != null && tab.isAttached) {
-                                        container.localPositionOf(tab, Offset(tab.size.width / 2f, tab.size.height / 2f))
-                                    } else Offset.Zero
+                                    val center =
+                                        if (container != null && container.isAttached && tab != null && tab.isAttached) {
+                                            container.localPositionOf(
+                                                tab,
+                                                Offset(tab.size.width / 2f, tab.size.height / 2f)
+                                            )
+                                        } else Offset.Zero
                                     placeable.place(
                                         (center.x + dragOffset.x - placeable.width / 2f).roundToInt(),
                                         (center.y + dragOffset.y - placeable.height / 2f).roundToInt()

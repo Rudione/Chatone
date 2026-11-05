@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.input_translation_language
+import chatone.composeapp.generated.resources.input_translation_off
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -50,7 +54,6 @@ import io.rudione.chatone.presentation.chat.TranslationLanguages
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.expressive.ClosingTap
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.presentation.components.PortalPopup
 
 private val ChipShape = RoundedCornerShape(10.dp)
@@ -64,7 +67,6 @@ internal fun MessageInputTranslationChip(
     onSelectLanguage: (String) -> Unit,
     onTurnOff: () -> Unit
 ) {
-    val s = LocalStrings.current
     val accent = MaterialTheme.colorScheme.primary
     var menuOpen by remember { mutableStateOf(false) }
     val closing = remember { ClosingTap() }
@@ -80,7 +82,7 @@ internal fun MessageInputTranslationChip(
                         closing.pressed()
                     }
                 }
-                .clickable(enabled = enabled, role = Role.Button, onClickLabel = s.inputTranslationLanguage) {
+                .clickable(enabled = enabled, role = Role.Button, onClickLabel = stringResource(Res.string.input_translation_language)) {
                     val wasOpen = menuOpen || closing.consume()
                     menuOpen = !wasOpen
                 }
@@ -88,7 +90,7 @@ internal fun MessageInputTranslationChip(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Icon(Lucide.Languages, contentDescription = s.inputTranslationLanguage, tint = accent, modifier = Modifier.size(14.dp))
+            Icon(Lucide.Languages, contentDescription = stringResource(Res.string.input_translation_language), tint = accent, modifier = Modifier.size(14.dp))
             Text(
                 languageBadge(targetLang),
                 style = MaterialTheme.typography.labelSmall,
@@ -126,7 +128,6 @@ private fun TranslationLanguageMenu(
     onTurnOff: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val s = LocalStrings.current
     val gapPx = with(LocalDensity.current) { MenuGap.roundToPx() }
     val positionProvider = remember(gapPx) { AboveAnchorEnd(gapPx) }
     PortalPopup(
@@ -154,7 +155,7 @@ private fun TranslationLanguageMenu(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
                 )
                 LiquidGlassDropdownItem(
-                    text = s.inputTranslationOff,
+                    text = stringResource(Res.string.input_translation_off),
                     icon = Lucide.X,
                     onClick = onTurnOff
                 )

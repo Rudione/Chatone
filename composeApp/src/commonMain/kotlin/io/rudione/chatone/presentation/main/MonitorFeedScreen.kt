@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.main
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.monitor_channel_input_hint
+import chatone.composeapp.generated.resources.open_channel_automod_desc
+import chatone.composeapp.generated.resources.open_channel_live_desc
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.domain.model.ChannelTab
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -36,13 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import io.rudione.chatone.data.remote.TwitchEventSubClient
-import io.rudione.chatone.data.remote.TwitchPubSubClient
 import io.rudione.chatone.data.repository.ChatRepository
-import io.rudione.chatone.domain.model.IrcEvent
 import io.rudione.chatone.presentation.chat.rememberNickColors
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
-import kotlinx.coroutines.flow.merge
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Lucide
@@ -78,16 +78,16 @@ fun MonitorFeedScreen(
     modifier: Modifier = Modifier,
     onMenuClick: (() -> Unit)? = null
 ) {
-    val s = LocalStrings.current
     val mode = if (login == "/automod") MonitorMode.AUTOMOD else MonitorMode.LIVE
     val chatRepository: ChatRepository = koinInject()
-    val eventSub: TwitchEventSubClient = koinInject()
-    val pubSub: TwitchPubSubClient = koinInject()
 
     val liveLogins = remember(channelMeta) {
-        channelMeta.values.filter { it.isLive }.map { it.login.lowercase().removePrefix("#") }.toSet()
+        channelMeta.values.filter { it.isLive }.map { it.login.lowercase().removePrefix("#") }
+            .toSet()
     }
-    fun avatarFor(ch: String) = channelMeta[ch.lowercase().removePrefix("#")]?.profileImageUrl.orEmpty()
+
+    fun avatarFor(ch: String) =
+        channelMeta[ch.lowercase().removePrefix("#")]?.profileImageUrl.orEmpty()
 
     var lines by remember(login, liveLogins) { mutableStateOf(listOf<MonitorLine>()) }
     val listState = rememberLazyListState()
@@ -97,36 +97,21 @@ fun MonitorFeedScreen(
             chatRepository.messages.collect { m ->
                 val ch = m.channelName.lowercase().removePrefix("#")
                 if (liveLogins.isEmpty() || ch in liveLogins) {
-                    lines = (lines + MonitorLine(m.id, ch, avatarFor(ch), m.displayName.ifBlank { m.username }, m.username, m.color, m.message, null))
+                    lines = (lines + MonitorLine(
+                        m.id,
+                        ch,
+                        avatarFor(ch),
+                        m.displayName.ifBlank { m.username },
+                        m.username,
+                        m.color,
+                        m.message,
+                        null
+                    ))
                         .takeLast(300)
                 }
             }
         }
     }
-    LaunchedEffect(login) {
-        if (mode == MonitorMode.AUTOMOD) {
-            merge(eventSub.events, pubSub.events).collect { ev ->
-                when (ev) {
-                    is IrcEvent.AutoModHeld -> {
-                        val ch = ev.channel.lowercase().removePrefix("#")
-                        lines = (lines + MonitorLine(
-                            ev.msgId, ch, avatarFor(ch), ev.displayName.ifBlank { ev.username },
-                            ev.username, ev.color, ev.message, ev.reasonCategory
-                        )).takeLast(300)
-                    }
-                    is IrcEvent.AutoModResolved -> {
-                        val ch = ev.channel.lowercase().removePrefix("#")
-                        lines = (lines + MonitorLine(
-                            ev.msgId + "_r", ch, avatarFor(ch), ev.resolvedBy, ev.resolvedBy, null,
-                            "→ ${ev.action}", "resolved"
-                        )).takeLast(300)
-                    }
-                    else -> {}
-                }
-            }
-        }
-    }
-
     LaunchedEffect(lines.size) {
         if (lines.isNotEmpty()) listState.animateScrollToItem(lines.size - 1)
     }
@@ -153,13 +138,22 @@ fun MonitorFeedScreen(
                 if (mode == MonitorMode.AUTOMOD) Lucide.Shield else Lucide.Radio,
                 null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp)
             )
-            Text(login, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(
+                login,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
 
-        if (lines.isEmpty()) {
+        if (mode == MonitorMode.AUTOMOD) {
+            AutoModMonitorList(channelMeta, Modifier.fillMaxWidth().weight(1f))
+        } else if (lines.isEmpty()) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text(
-                    if (mode == MonitorMode.LIVE) s.openChannelLiveDesc else s.openChannelAutomodDesc,
+                    if (mode == MonitorMode.LIVE) stringResource(Res.string.open_channel_live_desc) else stringResource(
+                        Res.string.open_channel_automod_desc
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -174,7 +168,7 @@ fun MonitorFeedScreen(
             }
         }
 
-        ReadOnlyInputBar(hint = s.monitorChannelInputHint)
+        ReadOnlyInputBar(hint = stringResource(Res.string.monitor_channel_input_hint))
     }
 }
 

@@ -1,5 +1,39 @@
 package io.rudione.chatone.di
 
+import io.rudione.chatone.presentation.profile.editor.ProfileEditorLauncher
+import io.rudione.chatone.data.remote.TwitchChannelSettingsClient
+import org.koin.dsl.bind
+import io.rudione.chatone.presentation.auth.DeviceLoginViewModel
+import io.rudione.chatone.presentation.media.ClipEditorViewModel
+import io.rudione.chatone.domain.media.ReplayChatRenderer
+import io.rudione.chatone.data.repository.ReplayChatRepository
+import io.rudione.chatone.presentation.media.MediaViewerViewModel
+import io.rudione.chatone.data.repository.MediaModerationRepository
+import io.rudione.chatone.data.repository.ClipStudioRepository
+import io.rudione.chatone.domain.media.MediaModeration
+import io.rudione.chatone.domain.media.ClipStudio
+import io.rudione.chatone.domain.media.MediaCatalog
+import io.rudione.chatone.data.remote.TwitchMediaClient
+import io.rudione.chatone.presentation.profile.PageNavigator
+import io.rudione.chatone.util.platform.currentFormFactor
+import io.rudione.chatone.presentation.profile.editor.ProfileEditorViewModel
+import io.rudione.chatone.domain.profile.ChannelProfileSource
+import io.rudione.chatone.data.remote.TwitchChannelProfileClient
+import io.rudione.chatone.data.remote.TwitchVanityClient
+import io.rudione.chatone.data.remote.emote.SevenTvVanityClient
+import io.rudione.chatone.domain.profile.ProfileVanityGateway
+import io.rudione.chatone.data.repository.ProfileVanityRepository
+import io.rudione.chatone.presentation.profile.ChannelProfileViewModel
+import io.rudione.chatone.data.remote.TwitchWatchClient
+import io.rudione.chatone.data.remote.ViewerGqlTransport
+import io.rudione.chatone.data.repository.MinuteWatchedReporter
+import io.rudione.chatone.data.repository.WatchStreakRepository
+import io.rudione.chatone.domain.points.WatchActivitySink
+import io.rudione.chatone.domain.points.WatchStreakSource
+import io.rudione.chatone.data.repository.ViewerSessionProvider
+import io.rudione.chatone.data.remote.TwitchFollowsClient
+import io.rudione.chatone.domain.follow.FollowedChannelsSource
+import io.rudione.chatone.data.repository.FollowedChannelsRepository
 import io.rudione.chatone.util.concurrent.IoDispatcher
 import com.russhwolf.settings.Settings
 import io.github.aakira.napier.Napier
@@ -43,6 +77,10 @@ import io.rudione.chatone.data.repository.AuthRepositoryImpl
 import io.rudione.chatone.data.repository.BadgeRepository
 import io.rudione.chatone.data.repository.ChannelFolderRepository
 import io.rudione.chatone.data.repository.ChatRepository
+import io.rudione.chatone.data.repository.AutoModHub
+import io.rudione.chatone.data.remote.TwitchAutoModSocket
+import io.rudione.chatone.data.repository.ChannelBanGateway
+import io.rudione.chatone.data.repository.ChannelBanRepository
 import io.rudione.chatone.data.repository.ChannelRoleGateway
 import io.rudione.chatone.presentation.screenchat.ScreenChatController
 import io.rudione.chatone.data.repository.ChannelRoleRepository
@@ -76,6 +114,8 @@ import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.data.repository.AiChatScanner
 import io.rudione.chatone.data.repository.ChatMessageScaleRepository
 import io.rudione.chatone.data.repository.EnrichedPersonalEmoteBackfiller
+import io.rudione.chatone.data.repository.AccountTokenKeeper
+import io.rudione.chatone.data.repository.DeviceLoginController
 import io.rudione.chatone.data.repository.FirstPartyDeviceAuthController
 import io.rudione.chatone.data.repository.GifRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
@@ -183,7 +223,12 @@ val networkModule = module {
     }
 
     single {
-        TwitchPubSubClient(httpClient = get(), scope = get(IoScopeQualifier))
+        val moderationAuth: ModerationAuthStore = get()
+        TwitchPubSubClient(
+            httpClient = get(),
+            scope = get(IoScopeQualifier),
+            channelEventsToken = moderationAuth::resolveToken
+        )
     }
     single {
         TwitchEventSubClient(
@@ -192,6 +237,8 @@ val networkModule = module {
             scope = get(IoScopeQualifier)
         )
     }
+    single { TwitchAutoModSocket(httpClient = get(), apiClient = get(), scope = get(IoScopeQualifier)) }
+    single { AutoModHub(socket = get(), apiClient = get(), sessions = get(), scope = get(IoScopeQualifier)) }
     single { ImageUploaderClient(httpClient = get()) }
     single { MentionMuteRepository() }
 
@@ -221,11 +268,41 @@ val networkModule = module {
             scope = get()
         )
     }
+    single<ChannelBanGateway> { ChannelBanRepository(helix = get()) }
     single<ChannelRoleGateway> {
         ChannelRoleRepository(
             helix = get(),
             gql = get(),
             moderationAuth = get()
+        )
+    }
+    single { ViewerGqlTransport(httpClient = get()) }
+    single { ViewerSessionProvider(accountManager = get(), authRepository = get(), moderationAuth = get()) }
+    single {
+        TwitchFollowsClient(httpClient = get(), transport = get(), helixClientId = AppConfig.TWITCH_CLIENT_ID)
+    }
+    single<FollowedChannelsSource> { FollowedChannelsRepository(client = get(), sessions = get()) }
+    single<ChannelProfileSource> { TwitchChannelProfileClient(transport = get()) }
+    single { PageNavigator(isSupported = currentFormFactor().isHandheld) }
+    single { ProfileEditorLauncher() }
+    single { TwitchMediaClient(transport = get()) } bind MediaCatalog::class
+    single<ReplayChatRenderer> {
+        ReplayChatRepository(emoteRepository = get(), badgeRepository = get(), cosmetics = get(), sessions = get())
+    }
+    single<ClipStudio> { ClipStudioRepository(gql = get(), transport = get(), media = get(), sessions = get()) }
+    single<MediaModeration> { MediaModerationRepository(helix = get(), sessions = get()) }
+    single { TwitchVanityClient(transport = get(), gql = get()) }
+    single { TwitchChannelSettingsClient(httpClient = get(), clientId = AppConfig.TWITCH_CLIENT_ID) }
+    single { SevenTvVanityClient(httpClient = get()) }
+    single<ProfileVanityGateway> {
+        ProfileVanityRepository(
+            sessions = get(),
+            twitch = get(),
+            helix = get(),
+            sevenTv = get(),
+            cosmetics = get(),
+            settings = get(),
+            channel = get()
         )
     }
     single<ChannelFollowGateway> {
@@ -244,6 +321,16 @@ val networkModule = module {
             scope = get()
         )
     }
+    single {
+        DeviceLoginController(
+            deviceAuthClient = get(),
+            authRepository = get(),
+            accountManager = get(),
+            rights = get(),
+            scope = get()
+        )
+    }
+    single { AccountTokenKeeper(authRepository = get(), scope = get()) }
     single { LoginSiteResolver(httpClient = get()) }
     single {
         WebLoginController(
@@ -276,7 +363,8 @@ val repositoryModule = module {
         AuthRepositoryImpl(
             apiClient = get(),
             database = get(),
-            clientId = AppConfig.TWITCH_CLIENT_ID
+            clientId = AppConfig.TWITCH_CLIENT_ID,
+            deviceAuth = get()
         )
     }
 
@@ -531,11 +619,46 @@ val viewModelModule = module {
             persistedSettings = get(),
             accountAgeRepository = get(),
             channelRoleGateway = get(),
-            gifRepository = get()
+            gifRepository = get(),
+            channelBanGateway = get(),
+            autoModHub = get()
         )
     }
     viewModel { SettingsViewModel(get(), get(), get()) }
     viewModelOf(::MainViewModel)
+    viewModel { params -> ProfileEditorViewModel(channelLogin = params.getOrNull(), gateway = get()) }
+    viewModel { params ->
+        MediaViewerViewModel(
+            kind = params.get(),
+            id = params.get(),
+            startSeconds = params.get(),
+            catalog = get(),
+            studio = get(),
+            moderation = get(),
+            replayChat = get(),
+            factory = get()
+        )
+    }
+    viewModel { DeviceLoginViewModel(controller = get()) }
+    viewModel { params ->
+        ClipEditorViewModel(
+            login = params.get(),
+            origin = params.get(),
+            profiles = get(),
+            studio = get(),
+            factory = get()
+        )
+    }
+    viewModel { params ->
+        ChannelProfileViewModel(
+            login = params.get(),
+            source = get(),
+            follows = get(),
+            sessions = get(),
+            bestLogs = get(),
+            badgeHq = get()
+        )
+    }
 }
 
 expect val platformStreamModule: Module
@@ -553,11 +676,18 @@ val streamModule = module {
     }
     single<StreamManifestSource> { get<TwitchPlaybackClient>() }
     single<StreamAdBreakSource> { TwitchAdBreakResolver(client = get()) }
+    single { TwitchWatchClient(httpClient = get(), transport = get()) }
+    single { WatchStreakRepository(client = get(), sessions = get()) }
+    single<WatchStreakSource> { get<WatchStreakRepository>() }
+    single<WatchActivitySink> {
+        MinuteWatchedReporter(client = get(), sessions = get(), streaks = get(), scope = get(IoScopeQualifier))
+    }
     viewModel {
         StreamPlayerViewModel(
             manifestSource = get(),
             preferencesRepository = get(),
-            engineFactory = get()
+            engineFactory = get(),
+            watchActivity = get()
         )
     }
 }

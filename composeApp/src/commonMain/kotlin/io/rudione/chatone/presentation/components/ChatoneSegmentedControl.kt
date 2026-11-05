@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.ui.unit.sp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -120,13 +121,12 @@ private fun Segment(
         if (icon != null) {
             Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(13.dp))
         }
-        Text(
+        FitText(
             label,
             style = MaterialTheme.typography.labelMedium,
             color = content,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            minFontSize = 9.sp
         )
     }
 }

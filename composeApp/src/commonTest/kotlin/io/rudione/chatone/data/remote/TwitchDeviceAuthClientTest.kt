@@ -51,7 +51,7 @@ class TwitchDeviceAuthClientTest {
 
         val issued = assertIs<DeviceCodeResult.Issued>(withContext(Dispatchers.Default) { auth.requestDeviceCode() })
 
-        assertEquals(TwitchFirstPartyClient.WEB, issued.info.client)
+        assertEquals(TwitchFirstPartyClient.WEB.clientId, issued.info.clientId)
         assertEquals(
             listOf(TwitchFirstPartyClient.TV.clientId, TwitchFirstPartyClient.WEB.clientId),
             requests.map { it["client_id"] }
@@ -64,7 +64,7 @@ class TwitchDeviceAuthClientTest {
 
         val issued = assertIs<DeviceCodeResult.Issued>(withContext(Dispatchers.Default) { auth.requestDeviceCode() })
 
-        assertEquals(TwitchFirstPartyClient.TV, issued.info.client)
+        assertEquals(TwitchFirstPartyClient.TV.clientId, issued.info.clientId)
         assertEquals(1, requests.size)
     }
 
@@ -111,7 +111,7 @@ class TwitchDeviceAuthClientTest {
             verificationUri = "https://www.twitch.tv/activate",
             expiresInSeconds = 60,
             intervalSeconds = 5,
-            client = TwitchFirstPartyClient.TV
+            clientId = TwitchFirstPartyClient.TV.clientId
         )
 
         val result = withContext(Dispatchers.Default) { auth.pollToken(info) }
@@ -126,14 +126,14 @@ class TwitchDeviceAuthClientTest {
         val auth = client { _, _ ->
             json("""{"status":400,"message":"authorization_pending"}""", HttpStatusCode.BadRequest)
         }
-        val info = DeviceCodeInfo("dev", "ABCD", "https://www.twitch.tv/activate", 60, 5, TwitchFirstPartyClient.TV)
+        val info = DeviceCodeInfo("dev", "ABCD", "https://www.twitch.tv/activate", 60, 5, TwitchFirstPartyClient.TV.clientId)
 
         assertEquals(DevicePollResult.Pending, withContext(Dispatchers.Default) { auth.pollToken(info) })
     }
 
     @Test
     fun activationLinkCarriesTheUserCode() {
-        val plain = DeviceCodeInfo("d", "QWERTY12", "https://www.twitch.tv/activate", 60, 5, TwitchFirstPartyClient.TV)
+        val plain = DeviceCodeInfo("d", "QWERTY12", "https://www.twitch.tv/activate", 60, 5, TwitchFirstPartyClient.TV.clientId)
         val prefilled = plain.copy(verificationUri = "https://www.twitch.tv/activate?device-code=QWERTY12")
 
         assertEquals("https://www.twitch.tv/activate?device-code=QWERTY12", plain.activationUri)

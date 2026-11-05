@@ -1,5 +1,21 @@
 package io.rudione.chatone.presentation.browse
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.browse_all_languages
+import chatone.composeapp.generated.resources.browse_any_viewers
+import chatone.composeapp.generated.resources.browse_apply_filters
+import chatone.composeapp.generated.resources.browse_custom_tag_hint
+import chatone.composeapp.generated.resources.browse_filters
+import chatone.composeapp.generated.resources.browse_hide_mature
+import chatone.composeapp.generated.resources.browse_hide_mature_description
+import chatone.composeapp.generated.resources.browse_language_label
+import chatone.composeapp.generated.resources.browse_min_viewers_label
+import chatone.composeapp.generated.resources.browse_reset_filters
+import chatone.composeapp.generated.resources.browse_sort_label
+import chatone.composeapp.generated.resources.browse_tags_label
+import org.jetbrains.compose.resources.stringResource
+import io.rudione.chatone.presentation.components.expressive.PillButton
+import io.rudione.chatone.presentation.components.expressive.ExpressiveSheet
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,7 +24,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -16,20 +31,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,22 +50,16 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.browse.StreamFilter
 import io.rudione.chatone.domain.browse.StreamSort
 import io.rudione.chatone.presentation.components.ChatoneChip
-import io.rudione.chatone.presentation.theme.i18n.BrowseStrings
-import kotlinx.coroutines.launch
 
 private const val MAX_TAG_LENGTH = 25
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun StreamFilterSheet(
     initial: StreamFilter,
     tagSuggestions: List<String>,
-    strings: BrowseStrings,
     onApply: (StreamFilter) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     var draft by remember { mutableStateOf(initial) }
     var customTag by remember { mutableStateOf("") }
@@ -64,49 +68,43 @@ internal fun StreamFilterSheet(
         (listOfNotNull(draft.tag) + tagSuggestions).distinctBy { it.lowercase() }
     }
 
-    fun apply() {
+    fun result(): StreamFilter {
         val typed = customTag.trim().take(MAX_TAG_LENGTH).takeIf { it.isNotEmpty() }
-        val result = if (typed != null) draft.copy(tag = typed) else draft
-        scope.launch { sheetState.hide() }.invokeOnCompletion {
-            onApply(result)
-            onDismiss()
-        }
+        return if (typed != null) draft.copy(tag = typed) else draft
     }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-    ) {
+    ExpressiveSheet(onDismissRequest = onDismiss) { sheet ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 2.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(Res.string.browse_filters),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                onClick = {
+                    draft = StreamFilter()
+                    customTag = ""
+                },
+                enabled = !draft.isDefault || customTag.isNotBlank()
+            ) { Text(stringResource(Res.string.browse_reset_filters)) }
+        }
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f, fill = false)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(bottom = 16.dp),
+                .padding(bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    strings.filters,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(
-                    onClick = {
-                        draft = StreamFilter()
-                        customTag = ""
-                    },
-                    enabled = !draft.isDefault || customTag.isNotBlank()
-                ) { Text(strings.resetFilters) }
-            }
-
-            FilterSection(strings.sortLabel) {
+            FilterSection(stringResource(Res.string.browse_sort_label)) {
                 StreamSort.entries.forEach { sort ->
                     ChatoneChip(
-                        label = sortLabel(sort, strings),
+                        label = sortLabel(sort),
                         selected = draft.sort == sort,
                         showCheckWhenSelected = true,
                         onClick = { draft = draft.copy(sort = sort) }
@@ -114,9 +112,9 @@ internal fun StreamFilterSheet(
                 }
             }
 
-            FilterSection(strings.languageLabel) {
+            FilterSection(stringResource(Res.string.browse_language_label)) {
                 ChatoneChip(
-                    label = strings.allLanguages,
+                    label = stringResource(Res.string.browse_all_languages),
                     selected = draft.language == null,
                     showCheckWhenSelected = true,
                     onClick = { draft = draft.copy(language = null) }
@@ -132,12 +130,12 @@ internal fun StreamFilterSheet(
             }
 
             FilterSection(
-                label = strings.tagsLabel,
+                label = stringResource(Res.string.browse_tags_label),
                 footer = {
                     OutlinedTextField(
                         value = customTag,
                         onValueChange = { customTag = it.take(MAX_TAG_LENGTH) },
-                        placeholder = { Text(strings.customTagHint) },
+                        placeholder = { Text(stringResource(Res.string.browse_custom_tag_hint)) },
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -161,10 +159,10 @@ internal fun StreamFilterSheet(
                 }
             }
 
-            FilterSection(strings.minViewersLabel) {
+            FilterSection(stringResource(Res.string.browse_min_viewers_label)) {
                 StreamFilter.MIN_VIEWER_STEPS.forEach { step ->
                     ChatoneChip(
-                        label = if (step == 0) strings.anyViewers else "≥ " + BrowseFormatting.compact(step, strings),
+                        label = if (step == 0) stringResource(Res.string.browse_any_viewers) else "≥ " + BrowseFormatting.compact(step),
                         selected = draft.minViewers == step,
                         showCheckWhenSelected = true,
                         onClick = { draft = draft.copy(minViewers = step) }
@@ -181,12 +179,12 @@ internal fun StreamFilterSheet(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        strings.hideMature,
+                        stringResource(Res.string.browse_hide_mature),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        strings.hideMatureDescription,
+                        stringResource(Res.string.browse_hide_mature_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -195,12 +193,16 @@ internal fun StreamFilterSheet(
                 Switch(checked = draft.hideMature, onCheckedChange = { draft = draft.copy(hideMature = it) })
             }
 
-            Button(
-                onClick = ::apply,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth().height(52.dp)
-            ) { Text(strings.applyFilters, fontWeight = FontWeight.SemiBold) }
         }
+        PillButton(
+            text = stringResource(Res.string.browse_apply_filters),
+            onClick = {
+                val applied = result()
+                sheet.close { onApply(applied) }
+            },
+            height = 52.dp,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)
+        )
     }
 }
 

@@ -29,6 +29,7 @@ internal object ChatHistoryEvents {
 
         is DisplayMessage.UserNoticeMsg -> existing.any {
             it is DisplayMessage.UserNoticeMsg && it.systemText == candidate.systemText &&
+                    it.innerMessage?.rawMessage?.message == candidate.innerMessage?.rawMessage?.message &&
                     abs(it.timestamp - candidate.timestamp) <= DUPLICATE_WINDOW_MS
         }
 

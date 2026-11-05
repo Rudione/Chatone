@@ -1,5 +1,19 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.chat_hide_event_banner
+import chatone.composeapp.generated.resources.event_label_prediction
+import chatone.composeapp.generated.resources.event_prediction_canceled
+import chatone.composeapp.generated.resources.event_prediction_locked
+import chatone.composeapp.generated.resources.event_prediction_locked_short
+import chatone.composeapp.generated.resources.event_prediction_open
+import chatone.composeapp.generated.resources.event_prediction_open_short
+import chatone.composeapp.generated.resources.event_prediction_resolved
+import chatone.composeapp.generated.resources.event_prediction_won
+import chatone.composeapp.generated.resources.event_predictors
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.pluralStringResource
+import io.rudione.chatone.presentation.chat.components.eventPoints
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import io.rudione.chatone.presentation.components.layoutWidthFraction
@@ -30,7 +44,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.remote.dto.PredictionData
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
-import io.rudione.chatone.presentation.theme.i18n.LocalStrings
 import io.rudione.chatone.icons.lucide.Lock
 import io.rudione.chatone.icons.lucide.Lucide
 
@@ -47,8 +60,6 @@ fun PredictionBanner(
     val totalPoints = prediction.outcomes.sumOf { it.channelPoints }
     val totalUsers = prediction.outcomes.sumOf { it.users }
     val hasPredicted = prediction.selfOutcomeId != null
-    val strings = LocalStrings.current
-    val events = strings.events
     val compact = LocalEventBannerCompact.current
 
     val statusLabel: String
@@ -56,24 +67,24 @@ fun PredictionBanner(
     val canPredict: Boolean
     when (prediction.status) {
         "LOCKED" -> {
-            statusLabel = if (compact) events.predictionLockedShort else events.predictionLocked; accent = MaterialTheme.colorScheme.error; canPredict = false
+            statusLabel = if (compact) stringResource(Res.string.event_prediction_locked_short) else stringResource(Res.string.event_prediction_locked); accent = MaterialTheme.colorScheme.error; canPredict = false
         }
 
         "RESOLVED" -> {
-            statusLabel = events.predictionResolved; accent = MaterialTheme.colorScheme.primary; canPredict = false
+            statusLabel = stringResource(Res.string.event_prediction_resolved); accent = MaterialTheme.colorScheme.primary; canPredict = false
         }
 
         "CANCELED" -> {
-            statusLabel = events.predictionCanceled; accent = MaterialTheme.colorScheme.outline; canPredict = false
+            statusLabel = stringResource(Res.string.event_prediction_canceled); accent = MaterialTheme.colorScheme.outline; canPredict = false
         }
 
         else -> {
-            statusLabel = if (compact) events.predictionOpenShort else events.predictionOpen
+            statusLabel = if (compact) stringResource(Res.string.event_prediction_open_short) else stringResource(Res.string.event_prediction_open)
             accent = MaterialTheme.colorScheme.tertiary
             canPredict = true
         }
     }
-    val summary = "${events.predictors(totalUsers)} · ${events.points(totalPoints, formatPoints(totalPoints))}"
+    val summary = "${pluralStringResource(Res.plurals.event_predictors, totalUsers, totalUsers)} · ${eventPoints(totalPoints, formatPoints(totalPoints))}"
 
     var pendingOutcomeId by remember(prediction.id) { mutableStateOf<String?>(null) }
 
@@ -101,7 +112,7 @@ fun PredictionBanner(
                 Text(
                     buildAnnotatedString {
                         withStyle(SpanStyle(color = accent, fontWeight = FontWeight.SemiBold)) {
-                            append(if (compact) statusLabel else "${strings.eventLabelPrediction} · $statusLabel")
+                            append(if (compact) statusLabel else "${stringResource(Res.string.event_label_prediction)} · $statusLabel")
                         }
                         if (!compact) withStyle(SpanStyle(color = summaryColor)) { append(" · $summary") }
                     },
@@ -111,7 +122,7 @@ fun PredictionBanner(
                     modifier = Modifier.weight(1f)
                 )
                 if (onHide != null) {
-                    EventHideButton(tooltip = strings.chatHideEventBanner, onHide = onHide)
+                    EventHideButton(tooltip = stringResource(Res.string.chat_hide_event_banner), onHide = onHide)
                 }
             }
             Text(
@@ -160,7 +171,7 @@ fun PredictionBanner(
                             .padding(horizontal = 8.dp, vertical = 5.dp)
                     ) {
                         Text(
-                            events.predictionWon(winner.title),
+                            stringResource(Res.string.event_prediction_won, winner.title),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = PredictionWinnerGreen,

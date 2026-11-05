@@ -1,3 +1,5 @@
 package io.rudione.chatone.util.media
 
-actual suspend fun pickAudioFile(): String? = null
+import platform.UniformTypeIdentifiers.UTTypeAudio
+
+actual suspend fun pickAudioFile(): String? = IosFilePicker.pickDocument(listOf(UTTypeAudio), "sounds")
