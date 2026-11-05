@@ -2413,12 +2413,7 @@ class ChatViewModel(
                 .filter { it.isDeleted }
                 .map { it.id }
                 .toSet()
-            val existingIds = state.messages.mapTo(HashSet()) { it.id }
-            val history = displayMessages
-                .filter { dm ->
-                    dm.id !in existingIds && (dm is DisplayMessage.PrivMsg ||
-                            !ChatHistoryEvents.isDuplicate(dm, state.messages))
-                }
+            val history = ChatHistoryEvents.newMessages(displayMessages, state.messages)
                 .map { dm ->
                     if (dm is DisplayMessage.PrivMsg && dm.id in prevDeletedIds)
                         dm.copy(isDeleted = true)
@@ -3024,10 +3019,12 @@ class ChatViewModel(
                                 addMessage(
                                     DisplayMessage.ModerationMsg(
                                         id = uniqueId("mod"),
-                                        timestamp = Clock.System.now().toEpochMilliseconds(),
+                                        timestamp = event.tags["tmi-sent-ts"]?.toLongOrNull()
+                                            ?: Clock.System.now().toEpochMilliseconds(),
                                         channel = event.channel, text = text, action = action,
                                         targetUser = event.targetUser, duration = event.banDuration,
-                                        moderatorLogin = modLogin
+                                        moderatorLogin = modLogin,
+                                        serverTimestamp = event.tags["tmi-sent-ts"]?.toLongOrNull()
                                     )
                                 )
                                 update { state ->
@@ -3052,10 +3049,12 @@ class ChatViewModel(
                             addMessage(
                                 DisplayMessage.ModerationMsg(
                                     id = uniqueId("clear"),
-                                    timestamp = Clock.System.now().toEpochMilliseconds(),
+                                    timestamp = event.tags["tmi-sent-ts"]?.toLongOrNull()
+                                        ?: Clock.System.now().toEpochMilliseconds(),
                                     channel = event.channel,
                                     text = getString(Res.string.chat_vm_chat_cleared),
-                                    action = DisplayMessage.ModerationMsg.ModerationAction.CLEAR
+                                    action = DisplayMessage.ModerationMsg.ModerationAction.CLEAR,
+                                    serverTimestamp = event.tags["tmi-sent-ts"]?.toLongOrNull()
                                 )
                             )
                         }
@@ -3102,7 +3101,8 @@ class ChatViewModel(
                                     text = text,
                                     action = DisplayMessage.ModerationMsg.ModerationAction.DELETE,
                                     targetUser = targetLogin,
-                                    moderatorLogin = modLogin
+                                    moderatorLogin = modLogin,
+                                    targetMessageId = event.targetMessageId.takeIf { it.isNotBlank() }
                                 )
                             )
                         }
@@ -3408,7 +3408,7 @@ class ChatViewModel(
         idPrefix: String = "modact"
     ) {
         val now = Clock.System.now().toEpochMilliseconds()
-        val key = "${action.name}|${targetUser?.lowercase() ?: "-"}"
+        val key = "${state.value.channelLogin.lowercase()}|${action.name}|${targetUser?.lowercase() ?: "-"}"
         val last = recentModNotices[key]
         if (last != null && now - last < MOD_NOTICE_DEDUPE_MS) return
         recentModNotices[key] = now
@@ -3691,6 +3691,20 @@ class ChatViewModel(
     private val messageIdSet = LinkedHashSet<String>(512)
 
     private fun addMessage(msg: DisplayMessage) {
+        if (msg is DisplayMessage.ModerationMsg) {
+            val duplicate = state.value.messages.lastOrNull {
+                it is DisplayMessage.ModerationMsg && ChatModerationEvents.isSameEvent(msg, it)
+            } as? DisplayMessage.ModerationMsg
+            if (duplicate != null) {
+                val enriched = ChatModerationEvents.enrich(duplicate, msg)
+                if (enriched != duplicate) {
+                    update { state ->
+                        state.copy(messages = state.messages.map { if (it.id == duplicate.id) enriched else it })
+                    }
+                }
+                return
+            }
+        }
         if (!messageIdSet.add(msg.id)) return
         update { state ->
             val newList = (state.messages + msg).takeLast(appendCap)

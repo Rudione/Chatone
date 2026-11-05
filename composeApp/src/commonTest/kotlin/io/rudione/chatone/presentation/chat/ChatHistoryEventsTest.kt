@@ -51,6 +51,44 @@ class ChatHistoryEventsTest {
     }
 
     @Test
+    fun liveAndHistoryCopiesMatchInBothArrivalOrders() {
+        val event = RecentHistoryEvent(10_000L, IrcEvent.ClearChat(
+            "chan", "alice", 1, mapOf("tmi-sent-ts" to "10000")
+        ))
+        val history = assertIs<DisplayMessage.ModerationMsg>(ChatHistoryEvents.toDisplay(event, toDisplay))
+        val live = history.copy(id = "live", channel = "#CHAN", timestamp = 12_000L)
+        assertEquals(10_000L, history.serverTimestamp)
+        assertTrue(ChatHistoryEvents.isDuplicate(live, listOf(history)))
+        assertTrue(ChatHistoryEvents.isDuplicate(history, listOf(live)))
+        assertEquals(emptyList(), ChatHistoryEvents.newMessages(listOf(history), listOf(live)))
+    }
+
+    @Test
+    fun duplicatesInsideOneHistoryBatchAreRemoved() {
+        val event = RecentHistoryEvent(1_000L, IrcEvent.ClearChat(
+            "chan", "alice", 1, mapOf("tmi-sent-ts" to "1000")
+        ))
+        val first = assertIs<DisplayMessage.ModerationMsg>(ChatHistoryEvents.toDisplay(event, toDisplay))
+        assertEquals(listOf(first), ChatHistoryEvents.newMessages(listOf(first, first.copy(id = "copy")), emptyList()))
+    }
+
+    @Test
+    fun historyKeepsSeparateDeletionsAndRemovesOnlyTheRepeatedMessageId() {
+        fun deletion(messageId: String, timestamp: Long) = assertIs<DisplayMessage.ModerationMsg>(
+            ChatHistoryEvents.toDisplay(
+                RecentHistoryEvent(timestamp, IrcEvent.ClearMsg("chan", messageId, "text", "alice")), toDisplay
+            )
+        )
+        val first = deletion("message-1", 10_000L)
+        val second = deletion("message-2", 10_001L)
+        assertEquals("message-1", first.targetMessageId)
+        assertEquals(listOf(first, second), ChatHistoryEvents.newMessages(
+            listOf(first, second, first.copy(id = "repeat", timestamp = 20_000L)), emptyList()
+        ))
+        assertEquals(listOf(second), ChatHistoryEvents.newMessages(listOf(first, second), listOf(first)))
+    }
+
+    @Test
     fun rewardTitlesReplaceTheGenericLabel() {
         val messages = listOf(privMsg("a", 1, "r1", "Channel Points Reward"), privMsg("b", 2))
         val updated = ChatHistoryEvents.withRewardTitles(messages, mapOf("r1" to "Hydrate"))

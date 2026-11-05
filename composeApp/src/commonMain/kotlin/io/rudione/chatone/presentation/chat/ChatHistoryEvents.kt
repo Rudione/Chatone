@@ -22,9 +22,7 @@ internal object ChatHistoryEvents {
 
     fun isDuplicate(candidate: DisplayMessage, existing: List<DisplayMessage>): Boolean = when (candidate) {
         is DisplayMessage.ModerationMsg -> existing.any {
-            it is DisplayMessage.ModerationMsg && it.action == candidate.action &&
-                    it.targetUser.equals(candidate.targetUser, ignoreCase = true) &&
-                    abs(it.timestamp - candidate.timestamp) <= DUPLICATE_WINDOW_MS
+            it is DisplayMessage.ModerationMsg && ChatModerationEvents.isSameEvent(candidate, it)
         }
 
         is DisplayMessage.UserNoticeMsg -> existing.any {
@@ -34,6 +32,18 @@ internal object ChatHistoryEvents {
         }
 
         else -> false
+    }
+
+    fun newMessages(incoming: List<DisplayMessage>, existing: List<DisplayMessage>): List<DisplayMessage> {
+        val ids = existing.mapTo(HashSet()) { it.id }
+        val events = existing.filter { it !is DisplayMessage.PrivMsg }.toMutableList()
+        return incoming.filter { message ->
+            if (!ids.add(message.id)) return@filter false
+            if (message is DisplayMessage.PrivMsg) return@filter true
+            if (isDuplicate(message, events)) return@filter false
+            events += message
+            true
+        }
     }
 
     fun withRewardTitles(messages: List<DisplayMessage>, titles: Map<String, String>): List<DisplayMessage> {
@@ -57,7 +67,8 @@ internal object ChatHistoryEvents {
                 timestamp = timestamp,
                 channel = event.channel,
                 text = "Chat was cleared by a moderator",
-                action = DisplayMessage.ModerationMsg.ModerationAction.CLEAR
+                action = DisplayMessage.ModerationMsg.ModerationAction.CLEAR,
+                serverTimestamp = event.tags["tmi-sent-ts"]?.toLongOrNull()
             )
         }
         val isTimeout = event.banDuration != null
@@ -69,7 +80,8 @@ internal object ChatHistoryEvents {
             action = if (isTimeout) DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT
             else DisplayMessage.ModerationMsg.ModerationAction.BAN,
             targetUser = target,
-            duration = event.banDuration
+            duration = event.banDuration,
+            serverTimestamp = event.tags["tmi-sent-ts"]?.toLongOrNull()
         )
     }
 
@@ -81,7 +93,8 @@ internal object ChatHistoryEvents {
             channel = event.channel,
             text = if (target != null) "Message from $target was deleted" else "A message was deleted",
             action = DisplayMessage.ModerationMsg.ModerationAction.DELETE,
-            targetUser = target
+            targetUser = target,
+            targetMessageId = event.targetMessageId.takeIf { it.isNotBlank() }
         )
     }
 

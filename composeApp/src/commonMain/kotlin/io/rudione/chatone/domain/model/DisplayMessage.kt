@@ -65,7 +65,9 @@ sealed class DisplayMessage {
         val action: ModerationAction,
         val targetUser: String? = null,
         val duration: Int? = null,
-        val moderatorLogin: String? = null
+        val moderatorLogin: String? = null,
+        val targetMessageId: String? = null,
+        val serverTimestamp: Long? = null
     ) : DisplayMessage() {
         enum class ModerationAction {
             BAN, TIMEOUT, DELETE, CLEAR, UNBAN, UNTIMEOUT, MOD, UNMOD, VIP, UNVIP, AUTOMOD_ALLOWED, AUTOMOD_DENIED
