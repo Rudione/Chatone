@@ -226,7 +226,12 @@ fun ModerationPanel(
                     if (roomState.followersOnly >= 0) {
                         onUpdateChatSettings(mapOf("follower_mode" to false))
                     } else {
-                        onUpdateChatSettings(mapOf("follower_mode" to true, "follower_mode_duration" to 10))
+                        onUpdateChatSettings(
+                            mapOf(
+                                "follower_mode" to true,
+                                "follower_mode_duration" to 10
+                            )
+                        )
                     }
                 }
             }
@@ -234,9 +239,18 @@ fun ModerationPanel(
             PanelDivider()
             PanelSectionLabel("Slow Mode")
             ModPanelChipRow(wrap = wrapChips) {
-                listOf(0 to "Off", 3 to "3s", 5 to "5s", 10 to "10s", 30 to "30s", 60 to "1m", 120 to "2m")
+                listOf(
+                    0 to "Off",
+                    3 to "3s",
+                    5 to "5s",
+                    10 to "10s",
+                    30 to "30s",
+                    60 to "1m",
+                    120 to "2m"
+                )
                     .forEach { (secs, label) ->
-                        val isActive = if (secs == 0) roomState.slowMode == 0 else roomState.slowMode == secs
+                        val isActive =
+                            if (secs == 0) roomState.slowMode == 0 else roomState.slowMode == secs
                         ModPanelButton(
                             label = label,
                             tint = MaterialTheme.colorScheme.primary,
@@ -245,7 +259,12 @@ fun ModerationPanel(
                             if (secs == 0) {
                                 onUpdateChatSettings(mapOf("slow_mode" to false))
                             } else {
-                                onUpdateChatSettings(mapOf("slow_mode" to true, "slow_mode_wait_time" to secs))
+                                onUpdateChatSettings(
+                                    mapOf(
+                                        "slow_mode" to true,
+                                        "slow_mode_wait_time" to secs
+                                    )
+                                )
                             }
                         }
                     }
@@ -260,14 +279,26 @@ fun ModerationPanel(
                     PanelDivider()
                     PanelSectionLabel("Min. Follow Time")
                     ModPanelChipRow(wrap = wrapChips) {
-                        listOf(0 to "Any", 10 to "10m", 30 to "30m", 60 to "1h", 1440 to "1d", 10080 to "1w")
+                        listOf(
+                            0 to "Any",
+                            10 to "10m",
+                            30 to "30m",
+                            60 to "1h",
+                            1440 to "1d",
+                            10080 to "1w"
+                        )
                             .forEach { (min, label) ->
                                 ModPanelButton(
                                     label = label,
                                     tint = MaterialTheme.colorScheme.primary,
                                     isToggled = roomState.followersOnly == min
                                 ) {
-                                    onUpdateChatSettings(mapOf("follower_mode" to true, "follower_mode_duration" to min))
+                                    onUpdateChatSettings(
+                                        mapOf(
+                                            "follower_mode" to true,
+                                            "follower_mode_duration" to min
+                                        )
+                                    )
                                 }
                             }
                     }
@@ -397,7 +428,11 @@ fun ModerationPanel(
                                     .background(color.copy(alpha = if (announcementColor == name) 1f else 0.3f))
                                     .then(
                                         if (announcementColor == name)
-                                            Modifier.border(1.5.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                                            Modifier.border(
+                                                1.5.dp,
+                                                Color.White.copy(alpha = 0.6f),
+                                                CircleShape
+                                            )
                                         else Modifier
                                     )
                                     .clickable { announcementColor = name }
@@ -455,7 +490,9 @@ fun ModerationPanel(
                         title = pollTitle,
                         onTitleChange = { pollTitle = it },
                         duration = pollDurationSec,
-                        onDurationChange = { pollDurationSec = it.filter { c -> c.isDigit() }.take(4) },
+                        onDurationChange = {
+                            pollDurationSec = it.filter { c -> c.isDigit() }.take(4)
+                        },
                         durationLabel = stringResource(Res.string.poll_duration_label),
                         options = pollChoicesText,
                         onOptionsChange = { pollChoicesText = it },
@@ -464,9 +501,17 @@ fun ModerationPanel(
                         submitColor = MaterialTheme.colorScheme.secondary,
                         onSubmit = {
                             val duration = pollDurationSec.toIntOrNull()?.coerceIn(15, 1800) ?: 60
-                            val choices = pollChoicesText.lines().map { it.trim() }.filter { it.isNotEmpty() }.take(5)
+                            val choices =
+                                pollChoicesText.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                                    .take(5)
                             if (pollTitle.isNotBlank() && choices.size >= 2) {
-                                onSendRawCommand("/poll $duration ${pollTitle.trim()} | ${choices.joinToString(" | ")}")
+                                onSendRawCommand(
+                                    "/poll $duration ${pollTitle.trim()} | ${
+                                        choices.joinToString(
+                                            " | "
+                                        )
+                                    }"
+                                )
                                 pollTitle = ""
                                 pollChoicesText = ""
                                 showPoll = false
@@ -478,7 +523,10 @@ fun ModerationPanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TextButton(onClick = { onSendRawCommand("/endpoll") }) {
-                            Text(stringResource(Res.string.poll_end), style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                stringResource(Res.string.poll_end),
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                         TextButton(onClick = { onSendRawCommand("/cancelpoll") }) {
                             Text(
@@ -501,7 +549,9 @@ fun ModerationPanel(
                         title = predictionTitle,
                         onTitleChange = { predictionTitle = it },
                         duration = predictionWindowSec,
-                        onDurationChange = { predictionWindowSec = it.filter { c -> c.isDigit() }.take(4) },
+                        onDurationChange = {
+                            predictionWindowSec = it.filter { c -> c.isDigit() }.take(4)
+                        },
                         durationLabel = stringResource(Res.string.prediction_window_label),
                         options = predictionOutcomesText,
                         onOptionsChange = { predictionOutcomesText = it },
@@ -509,10 +559,18 @@ fun ModerationPanel(
                         submitLabel = stringResource(Res.string.prediction_start),
                         submitColor = MaterialTheme.colorScheme.tertiary,
                         onSubmit = {
-                            val window = predictionWindowSec.toIntOrNull()?.coerceIn(30, 1800) ?: 120
-                            val outcomes = predictionOutcomesText.lines().map { it.trim() }.filter { it.isNotEmpty() }.take(10)
+                            val window =
+                                predictionWindowSec.toIntOrNull()?.coerceIn(30, 1800) ?: 120
+                            val outcomes = predictionOutcomesText.lines().map { it.trim() }
+                                .filter { it.isNotEmpty() }.take(10)
                             if (predictionTitle.isNotBlank() && outcomes.size >= 2) {
-                                onSendRawCommand("/prediction $window ${predictionTitle.trim()} | ${outcomes.joinToString(" | ")}")
+                                onSendRawCommand(
+                                    "/prediction $window ${predictionTitle.trim()} | ${
+                                        outcomes.joinToString(
+                                            " | "
+                                        )
+                                    }"
+                                )
                                 predictionTitle = ""
                                 predictionOutcomesText = ""
                                 showPrediction = false
@@ -524,13 +582,22 @@ fun ModerationPanel(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TextButton(onClick = { onSendRawCommand("/lockprediction") }) {
-                            Text(stringResource(Res.string.prediction_lock), style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                stringResource(Res.string.prediction_lock),
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                         TextButton(onClick = { onSendRawCommand("/completeprediction 1") }) {
-                            Text(stringResource(Res.string.prediction_winner, "1"), style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                stringResource(Res.string.prediction_winner, "1"),
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                         TextButton(onClick = { onSendRawCommand("/completeprediction 2") }) {
-                            Text(stringResource(Res.string.prediction_winner, "2"), style = MaterialTheme.typography.labelSmall)
+                            Text(
+                                stringResource(Res.string.prediction_winner, "2"),
+                                style = MaterialTheme.typography.labelSmall
+                            )
                         }
                         TextButton(onClick = { onSendRawCommand("/cancelprediction") }) {
                             Text(
@@ -568,7 +635,11 @@ private fun ChannelPointsSection(
 ) {
     val apiClient: io.rudione.chatone.data.remote.TwitchApiClient = org.koin.compose.koinInject()
     val scope = rememberCoroutineScope()
-    var rewards by remember { mutableStateOf<List<io.rudione.chatone.data.remote.dto.CustomRewardData>>(emptyList()) }
+    var rewards by remember {
+        mutableStateOf<List<io.rudione.chatone.data.remote.dto.CustomRewardData>>(
+            emptyList()
+        )
+    }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var newTitle by remember { mutableStateOf("") }
@@ -584,12 +655,15 @@ private fun ChannelPointsSection(
                 is io.rudione.chatone.util.Result.Success -> rewards = r.data.data
                 is io.rudione.chatone.util.Result.Error ->
                     error = r.exception.message ?: "Failed to load rewards"
+
                 else -> {}
             }
 
-            when (val m = apiClient.getCustomRewards(accessToken, channelId, onlyManageable = true)) {
+            when (val m =
+                apiClient.getCustomRewards(accessToken, channelId, onlyManageable = true)) {
                 is io.rudione.chatone.util.Result.Success ->
                     manageableIds = m.data.data.map { it.id }.toSet()
+
                 else -> {}
             }
             loading = false
@@ -613,16 +687,19 @@ private fun ChannelPointsSection(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
             error != null -> Text(
                 error ?: "",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )
+
             rewards.isEmpty() -> Text(
                 "No custom rewards yet.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
             else -> rewards.take(12).forEach { reward ->
                 val manageable = reward.id in manageableIds
                 Row(
@@ -686,7 +763,11 @@ private fun ChannelPointsSection(
                         ChatoneIconButton(
                             onClick = {
                                 scope.launch {
-                                    val r = apiClient.deleteCustomReward(accessToken, channelId, reward.id)
+                                    val r = apiClient.deleteCustomReward(
+                                        accessToken,
+                                        channelId,
+                                        reward.id
+                                    )
                                     if (r is io.rudione.chatone.util.Result.Error)
                                         error = "Delete failed: ${r.exception.message}"
                                     reload()
@@ -730,13 +811,20 @@ private fun ChannelPointsSection(
                     val cost = newCost.toIntOrNull() ?: return@FilledTonalButton
                     if (newTitle.isBlank() || cost < 1) return@FilledTonalButton
                     scope.launch {
-                        when (val r = apiClient.createCustomReward(accessToken, channelId, newTitle.trim(), cost)) {
+                        when (val r = apiClient.createCustomReward(
+                            accessToken,
+                            channelId,
+                            newTitle.trim(),
+                            cost
+                        )) {
                             is io.rudione.chatone.util.Result.Success -> {
                                 newTitle = ""; newCost = ""
                                 reload()
                             }
+
                             is io.rudione.chatone.util.Result.Error ->
                                 error = r.exception.message ?: "Failed to create reward"
+
                             else -> {}
                         }
                     }
@@ -780,7 +868,8 @@ internal fun CompactModField(
     placeholder: String,
     modifier: Modifier = Modifier,
     accent: Color = MaterialTheme.colorScheme.primary,
-    numeric: Boolean = false
+    numeric: Boolean = false,
+    trailing: (@Composable RowScope.() -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -802,19 +891,23 @@ internal fun CompactModField(
             .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f))
             .border(1.dp, borderColor, RoundedCornerShape(10.dp)),
         decorationBox = { innerTextField ->
-            Box(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
-                contentAlignment = Alignment.CenterStart
+            Row(
+                modifier = Modifier.fillMaxSize()
+                    .padding(start = 10.dp, end = if (trailing != null) 2.dp else 10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (value.isEmpty()) {
-                    Text(
-                        placeholder,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        maxLines = 1
-                    )
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    if (value.isEmpty()) {
+                        Text(
+                            placeholder,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            maxLines = 1
+                        )
+                    }
+                    innerTextField()
                 }
-                innerTextField()
+                trailing?.invoke(this)
             }
         }
     )
@@ -916,7 +1009,10 @@ private fun PollPredictionForm(
                 ) {
                     Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(stringResource(Res.string.poll_option_placeholder), style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        stringResource(Res.string.poll_option_placeholder),
+                        style = MaterialTheme.typography.labelSmall
+                    )
                 }
             }
             FilledTonalButton(
@@ -928,7 +1024,11 @@ private fun PollPredictionForm(
                     contentColor = submitColor
                 )
             ) {
-                Text(submitLabel, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    submitLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
@@ -1053,7 +1153,9 @@ private fun ModPanelInputRow(
                 .size(40.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(
-                    if (value.isNotBlank()) sendColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                    if (value.isNotBlank()) sendColor else MaterialTheme.colorScheme.onSurface.copy(
+                        alpha = 0.1f
+                    )
                 )
                 .clickable(
                     enabled = value.isNotBlank(),
@@ -1067,7 +1169,9 @@ private fun ModPanelInputRow(
                 sendIcon,
                 null,
                 modifier = Modifier.size(16.dp),
-                tint = if (value.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                tint = if (value.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                    alpha = 0.3f
+                )
             )
         }
     }

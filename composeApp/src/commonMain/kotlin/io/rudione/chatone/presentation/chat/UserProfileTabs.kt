@@ -3,6 +3,8 @@ package io.rudione.chatone.presentation.chat
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.block_user
 import chatone.composeapp.generated.resources.cancel
+import chatone.composeapp.generated.resources.copy
+import chatone.composeapp.generated.resources.delete
 import chatone.composeapp.generated.resources.insights_tab_roles
 import chatone.composeapp.generated.resources.profile_ban
 import chatone.composeapp.generated.resources.profile_block
@@ -39,9 +41,19 @@ import chatone.composeapp.generated.resources.unblock_user
 import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabs
 import io.rudione.chatone.presentation.components.expressive.ExpressiveTabSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -56,9 +68,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import io.rudione.chatone.util.platform.setText
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -69,16 +85,16 @@ import io.rudione.chatone.data.repository.ModerationHistory
 import io.rudione.chatone.data.repository.ModerationHistoryEntry
 import io.rudione.chatone.data.repository.NicknameRepository
 import io.rudione.chatone.data.repository.UserNoteRepository
-import io.rudione.chatone.presentation.components.ChatoneChip
 import io.rudione.chatone.presentation.components.ChatoneChipDefaults
+import io.rudione.chatone.presentation.components.tactilePress
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Ban
 import io.rudione.chatone.icons.lucide.Bell
 import io.rudione.chatone.icons.lucide.BellOff
+import io.rudione.chatone.icons.lucide.Check
 import io.rudione.chatone.icons.lucide.CircleCheck
 import io.rudione.chatone.icons.lucide.Copy
 import io.rudione.chatone.icons.lucide.Gem
@@ -132,6 +148,20 @@ internal fun UsercardTab(
     mentionMuteRepository: MentionMuteRepository? = null
 ) {
     val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    var closing by remember { mutableStateOf(false) }
+    val feel: (HapticFeedbackType) -> Unit = { haptics.performHapticFeedback(it) }
+    val actAndClose: (HapticFeedbackType?, () -> Unit) -> Unit = { haptic, action ->
+        if (!closing) {
+            closing = true
+            haptic?.let(feel)
+            action()
+            scope.launch {
+                delay(PROFILE_ACTION_CLOSE_DELAY_MS)
+                onDismiss()
+            }
+        }
+    }
     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
         if (fetchedCreatedAt.isNotEmpty()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -152,7 +182,7 @@ internal fun UsercardTab(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     ProfileIconFollow, null, modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
@@ -217,40 +247,50 @@ internal fun UsercardTab(
                 @Composable
                 fun chip(
                     index: Int,
-                    icon: androidx.compose.ui.graphics.vector.ImageVector,
+                    icon: ImageVector,
                     label: String,
                     filled: Boolean
                 ) {
                     val selected = localTab == index
+                    val interaction = remember { MutableInteractionSource() }
+                    val primary = MaterialTheme.colorScheme.primary
+                    val container by animateColorAsState(
+                        if (selected) primary.copy(alpha = 0.15f) else Color.Transparent,
+                        tween(160), label = "noteTabContainer"
+                    )
+                    val outline by animateColorAsState(
+                        if (selected) primary.copy(alpha = 0.4f)
+                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                        tween(160), label = "noteTabBorder"
+                    )
+                    val content by animateColorAsState(
+                        if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tween(160), label = "noteTabContent"
+                    )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         modifier = Modifier
+                            .tactilePress(interaction, pressedScale = 0.93f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                else Color.Transparent
-                            )
-                            .border(
-                                1.dp,
-                                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                                RoundedCornerShape(8.dp)
-                            )
-                            .clickable { localTab = index }
+                            .background(container)
+                            .border(1.dp, outline, RoundedCornerShape(8.dp))
+                            .clickable(
+                                interactionSource = interaction,
+                                indication = LocalIndication.current,
+                                role = Role.Tab
+                            ) { localTab = index }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Icon(
                             icon, null,
                             modifier = Modifier.size(12.dp),
-                            tint = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = content
                         )
                         Text(
                             label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
+                            color = content
                         )
                         if (filled) {
                             Box(
@@ -272,44 +312,6 @@ internal fun UsercardTab(
                     stringResource(Res.string.profile_nickname),
                     nicknameText.isNotEmpty()
                 )
-                Spacer(Modifier.weight(1f))
-                if (localTab == 0 && noteText.isNotEmpty()) {
-                    ChatoneIconButton(
-                        onClick = { scope.launch { clipboard.setText(noteText) } },
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            Lucide.Copy, null,
-                            modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    ChatoneIconButton(
-                        onClick = onShowDeleteConfirmation,
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            Lucide.Trash2, null,
-                            modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-                if (localTab == 1 && nicknameText.isNotEmpty()) {
-                    ChatoneIconButton(
-                        onClick = {
-                            nicknameRepository.deleteNickname(userId)
-                            nicknameText = ""
-                        },
-                        modifier = Modifier.size(22.dp)
-                    ) {
-                        Icon(
-                            Lucide.Trash2, null,
-                            modifier = Modifier.size(13.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
             }
             Spacer(Modifier.height(5.dp))
             if (localTab == 0) {
@@ -321,7 +323,14 @@ internal fun UsercardTab(
                         else if (newText.isEmpty()) noteRepository.deleteNote(userId)
                     },
                     placeholder = stringResource(Res.string.profile_note_placeholder),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    trailing = {
+                        ProfileFieldActions(
+                            visible = noteText.isNotEmpty(),
+                            onCopy = { scope.launch { clipboard.setText(noteText) } },
+                            onDelete = onShowDeleteConfirmation
+                        )
+                    }
                 )
             } else {
                 CompactModField(
@@ -332,7 +341,17 @@ internal fun UsercardTab(
                         else nicknameRepository.deleteNickname(userId)
                     },
                     placeholder = stringResource(Res.string.profile_nickname_placeholder),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    trailing = {
+                        ProfileFieldActions(
+                            visible = nicknameText.isNotEmpty(),
+                            onCopy = { scope.launch { clipboard.setText(nicknameText) } },
+                            onDelete = {
+                                nicknameRepository.deleteNickname(userId)
+                                nicknameText = ""
+                            }
+                        )
+                    }
                 )
             }
         }
@@ -358,36 +377,49 @@ internal fun UsercardTab(
 
             @Composable
             fun muteChip(label: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
+                val interaction = remember { MutableInteractionSource() }
+                val error = MaterialTheme.colorScheme.error
+                val container by animateColorAsState(
+                    if (checked) error.copy(alpha = 0.12f) else Color.Transparent,
+                    tween(160), label = "muteChipContainer"
+                )
+                val outline by animateColorAsState(
+                    if (checked) error.copy(alpha = 0.35f)
+                    else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                    tween(160), label = "muteChipBorder"
+                )
+                val content by animateColorAsState(
+                    if (checked) error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    tween(160), label = "muteChipContent"
+                )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     modifier = Modifier
+                        .tactilePress(interaction, pressedScale = 0.92f)
                         .clip(RoundedCornerShape(7.dp))
-                        .background(
-                            if (checked) MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-                            else Color.Transparent
-                        )
-                        .border(
-                            1.dp,
-                            if (checked) MaterialTheme.colorScheme.error.copy(alpha = 0.35f)
-                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                            RoundedCornerShape(7.dp)
-                        )
-                        .clickable { onToggle(!checked) }
+                        .background(container)
+                        .border(1.dp, outline, RoundedCornerShape(7.dp))
+                        .clickable(
+                            interactionSource = interaction,
+                            indication = LocalIndication.current,
+                            role = Role.Switch
+                        ) {
+                            feel(if (checked) HapticFeedbackType.ToggleOff else HapticFeedbackType.ToggleOn)
+                            onToggle(!checked)
+                        }
                         .padding(horizontal = 7.dp, vertical = 3.dp)
                 ) {
                     Icon(
                         if (checked) Lucide.BellOff else Lucide.Bell,
                         null,
                         modifier = Modifier.size(11.dp),
-                        tint = if (checked) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = content
                     )
                     Text(
                         label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (checked) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = content
                     )
                 }
             }
@@ -397,13 +429,19 @@ internal fun UsercardTab(
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                muteChip(stringResource(Res.string.profile_mute_chip_global), isMutedGlobally) { checked ->
+                muteChip(
+                    stringResource(Res.string.profile_mute_chip_global),
+                    isMutedGlobally
+                ) { checked ->
                     isMutedGlobally = checked
                     if (checked) mentionMuteRepository.muteUser(username)
                     else mentionMuteRepository.unmuteUser(username)
                 }
                 if (channelLogin.isNotEmpty()) {
-                    muteChip(stringResource(Res.string.profile_mute_chip_channel), isMutedInChannel) { checked ->
+                    muteChip(
+                        stringResource(Res.string.profile_mute_chip_channel),
+                        isMutedInChannel
+                    ) { checked ->
                         isMutedInChannel = checked
                         if (checked) mentionMuteRepository.muteUserInChannel(username, channelLogin)
                         else mentionMuteRepository.unmuteUserInChannel(username, channelLogin)
@@ -417,26 +455,19 @@ internal fun UsercardTab(
         Spacer(Modifier.height(5.dp))
 
         if (showModActions && !isBroadcaster) {
-            FlowRow(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                listOf(
-                    1 to "1s",
-                    30 to "30s",
-                    60 to "1m",
-                    300 to "5m",
-                    600 to "10m",
-                    3600 to "1h",
-                    86400 to "1d",
-                    604800 to "1w",
-                    1209600 to "2w"
-                ).forEach { (sec, label) ->
-                    TimeoutChip(label, sec, onTimeout, onDismiss)
+                PHONE_TIMEOUT_PRESETS.forEach { (sec, label) ->
+                    TimeoutChip(
+                        label = label,
+                        onClick = { actAndClose(HapticFeedbackType.Confirm) { onTimeout(sec) } },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
-            Spacer(Modifier.height(5.dp))
+            Spacer(Modifier.height(6.dp))
         }
 
         var showBlockConfirm by remember { mutableStateOf(false) }
@@ -459,7 +490,11 @@ internal fun UsercardTab(
                             else MaterialTheme.colorScheme.error
                         )
                     ) {
-                        Text(if (isBlocked) stringResource(Res.string.unblock_user) else stringResource(Res.string.block_user))
+                        Text(
+                            if (isBlocked) stringResource(Res.string.unblock_user) else stringResource(
+                                Res.string.block_user
+                            )
+                        )
                     }
                 },
                 dismissButton = {
@@ -475,7 +510,7 @@ internal fun UsercardTab(
                 icon = Lucide.MessageCircle,
                 tint = MaterialTheme.colorScheme.primary,
                 contentDescription = stringResource(Res.string.profile_send_whisper),
-                onClick = { onWhisper(); onDismiss() }
+                onClick = { actAndClose(null, onWhisper) }
             )
             if (!isBroadcaster) {
                 ModIconChip(
@@ -492,26 +527,32 @@ internal fun UsercardTab(
                     icon = Lucide.Ban,
                     tint = ChatoneTheme.extraColors.modBan,
                     contentDescription = stringResource(Res.string.profile_ban),
-                    onClick = { onBan(); onDismiss() }
+                    onClick = { actAndClose(HapticFeedbackType.Confirm, onBan) }
                 )
                 ModIconChip(
                     icon = Lucide.CircleCheck,
                     tint = ChatoneTheme.extraColors.modUnban,
                     contentDescription = stringResource(Res.string.profile_unban),
-                    onClick = { onUnban(); onDismiss() }
+                    onClick = { actAndClose(HapticFeedbackType.Confirm, onUnban) }
                 )
                 if (canManageRoles) {
                     ModIconChip(
                         icon = if (isModerator) Lucide.ShieldCheck else Lucide.Shield,
                         tint = ChatoneTheme.extraColors.connected,
                         contentDescription = if (isModerator) "Unmod" else "Mod",
-                        onClick = { if (isModerator) onUnmod() else onMod() }
+                        onClick = {
+                            feel(HapticFeedbackType.Confirm)
+                            if (isModerator) onUnmod() else onMod()
+                        }
                     )
                     ModIconChip(
                         icon = Lucide.Gem,
                         tint = Color(0xFFE005B9),
                         contentDescription = if (isVip) "Un-VIP" else "VIP",
-                        onClick = { if (isVip) onUnvip() else onVip() }
+                        onClick = {
+                            feel(HapticFeedbackType.Confirm)
+                            if (isVip) onUnvip() else onVip()
+                        }
                     )
                 }
             }
@@ -529,6 +570,20 @@ internal const val PROFILE_USERCARD_TAB = 0
 internal const val PROFILE_MESSAGES_TAB = 1
 internal const val PROFILE_HISTORY_TAB = 2
 internal const val PROFILE_ROLES_TAB = 3
+
+private const val PROFILE_ACTION_CLOSE_DELAY_MS = 170L
+
+private val PHONE_TIMEOUT_PRESETS = listOf(
+    1 to "1s",
+    30 to "30s",
+    60 to "1m",
+    300 to "5m",
+    600 to "10m",
+    3600 to "1h",
+    86400 to "1d",
+    604800 to "1w",
+    1209600 to "2w"
+)
 
 @Composable
 internal fun CompactProfileTabs(
@@ -586,22 +641,115 @@ internal fun CompactProfileTabs(
 }
 
 @Composable
-internal fun TimeoutChip(
+private fun TimeoutChip(
     label: String,
-    seconds: Int,
-    onTimeout: (Int) -> Unit,
-    onDismiss: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    ChatoneChip(
-        label = label,
-        onClick = {
-            onTimeout(seconds)
-            onDismiss()
-        },
-        selected = true,
-        accent = ChatoneTheme.extraColors.modTimeout,
-        height = ChatoneChipDefaults.CompactHeight
+    val accent = ChatoneTheme.extraColors.modTimeout
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val container by animateColorAsState(
+        accent.copy(alpha = if (pressed) 0.36f else 0.18f),
+        tween(120), label = "timeoutChipContainer"
     )
+    Box(
+        modifier = modifier
+            .height(26.dp)
+            .tactilePress(interaction, pressedScale = 0.86f)
+            .clip(ChatoneChipDefaults.Shape)
+            .background(container)
+            .border(1.dp, accent.copy(alpha = 0.5f), ChatoneChipDefaults.Shape)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = accent,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip
+        )
+    }
+}
+
+@Composable
+private fun RowScope.ProfileFieldActions(
+    visible: Boolean,
+    onCopy: () -> Unit,
+    onDelete: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(140)) + scaleIn(tween(160), initialScale = 0.6f),
+        exit = fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.6f)
+    ) {
+        var copied by remember { mutableStateOf(false) }
+        LaunchedEffect(copied) {
+            if (copied) {
+                delay(1200)
+                copied = false
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ProfileFieldAction(
+                icon = if (copied) Lucide.Check else Lucide.Copy,
+                contentDescription = stringResource(Res.string.copy),
+                highlighted = copied,
+                onClick = {
+                    onCopy()
+                    copied = true
+                }
+            )
+            ProfileFieldAction(
+                icon = Lucide.Trash2,
+                contentDescription = stringResource(Res.string.delete),
+                onClick = onDelete
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileFieldAction(
+    icon: ImageVector,
+    contentDescription: String,
+    highlighted: Boolean = false,
+    onClick: () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val tint by animateColorAsState(
+        if (highlighted) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        tween(160), label = "fieldActionTint"
+    )
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .tactilePress(interaction, pressedScale = 0.8f)
+            .clip(CircleShape)
+            .clickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current,
+                role = Role.Button,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(16.dp),
+            tint = tint
+        )
+    }
 }
 
 @Composable
@@ -648,12 +796,24 @@ internal fun ModIconChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val container by animateColorAsState(
+        tint.copy(alpha = if (pressed) 0.32f else 0.14f),
+        tween(120), label = "modIconChipContainer"
+    )
     Box(
         modifier = modifier
             .size(26.dp)
+            .tactilePress(interaction, pressedScale = 0.84f)
             .clip(RoundedCornerShape(8.dp))
-            .background(tint.copy(alpha = 0.14f))
-            .clickable(onClick = onClick),
+            .background(container)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -687,15 +847,19 @@ internal fun ModerationHistoryTab(history: ModerationHistory, isLoading: Boolean
                 }
                 if (timeouts > 0) {
                     HistoryCounterChip(
-                        label = stringResource(Res.string.profile_history_timeouts), count = timeouts,
-                        icon = Lucide.Timer, tint = ChatoneTheme.extraColors.modTimeout,
+                        label = stringResource(Res.string.profile_history_timeouts),
+                        count = timeouts,
+                        icon = Lucide.Timer,
+                        tint = ChatoneTheme.extraColors.modTimeout,
                         modifier = Modifier.weight(1f)
                     )
                 }
                 if (warnings > 0) {
                     HistoryCounterChip(
-                        label = stringResource(Res.string.profile_history_warnings), count = warnings,
-                        icon = Lucide.TriangleAlert, tint = MaterialTheme.colorScheme.tertiary,
+                        label = stringResource(Res.string.profile_history_warnings),
+                        count = warnings,
+                        icon = Lucide.TriangleAlert,
+                        tint = MaterialTheme.colorScheme.tertiary,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -724,7 +888,8 @@ internal fun ModerationHistoryTab(history: ModerationHistory, isLoading: Boolean
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                     )
                     Text(
-                        stringResource(Res.string.profile_history_empty), style = MaterialTheme.typography.bodySmall,
+                        stringResource(Res.string.profile_history_empty),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
@@ -778,11 +943,35 @@ private fun HistoryCounterChip(
 @Composable
 private fun ModerationHistoryRow(entry: ModerationHistoryEntry) {
     val (icon, tint, label) = when (entry.action) {
-        ModLogActionType.BAN -> Triple(Lucide.Ban, ChatoneTheme.extraColors.modBan, stringResource(Res.string.profile_history_ban_entry))
-        ModLogActionType.TIMEOUT -> Triple(Lucide.Timer, ChatoneTheme.extraColors.modTimeout, stringResource(Res.string.profile_history_timeout_entry_plain))
-        ModLogActionType.UNBAN -> Triple(Lucide.LockOpen, MaterialTheme.colorScheme.primary, stringResource(Res.string.profile_history_unban_entry))
-        ModLogActionType.UNTIMEOUT -> Triple(Lucide.TimerOff, MaterialTheme.colorScheme.primary, stringResource(Res.string.profile_history_untimeout_entry))
-        ModLogActionType.WARN -> Triple(Lucide.TriangleAlert, MaterialTheme.colorScheme.tertiary, stringResource(Res.string.profile_history_warn_entry))
+        ModLogActionType.BAN -> Triple(
+            Lucide.Ban,
+            ChatoneTheme.extraColors.modBan,
+            stringResource(Res.string.profile_history_ban_entry)
+        )
+
+        ModLogActionType.TIMEOUT -> Triple(
+            Lucide.Timer,
+            ChatoneTheme.extraColors.modTimeout,
+            stringResource(Res.string.profile_history_timeout_entry_plain)
+        )
+
+        ModLogActionType.UNBAN -> Triple(
+            Lucide.LockOpen,
+            MaterialTheme.colorScheme.primary,
+            stringResource(Res.string.profile_history_unban_entry)
+        )
+
+        ModLogActionType.UNTIMEOUT -> Triple(
+            Lucide.TimerOff,
+            MaterialTheme.colorScheme.primary,
+            stringResource(Res.string.profile_history_untimeout_entry)
+        )
+
+        ModLogActionType.WARN -> Triple(
+            Lucide.TriangleAlert,
+            MaterialTheme.colorScheme.tertiary,
+            stringResource(Res.string.profile_history_warn_entry)
+        )
     }
 
     Row(

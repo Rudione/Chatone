@@ -201,7 +201,8 @@ fun UserProfilePopup(
     var isHistoryLoading by remember(userId) { mutableStateOf(false) }
     var localHistoryLoaded by remember(userId) { mutableStateOf(false) }
     val historyScope = rememberCoroutineScope()
-    val canLoadHistory = showModActions && accessToken.isNotEmpty() && channelId.isNotEmpty() && userId.isNotEmpty()
+    val canLoadHistory =
+        showModActions && accessToken.isNotEmpty() && channelId.isNotEmpty() && userId.isNotEmpty()
     val loadHistory: () -> Unit = {
         if (!isHistoryLoading && canLoadHistory) {
             isHistoryLoading = true
@@ -280,7 +281,11 @@ fun UserProfilePopup(
                 launch {
                     isModerationHistoryLoading = true
                     moderationHistory =
-                        moderationHistoryRepository.loadHistoryForUser(channelId, userId, accessToken)
+                        moderationHistoryRepository.loadHistoryForUser(
+                            channelId,
+                            userId,
+                            accessToken
+                        )
                     isModerationHistoryLoading = false
                 }
             }
@@ -340,25 +345,40 @@ fun UserProfilePopup(
     val placement = rememberFloatingPlacement(MOBILE_PROFILE_POSITION_KEY)
     val card: @Composable (dragHandle: Modifier?) -> Unit = { dragHandle ->
         Card(
-            modifier = Modifier.width(320.dp).padding(8.dp)
+            modifier = Modifier.widthIn(max = 340.dp).fillMaxWidth().padding(8.dp)
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown || !event.isAltPressed) return@onPreviewKeyEvent false
                     if (!showModActions || isBroadcaster) return@onPreviewKeyEvent false
                     when (event.key) {
                         Key.B -> {
-                            if (event.isShiftPressed) { banReasonPrompt = true }
-                            else { onBan(); onDismiss() }
+                            if (event.isShiftPressed) {
+                                banReasonPrompt = true
+                            } else {
+                                onBan(); onDismiss()
+                            }
                             true
                         }
-                        Key.U -> { onUnban(); onDismiss(); true }
-                        Key.W -> { onWhisper(); onDismiss(); true }
-                        Key.K -> { if (isBlocked) onUnblock() else onBlock(); onDismiss(); true }
+
+                        Key.U -> {
+                            onUnban(); onDismiss(); true
+                        }
+
+                        Key.W -> {
+                            onWhisper(); onDismiss(); true
+                        }
+
+                        Key.K -> {
+                            if (isBlocked) onUnblock() else onBlock(); onDismiss(); true
+                        }
+
                         Key.M -> if (canManageRoles) {
                             if (isModerator) onUnmod() else onMod(); true
                         } else false
+
                         Key.V -> if (canManageRoles) {
                             if (isVip) onUnvip() else onVip(); true
                         } else false
+
                         else -> false
                     }
                 },
@@ -407,7 +427,9 @@ fun UserProfilePopup(
                                 inlineSearch = false,
                                 searchExpanded = archiveSearchOpen,
                                 onToggleSearch = {
-                                    if (archiveSearchOpen && archive.isSearching) archive.updateQuery("")
+                                    if (archiveSearchOpen && archive.isSearching) archive.updateQuery(
+                                        ""
+                                    )
                                     archiveSearchOpen = !archiveSearchOpen
                                 }
                             )
@@ -458,7 +480,9 @@ fun UserProfilePopup(
                         ProfileArchiveFeed(
                             archive = archive,
                             displayName = displayName,
-                            nameColor = rememberNickColors().of(color, username.ifBlank { displayName }),
+                            nameColor = rememberNickColors().of(
+                                color,
+                                username.ifBlank { displayName }),
                             modifier = Modifier.fillMaxWidth().height(380.dp)
                         )
                     } else ProfileTimelineFeed(
@@ -466,13 +490,27 @@ fun UserProfilePopup(
                             session = userMessages,
                             local = localHistory,
                             remote = historyMessages,
-                            pager = RemoteHistoryPager(canLoadHistory, hasMoreHistory, isHistoryLoading, loadHistory),
+                            pager = RemoteHistoryPager(
+                                canLoadHistory,
+                                hasMoreHistory,
+                                isHistoryLoading,
+                                loadHistory
+                            ),
                             archive = archive
                         ),
                         author = remember(userMessages, userId) {
-                            profileAuthor(userMessages, userId, username, displayName, color, channelLogin)
+                            profileAuthor(
+                                userMessages,
+                                userId,
+                                username,
+                                displayName,
+                                color,
+                                channelLogin
+                            )
                         },
-                        nameColor = rememberNickColors().of(color, username.ifBlank { displayName }),
+                        nameColor = rememberNickColors().of(
+                            color,
+                            username.ifBlank { displayName }),
                         modifier = Modifier.fillMaxWidth().height(380.dp)
                     )
 
@@ -534,7 +572,9 @@ fun UserProfilePopup(
                 }) { Text(stringResource(Res.string.profile_ban)) }
             },
             dismissButton = {
-                TextButton(onClick = { banReasonPrompt = false }) { Text(stringResource(Res.string.cancel)) }
+                TextButton(onClick = {
+                    banReasonPrompt = false
+                }) { Text(stringResource(Res.string.cancel)) }
             }
         )
     }
@@ -564,18 +604,19 @@ fun UserProfileHeader(
     val uriHandler = LocalUriHandler.current
     val sevenTv = rememberSevenTvCosmetic(userId)
     val thirdPartyMaps = LocalThirdPartyBadges.current
-    val badgeItems = remember(userId, badges, gqlBadges, sevenTvBadge, thirdPartyMaps, accountBadges) {
-        buildProfileBadges(
-            chatBadges = badges,
-            gqlBadges = gqlBadges,
-            sevenTvBadge = sevenTvBadge,
-            thirdPartyBadges = buildList {
-                thirdPartyMaps.ffzByLogin[username.lowercase()]?.let { addAll(it) }
-                thirdPartyMaps.bttvByUserId[userId]?.let { add(it) }
-            },
-            accountBadges = accountBadges
-        )
-    }
+    val badgeItems =
+        remember(userId, badges, gqlBadges, sevenTvBadge, thirdPartyMaps, accountBadges) {
+            buildProfileBadges(
+                chatBadges = badges,
+                gqlBadges = gqlBadges,
+                sevenTvBadge = sevenTvBadge,
+                thirdPartyBadges = buildList {
+                    thirdPartyMaps.ffzByLogin[username.lowercase()]?.let { addAll(it) }
+                    thirdPartyMaps.bttvByUserId[userId]?.let { add(it) }
+                },
+                accountBadges = accountBadges
+            )
+        }
 
     LaunchedEffect(showCopied) {
         if (showCopied) {

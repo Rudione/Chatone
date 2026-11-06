@@ -6,6 +6,7 @@ import org.jetbrains.compose.resources.stringResource
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.net.Uri
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -49,8 +50,17 @@ import kotlinx.serialization.json.contentOrNull
 
 private const val LOGIN_URL = "https://api.7tv.app/v4/auth/login?platform=twitch"
 private const val SITE_HOST = "7tv.app"
-private const val TOKEN_SCRIPT = "(function(){try{return localStorage.getItem('7tv-token')}catch(e){return null}})()"
-private val ALLOWED_HOSTS = setOf("7tv.app", "api.7tv.app", "7tv.io", "id.twitch.tv", "www.twitch.tv", "twitch.tv", "passport.twitch.tv")
+private const val TOKEN_SCRIPT =
+    "(function(){try{return localStorage.getItem('7tv-token')}catch(e){return null}})()"
+private val ALLOWED_HOSTS = setOf(
+    "7tv.app",
+    "api.7tv.app",
+    "7tv.io",
+    "id.twitch.tv",
+    "www.twitch.tv",
+    "twitch.tv",
+    "passport.twitch.tv"
+)
 private const val TOKEN_POLL_MS = 900L
 
 actual val sevenTvSignInSupported: Boolean = true
@@ -68,7 +78,8 @@ actual fun SevenTvSignInDialog(onToken: (String) -> Unit, onDismiss: () -> Unit)
         val view = web ?: return@LaunchedEffect
         while (onSite && !delivered) {
             view.evaluateJavascript(TOKEN_SCRIPT) { raw ->
-                val token = runCatching { (Json.parseToJsonElement(raw) as? JsonPrimitive)?.contentOrNull }.getOrNull()
+                val token =
+                    runCatching { (Json.parseToJsonElement(raw) as? JsonPrimitive)?.contentOrNull }.getOrNull()
                 if (!delivered && !token.isNullOrBlank()) {
                     delivered = true
                     deliver(token)
@@ -81,36 +92,61 @@ actual fun SevenTvSignInDialog(onToken: (String) -> Unit, onDismiss: () -> Unit)
         onDispose { web?.destroy() }
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         stringResource(Res.string.profile_editor_seven_tv_connect),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f).padding(start = 8.dp)
                     )
-                    GlassIconButton(Lucide.X, stringResource(Res.string.profile_editor_seven_tv_connect), onDismiss)
+                    GlassIconButton(
+                        Lucide.X,
+                        stringResource(Res.string.profile_editor_seven_tv_connect),
+                        onDismiss
+                    )
                 }
                 if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     AndroidView(
                         factory = { context ->
                             WebView(context).apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
                                 settings.javaScriptEnabled = true
                                 settings.domStorageEnabled = true
-                                settings.userAgentString = settings.userAgentString.replace("; wv", "")
+                                settings.userAgentString =
+                                    settings.userAgentString.replace("; wv", "")
                                 CookieManager.getInstance().setAcceptCookie(true)
                                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                 webViewClient = object : WebViewClient() {
-                                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                                    override fun shouldOverrideUrlLoading(
+                                        view: WebView,
+                                        request: WebResourceRequest
+                                    ): Boolean {
                                         if (!request.isForMainFrame) return false
                                         val host = request.url.host?.lowercase() ?: return true
                                         return ALLOWED_HOSTS.none { host == it || host.endsWith(".$it") }
                                     }
 
-                                    override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                                    override fun onPageStarted(
+                                        view: WebView,
+                                        url: String?,
+                                        favicon: Bitmap?
+                                    ) {
                                         loading = true
                                     }
 
