@@ -4,6 +4,8 @@ import chatone.composeapp.generated.resources.ui_add
 import chatone.composeapp.generated.resources.ui_close
 import chatone.composeapp.generated.resources.ui_options
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.automod_rule_summary_seconds
+import chatone.composeapp.generated.resources.automod_rule_summary_alternates
 import chatone.composeapp.generated.resources.add
 import chatone.composeapp.generated.resources.automod_add_variant
 import chatone.composeapp.generated.resources.automod_alternates
@@ -762,11 +764,20 @@ private fun WordRuleRow(
                 )
             }
             Spacer(Modifier.height(2.dp))
+            val actionLabel = stringResource(
+                when (rule.action) {
+                    AutomodAction.DELETE -> Res.string.chat_rule_action_delete
+                    AutomodAction.TIMEOUT -> Res.string.chat_rule_action_timeout
+                    AutomodAction.BAN -> Res.string.chat_rule_action_ban
+                }
+            )
+            val timeoutLabel = stringResource(Res.string.automod_rule_summary_seconds, rule.timeoutMs / 1000)
+            val altLabel = stringResource(Res.string.automod_rule_summary_alternates, rule.alternates.size)
             Text(
                 buildString {
-                    append(rule.action.name.lowercase())
-                    if (rule.action == AutomodAction.TIMEOUT) append(" · ${rule.timeoutMs / 1000}s")
-                    if (rule.alternates.isNotEmpty()) append(" · +${rule.alternates.size} alt")
+                    append(actionLabel)
+                    if (rule.action == AutomodAction.TIMEOUT) append(" · ").append(timeoutLabel)
+                    if (rule.alternates.isNotEmpty()) append(" · ").append(altLabel)
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = actionColor(rule.action)

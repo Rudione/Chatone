@@ -1,21 +1,22 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.translate
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -25,7 +26,6 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.GlobalPositionAwareModifierNode
@@ -34,9 +34,11 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toSize
 import io.rudione.chatone.util.system.isBackdropBlurSupported
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.ceil
 
 private const val MIN_STRENGTH = 0.01f
@@ -46,12 +48,17 @@ private const val PATCH_DOWNSCALE = 4f
 
 @Stable
 class BackdropState {
-    internal var targetBounds by mutableStateOf(Rect.Zero)
-    internal var targetCornerRadius by mutableStateOf(0.dp)
+    internal val targets = mutableStateMapOf<Any, BackdropTarget>()
 }
 
+@Immutable
+internal data class BackdropTarget(val bounds: Rect, val shape: Shape)
+
 fun Modifier.backdropTarget(state: BackdropState, cornerRadius: Dp): Modifier =
-    this then BackdropTargetElement(state, cornerRadius)
+    backdropTarget(state, RoundedCornerShape(cornerRadius))
+
+fun Modifier.backdropTarget(state: BackdropState, shape: Shape): Modifier =
+    this then BackdropTargetElement(state, shape)
 
 fun Modifier.backdropSource(
     state: BackdropState,
@@ -63,30 +70,45 @@ fun Modifier.backdropSource(
 
 private data class BackdropTargetElement(
     val state: BackdropState,
-    val cornerRadius: Dp
+    val shape: Shape
 ) : ModifierNodeElement<BackdropTargetNode>() {
-    override fun create(): BackdropTargetNode = BackdropTargetNode(state, cornerRadius)
+    override fun create(): BackdropTargetNode = BackdropTargetNode(state, shape)
 
     override fun update(node: BackdropTargetNode) {
-        node.state = state
-        node.cornerRadius = cornerRadius
-        state.targetCornerRadius = cornerRadius
+        node.retarget(state, shape)
     }
 }
 
 private class BackdropTargetNode(
-    var state: BackdropState,
-    var cornerRadius: Dp
+    private var state: BackdropState,
+    private var shape: Shape
 ) : Modifier.Node(), GlobalPositionAwareModifierNode {
 
+    private var bounds = Rect.Zero
+
+    fun retarget(newState: BackdropState, newShape: Shape) {
+        if (newState !== state) state.targets.remove(this)
+        state = newState
+        shape = newShape
+        publish()
+    }
+
     override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-        val bounds = coordinates.boundsInRoot()
-        if (state.targetBounds != bounds) state.targetBounds = bounds
-        if (state.targetCornerRadius != cornerRadius) state.targetCornerRadius = cornerRadius
+        val next = Rect(coordinates.positionInRoot(), coordinates.size.toSize())
+        if (next == bounds) return
+        bounds = next
+        publish()
     }
 
     override fun onDetach() {
-        state.targetBounds = Rect.Zero
+        state.targets.remove(this)
+        bounds = Rect.Zero
+    }
+
+    private fun publish() {
+        if (!isAttached || bounds.isEmpty) return
+        val target = BackdropTarget(bounds, shape)
+        if (state.targets[this] != target) state.targets[this] = target
     }
 }
 
@@ -158,31 +180,37 @@ private class BackdropSourceNode(
         val content = contentLayer
         val patch = patchLayer
         val amount = strength().coerceIn(0f, 1f)
-        val target = state.targetBounds
-        if (content == null || patch == null || amount <= MIN_STRENGTH || target.isEmpty) {
+        val targets = state.targets.values
+        if (content == null || patch == null || amount <= MIN_STRENGTH || targets.isEmpty()) {
             drawContent()
             return
         }
 
         content.record { this@draw.drawContent() }
 
-        val local = target.translate(-originInRoot)
+        clip.reset()
+        var covered: Rect? = null
+        for (target in targets) {
+            val local = target.bounds.translate(-originInRoot)
+            clip.addOutline(target.shape.createOutline(target.bounds.size, layoutDirection, this), local.topLeft)
+            covered = covered?.let { joined ->
+                Rect(min(joined.left, local.left), min(joined.top, local.top), max(joined.right, local.right), max(joined.bottom, local.bottom))
+            } ?: local
+        }
+        val union = covered ?: Rect.Zero
         val radius = blurRadius.toPx() * amount
         val margin = ceil(radius * 2f)
         val area = Rect(
-            left = local.left - margin,
-            top = local.top - margin,
-            right = local.right + margin,
-            bottom = local.bottom + margin
+            left = union.left - margin,
+            top = union.top - margin,
+            right = union.right + margin,
+            bottom = union.bottom + margin
         ).intersect(Rect(Offset.Zero, size))
         if (area.width < 1f || area.height < 1f) {
             drawLayer(content)
             return
         }
 
-        val corner = state.targetCornerRadius.toPx()
-        clip.reset()
-        clip.addRoundRect(RoundRect(local, CornerRadius(corner, corner)))
         val opaquePatch = underlay.isSpecified
         if (opaquePatch) drawLayer(content) else clipPath(clip, ClipOp.Difference) { drawLayer(content) }
 
@@ -225,5 +253,13 @@ private class BackdropSourceNode(
             cachedFilter = it
             cachedSaturation = value
         }
+    }
+}
+
+private fun Path.addOutline(outline: Outline, offset: Offset) {
+    when (outline) {
+        is Outline.Rectangle -> addRect(outline.rect.translate(offset))
+        is Outline.Rounded -> addRoundRect(outline.roundRect.translate(offset))
+        is Outline.Generic -> addPath(outline.path, offset)
     }
 }

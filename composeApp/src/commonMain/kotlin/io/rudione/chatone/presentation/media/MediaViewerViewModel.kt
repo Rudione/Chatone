@@ -6,6 +6,7 @@ import io.rudione.chatone.base.BaseViewModel
 import io.rudione.chatone.base.UIEffect
 import io.rudione.chatone.base.UiEvent
 import io.rudione.chatone.base.UiState
+import io.rudione.chatone.data.repository.StreamPlayerPreferencesRepository
 import io.rudione.chatone.domain.media.ClipOutcome
 import io.rudione.chatone.domain.media.ClipStudio
 import io.rudione.chatone.domain.media.MediaCatalog
@@ -17,14 +18,20 @@ import io.rudione.chatone.domain.media.MediaPlaybackFactory
 import io.rudione.chatone.domain.media.ReplayChannel
 import io.rudione.chatone.domain.media.ReplayChatRenderer
 import io.rudione.chatone.domain.media.ReplayLine
+import io.rudione.chatone.domain.media.ReplayTimeline
+import io.rudione.chatone.domain.media.revealTimesMs
 import io.rudione.chatone.domain.model.DisplayMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 enum class ViewerLoad { LOADING, READY, MISSING, FAILED }
 
 @Immutable
-data class ReplayEntry(val offsetSeconds: Int, val message: DisplayMessage.PrivMsg)
+data class ReplayEntry(val revealAtMs: Long, val message: DisplayMessage.PrivMsg)
 
 @Immutable
 data class MediaViewerState(
@@ -35,9 +42,10 @@ data class MediaViewerState(
     val volume: Float = 1f,
     val speed: Float = 1f,
     val looping: Boolean = true,
-    val replay: List<ReplayLine> = emptyList(),
     val replayMessages: List<ReplayEntry> = emptyList(),
+    val replayPrimed: Boolean = false,
     val replayHasClock: Boolean = false,
+    val ambientLight: Boolean = true,
     val canModerate: Boolean = false,
     val busy: Boolean = false,
     val deleted: Boolean = false
@@ -69,14 +77,19 @@ class MediaViewerViewModel(
     private val studio: ClipStudio,
     private val moderation: MediaModeration,
     private val replayChat: ReplayChatRenderer,
-    factory: MediaPlaybackFactory
-) : BaseViewModel<MediaViewerState, MediaViewerEvent, MediaViewerEffect>(MediaViewerState(looping = kind == MediaKind.CLIP)) {
+    factory: MediaPlaybackFactory,
+    playerPreferences: StreamPlayerPreferencesRepository
+) : BaseViewModel<MediaViewerState, MediaViewerEvent, MediaViewerEffect>(
+    MediaViewerState(looping = kind == MediaKind.CLIP, ambientLight = playerPreferences.load().ambientLight)
+) {
 
     val playback: MediaPlayback? = factory.create()
     private var replayJob: Job? = null
-    private var renderJob: Job? = null
     private var replayChannel: ReplayChannel? = null
-    private var replayLoadedUntil = -1
+    private var timeline = ReplayTimeline()
+    private val replayPlayhead = MutableStateFlow(-1)
+    private val rendered = HashMap<String, DisplayMessage.PrivMsg>()
+    private val renderLock = Mutex()
 
     init {
         subscribeToEvents()
@@ -111,7 +124,7 @@ class MediaViewerViewModel(
                 update { it.copy(looping = looping) }
             }
 
-            is MediaViewerEvent.Progress -> ensureReplay(event.positionSeconds)
+            is MediaViewerEvent.Progress -> movePlayhead(event.positionSeconds)
             MediaViewerEvent.DeleteClip -> deleteClip()
             MediaViewerEvent.BanCurator -> banCurator()
         }
@@ -140,7 +153,8 @@ class MediaViewerViewModel(
             prepareReplayChat(details)
             playback?.load(details.sources[index], startSeconds * 1000L)
             playback?.setPlaying(true)
-            ensureReplay(startSeconds)
+            startReplay(details)
+            movePlayhead(startSeconds)
             val canModerate =
                 details.kind == MediaKind.CLIP && moderation.canModerate(details.broadcaster.id)
             update { it.copy(canModerate = canModerate) }
@@ -155,23 +169,44 @@ class MediaViewerViewModel(
         update { it.copy(sourceIndex = index) }
     }
 
-    private fun ensureReplay(positionSeconds: Int) {
+    private fun movePlayhead(positionSeconds: Int) {
         val details = state.value.details ?: return
+        if (details.replayVideoId == null) return
+        replayPlayhead.value = details.replayOffsetSeconds + positionSeconds.coerceAtLeast(0)
+    }
+
+    private fun startReplay(details: MediaDetails) {
         val videoId = details.replayVideoId ?: return
-        val absolute = details.replayOffsetSeconds + positionSeconds
-        if (replayJob?.isActive == true) return
-        if (replayLoadedUntil >= 0 && absolute + REPLAY_LOOKAHEAD < replayLoadedUntil) return
-        val from =
-            if (replayLoadedUntil < 0) (absolute - REPLAY_BACKFILL).coerceAtLeast(0) else replayLoadedUntil
+        replayJob?.cancel()
+        timeline = ReplayTimeline()
+        rendered.clear()
         replayJob = viewModelScope.launch {
-            val lines = catalog.replay(videoId, from).orEmpty()
-            replayLoadedUntil = (lines.maxOfOrNull { it.offsetSeconds } ?: (from + REPLAY_STEP)) + 1
-            update { s ->
-                s.copy(replay = (s.replay + lines).distinctBy { it.id }.takeLast(MAX_REPLAY))
-            }
-            renderReplay()
-            if (replayChat.loadCosmetics(lines.map { it.userId })) renderReplay()
+            replayPlayhead.collect { now -> if (now >= 0) pumpReplay(videoId) }
         }
+    }
+
+    private suspend fun pumpReplay(videoId: String) {
+        repeat(MAX_PAGES_PER_STEP) {
+            val before = timeline.lines
+            val from = timeline.nextFetch(replayPlayhead.value)
+            if (timeline.lines !== before || timeline.primed != state.value.replayPrimed) publishReplay()
+            if (from == null) return
+            val page = fetchReplay(videoId, from) ?: return
+            val fresh = timeline.accept(from, page)
+            if (fresh.isNotEmpty()) {
+                render(fresh)
+                viewModelScope.launch { if (replayChat.loadCosmetics(fresh.map { it.userId })) rerender(fresh) }
+            }
+            publishReplay()
+        }
+    }
+
+    private suspend fun fetchReplay(videoId: String, from: Int): List<ReplayLine>? = try {
+        catalog.replay(videoId, from)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     private fun prepareReplayChat(details: MediaDetails) {
@@ -181,19 +216,31 @@ class MediaViewerViewModel(
         replayChannel = channel
         viewModelScope.launch {
             replayChat.prepare(channel)
-            renderReplay()
+            rerender(timeline.lines)
         }
     }
 
-    private fun renderReplay() {
+    private suspend fun rerender(lines: List<ReplayLine>) {
+        render(lines)
+        publishReplay()
+    }
+
+    private suspend fun render(lines: List<ReplayLine>) {
         val channel = replayChannel ?: return
-        renderJob?.cancel()
-        renderJob = viewModelScope.launch {
-            val lines = state.value.replay
+        if (lines.isEmpty()) return
+        renderLock.withLock {
             val messages = replayChat.render(channel, lines)
-            val entries = lines.zip(messages) { line, message -> ReplayEntry(line.offsetSeconds, message) }
-            update { it.copy(replayMessages = entries) }
+            lines.forEachIndexed { i, line -> messages.getOrNull(i)?.let { rendered[line.id] = it } }
         }
+    }
+
+    private fun publishReplay() {
+        val lines = timeline.lines
+        val ids = lines.mapTo(HashSet()) { it.id }
+        rendered.keys.retainAll(ids)
+        val reveals = lines.revealTimesMs()
+        val entries = lines.indices.mapNotNull { i -> rendered[lines[i].id]?.let { ReplayEntry(reveals[i], it) } }
+        update { it.copy(replayMessages = entries, replayPrimed = timeline.primed) }
     }
 
     private fun deleteClip() {
@@ -226,10 +273,7 @@ class MediaViewerViewModel(
 
     private companion object {
         const val PREFERRED_QUALITY = "720p"
-        const val REPLAY_LOOKAHEAD = 20
-        const val REPLAY_BACKFILL = 30
-        const val REPLAY_STEP = 60
-        const val MAX_REPLAY = 400
+        const val MAX_PAGES_PER_STEP = 12
         const val BAN_REASON = "Clip"
     }
 }

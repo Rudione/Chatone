@@ -1,6 +1,16 @@
 import math
 
-PLATE = (20, 16, 32)
+PLATE = (7, 7, 8)
+PLATE_LIGHT = [
+    (0.00, (44, 45, 48)),
+    (0.32, (21, 22, 24)),
+    (0.75, (9, 9, 10)),
+    (1.00, PLATE),
+]
+PLATE_LIGHT_REACH = 1.05
+RIM_ALPHA = [(0.00, 70), (0.55, 17), (1.00, 0)]
+RIM_INSET = 3.0
+RIM_WIDTH = 5.0
 LIT = (128, 131, 217)
 NIGHT = (64, 62, 166)
 RING = (226, 227, 255)

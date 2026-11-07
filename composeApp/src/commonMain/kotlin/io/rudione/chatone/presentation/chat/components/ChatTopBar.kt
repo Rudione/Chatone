@@ -7,6 +7,7 @@ import chatone.composeapp.generated.resources.ui_refresh
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chat_macro_tooltip
 import chatone.composeapp.generated.resources.main_channel_badges_bits
+import chatone.composeapp.generated.resources.points_balance_description
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -28,6 +29,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,24 +43,26 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilledIconToggleButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.presentation.chat.LocalChatSurfaceStyle
@@ -65,8 +70,10 @@ import io.rudione.chatone.presentation.chat.RoomState
 import io.rudione.chatone.presentation.chat.multichat.ChatTopBarAddPanelButton
 import io.rudione.chatone.presentation.chat.multichat.horizontalMouseWheelScrollModifier
 import io.rudione.chatone.presentation.components.ChatoneCountBadge
-import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.TactileIconButton
+import io.rudione.chatone.presentation.components.TactileIconButtonDefaults
 import io.rudione.chatone.presentation.components.onSecondaryClick
+import io.rudione.chatone.presentation.components.tactilePress
 import io.rudione.chatone.presentation.components.onUnclaimedSecondaryClick
 import io.rudione.chatone.presentation.channelmenu.ChannelOptionsMenu
 import io.rudione.chatone.presentation.channelmenu.busChannelMenu
@@ -75,6 +82,7 @@ import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.presentation.stream.StreamWatchButton
+import io.rudione.chatone.util.format.groupedNumber
 import io.rudione.chatone.util.icons.TwitchPointsIcon
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Menu
@@ -126,6 +134,7 @@ internal fun ChatTopBar(
     onEditMacro: (Macro) -> Unit = {},
     onRefresh: () -> Unit = {},
     onOpenPointsBits: () -> Unit = {},
+    points: TopBarPoints = TopBarPoints(),
     isCompact: Boolean = false,
     showMenuButton: Boolean = false,
     menuBadgeCount: Int = 0,
@@ -137,8 +146,8 @@ internal fun ChatTopBar(
     val topBarColor = topBarBackgroundColor(topBarWallpaper, MaterialTheme.colorScheme.surfaceContainer)
     val surfaceStyle = LocalChatSurfaceStyle.current
     val metrics = remember(barHeight) { TopBarMetrics.forHeight(barHeight) }
-    val actions = remember(onRefresh, onOpenPointsBits, onToggleModMode, onOpenModPanel, onExecuteMacro, onEditMacro) {
-        TopBarActionCallbacks(onRefresh, onOpenPointsBits, onToggleModMode, onOpenModPanel, onExecuteMacro, onEditMacro)
+    val actions = remember(onRefresh, onOpenPointsBits, onToggleModMode, onOpenModPanel, onExecuteMacro, onEditMacro, points.onWanted) {
+        TopBarActionCallbacks(onRefresh, onOpenPointsBits, onToggleModMode, onOpenModPanel, onExecuteMacro, onEditMacro, points.onWanted)
     }
     val channelMenu = remember(channelLogin, isMod) { busChannelMenu(channelLogin, canSeeViewers = isMod) }
     var barMenuAt by remember { mutableStateOf<Dp?>(null) }
@@ -170,11 +179,15 @@ internal fun ChatTopBar(
         ) {
             if (showMenuButton) {
                 Box {
-                    ChatoneIconButton(onClick = onBack, modifier = Modifier.size(metrics.button)) {
+                    TactileIconButton(
+                        onClick = onBack,
+                        size = metrics.button,
+                        colors = TactileIconButtonDefaults.colors(content = MaterialTheme.colorScheme.onSurface)
+                    ) { tint ->
                         Icon(
                             Lucide.Menu,
                             contentDescription = stringResource(Res.string.ui_menu),
-                            tint = MaterialTheme.colorScheme.onSurface,
+                            tint = tint,
                             modifier = Modifier.size(metrics.icon + 2.dp)
                         )
                     }
@@ -205,6 +218,7 @@ internal fun ChatTopBar(
                     modPanelOpen = modPanelOpen,
                     pinnedMacros = pinnedMacros,
                     showWatchButton = surfaceStyle.showWatchButton,
+                    points = points,
                     callbacks = actions,
                     modifier = Modifier
                 )
@@ -218,6 +232,7 @@ internal fun ChatTopBar(
                     modPanelOpen = modPanelOpen,
                     pinnedMacros = pinnedMacros,
                     showWatchButton = surfaceStyle.showWatchButton,
+                    points = points,
                     callbacks = actions,
                     modifier = Modifier
                         .weight(1f, fill = true)
@@ -242,7 +257,15 @@ private class TopBarActionCallbacks(
     val onToggleModMode: () -> Unit,
     val onOpenModPanel: () -> Unit,
     val onExecuteMacro: (Macro) -> Unit,
-    val onEditMacro: (Macro) -> Unit
+    val onEditMacro: (Macro) -> Unit,
+    val onPointsWanted: () -> Unit
+)
+
+@Immutable
+data class TopBarPoints(
+    val balance: Long? = null,
+    val iconUrl: String? = null,
+    val onWanted: () -> Unit = {}
 )
 
 @Composable
@@ -254,6 +277,7 @@ private fun TopBarActions(
     modPanelOpen: Boolean,
     pinnedMacros: List<Macro>,
     showWatchButton: Boolean,
+    points: TopBarPoints,
     callbacks: TopBarActionCallbacks,
     modifier: Modifier
 ) {
@@ -275,91 +299,131 @@ private fun TopBarActions(
             animationSpec = tween(500),
             finishedListener = { refreshSpinning = false }
         )
-        ChatoneIconButton(
+        TactileIconButton(
             onClick = {
                 refreshSpinning = true
                 callbacks.onRefresh()
             },
-            modifier = Modifier.size(metrics.button)
-        ) {
+            size = metrics.button
+        ) { tint ->
             Icon(
                 Lucide.RefreshCw,
                 contentDescription = stringResource(Res.string.ui_refresh),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = tint,
                 modifier = Modifier.size(metrics.icon).graphicsLayer { rotationZ = refreshRotation.value }
             )
         }
-        ChatTopBarAddPanelButton(currentChannel = channelLogin)
-        LiquidGlassTooltipBox(tooltip = stringResource(Res.string.main_channel_badges_bits)) {
-            ChatoneIconButton(onClick = callbacks.onOpenPointsBits, modifier = Modifier.size(metrics.button)) {
+        PointsBalanceTooltipBox(points = points, onWanted = callbacks.onPointsWanted) {
+            TactileIconButton(onClick = callbacks.onOpenPointsBits, size = metrics.button) { tint ->
                 Icon(
                     TwitchPointsIcon,
                     contentDescription = stringResource(Res.string.main_channel_badges_bits),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = tint,
                     modifier = Modifier.size(metrics.icon)
                 )
             }
         }
-        if (!isMod) return@Row
-        if (pinnedMacros.isNotEmpty()) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 4.dp)
-            ) {
-                pinnedMacros.forEach { macro ->
-                    LiquidGlassTooltipBox(
-                        tooltip = stringResource(Res.string.chat_macro_tooltip, macro.name.ifBlank { macro.icon })
-                    ) {
-                        MacroQuickButton(
-                            macro = macro,
-                            size = metrics.macro,
-                            onRun = { callbacks.onExecuteMacro(macro) },
-                            onEdit = { callbacks.onEditMacro(macro) }
-                        )
+        if (isMod) {
+            if (pinnedMacros.isNotEmpty()) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                ) {
+                    pinnedMacros.forEach { macro ->
+                        LiquidGlassTooltipBox(
+                            tooltip = stringResource(Res.string.chat_macro_tooltip, macro.name.ifBlank { macro.icon })
+                        ) {
+                            MacroQuickButton(
+                                macro = macro,
+                                size = metrics.macro,
+                                onRun = { callbacks.onExecuteMacro(macro) },
+                                onEdit = { callbacks.onEditMacro(macro) }
+                            )
+                        }
                     }
                 }
             }
-        }
-        LiquidGlassTooltipBox(tooltip = "Mod Mode") {
-            FilledIconToggleButton(
-                checked = modModeEnabled,
-                onCheckedChange = { callbacks.onToggleModMode() },
-                modifier = Modifier.size(metrics.button),
-                colors = IconButtonDefaults.filledIconToggleButtonColors(
-                    checkedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                    checkedContentColor = MaterialTheme.colorScheme.primary,
-                    containerColor = Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Icon(
-                    imageVector = Lucide.Swords,
-                    contentDescription = stringResource(Res.string.ui_mod_mode),
-                    modifier = Modifier.size(metrics.icon)
-                )
+            val modModeLabel = stringResource(Res.string.ui_mod_mode)
+            LiquidGlassTooltipBox(tooltip = modModeLabel) {
+                TactileIconButton(
+                    onClick = callbacks.onToggleModMode,
+                    size = metrics.button,
+                    checked = modModeEnabled
+                ) { tint ->
+                    Icon(
+                        imageVector = Lucide.Swords,
+                        contentDescription = modModeLabel,
+                        tint = tint,
+                        modifier = Modifier.size(metrics.icon)
+                    )
+                }
+            }
+            val modPanelLabel = stringResource(Res.string.ui_mod_panel)
+            LiquidGlassTooltipBox(tooltip = modPanelLabel) {
+                TactileIconButton(
+                    onClick = callbacks.onOpenModPanel,
+                    size = metrics.button,
+                    checked = modPanelOpen,
+                    colors = TactileIconButtonDefaults.colors(
+                        checkedContainer = MaterialTheme.colorScheme.secondaryContainer,
+                        checkedContent = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) { tint ->
+                    Icon(
+                        Lucide.Wrench,
+                        contentDescription = modPanelLabel,
+                        tint = tint,
+                        modifier = Modifier.size(metrics.icon)
+                    )
+                }
             }
         }
-        LiquidGlassTooltipBox(tooltip = "Mod Panel") {
-            FilledIconToggleButton(
-                checked = modPanelOpen,
-                onCheckedChange = { callbacks.onOpenModPanel() },
-                modifier = Modifier.size(metrics.button),
-                colors = IconButtonDefaults.filledIconToggleButtonColors(
-                    checkedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    checkedContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    containerColor = Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Icon(
-                    Lucide.Wrench,
-                    contentDescription = stringResource(Res.string.ui_mod_panel),
-                    modifier = Modifier.size(metrics.icon)
-                )
-            }
-        }
+        ChatTopBarAddPanelButton(
+            currentChannel = channelLogin,
+            buttonSize = metrics.button,
+            iconSize = metrics.icon
+        )
     }
+}
+
+@Composable
+private fun PointsBalanceTooltipBox(
+    points: TopBarPoints,
+    onWanted: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val fallback = stringResource(Res.string.main_channel_badges_bits)
+    LiquidGlassTooltipBox(
+        tooltipContent = {
+            LaunchedEffect(Unit) { onWanted() }
+            val balance = points.balance
+            if (balance == null) {
+                Text(
+                    text = fallback,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            } else {
+                val formatted = groupedNumber(balance)
+                val description = stringResource(Res.string.points_balance_description, formatted)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description }
+                ) {
+                    CurrencyIcon("POINTS", points.iconUrl, size = 14, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = formatted,
+                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        },
+        content = content
+    )
 }
 
 private val NarrowBarWidth = 360.dp
@@ -396,6 +460,7 @@ private fun MacroQuickButton(
     Box(
         modifier = Modifier
             .size(size)
+            .tactilePress(interaction, pressedScale = 0.86f)
             .clip(MacroButtonShape)
             .drawBehind { drawRect(container.value) }
             .animatedBorder(1.dp, MacroButtonShape) { border.value }

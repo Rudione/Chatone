@@ -4,7 +4,6 @@ import io.rudione.chatone.presentation.chat.threads.LocalReplyThreadOpener
 import io.rudione.chatone.presentation.text.asString
 import io.rudione.chatone.presentation.text.resolve
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.chat_scroll_to_bottom
 import chatone.composeapp.generated.resources.chat_send_message_in
 import chatone.composeapp.generated.resources.uploader_confirm_no
 import chatone.composeapp.generated.resources.uploader_confirm_text
@@ -38,7 +37,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
@@ -52,7 +50,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -63,8 +60,6 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
 import io.rudione.chatone.util.platform.rememberInputCapabilities
-import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -106,9 +101,7 @@ import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.domain.model.DisplayMessage
@@ -118,6 +111,16 @@ import io.rudione.chatone.presentation.chat.components.NotableChatterItem
 import io.rudione.chatone.presentation.chat.components.RewardRedemptionItem
 import io.rudione.chatone.domain.mention.MentionInsertion
 import io.rudione.chatone.presentation.chat.components.ChatTopBar
+import io.rudione.chatone.presentation.chat.components.ChatJumpButtons
+import io.rudione.chatone.presentation.chat.components.TopBarPoints
+import io.rudione.chatone.presentation.chat.mentions.MentionSeenEffect
+import io.rudione.chatone.presentation.chat.mentions.centerIndex
+import io.rudione.chatone.presentation.chat.mentions.jumpFlash
+import io.rudione.chatone.presentation.chat.mentions.mentionRefsOf
+import io.rudione.chatone.presentation.chat.mentions.rememberChatAttention
+import io.rudione.chatone.presentation.chat.mentions.rememberMentionJumpState
+import io.rudione.chatone.presentation.chat.mentions.rememberMessageJumpFlash
+import io.rudione.chatone.presentation.chat.mentions.reportsActivity
 import io.rudione.chatone.presentation.chat.components.roomModeLabels
 import io.rudione.chatone.presentation.chat.components.ModActionConfirmDialog
 import io.rudione.chatone.presentation.chat.components.PendingModAction
@@ -192,10 +195,12 @@ import io.rudione.chatone.util.system.ChannelPanelRequestBus
 import io.rudione.chatone.util.system.ChannelPanelRequestBus.openPointsBitsPanel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Clock
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import io.rudione.chatone.icons.lucide.ChevronDown
 import io.rudione.chatone.icons.lucide.Info
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Reply
@@ -341,6 +346,24 @@ fun ChatScreen(
     val chatBoxFocusRequester = remember { FocusRequester() }
     val coroutineScope = rememberCoroutineScope()
     val follow = rememberChatFollowState(listState)
+    val attention = rememberChatAttention()
+    val channelInSync = state.channelLogin.equals(channelLogin, ignoreCase = true)
+    val mentionRefs = remember(dedupedMessages, channelInSync, channelLogin, mentionMuteRepository) {
+        if (!channelInSync) null
+        else mentionRefsOf(dedupedMessages) { login -> mentionMuteRepository?.isMuted(login, channelLogin) == true }
+    }
+    val mentionJump = rememberMentionJumpState(
+        channelLogin = channelLogin,
+        mentions = mentionRefs,
+        newestTimestampMs = if (channelInSync) dedupedMessages.lastOrNull()?.timestamp else null
+    )
+    val jumpFlash = rememberMessageJumpFlash()
+    MentionSeenEffect(
+        listState = listState,
+        mentions = mentionJump,
+        attention = attention,
+        followingLive = !follow.isPausedByScroll
+    )
     val modButtonsOnHover = settingsState.modButtonsOnHover && rememberInputCapabilities().pointer
     val requestTimeout: (String, String) -> Unit = { userId, name ->
         if (settingsState.confirmModActions) {
@@ -591,21 +614,6 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(options.pendingScrollMessageId, listState) {
-        val targetId = options.pendingScrollMessageId ?: return@LaunchedEffect
-        if (!channelLogin.equals(state.channelLogin, ignoreCase = true)) return@LaunchedEffect
-        repeat(20) {
-            val idx = dedupedMessages.indexOfFirst { it.id == targetId }
-            if (idx >= 0) {
-                follow.pause()
-                listState.animateScrollToItem(idx)
-                callbacks.onScrollToMessageHandled()
-                return@LaunchedEffect
-            }
-            delay(500)
-        }
-        callbacks.onScrollToMessageHandled()
-    }
     val hotkeyHandler = remember<(KeyEvent) -> Boolean> {
         handler@{ event ->
             if (GlobalKeyDispatcher.isTextInputActive) return@handler false
@@ -758,6 +766,40 @@ fun ChatScreen(
         OverlayContentPadding(horizontal = 4.dp, vertical = 2.dp, density = chatDensity) { bottomStackHeightPx }
     }
     val chatInputGlass = rememberChatInputGlass(listState = listState, followingLive = !effectivelyPaused)
+    val jumpFlashColor = MaterialTheme.colorScheme.primary
+    val pointsWanted = remember(viewModel) { { viewModel.sendEvent(ChatEvent.OnPointsBalanceWanted) } }
+    val dedupedLatest by rememberUpdatedState(dedupedMessages)
+    val channelInSyncLatest by rememberUpdatedState(channelInSync)
+    val revealMessage: suspend (String) -> Unit = remember(listState, mentionJump, jumpFlash, follow) {
+        reveal@{ messageId ->
+            val index = dedupedLatest.indexOfFirst { it.id == messageId }
+            if (index < 0) return@reveal
+            mentionJump.consume(messageId)
+            follow.pause()
+            val viewport = listState.layoutInfo.viewportSize.height
+            listState.animateScrollToItem(index, -(viewport * JUMP_TARGET_FROM_TOP).toInt())
+            coroutineScope.launch { jumpFlash.flash(messageId) }
+        }
+    }
+    val jumpToMention: () -> Unit = remember(listState, mentionJump, revealMessage) {
+        jump@{
+            val messages = dedupedLatest
+            val target = mentionJump.nearest(
+                indexOf = { id -> messages.indexOfFirst { it.id == id } },
+                anchorIndex = listState.layoutInfo.centerIndex()
+            ) ?: return@jump
+            mentionJump.consume(target.messageId)
+            coroutineScope.launch { revealMessage(target.messageId) }
+        }
+    }
+    LaunchedEffect(options.pendingScrollMessageId, listState) {
+        val targetId = options.pendingScrollMessageId ?: return@LaunchedEffect
+        val arrived = withTimeoutOrNull(PENDING_SCROLL_TIMEOUT_MS) {
+            snapshotFlow { channelInSyncLatest && dedupedLatest.any { it.id == targetId } }.first { it }
+        }
+        if (arrived != null) revealMessage(targetId)
+        callbacks.onScrollToMessageHandled()
+    }
     val messageDensity = rememberChatMessageDensity()
     val messageScale = messageDensity.density / chatDensity.density
 
@@ -765,7 +807,11 @@ fun ChatScreen(
         modifier = modifier.fillMaxSize()
             .focusRequester(chatBoxFocusRequester)
             .focusable(enabled = surfaceStyle.claimsFocus)
-            .onPreviewKeyEvent { event -> hotkeyHandler(event) }
+            .reportsActivity(attention)
+            .onPreviewKeyEvent { event ->
+                attention.onActivity()
+                hotkeyHandler(event)
+            }
             .externalFileDropTarget(
                 enabled = settingsState.imageUploader.isUsable,
                 onFilesDropped = { paths ->
@@ -828,6 +874,11 @@ fun ChatScreen(
                             streamHost?.reloadIfWatching(channelLogin)
                         },
                         onOpenPointsBits = { viewModel.sendEvent(ChatEvent.OnOpenPointsBitsPanel) },
+                        points = TopBarPoints(
+                            balance = state.pointsBalance.takeIf { state.pointsBalanceAtMs > 0L },
+                            iconUrl = state.pointsIconUrl,
+                            onWanted = pointsWanted
+                        ),
                         isCompact = !options.isWideScreen,
                         showMenuButton = !options.isWideScreen && !options.isMultiChat,
                         menuBadgeCount = options.menuBadgeCount,
@@ -1096,7 +1147,7 @@ fun ChatScreen(
                                                         style = swipeReplyStyle
                                                     ) {
                                                         viewModel.sendEvent(ChatEvent.OnReplyToMessage(message))
-                                                    }
+                                                    }.jumpFlash(jumpFlash, message.id, jumpFlashColor)
                                                 )
 
                                                 is DisplayMessage.SystemMsg -> SystemMsgItem(message)
@@ -1346,62 +1397,6 @@ fun ChatScreen(
                                         }
                                     )
                                 }
-
-                                if ((hasNewMessagesWhilePaused || follow.isPausedByScroll || isPausedByHotkey) && state.messages.isNotEmpty()) {
-                                    Box(
-                                        modifier = Modifier.align(Alignment.BottomEnd)
-                                            .offset { IntOffset(0, -bottomStackHeightPx) }
-                                            .padding(12.dp)
-                                    ) {
-                                        SmallFloatingActionButton(
-                                            onClick = {
-                                                follow.resume()
-                                                isPausedByHotkey = false
-                                                isHoveredOverChat = false
-                                                hasNewMessagesWhilePaused = false
-                                                unreadCount = 0
-                                                coroutineScope.launch {
-                                                    if (renderedCount > 0) stickToBottom()
-                                                }
-                                            },
-                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                        ) {
-                                            Icon(
-                                                Lucide.ChevronDown,
-                                                contentDescription = stringResource(Res.string.chat_scroll_to_bottom)
-                                            )
-                                        }
-                                        if (unreadCount > 0) {
-                                            val badgeText =
-                                                if (unreadCount > 99) "99+" else "$unreadCount"
-                                            Surface(
-                                                modifier = Modifier.align(Alignment.TopEnd)
-                                                    .offset(x = 4.dp, y = (-4).dp)
-                                                    .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp),
-                                                shape = CircleShape,
-                                                color = MaterialTheme.colorScheme.error,
-                                                shadowElevation = 2.dp
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier.padding(horizontal = 5.dp),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(
-                                                        text = badgeText,
-                                                        color = MaterialTheme.colorScheme.onError,
-                                                        fontSize = 10.sp,
-                                                        lineHeight = 12.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1,
-                                                        softWrap = false,
-                                                        textAlign = TextAlign.Center
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                           }
                         }
@@ -1646,6 +1641,34 @@ fun ChatScreen(
             }
         }
 
+        ChatJumpButtons(
+            showScrollDown = (hasNewMessagesWhilePaused || follow.isPausedByScroll || isPausedByHotkey) &&
+                state.messages.isNotEmpty() && !state.isLoading,
+            unreadCount = unreadCount,
+            mentions = mentionJump,
+            onScrollDown = {
+                follow.resume()
+                isPausedByHotkey = false
+                isHoveredOverChat = false
+                hasNewMessagesWhilePaused = false
+                unreadCount = 0
+                coroutineScope.launch {
+                    if (renderedCount > 0) stickToBottom()
+                }
+            },
+            onJumpToMention = jumpToMention,
+            onMentionAuthors = { names ->
+                viewModel.sendEvent(ChatEvent.OnInsertMentions(names))
+            },
+            glass = chatInputGlass,
+            modifier = Modifier.align(Alignment.BottomEnd)
+                .offset { IntOffset(0, -bottomStackHeightPx) }
+                .padding(
+                    end = if (surfaceStyle.showScrollbar) settingsState.chatScrollbarWidth.dp + JUMP_SCROLLBAR_GAP else JUMP_EDGE_GAP,
+                    bottom = JUMP_EDGE_GAP
+                )
+        )
+
         if (state.showMentionCompletions && state.mentionCompletions.isNotEmpty()) {
             MentionAutocompleteRow(
                 modifier = Modifier.insetBottom { inputHeightPx },
@@ -1854,5 +1877,13 @@ private fun ChatErrorBanner(message: String?, onDismiss: () -> Unit) {
 }
 
 private const val FOCUS_SETTLE_FRAMES = 2
+
+private const val JUMP_TARGET_FROM_TOP = 0.3f
+
+private const val PENDING_SCROLL_TIMEOUT_MS = 10_000L
+
+private val JUMP_SCROLLBAR_GAP = 3.dp
+
+private val JUMP_EDGE_GAP = 12.dp
 
 private val MessageBackdropShape = RoundedCornerShape(8.dp)

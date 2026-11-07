@@ -1,34 +1,27 @@
 package io.rudione.chatone.presentation.chat.components
 
-import chatone.composeapp.generated.resources.ui_emotes
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.cancel
 import chatone.composeapp.generated.resources.chat_banned_word_message
 import chatone.composeapp.generated.resources.chat_banned_word_send_anyway
 import chatone.composeapp.generated.resources.chat_banned_word_title
 import chatone.composeapp.generated.resources.chat_placeholder
-import chatone.composeapp.generated.resources.chat_send
 import chatone.composeapp.generated.resources.chat_you_are_banned
 import chatone.composeapp.generated.resources.copy
 import chatone.composeapp.generated.resources.cut
 import chatone.composeapp.generated.resources.input_auto_translate
 import chatone.composeapp.generated.resources.input_translate
 import chatone.composeapp.generated.resources.paste
-import chatone.composeapp.generated.resources.uploader_copy_link
-import chatone.composeapp.generated.resources.uploader_link_copied
-import chatone.composeapp.generated.resources.uploader_uploading
 import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.components.layoutHeight
-import io.rudione.chatone.presentation.components.animatedBorder
+import io.rudione.chatone.presentation.components.layoutWidth
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
@@ -54,7 +47,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -70,7 +62,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.data.remote.TranslationClient
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
@@ -79,7 +70,6 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
 import io.rudione.chatone.presentation.theme.bottomBarBackgroundColor
-import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.util.Result
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -88,15 +78,11 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import org.koin.compose.koinInject
-import io.rudione.chatone.icons.lucide.Check
 import io.rudione.chatone.icons.lucide.ClipboardPaste
 import io.rudione.chatone.icons.lucide.Copy
 import io.rudione.chatone.icons.lucide.Languages
-import io.rudione.chatone.icons.lucide.Link
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Scissors
-import io.rudione.chatone.icons.lucide.SendHorizontal
-import io.rudione.chatone.icons.lucide.Smile
 import io.rudione.chatone.icons.lucide.X
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
@@ -126,7 +112,8 @@ internal fun MessageInput(
     completionCallbacks: InputCompletionCallbacks = InputCompletionCallbacks(),
     upload: MessageInputUploadState = MessageInputUploadState(),
     translation: MessageInputTranslation = MessageInputTranslation(),
-    glass: ChatInputGlass? = null
+    glass: ChatInputGlass? = null,
+    metrics: MessageInputMetrics = MessageInputMetrics.current()
 ) {
     val isBanned = chrome.isBanned
     val banReason = chrome.banReason
@@ -225,63 +212,28 @@ internal fun MessageInput(
 
     val borderColor by animateColorAsState(
         when {
-            isBanned -> errorRed
-            bannedWordHit != null -> errorRed
-            isOverLimit -> errorRed
+            isBanned || bannedWordHit != null || isOverLimit -> errorRed
             isNearLimit -> warnAmber
-            isFocused -> primaryCol.copy(alpha = 0.92f)
-            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.82f)
+            isFocused -> MaterialTheme.colorScheme.outline
+            else -> MaterialTheme.colorScheme.outlineVariant
         },
         tween(220)
     )
 
     val borderWidth by animateDpAsState(
-        when {
-            isBanned || isOverLimit || bannedWordHit != null -> 1.8.dp
-            isFocused -> 1.55.dp
-            else -> 1.15.dp
-        },
+        if (isBanned || isOverLimit || bannedWordHit != null) 1.5.dp else 1.dp,
         tween(220)
     )
 
     val containerColor by animateColorAsState(
         when {
             isBanned -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.14f)
-            isFocused -> MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.96f)
-            else -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.88f)
+            isFocused -> MaterialTheme.colorScheme.surfaceContainerHighest
+            else -> MaterialTheme.colorScheme.surfaceContainerHigh
         },
         tween(220)
     )
-
-    val glowColor by animateColorAsState(
-        when {
-            isFocused -> primaryCol.copy(alpha = 0.14f)
-            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
-        },
-        tween(220)
-    )
-
-    val sendContainerColor by animateColorAsState(
-        when {
-            canSend && isFocused -> primaryCol
-            canSend -> primaryCol.copy(alpha = 0.9f)
-            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-        },
-        tween(180)
-    )
-
-    val sendScale by animateFloatAsState(
-        if (canSend && isFocused) 1f else 0.97f,
-        tween(180)
-    )
-
-    val emojiContainerColor by animateColorAsState(
-        when {
-            isFocused -> primaryCol.copy(alpha = 0.1f)
-            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.035f)
-        },
-        tween(180)
-    )
+    val shadowColor = ChatoneTheme.extraColors.shadowColor
 
     val bottomWallpaper = LocalWallpaperController.current.state
 
@@ -369,196 +321,168 @@ internal fun MessageInput(
             )
         }
 
-        Box(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-
-            if (glass == null) {
-                if (bottomBarBlur > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(bottomBarColor)
-                            .panelBlur(bottomBarBlur)
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(bottomBarColor)
-                    )
+        val surface = InputSurface(
+            resting = { containerColor.compositeOver(bottomBarColor) },
+            border = { androidx.compose.ui.graphics.lerp(borderColor, glowColor, glowAlpha()) },
+            borderWidth = { borderWidth },
+            focused = isFocused,
+            shadow = shadowColor
+        )
+        val onTfvChange: (TextFieldValue) -> Unit = { updated ->
+            tfv = updated
+            onValueChange(updated.text)
+        }
+        val fieldContent: @Composable RowScope.() -> Unit = {
+            MessageInputTextField(
+                tfv = tfv,
+                onTfvChange = onTfvChange,
+                enabled = enabled,
+                isFocused = isFocused,
+                primaryCol = primaryCol,
+                textStyle = metrics.textStyle(),
+                focusRequester = focusRequester,
+                interactionSource = interactionSource,
+                hidePlaceholder = hidePlaceholder,
+                placeholderText = placeholderText,
+                completions = completions,
+                completionCallbacks = completionCallbacks,
+                canSend = canSend,
+                pauseHotkey = chrome.pauseHotkey,
+                onSend = { keepText -> performSend(keepText) },
+                onHistoryUp = actions.onHistoryUp,
+                onHistoryDown = actions.onHistoryDown,
+                onTogglePause = actions.onTogglePause,
+                onContextMenu = { position ->
+                    inputContextMenuOffset = position
+                    showInputContextMenu = true
                 }
+            )
+            if (showInputContextMenu) {
+                MessageInputContextMenu(
+                    offset = inputContextMenuOffset,
+                    tfv = tfv,
+                    autoTranslateEnabled = autoTranslateEnabled,
+                    onToggleAutoTranslate = onToggleAutoTranslate,
+                    onTfvChange = onTfvChange,
+                    onTranslate = { translateInputInPlace() },
+                    onDismiss = { showInputContextMenu = false },
+                    clipboard = clipboard,
+                    scope = inputScope
+                )
             }
+            if (autoTranslateEnabled) {
+                MessageInputTranslationChip(
+                    targetLang = translationTargetLang,
+                    enabled = enabled,
+                    onSelectLanguage = translation.onTargetLangChange,
+                    onTurnOff = { onToggleAutoTranslate(false) }
+                )
+            }
+        }
+        val slowmodeRing: @Composable BoxScope.() -> Unit = {
+            if (showSlowmodeRing) {
+                MessageInputSlowmodeRing(fraction = { slowmodeFraction.value }, color = slowmodeColor)
+            }
+        }
+        val limits: @Composable () -> Unit = {
+            MessageInputLimits(
+                charCount = charCount,
+                maxChars = MAX_CHARS,
+                isNearLimit = isNearLimit,
+                isOverLimit = isOverLimit,
+                slowmodeRemainingSeconds = slowmodeRemainingSeconds,
+                slowmodeColor = slowmodeColor
+            )
+        }
 
-            Column(
+        if (glass != null && !metrics.touch) {
+            SegmentedMessageBar(
+                glass = glass,
+                metrics = metrics,
+                surface = surface,
+                upload = upload,
+                emoji = if (hideEmojiButton || isBanned) null else {
+                    { MessageInputEmojiButton(enabled = enabled, metrics = metrics, onClick = onEmotePickerClick) }
+                },
+                send = { size ->
+                    MessageInputSendButton(canSend = canSend, metrics = metrics, onClick = { performSend(false) }, diameter = size)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(
-                        if (glass == null) {
-                            Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        } else {
-                            Modifier.padding(
-                                start = glass.style.horizontalMargin,
-                                end = glass.style.horizontalMargin,
-                                top = glass.style.topMargin,
-                                bottom = glass.style.bottomMargin
-                            )
-                        }
+                    .padding(
+                        start = glass.style.horizontalMargin,
+                        end = glass.style.horizontalMargin,
+                        top = glass.style.topMargin,
+                        bottom = glass.style.bottomMargin
                     )
-            ) {
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(
-                            if (glass == null) {
-                                Modifier
-                                    .shadow(
-                                        elevation = if (isFocused) 8.dp else 1.dp,
-                                        shape = RoundedCornerShape(24.dp),
-                                        ambientColor = glowColor,
-                                        spotColor = glowColor
-                                    )
-                                    .animatedBorder({ borderWidth }, InputShape) { borderColor }
-                                    .clip(InputShape)
-                                    .drawBehind { drawRect(containerColor) }
-                            } else {
-                                Modifier.chatInputGlassSurface(
-                                    glass = glass,
-                                    resting = { containerColor.compositeOver(bottomBarColor) },
-                                    border = {
-                                        androidx.compose.ui.graphics.lerp(
-                                            borderColor,
-                                            glowColor,
-                                            glowAlpha()
-                                        )
-                                    },
-                                    borderWidth = { borderWidth },
-                                    focused = isFocused,
-                                    glow = glowColor
-                                )
-                            }
-                        )
-                ) {
-
-                    if (showSlowmodeRing) {
-                        MessageInputSlowmodeRing(
-                            fraction = { slowmodeFraction.value },
-                            color = slowmodeColor
-                        )
-                    }
-
-                    Box(
+            ) { split ->
+                slowmodeRing()
+                if (isBanned) {
+                    MessageInputBannedBanner(banReason = banReason, errorRed = errorRed)
+                } else {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (isFocused) 1.2.dp else 0.8.dp)
-                            .background(
-                                if (isFocused) primaryCol.copy(alpha = 0.22f)
-                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.025f)
-                            )
-                            .align(Alignment.TopCenter)
-                    )
-
+                            .heightIn(min = metrics.rowMinHeight)
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val startInset = if (hideEmojiButton) FieldInsetSplit else FieldInsetMerged
+                        Spacer(Modifier.layoutWidth { androidx.compose.ui.unit.lerp(startInset, FieldInsetSplit, split()) })
+                        fieldContent()
+                        limits()
+                        Spacer(Modifier.layoutWidth { androidx.compose.ui.unit.lerp(FieldInsetMerged, FieldInsetSplit, split()) })
+                    }
+                }
+            }
+        } else {
+            MessageInputPillBar(
+                glass = glass,
+                metrics = metrics,
+                surface = surface,
+                bottomBarColor = bottomBarColor,
+                bottomBarBlur = bottomBarBlur,
+                showSend = !isBanned && value.isNotBlank(),
+                pill = {
+                    slowmodeRing()
                     if (isBanned) {
                         MessageInputBannedBanner(banReason = banReason, errorRed = errorRed)
                     } else {
-
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 3.dp),
+                                .heightIn(min = metrics.rowMinHeight)
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-
-                            if (!hideEmojiButton) {
-                                MessageInputEmojiButton(
-                                    enabled = enabled,
-                                    isFocused = isFocused,
-                                    emojiContainerColor = { emojiContainerColor },
-                                    primaryCol = primaryCol,
-                                    onClick = onEmotePickerClick
-                                )
+                            if (hideEmojiButton) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                            } else {
+                                MessageInputEmojiButton(enabled = enabled, metrics = metrics, onClick = onEmotePickerClick)
                             }
-
-                            MessageInputTextField(
-                                tfv = tfv,
-                                onTfvChange = { updated ->
-                                    tfv = updated
-                                    onValueChange(updated.text)
-                                },
-                                enabled = enabled,
-                                isFocused = isFocused,
-                                primaryCol = primaryCol,
-                                focusRequester = focusRequester,
-                                interactionSource = interactionSource,
-                                hidePlaceholder = hidePlaceholder,
-                                placeholderText = placeholderText,
-                                completions = completions,
-                                completionCallbacks = completionCallbacks,
-                                canSend = canSend,
-                                pauseHotkey = chrome.pauseHotkey,
-                                onSend = { keepText -> performSend(keepText) },
-                                onHistoryUp = actions.onHistoryUp,
-                                onHistoryDown = actions.onHistoryDown,
-                                onTogglePause = actions.onTogglePause,
-                                onContextMenu = { position ->
-                                    inputContextMenuOffset = position
-                                    showInputContextMenu = true
+                            fieldContent()
+                            if (upload.progress != null || upload.link != null) {
+                                MessageInputUploadButton(upload = upload, size = metrics.emojiTarget)
+                            }
+                            if (!metrics.touch) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(end = 2.dp)
+                                ) {
+                                    MessageInputSendButton(canSend = canSend, metrics = metrics, onClick = { performSend(false) })
+                                    limits()
                                 }
-                            )
-
-                            if (showInputContextMenu) {
-                                MessageInputContextMenu(
-                                    offset = inputContextMenuOffset,
-                                    tfv = tfv,
-                                    autoTranslateEnabled = autoTranslateEnabled,
-                                    onToggleAutoTranslate = onToggleAutoTranslate,
-                                    onTfvChange = { updated ->
-                                        tfv = updated
-                                        onValueChange(updated.text)
-                                    },
-                                    onTranslate = { translateInputInPlace() },
-                                    onDismiss = { showInputContextMenu = false },
-                                    clipboard = clipboard,
-                                    scope = inputScope
-                                )
                             }
-
-                            if (autoTranslateEnabled) {
-                                MessageInputTranslationChip(
-                                    targetLang = translationTargetLang,
-                                    enabled = enabled,
-                                    onSelectLanguage = translation.onTargetLangChange,
-                                    onTurnOff = { onToggleAutoTranslate(false) }
-                                )
-                            }
-
-                            MessageInputUploadStatus(
-                                uploadProgress = uploadProgress,
-                                uploadedLink = uploadedLink,
-                                primaryCol = primaryCol,
-                                onCopyUploadedLink = onCopyUploadedLink
-                            )
-
-                            MessageInputSendColumn(
-                                canSend = canSend,
-                                sendScale = { sendScale },
-                                sendContainerColor = { sendContainerColor },
-                                primaryCol = primaryCol,
-                                charCount = charCount,
-                                maxChars = MAX_CHARS,
-                                isNearLimit = isNearLimit,
-                                isOverLimit = isOverLimit,
-                                errorRed = errorRed,
-                                warnAmber = warnAmber,
-                                slowmodeRemainingSeconds = slowmodeRemainingSeconds,
-                                slowmodeColor = slowmodeColor,
-                                onSendClick = { performSend(false) }
-                            )
                         }
                     }
+                },
+                send = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        MessageInputSendButton(canSend = canSend, metrics = metrics, onClick = { performSend(false) })
+                        limits()
+                    }
                 }
-            }
+            )
         }
 
         if (showBannedWordConfirm) {
@@ -680,6 +604,7 @@ private fun RowScope.MessageInputTextField(
     enabled: Boolean,
     isFocused: Boolean,
     primaryCol: Color,
+    textStyle: TextStyle,
     focusRequester: FocusRequester,
     interactionSource: MutableInteractionSource,
     hidePlaceholder: Boolean,
@@ -702,7 +627,7 @@ private fun RowScope.MessageInputTextField(
             onValueChange = onTfvChange,
             modifier = Modifier
                 .weight(1f)
-                .padding(vertical = 4.dp)
+                .padding(start = 4.dp, top = 4.dp, bottom = 4.dp)
                 .focusRequester(focusRequester)
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
@@ -804,20 +729,17 @@ private fun RowScope.MessageInputTextField(
             enabled = enabled,
             maxLines = 4,
             interactionSource = interactionSource,
-            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                color = MaterialTheme.colorScheme.onSurface
-            ),
+            textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(primaryCol),
             decorationBox = { inner ->
                 if (tfv.text.isEmpty() && !hidePlaceholder) {
                     Text(
                         placeholderText ?: stringResource(Res.string.chat_placeholder),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = textStyle,
                         maxLines = 1,
                         softWrap = false,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
-                            .copy(alpha = if (isFocused) 0.56f else 0.42f)
                     )
                 }
                 inner()
@@ -891,47 +813,6 @@ private fun MessageInputBannedBanner(banReason: String?, errorRed: Color) {
             }
         }
     }
-}
-
-@Composable
-private fun MessageInputEmojiButton(
-    enabled: Boolean,
-    isFocused: Boolean,
-    emojiContainerColor: () -> Color,
-    primaryCol: Color,
-    onClick: () -> Unit
-) {
-    Spacer(modifier = Modifier.width(6.dp))
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .drawBehind { drawRect(emojiContainerColor()) }
-            .border(
-                width = if (isFocused) 0.7.dp else 0.dp,
-                color = if (isFocused) primaryCol.copy(alpha = 0.16f) else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                enabled = enabled,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Lucide.Smile,
-            contentDescription = stringResource(Res.string.ui_emotes),
-            modifier = Modifier.size(21.dp),
-            tint = if (enabled) {
-                if (isFocused) primaryCol else primaryCol.copy(alpha = 0.68f)
-            } else {
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f)
-            }
-        )
-    }
-    Spacer(modifier = Modifier.width(4.dp))
 }
 
 @Composable
@@ -1061,151 +942,6 @@ private fun MessageInputContextMenu(
 }
 
 @Composable
-private fun MessageInputUploadStatus(
-    uploadProgress: Float?,
-    uploadedLink: String?,
-    primaryCol: Color,
-    onCopyUploadedLink: () -> Unit
-) {
-    if (uploadProgress != null) {
-        LiquidGlassTooltipBox(tooltip = stringResource(Res.string.uploader_uploading)) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .padding(end = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    progress = { uploadProgress.coerceIn(0f, 1f) },
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 2.5.dp,
-                    color = primaryCol,
-                    trackColor = primaryCol.copy(alpha = 0.15f)
-                )
-            }
-        }
-    } else if (uploadedLink != null) {
-        var justCopied by remember(uploadedLink) { mutableStateOf(false) }
-        LaunchedEffect(justCopied) {
-            if (justCopied) {
-                kotlinx.coroutines.delay(1500)
-                justCopied = false
-            }
-        }
-        LiquidGlassTooltipBox(
-            tooltip = if (justCopied) stringResource(Res.string.uploader_link_copied) else stringResource(
-                Res.string.uploader_copy_link
-            )
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(primaryCol.copy(alpha = 0.12f))
-                    .border(
-                        width = 0.7.dp,
-                        color = primaryCol.copy(alpha = 0.25f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {
-                            justCopied = true
-                            onCopyUploadedLink()
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    if (justCopied) Lucide.Check else Lucide.Link,
-                    contentDescription = stringResource(Res.string.uploader_copy_link),
-                    modifier = Modifier.size(18.dp),
-                    tint = primaryCol
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(4.dp))
-    }
-}
-
-@Composable
-private fun MessageInputSendColumn(
-    canSend: Boolean,
-    sendScale: () -> Float,
-    sendContainerColor: () -> Color,
-    primaryCol: Color,
-    charCount: Int,
-    maxChars: Int,
-    isNearLimit: Boolean,
-    isOverLimit: Boolean,
-    errorRed: Color,
-    warnAmber: Color,
-    slowmodeRemainingSeconds: Int,
-    slowmodeColor: Color,
-    onSendClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier.padding(end = 4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .graphicsLayer {
-                    val scale = sendScale()
-                    scaleX = scale
-                    scaleY = scale
-                }
-                .clip(RoundedCornerShape(16.dp))
-                .drawBehind { drawRect(sendContainerColor()) }
-                .border(
-                    width = if (canSend) 1.dp else 0.dp,
-                    color = primaryCol.copy(alpha = 0.22f),
-                    shape = RoundedCornerShape(16.dp)
-                )
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    enabled = canSend,
-                    onClick = onSendClick
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Lucide.SendHorizontal,
-                contentDescription = stringResource(Res.string.chat_send),
-                modifier = Modifier.size(18.dp),
-                tint = if (canSend) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f)
-                }
-            )
-        }
-
-        if (isNearLimit || isOverLimit) {
-            Text(
-                text = "$charCount/$maxChars",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                color = if (isOverLimit) errorRed else warnAmber,
-                fontWeight = if (isOverLimit) FontWeight.SemiBold else FontWeight.Medium
-            )
-        }
-
-        if (slowmodeRemainingSeconds > 0) {
-            Text(
-                text = formatSlowmodeRemaining(slowmodeRemainingSeconds),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                color = slowmodeColor,
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
-}
-
-@Composable
 private fun MessageInputBannedWordDialog(
     errorRed: Color,
     onConfirm: () -> Unit,
@@ -1227,17 +963,27 @@ private fun MessageInputBannedWordDialog(
     )
 }
 
-private fun formatSlowmodeRemaining(totalSeconds: Int): String {
-    return if (totalSeconds >= 60) {
-        "${totalSeconds / 60}:${(totalSeconds % 60).toString().padStart(2, '0')}"
-    } else {
-        "${totalSeconds}s"
-    }
-}
 
 @Composable
 fun LiquidGlassTooltipBox(
     tooltip: String,
+    content: @Composable () -> Unit
+) {
+    LiquidGlassTooltipBox(
+        tooltipContent = {
+            Text(
+                text = tooltip,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
+        content = content
+    )
+}
+
+@Composable
+fun LiquidGlassTooltipBox(
+    tooltipContent: @Composable () -> Unit,
     content: @Composable () -> Unit
 ) {
     HoverTooltipBox(
@@ -1251,11 +997,7 @@ fun LiquidGlassTooltipBox(
                     borderAlphaHigh = 0.25f,
                     borderAlphaLow = 0.08f
                 ) {
-                    Text(
-                        text = tooltip,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    tooltipContent()
                 }
             }
         },
@@ -1336,4 +1078,5 @@ private fun formatTimestampFor(
     }
 }
 
-private val InputShape = RoundedCornerShape(24.dp)
+private val FieldInsetMerged = 2.dp
+private val FieldInsetSplit = 12.dp

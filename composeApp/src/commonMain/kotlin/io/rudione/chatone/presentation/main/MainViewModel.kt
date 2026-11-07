@@ -232,7 +232,8 @@ sealed class MainEffect : UIEffect {
     data class MentionToast(
         val channelLogin: String,
         val fromDisplayName: String,
-        val text: String
+        val text: String,
+        val messageId: String
     ) : MainEffect()
 }
 
@@ -1578,10 +1579,10 @@ class MainViewModel(
     private fun channelsMissingProfile(): List<String> {
         val s = state.value
         val tabs = (s.openChannels + s.unfolderedChannels + s.folders.flatMap { it.channels } + s.recentChannels)
-            .associateBy { it.login.lowercase() }
+            .groupBy { it.login.lowercase() }
         return getAllChannelLogins().filter { login ->
-            val tab = tabs[login]
-            tab == null || tab.profileImageUrl.isEmpty() || tab.displayName.equals(tab.login, ignoreCase = true)
+            val group = tabs[login]
+            group == null || group.any { it.profileImageUrl.isEmpty() || it.displayName.equals(it.login, ignoreCase = true) }
         }
     }
 
@@ -1713,7 +1714,8 @@ class MainViewModel(
                         MainEffect.MentionToast(
                             channelLogin = channelLogin,
                             fromDisplayName = message.displayName,
-                            text = message.message.take(100)
+                            text = message.message.take(100),
+                            messageId = message.id
                         )
                     )
                 }

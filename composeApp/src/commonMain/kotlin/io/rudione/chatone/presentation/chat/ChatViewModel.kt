@@ -317,6 +317,7 @@ data class ChatState(
     val showPointsBitsPanel: Boolean = false,
     val pointsBitsLoading: Boolean = false,
     val pointsBalance: Long = 0L,
+    val pointsBalanceAtMs: Long = 0L,
     val channelRewards: List<GqlChannelPointReward> = emptyList(),
     val pointsIconUrl: String? = null,
     val pointsBitsError: UiText? = null,
@@ -394,6 +395,7 @@ sealed class ChatEvent : UiEvent {
     data class OnDeleteMessage(val messageId: String) : ChatEvent()
     data class OnWhisper(val username: String) : ChatEvent()
     data class OnInsertMention(val displayName: String) : ChatEvent()
+    data class OnInsertMentions(val names: List<String>) : ChatEvent()
     data class OnSetUserRole(
         val target: RoleTarget,
         val current: UserRoles,
@@ -428,6 +430,7 @@ sealed class ChatEvent : UiEvent {
     data class OnLockPrediction(val eventId: String) : ChatEvent()
 
     object OnOpenPointsBitsPanel : ChatEvent()
+    object OnPointsBalanceWanted : ChatEvent()
     object OnClosePointsBitsPanel : ChatEvent()
     object OnToggleHiddenEvents : ChatEvent()
     data class OnHideEventBanner(val key: String) : ChatEvent()
@@ -548,6 +551,7 @@ class ChatViewModel(
         private const val AI_HIGHLIGHT_BATCH = 80
         private const val AI_HIGHLIGHT_INTERVAL_MS = 10_000L
         private const val MAX_CACHED_CHANNELS = 10
+        private const val POINTS_BALANCE_FRESH_MS = 30_000L
         private const val MAX_HISTORY = 50
         private const val HIDDEN_EVENTS_MEMORY = 50
         private const val PINNED_SCROLLBACK_HEADROOM = 2000
@@ -737,7 +741,7 @@ class ChatViewModel(
                 ) else it
             }
             twitchGqlClient.getChannelPointRewardsGql(channelLogin, token)?.let { info ->
-                update { if (it.channelId == channelId) it.copy(pointsBalance = info.balance) else it }
+                update { if (it.channelId == channelId) it.copy(pointsBalance = info.balance, pointsBalanceAtMs = nowMs()) else it }
             }
             startPredictionPollingGql(channelLogin, channelId)
         }
@@ -1295,6 +1299,7 @@ class ChatViewModel(
             is ChatEvent.OnDeleteMessage -> deleteMessage(event.messageId)
             is ChatEvent.OnWhisper -> whisperUser(event.username)
             is ChatEvent.OnInsertMention -> insertMention(event.displayName)
+            is ChatEvent.OnInsertMentions -> insertMentions(event.names)
             is ChatEvent.OnSetUserRole -> roleController.set(event.target, event.current, event.role, event.granted)
             is ChatEvent.OnSelectEmoteCompletion -> selectEmoteCompletion(event.emote)
             ChatEvent.OnDismissCompletions -> update {
@@ -1340,6 +1345,7 @@ class ChatViewModel(
             is ChatEvent.OnResolvePrediction -> resolvePrediction(event.eventId, event.outcomeId)
             is ChatEvent.OnLockPrediction -> lockPrediction(event.eventId)
             ChatEvent.OnOpenPointsBitsPanel -> openPointsBitsPanel()
+            ChatEvent.OnPointsBalanceWanted -> refreshPointsBalanceIfStale()
             ChatEvent.OnClosePointsBitsPanel -> update { it.copy(showPointsBitsPanel = false) }
             ChatEvent.OnToggleHiddenEvents -> update { it.withHiddenEventsToggled(HIDDEN_EVENTS_MEMORY) }
             is ChatEvent.OnHideEventBanner -> update {
@@ -1856,6 +1862,7 @@ class ChatViewModel(
                 activePredictionId = null,
                 activePredictionOutcomes = emptyList(),
                 pointsBalance = 0L,
+                pointsBalanceAtMs = 0L,
                 channelRewards = emptyList(),
                 pointsIconUrl = null,
                 isBanned = false,
@@ -5269,6 +5276,43 @@ class ChatViewModel(
         update { it.copy(messageInput = "/w $username ") }
     }
 
+    private fun insertMentions(names: List<String>) {
+        if (names.isEmpty()) return
+        update { st ->
+            st.copy(
+                messageInput = MentionInsertion.appendAll(st.messageInput, names),
+                showMentionCompletions = false,
+                mentionCompletions = emptyList()
+            )
+        }
+        sendEffect(ChatEffect.FocusChatInput)
+    }
+
+    private var pointsBalanceJob: Job? = null
+
+    private fun refreshPointsBalanceIfStale() {
+        val s = state.value
+        if (s.channelLogin.isEmpty() || pointsBalanceJob?.isActive == true) return
+        if (nowMs() - s.pointsBalanceAtMs < POINTS_BALANCE_FRESH_MS) return
+        if (!moderationAuthStore.hasCustomToken()) return
+        val channelLogin = s.channelLogin
+        pointsBalanceJob = viewModelScope.launch {
+            val token = moderationAuthStore.resolveToken(s.currentAccessToken)
+            if (token.isBlank()) return@launch
+            val info = twitchGqlClient.getChannelPointRewardsGql(channelLogin, token) ?: return@launch
+            update {
+                if (!it.channelLogin.equals(channelLogin, ignoreCase = true)) it
+                else it.copy(
+                    pointsBalance = info.balance,
+                    pointsBalanceAtMs = nowMs(),
+                    pointsIconUrl = info.currencyIconUrl ?: it.pointsIconUrl
+                )
+            }
+        }
+    }
+
+    private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
+
     private fun insertMention(name: String) {
         update { st ->
             st.copy(
@@ -5743,6 +5787,7 @@ class ChatViewModel(
                     it.copy(
                         pointsBitsLoading = false,
                         pointsBalance = info.balance,
+                        pointsBalanceAtMs = nowMs(),
                         channelRewards = info.rewards,
                         pointsIconUrl = info.currencyIconUrl
                     )
@@ -5765,7 +5810,7 @@ class ChatViewModel(
             }
             when (val r = twitchGqlClient.redeemCustomRewardGql(s.channelId, reward, textInput, gqlToken)) {
                 is Result.Success -> {
-                    update { it.copy(pointsBalance = r.data.balance) }
+                    update { it.copy(pointsBalance = r.data.balance, pointsBalanceAtMs = nowMs()) }
                     systemNotice(s.channelLogin, uiText(Res.string.chat_vm_redeemed, reward.title))
                 }
                 is Result.Error ->
@@ -5804,7 +5849,7 @@ class ChatViewModel(
         if (!s.showPointsBitsPanel) return
         val gqlToken = moderationAuthStore.resolveToken(s.currentAccessToken)
         val info = twitchGqlClient.getChannelPointRewardsGql(s.channelLogin, gqlToken) ?: return
-        update { it.copy(pointsBalance = info.balance, channelRewards = info.rewards) }
+        update { it.copy(pointsBalance = info.balance, pointsBalanceAtMs = nowMs(), channelRewards = info.rewards) }
     }
 
     private fun raidNow() {

@@ -83,3 +83,6 @@ __pycache__/
 *.keystore
 keystore.properties
 .env
+scripts/portfolio/
+docs/portfolio/*_old/
+docs/portfolio/PLAYBOOK.md

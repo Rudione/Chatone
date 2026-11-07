@@ -338,12 +338,12 @@ class TwitchGqlClient(
             put("count", 1)
         }
         if (r !is Result.Success) return null
-        return r.data.firstOrNull()?.jsonObject
-            ?.get("data")?.jsonObject
-            ?.get("channel")?.jsonObject
-            ?.get("pinnedChatMessages")?.jsonObject
-            ?.get("edges")?.jsonArray?.firstOrNull()?.jsonObject
-            ?.get("node")?.jsonObject
+        return r.data.firstOrNull()?.asObjectOrNull()
+            ?.get("data")?.asObjectOrNull()
+            ?.get("channel")?.asObjectOrNull()
+            ?.get("pinnedChatMessages")?.asObjectOrNull()
+            ?.get("edges")?.asArrayOrNull()?.firstOrNull()?.asObjectOrNull()
+            ?.get("node")?.asObjectOrNull()
             ?.get("id")?.jsonPrimitive?.contentOrNull
     }
 
@@ -353,17 +353,17 @@ class TwitchGqlClient(
             put("count", 1)
         }
         if (r !is Result.Success) return null
-        val node = r.data.firstOrNull()?.jsonObject
-            ?.get("data")?.jsonObject
-            ?.get("channel")?.jsonObject
-            ?.get("pinnedChatMessages")?.jsonObject
-            ?.get("edges")?.jsonArray?.firstOrNull()?.jsonObject
-            ?.get("node")?.jsonObject ?: return null
+        val node = r.data.firstOrNull()?.asObjectOrNull()
+            ?.get("data")?.asObjectOrNull()
+            ?.get("channel")?.asObjectOrNull()
+            ?.get("pinnedChatMessages")?.asObjectOrNull()
+            ?.get("edges")?.asArrayOrNull()?.firstOrNull()?.asObjectOrNull()
+            ?.get("node")?.asObjectOrNull() ?: return null
 
         val pinId = node["id"]?.jsonPrimitive?.contentOrNull ?: return null
-        val pinnedMessage = node["pinnedMessage"]?.jsonObject
-        val sender = pinnedMessage?.get("sender")?.jsonObject
-        val pinnedBy = node["pinnedBy"]?.jsonObject
+        val pinnedMessage = node["pinnedMessage"]?.asObjectOrNull()
+        val sender = pinnedMessage?.get("sender")?.asObjectOrNull()
+        val pinnedBy = node["pinnedBy"]?.asObjectOrNull()
         val authorName = sender?.get("displayName")?.jsonPrimitive?.contentOrNull.orEmpty()
         val authorLogin = sender?.get("login")?.jsonPrimitive?.contentOrNull
             ?.takeIf { it.isNotBlank() } ?: authorName
@@ -374,7 +374,7 @@ class TwitchGqlClient(
         return PinnedChatInfo(
             pinId = pinId,
             messageId = pinnedMessage?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty(),
-            text = pinnedMessage?.get("content")?.jsonObject
+            text = pinnedMessage?.get("content")?.asObjectOrNull()
                 ?.get("text")?.jsonPrimitive?.contentOrNull.orEmpty(),
             authorId = sender?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty(),
             authorName = authorName,
@@ -647,18 +647,18 @@ class TwitchGqlClient(
         if (r !is Result.Success) return null
         val node = r.data.dataNodeForOperation("ChannelPointsContext") ?: return null
         node.gqlErrorOrNull()?.let { return null }
-        val data = node["data"]?.jsonObject ?: return null
-        val community = data["community"]?.jsonObject ?: return null
-        val channel = community["channel"]?.jsonObject ?: return null
-        val settings = channel["communityPointsSettings"]?.jsonObject ?: return null
-        val self = channel["self"]?.jsonObject
-        val balance = self?.get("communityPoints")?.jsonObject
+        val data = node["data"]?.asObjectOrNull() ?: return null
+        val community = data["community"]?.asObjectOrNull() ?: return null
+        val channel = community["channel"]?.asObjectOrNull() ?: return null
+        val settings = channel["communityPointsSettings"]?.asObjectOrNull() ?: return null
+        val self = channel["self"]?.asObjectOrNull()
+        val balance = self?.get("communityPoints")?.asObjectOrNull()
             ?.get("balance")?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
 
-        val customRewards = settings["customRewards"]?.jsonArray.orEmpty()
-            .mapNotNull { customRewardFromJson(it.jsonObject) }
-        val automaticRewards = settings["automaticRewards"]?.jsonArray.orEmpty()
-            .mapNotNull { automaticRewardFromJson(it.jsonObject) }
+        val customRewards = settings["customRewards"]?.asArrayOrNull().orEmpty()
+            .mapNotNull { it.asObjectOrNull()?.let(::customRewardFromJson) }
+        val automaticRewards = settings["automaticRewards"]?.asArrayOrNull().orEmpty()
+            .mapNotNull { it.asObjectOrNull()?.let(::automaticRewardFromJson) }
         val rewards = customRewards + automaticRewards
         val settingsImageObj = settings["image"] as? JsonObject
         val currencyIconUrl = settingsImageObj?.get("png")?.jsonPrimitive?.contentOrNull

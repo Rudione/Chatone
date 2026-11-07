@@ -12,7 +12,7 @@ A smart chat client for Twitch — chat, streams and moderation in one app.
 
 **[Website](https://app.chatone.im/)** · [Features](https://app.chatone.im/features) · [What’s new](https://app.chatone.im/changelog) · [Telegram](https://t.me/rudionee)
 
-<img src="docs/portfolio/readme/preview.gif" width="800" alt="Chatone on desktop and phone: a compact window, full screen, multi-chat, the player and chat over the stream">
+<img src="composeApp/src/commonMain/composeResources/drawable/icon.png" width="220" alt="Chatone logo">
 
 </div>
 

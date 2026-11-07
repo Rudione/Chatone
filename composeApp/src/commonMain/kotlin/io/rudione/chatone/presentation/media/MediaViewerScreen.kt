@@ -14,29 +14,31 @@ import chatone.composeapp.generated.resources.media_deleted
 import chatone.composeapp.generated.resources.media_load_failed
 import chatone.composeapp.generated.resources.media_missing
 import chatone.composeapp.generated.resources.media_retry
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -57,16 +59,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import io.rudione.chatone.domain.media.MediaDetails
 import io.rudione.chatone.domain.media.MediaKind
+import io.rudione.chatone.presentation.components.StatusBarOverDarkContent
 import io.rudione.chatone.presentation.components.SystemBackHandler
 import io.rudione.chatone.presentation.components.expressive.expressiveGlass
-import kotlinx.coroutines.delay
 import io.rudione.chatone.presentation.components.rememberScopedViewModelStoreOwner
+import io.rudione.chatone.presentation.stream.ambient.AmbienceFromImage
+import io.rudione.chatone.presentation.stream.ambient.AmbientEdge
+import io.rudione.chatone.presentation.stream.ambient.AmbientGlow
+import io.rudione.chatone.presentation.stream.ambient.AmbientInsetStrip
+import io.rudione.chatone.presentation.stream.ambient.StreamAmbience
+import io.rudione.chatone.presentation.stream.ambient.ambientHalo
+import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -97,7 +111,8 @@ fun MediaViewerScreen(
             parametersOf(kind, id, startSeconds)
         }
     val state by viewModel.state.collectAsState()
-    val clock = rememberPlaybackClock(viewModel.playback)
+    val clock = rememberPlaybackClock(viewModel.playback, fallbackDurationMs = (state.details?.durationSeconds ?: 0) * 1000L)
+    val ambience = rememberMediaAmbience(state.details?.thumbnailUrl, state.ambientLight)
     val chrome = rememberMediaChromeState()
     val playing = rememberPlaybackPlaying(viewModel.playback)
     val navigationBars = WindowInsets.navigationBars.asPaddingValues()
@@ -120,32 +135,29 @@ fun MediaViewerScreen(
             notice = null
         }
     }
-    val positionSeconds = (clock.positionMs / 1000).toInt()
-    LaunchedEffect(positionSeconds / REPLAY_PROGRESS_STEP) {
-        viewModel.sendEvent(
-            MediaViewerEvent.Progress(
-                positionSeconds
-            )
-        )
+    LaunchedEffect(viewModel, clock) {
+        snapshotFlow { (clock.positionMs / 1000).toInt() }
+            .collect { viewModel.sendEvent(MediaViewerEvent.Progress(it)) }
     }
 
     Surface(modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         BoxWithConstraints(
             Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
         ) {
+            val topInset = WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
             val wide = maxWidth >= WIDE_LAYOUT
             val details = state.details
             when {
                 state.load == ViewerLoad.LOADING -> Box(
-                    Modifier.fillMaxSize(),
+                    Modifier.fillMaxSize().padding(top = topInset),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.5.dp)
                 }
 
                 details == null || state.load != ViewerLoad.READY -> Column(
-                    Modifier.fillMaxSize(),
+                    Modifier.fillMaxSize().padding(top = topInset),
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -183,7 +195,8 @@ fun MediaViewerScreen(
                             onToggleMute = { viewModel.sendEvent(MediaViewerEvent.ToggleMute) },
                             onVolume = { viewModel.sendEvent(MediaViewerEvent.SetVolume(it)) },
                             onClose = navigation.onClose,
-                            modifier = frameModifier
+                            modifier = frameModifier,
+                            ambience = ambience
                         )
                     }
                     val header: @Composable (Modifier) -> Unit = { headerModifier ->
@@ -207,7 +220,8 @@ fun MediaViewerScreen(
                         if (hasReplay) {
                             MediaReplayChat(
                                 entries = state.replayMessages,
-                                nowSeconds = details.replayOffsetSeconds + positionSeconds,
+                                nowMs = { details.replayOffsetSeconds * 1000L + clock.positionMs },
+                                primed = state.replayPrimed,
                                 hasClock = state.replayHasClock,
                                 contentPadding = PaddingValues(bottom = navigationBars.calculateBottomPadding() + 8.dp),
                                 modifier = chatModifier
@@ -215,12 +229,16 @@ fun MediaViewerScreen(
                         }
                     }
                     if (wide) {
-                        Row(Modifier.fillMaxSize()) {
+                        val darkBackground = MaterialTheme.colorScheme.background.luminance() < 0.5f
+                        Row(Modifier.fillMaxSize().padding(top = topInset)) {
                             Box(
                                 Modifier.weight(0.64f).fillMaxHeight(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                frame(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+                                frame(
+                                    Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+                                        .then(ambience?.let { Modifier.ambientHalo(it, darkBackground, spread = HaloSpread) } ?: Modifier)
+                                )
                             }
                             Column(Modifier.weight(0.36f).fillMaxHeight()) {
                                 header(Modifier.fillMaxWidth())
@@ -229,7 +247,31 @@ fun MediaViewerScreen(
                         }
                     } else {
                         Column(Modifier.fillMaxSize()) {
-                            frame(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+                            Box(Modifier.zIndex(1f)) {
+                                Column {
+                                    if (ambience != null && topInset > 0.dp) {
+                                        StatusBarOverDarkContent()
+                                        AmbientInsetStrip(
+                                            ambience = ambience,
+                                            videoSide = AmbientEdge.TOP,
+                                            modifier = Modifier.fillMaxWidth().height(topInset)
+                                        )
+                                    } else {
+                                        Spacer(Modifier.height(topInset))
+                                    }
+                                    frame(Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+                                }
+                                if (ambience != null) {
+                                    AmbientGlow(
+                                        ambience = ambience,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .height(GlowHeight)
+                                            .offset { IntOffset(0, GlowHeight.roundToPx()) }
+                                    )
+                                }
+                            }
                             AnimatedVisibility(
                                 visible = !hasReplay || chrome.visible || !playing,
                                 enter = expandVertically() + fadeIn(),
@@ -299,5 +341,15 @@ fun MediaViewerScreen(
     }
 }
 
+@Composable
+private fun rememberMediaAmbience(thumbnailUrl: String?, enabled: Boolean): StreamAmbience? {
+    if (!enabled) return null
+    val ambience = remember { StreamAmbience() }
+    LaunchedEffect(ambience) { ambience.animate() }
+    if (!thumbnailUrl.isNullOrBlank()) AmbienceFromImage(thumbnailUrl, ambience)
+    return ambience
+}
+
 private val WIDE_LAYOUT = 720.dp
-private const val REPLAY_PROGRESS_STEP = 5
+private val GlowHeight = 96.dp
+private val HaloSpread = 36.dp

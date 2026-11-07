@@ -10,14 +10,6 @@ SS = 4
 PLATE_RADIUS = 228
 PLATE_RADIUS_SMALL = 212
 
-PLATE_STOPS = [
-    (0.00, (34, 27, 51)),
-    (0.55, (20, 16, 32)),
-    (1.00, (10, 8, 16)),
-]
-PLATE_FLAT = (20, 16, 32)
-
-
 def lerp(a, b, t):
     return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
@@ -33,21 +25,27 @@ def sample(stops, t):
     return stops[-1][1]
 
 
-def linear_gradient(size, stops, start, end):
-    step = 4
-    small = Image.new("RGB", (size // step, size // step))
+def corner_light(size, stops, reach):
+    cells = max(2, size // 4)
+    small = Image.new("RGB", (cells, cells))
     px = small.load()
-    ax, ay = start
-    bx, by = end
-    dx, dy = bx - ax, by - ay
-    denom = dx * dx + dy * dy
-    for y in range(small.height):
-        fy = y / (small.height - 1)
-        for x in range(small.width):
-            fx = x / (small.width - 1)
-            t = ((fx - ax) * dx + (fy - ay) * dy) / denom
-            px[x, y] = sample(stops, t)
+    for y in range(cells):
+        fy = y / (cells - 1)
+        for x in range(cells):
+            fx = x / (cells - 1)
+            px[x, y] = sample(stops, math.hypot(fx, fy) / reach)
     return small.resize((size, size), Image.BICUBIC)
+
+
+def corner_rim(big, scale, plate_radius):
+    inset = geo.RIM_INSET * scale
+    edge = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(edge).rounded_rectangle(
+        [inset, inset, big - 1 - inset, big - 1 - inset],
+        radius=plate_radius - inset, outline=255, width=max(1, round(geo.RIM_WIDTH * scale))
+    )
+    fade = corner_light(big, [(t, (a, a, a)) for t, a in geo.RIM_ALPHA], 1.0).convert("L")
+    return ImageChops.multiply(edge, fade)
 
 
 def _disk(size, x, y, radius):
@@ -122,23 +120,16 @@ def build(size, detailed=True, rounded=True):
             [0, 0, big - 1, big - 1], radius=plate_radius, fill=255
         )
 
-    if detailed:
-        plate = linear_gradient(big, PLATE_STOPS, (0.2, 0.0), (0.85, 1.0))
-    else:
-        plate = Image.new("RGB", (big, big), PLATE_FLAT)
+    plate = corner_light(big, geo.PLATE_LIGHT, geo.PLATE_LIGHT_REACH)
 
     canvas = Image.new("RGBA", (big, big), (0, 0, 0, 0))
     canvas.paste(plate.convert("RGBA"), (0, 0), plate_mask)
 
-    canvas = paint_mark(canvas, big, _frame(big, 0.97 if detailed else 1.08), with_orbit=detailed)
-
     if detailed and rounded and size >= 128:
-        edge = Image.new("L", (big, big), 0)
-        ImageDraw.Draw(edge).rounded_rectangle(
-            [4 * scale, 4 * scale, big - 1 - 4 * scale, big - 1 - 4 * scale],
-            radius=plate_radius - 3 * scale, outline=20, width=round(9 * scale)
-        )
-        canvas.paste(Image.new("RGBA", (big, big), (255, 255, 255, 255)), (0, 0), edge)
+        rim = corner_rim(big, scale, plate_radius)
+        canvas.paste(Image.new("RGBA", (big, big), (255, 255, 255, 255)), (0, 0), rim)
+
+    canvas = paint_mark(canvas, big, _frame(big, 0.97 if detailed else 1.08), with_orbit=detailed)
 
     return canvas.resize((size, size), Image.LANCZOS)
 

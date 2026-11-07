@@ -114,6 +114,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
@@ -645,8 +646,12 @@ private fun MessageBubble(
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.40f)
                 )
+                val codeBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                val rendered = remember(text, isUser, codeBackground) {
+                    if (isUser) AnnotatedString(text) else AiMarkdown.render(text, codeBackground)
+                }
                 Text(
-                    text,
+                    rendered,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.94f),
                     textAlign = if (isUser) TextAlign.End else TextAlign.Start

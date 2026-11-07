@@ -7,9 +7,10 @@ import androidx.compose.ui.viewinterop.UIKitView
 import io.rudione.chatone.domain.media.MediaPlayback
 import io.rudione.chatone.presentation.stream.KeepScreenOnEffect
 import io.rudione.chatone.presentation.stream.PlayerLayerView
+import io.rudione.chatone.presentation.stream.VideoFrameSink
 
 @Composable
-actual fun MediaVideoSurface(playback: MediaPlayback?, modifier: Modifier) {
+actual fun MediaVideoSurface(playback: MediaPlayback?, modifier: Modifier, frameSink: VideoFrameSink?) {
     val player = (playback as? IosMediaPlayback)?.player
     if (player == null) {
         Box(modifier)

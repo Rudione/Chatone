@@ -12,7 +12,12 @@ import chatone.composeapp.generated.resources.unit_minute_short
 import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.profile.PageNavigator
 import androidx.compose.foundation.background
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalClipboard
@@ -46,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import io.rudione.chatone.data.remote.dto.ChannelData
 import io.rudione.chatone.data.repository.StreamerModeController
 import io.rudione.chatone.presentation.components.onSecondaryClick
+import io.rudione.chatone.presentation.components.tactilePress
 import io.rudione.chatone.presentation.stream.LocalStreamPlayerHost
 import io.rudione.chatone.presentation.stream.StreamOpenQuality
 import io.rudione.chatone.presentation.stream.StreamPlayerEvent
@@ -109,11 +116,29 @@ internal fun ChannelHeaderBlock(
 
     val profiles: PageNavigator = koinInject()
     val opensProfile = phoneStyle && profiles.isSupported
+    val headerClickable = opensProfile || (isLive && !watching)
+    val headerInteraction = remember { MutableInteractionSource() }
+    val headerHovered by headerInteraction.collectIsHoveredAsState()
+    val headerPressed by headerInteraction.collectIsPressedAsState()
+    val headerFill by animateColorAsState(
+        MaterialTheme.colorScheme.onSurface.copy(
+            alpha = when {
+                !headerClickable -> 0f
+                headerPressed -> 0.12f
+                headerHovered -> 0.06f
+                else -> 0f
+            }
+        ),
+        tween(140),
+        label = "headerFill"
+    )
     val headerCore: @Composable () -> Unit = {
         val headerModifier = Modifier
+            .tactilePress(headerInteraction, pressedScale = if (headerClickable) 0.96f else 1f)
             .clip(RoundedCornerShape(8.dp))
+            .drawBehind { if (headerFill.alpha > 0f) drawRect(headerFill) }
             .onSecondaryClick { showStreamMenu = true }
-            .clickable(enabled = opensProfile || (isLive && !watching), interactionSource = null, indication = null) {
+            .clickable(enabled = headerClickable, interactionSource = headerInteraction, indication = null) {
                 when {
                     opensProfile -> profiles.openChannel(channelLogin)
                     playerHost != null -> playerHost.onEvent(StreamPlayerEvent.Open(channelLogin))

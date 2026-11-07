@@ -14,6 +14,18 @@ object MentionInsertion {
         return "$input$separator$tag "
     }
 
+    fun appendAll(input: String, names: List<String>): String {
+        val tagged = input.split(WHITESPACE)
+            .filter { it.startsWith("@") }
+            .mapTo(HashSet()) { it.removePrefix("@").trimEnd(',', '.', '!', '?').lowercase() }
+        return names.fold(input) { text, name ->
+            val clean = name.trim().removePrefix("@").trim()
+            if (!tagged.add(clean.lowercase())) text else append(text, clean)
+        }
+    }
+
+    private val WHITESPACE = Regex("\\s+")
+
     fun preferredName(displayName: String, login: String): String =
         if (login.isNotBlank() && !displayName.equals(login, ignoreCase = true)) login else displayName.ifBlank { login }
 }

@@ -74,6 +74,7 @@ import io.rudione.chatone.presentation.chat.components.ChattersPanel
 import io.rudione.chatone.presentation.main.components.MentionsFeed
 import io.rudione.chatone.presentation.main.components.MentionTabsBar
 import io.rudione.chatone.presentation.main.components.MentionToast
+import io.rudione.chatone.presentation.main.components.MentionToastData
 import io.rudione.chatone.presentation.main.components.EmptyState
 import io.rudione.chatone.presentation.main.components.CreateFolderDialog
 import io.rudione.chatone.presentation.main.components.EditFolderDialog
@@ -179,7 +180,13 @@ fun MainScreen(
     val wallpaperLoader: WallpaperLoader = koinInject()
     var showWhisperOverlay by remember { mutableStateOf(false) }
     var showMentionsOverlay by remember { mutableStateOf(false) }
-    var mentionToastData by remember { mutableStateOf<Triple<String, String, String>?>(null) }
+    var mentionToast by remember { mutableStateOf<MentionToastData?>(null) }
+    var mentionToastVisible by remember { mutableStateOf(false) }
+    var mentionToastSeq by remember { mutableLongStateOf(0L) }
+    val showMentionToast: (MentionToastData) -> Unit = { toast ->
+        mentionToast = toast
+        mentionToastVisible = true
+    }
 
     val currentHotkeys by rememberUpdatedState(settingsState.hotkeys)
     val currentNavHidden by rememberUpdatedState(settingsState.navigationHidden)
@@ -259,21 +266,25 @@ fun MainScreen(
             when (effect) {
                 MainEffect.NavigateToAuth -> onNavigateToAuth()
                 is MainEffect.ShowError -> scope.launch { snackbarHostState.showSnackbar(effect.message.resolve()) }
-                is MainEffect.IncomingWhisper -> {
-                    mentionToastData = Triple(
-                        effect.fromDisplayName,
-                        "💬 whisper",
-                        effect.text
+                is MainEffect.IncomingWhisper -> showMentionToast(
+                    MentionToastData(
+                        id = ++mentionToastSeq,
+                        fromDisplayName = effect.fromDisplayName,
+                        channelLogin = "",
+                        text = effect.text,
+                        isWhisper = true
                     )
-                }
+                )
 
-                is MainEffect.MentionToast -> {
-                    mentionToastData = Triple(
-                        effect.fromDisplayName,
-                        effect.channelLogin,
-                        effect.text
+                is MainEffect.MentionToast -> showMentionToast(
+                    MentionToastData(
+                        id = ++mentionToastSeq,
+                        fromDisplayName = effect.fromDisplayName,
+                        channelLogin = effect.channelLogin,
+                        text = effect.text,
+                        messageId = effect.messageId
                     )
-                }
+                )
             }
             launch {
                 settingsViewModel.effect.collect { effect ->
@@ -1107,18 +1118,27 @@ fun MainScreen(
         contentAlignment = Alignment.TopCenter
     ) {
         AnimatedVisibility(
-            visible = mentionToastData != null,
+            visible = mentionToastVisible,
             enter = slideInVertically { -it } + fadeIn(tween(200)),
             exit = slideOutVertically { -it } + fadeOut(tween(150)),
             modifier = Modifier.padding(top = 56.dp)
         ) {
-            mentionToastData?.let { (from, channel, text) ->
-                MentionToast(
-                    fromDisplayName = from,
-                    channelLogin = channel,
-                    text = text,
-                    onDismiss = { mentionToastData = null }
-                )
+            mentionToast?.let { toast ->
+                key(toast.id) {
+                    MentionToast(
+                        data = toast,
+                        onOpen = {
+                            mentionToastVisible = false
+                            if (toast.isWhisper) {
+                                if (!state.showWhisperPanel) viewModel.sendEvent(MainEvent.ToggleWhisperPanel)
+                            } else {
+                                viewModel.sendEvent(MainEvent.SelectChannel(toast.channelLogin, toast.messageId))
+                                toast.messageId?.let { viewModel.sendEvent(MainEvent.MarkMentionRead(it)) }
+                            }
+                        },
+                        onDismiss = { mentionToastVisible = false }
+                    )
+                }
             }
         }
     }

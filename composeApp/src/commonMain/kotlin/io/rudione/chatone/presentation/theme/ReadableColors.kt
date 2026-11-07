@@ -28,5 +28,8 @@ internal fun readableOn(preferred: Color, background: Color, minContrast: Float 
     return target
 }
 
+internal fun contentOnAccent(accent: Color, fallback: Color): Color =
+    if (contrastBetween(Color.White, accent) >= ACCENT_MIN_CONTRAST) Color.White else fallback
+
 private const val DARK_BACKGROUND_LUMINANCE = 0.4f
 private const val STEP = 0.2f

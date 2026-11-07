@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
@@ -157,34 +158,52 @@ fun Modifier.chatInputGlassSurface(
     borderWidth: () -> Dp,
     focused: Boolean,
     glow: Color
-): Modifier {
-    val shape = RoundedCornerShape(glass.style.cornerRadius)
-    return this
-        .backdropTarget(glass.backdrop, glass.style.cornerRadius)
-        .graphicsLayer {
-            val amount = glass.progress()
-            shadowElevation = (if (focused) FocusedElevation else RestingElevation).toPx() +
-                glass.style.shadowBoost.toPx() * amount
-            this.shape = shape
-            clip = false
-            ambientShadowColor = lerp(glow, GlassShadow, amount)
-            spotShadowColor = lerp(glow, GlassShadow, amount)
-        }
-        .animatedBorder(borderWidth, shape, border)
-        .clip(shape)
-        .drawBehind {
-            val amount = glass.progress()
-            drawRect(glass.fill(resting()))
-            if (amount > 0f) {
-                drawRect(
-                    Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = RIM_ALPHA * amount),
-                        0.55f to Color.Transparent
-                    )
-                )
-            }
-        }
-}
+): Modifier = chatGlass(
+    glass = glass,
+    shape = RoundedCornerShape(glass.style.cornerRadius),
+    resting = resting,
+    border = border,
+    borderWidth = borderWidth,
+    elevation = if (focused) FocusedElevation else RestingElevation,
+    glow = glow
+)
+
+fun Modifier.chatGlass(
+    glass: ChatInputGlass,
+    shape: Shape,
+    resting: () -> Color,
+    border: () -> Color,
+    borderWidth: () -> Dp,
+    elevation: Dp,
+    glow: Color
+): Modifier = this
+    .backdropTarget(glass.backdrop, shape)
+    .graphicsLayer {
+        val amount = glass.progress()
+        shadowElevation = elevation.toPx() + glass.style.shadowBoost.toPx() * amount
+        this.shape = shape
+        clip = false
+        ambientShadowColor = lerp(glow, GlassShadow, amount)
+        spotShadowColor = lerp(glow, GlassShadow, amount)
+    }
+    .animatedBorder(borderWidth, shape, border)
+    .clip(shape)
+    .drawBehind {
+        val amount = glass.progress()
+        drawRect(glass.fill(resting()))
+        if (amount > 0f) drawRect(glass.rim(amount))
+    }
+
+internal fun ChatInputGlass.rim(amount: Float): Brush = Brush.verticalGradient(
+    0f to Color.White.copy(alpha = RIM_ALPHA * amount),
+    0.55f to Color.Transparent
+)
+
+internal val ChatGlassRestingElevation: Dp get() = RestingElevation
+
+internal val ChatGlassFocusedElevation: Dp get() = FocusedElevation
+
+internal val ChatGlassShadow: Color get() = GlassShadow
 
 fun Modifier.chatInputBackdrop(glass: ChatInputGlass, restingBar: Color, scrim: Color): Modifier = drawBehind {
     val amount = glass.progress()

@@ -119,6 +119,8 @@ import io.rudione.chatone.data.repository.DeviceLoginController
 import io.rudione.chatone.data.repository.FirstPartyDeviceAuthController
 import io.rudione.chatone.data.repository.GifRepository
 import io.rudione.chatone.data.repository.MentionMuteRepository
+import io.rudione.chatone.data.repository.MentionReadRepository
+import io.rudione.chatone.domain.mention.MentionReadStore
 import io.rudione.chatone.data.repository.MessagePersistenceQueue
 import io.rudione.chatone.data.repository.ModelDownloadRepository
 import io.rudione.chatone.data.repository.ModerationAuthStore
@@ -587,6 +589,7 @@ val settingsModule = module {
     single { Settings() }
     single { SidebarLayoutRepository(settings = get()) }
     single { ChatMessageScaleRepository(settings = get()) }
+    single<MentionReadStore> { MentionReadRepository(settings = get()) }
     single { RecentChannelsRepository(settings = get()) }
     single { SettingsNavigator() }
     single { ScreenChatController(settings = get()) }
@@ -636,7 +639,8 @@ val viewModelModule = module {
             studio = get(),
             moderation = get(),
             replayChat = get(),
-            factory = get()
+            factory = get(),
+            playerPreferences = get()
         )
     }
     viewModel { DeviceLoginViewModel(controller = get()) }

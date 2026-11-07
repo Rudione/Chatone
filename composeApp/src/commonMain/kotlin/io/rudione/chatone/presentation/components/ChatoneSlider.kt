@@ -41,10 +41,10 @@ fun ChatoneSlider(
     onValueChangeFinished: (() -> Unit)? = null,
     trackHeight: Dp = 4.dp,
     knobSize: Dp = 13.dp,
-    fullTrackBrush: Brush? = null
+    fullTrackBrush: Brush? = null,
+    inactive: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.13f)
 ) {
     val active = MaterialTheme.colorScheme.primary
-    val inactive = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.13f)
 
     Slider(
         value = value,

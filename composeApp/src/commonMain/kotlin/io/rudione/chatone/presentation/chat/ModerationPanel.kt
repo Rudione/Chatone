@@ -12,6 +12,37 @@ import chatone.composeapp.generated.resources.ui_refresh_rewards
 import chatone.composeapp.generated.resources.ui_remove_option
 import chatone.composeapp.generated.resources.ui_title
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.mod_panel_macros
+import chatone.composeapp.generated.resources.mod_panel_chat_modes
+import chatone.composeapp.generated.resources.mod_panel_emote
+import chatone.composeapp.generated.resources.mod_panel_subs
+import chatone.composeapp.generated.resources.mod_panel_unique
+import chatone.composeapp.generated.resources.mod_panel_followers
+import chatone.composeapp.generated.resources.mod_panel_slow_mode
+import chatone.composeapp.generated.resources.mod_panel_off
+import chatone.composeapp.generated.resources.mod_panel_seconds
+import chatone.composeapp.generated.resources.mod_panel_minutes
+import chatone.composeapp.generated.resources.mod_panel_hours
+import chatone.composeapp.generated.resources.mod_panel_days
+import chatone.composeapp.generated.resources.mod_panel_weeks
+import chatone.composeapp.generated.resources.mod_panel_min_follow
+import chatone.composeapp.generated.resources.mod_panel_any
+import chatone.composeapp.generated.resources.mod_panel_quick_actions
+import chatone.composeapp.generated.resources.mod_panel_automod
+import chatone.composeapp.generated.resources.mod_panel_clear
+import chatone.composeapp.generated.resources.mod_panel_announce
+import chatone.composeapp.generated.resources.mod_panel_raid
+import chatone.composeapp.generated.resources.mod_panel_poll
+import chatone.composeapp.generated.resources.mod_panel_predict
+import chatone.composeapp.generated.resources.mod_panel_points
+import chatone.composeapp.generated.resources.mod_panel_cancel_prediction
+import chatone.composeapp.generated.resources.mod_panel_points_broadcaster_only
+import chatone.composeapp.generated.resources.mod_panel_rewards_loading
+import chatone.composeapp.generated.resources.mod_panel_rewards_empty
+import chatone.composeapp.generated.resources.mod_panel_rewards_failed
+import chatone.composeapp.generated.resources.mod_panel_reward_create_failed
+import chatone.composeapp.generated.resources.mod_panel_reward_resume
+import chatone.composeapp.generated.resources.mod_panel_reward_pause
 import chatone.composeapp.generated.resources.create
 import chatone.composeapp.generated.resources.panel_color
 import chatone.composeapp.generated.resources.panel_moderation
@@ -27,6 +58,7 @@ import chatone.composeapp.generated.resources.prediction_start
 import chatone.composeapp.generated.resources.prediction_window_label
 import chatone.composeapp.generated.resources.prediction_winner
 import chatone.composeapp.generated.resources.raid_channel_placeholder
+import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
@@ -180,7 +212,7 @@ fun ModerationPanel(
             }
 
             if (pinnedMacros.isNotEmpty()) {
-                PanelSectionLabel("Macros")
+                PanelSectionLabel(stringResource(Res.string.mod_panel_macros))
                 ModPanelChipRow(wrap = wrapChips) {
                     pinnedMacros.forEach { macro ->
                         ModPanelButton(
@@ -194,31 +226,31 @@ fun ModerationPanel(
                 PanelDivider()
             }
 
-            PanelSectionLabel("Chat Modes")
+            PanelSectionLabel(stringResource(Res.string.mod_panel_chat_modes))
             ModPanelChipRow(wrap = wrapChips) {
                 ModPanelButton(
-                    label = "Emote",
+                    label = stringResource(Res.string.mod_panel_emote),
                     icon = Lucide.Smile,
                     tint = MaterialTheme.colorScheme.primary,
                     isToggled = roomState.emoteOnly
                 ) { onUpdateChatSettings(mapOf("emote_mode" to !roomState.emoteOnly)) }
 
                 ModPanelButton(
-                    label = "Subs",
+                    label = stringResource(Res.string.mod_panel_subs),
                     icon = Lucide.Star,
                     tint = MaterialTheme.colorScheme.primary,
                     isToggled = roomState.subsOnly
                 ) { onUpdateChatSettings(mapOf("subscriber_mode" to !roomState.subsOnly)) }
 
                 ModPanelButton(
-                    label = "Unique",
+                    label = stringResource(Res.string.mod_panel_unique),
                     icon = Lucide.FingerprintPattern,
                     tint = MaterialTheme.colorScheme.primary,
                     isToggled = roomState.r9k
                 ) { onUpdateChatSettings(mapOf("unique_chat_mode" to !roomState.r9k)) }
 
                 ModPanelButton(
-                    label = "Followers",
+                    label = stringResource(Res.string.mod_panel_followers),
                     icon = Lucide.Heart,
                     tint = MaterialTheme.colorScheme.primary,
                     isToggled = roomState.followersOnly >= 0
@@ -237,16 +269,16 @@ fun ModerationPanel(
             }
 
             PanelDivider()
-            PanelSectionLabel("Slow Mode")
+            PanelSectionLabel(stringResource(Res.string.mod_panel_slow_mode))
             ModPanelChipRow(wrap = wrapChips) {
                 listOf(
-                    0 to "Off",
-                    3 to "3s",
-                    5 to "5s",
-                    10 to "10s",
-                    30 to "30s",
-                    60 to "1m",
-                    120 to "2m"
+                    0 to stringResource(Res.string.mod_panel_off),
+                    3 to stringResource(Res.string.mod_panel_seconds, 3),
+                    5 to stringResource(Res.string.mod_panel_seconds, 5),
+                    10 to stringResource(Res.string.mod_panel_seconds, 10),
+                    30 to stringResource(Res.string.mod_panel_seconds, 30),
+                    60 to stringResource(Res.string.mod_panel_minutes, 1),
+                    120 to stringResource(Res.string.mod_panel_minutes, 2)
                 )
                     .forEach { (secs, label) ->
                         val isActive =
@@ -277,15 +309,15 @@ fun ModerationPanel(
             ) {
                 Column {
                     PanelDivider()
-                    PanelSectionLabel("Min. Follow Time")
+                    PanelSectionLabel(stringResource(Res.string.mod_panel_min_follow))
                     ModPanelChipRow(wrap = wrapChips) {
                         listOf(
-                            0 to "Any",
-                            10 to "10m",
-                            30 to "30m",
-                            60 to "1h",
-                            1440 to "1d",
-                            10080 to "1w"
+                            0 to stringResource(Res.string.mod_panel_any),
+                            10 to stringResource(Res.string.mod_panel_minutes, 10),
+                            30 to stringResource(Res.string.mod_panel_minutes, 30),
+                            60 to stringResource(Res.string.mod_panel_hours, 1),
+                            1440 to stringResource(Res.string.mod_panel_days, 1),
+                            10080 to stringResource(Res.string.mod_panel_weeks, 1)
                         )
                             .forEach { (min, label) ->
                                 ModPanelButton(
@@ -306,50 +338,50 @@ fun ModerationPanel(
             }
 
             PanelDivider()
-            PanelSectionLabel("Quick Actions")
+            PanelSectionLabel(stringResource(Res.string.mod_panel_quick_actions))
             ModPanelChipRow(wrap = wrapChips) {
                 ModPanelButton(
-                    label = "Automod",
+                    label = stringResource(Res.string.mod_panel_automod),
                     icon = Lucide.Bot,
                     tint = MaterialTheme.colorScheme.primary
                 ) { onOpenLocalAutomod() }
 
                 ModPanelButton(
-                    label = "Clear",
+                    label = stringResource(Res.string.mod_panel_clear),
                     icon = Lucide.Eraser,
                     tint = extra.modDelete
                 ) { onClearChat() }
 
                 ModPanelButton(
-                    label = "Announce",
+                    label = stringResource(Res.string.mod_panel_announce),
                     icon = Lucide.Megaphone,
                     tint = MaterialTheme.colorScheme.tertiary,
                     isToggled = showAnnouncement
                 ) { showAnnouncement = !showAnnouncement }
 
                 ModPanelButton(
-                    label = "Raid",
+                    label = stringResource(Res.string.mod_panel_raid),
                     icon = Lucide.Rocket,
                     tint = MaterialTheme.colorScheme.secondary,
                     isToggled = showRaid
                 ) { showRaid = !showRaid }
 
                 ModPanelButton(
-                    label = "Poll",
+                    label = stringResource(Res.string.mod_panel_poll),
                     icon = Lucide.Vote,
                     tint = MaterialTheme.colorScheme.secondary,
                     isToggled = showPoll
                 ) { showPoll = !showPoll }
 
                 ModPanelButton(
-                    label = "Predict",
+                    label = stringResource(Res.string.mod_panel_predict),
                     icon = Lucide.TrendingUp,
                     tint = MaterialTheme.colorScheme.tertiary,
                     isToggled = showPrediction
                 ) { showPrediction = !showPrediction }
 
                 ModPanelButton(
-                    label = "Points",
+                    label = stringResource(Res.string.mod_panel_points),
                     icon = Lucide.Coins,
                     tint = MaterialTheme.colorScheme.primary,
                     isToggled = showChannelPoints
@@ -601,7 +633,7 @@ fun ModerationPanel(
                         }
                         TextButton(onClick = { onSendRawCommand("/cancelprediction") }) {
                             Text(
-                                "Cancel",
+                                stringResource(Res.string.mod_panel_cancel_prediction),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -654,7 +686,7 @@ private fun ChannelPointsSection(
             when (val r = apiClient.getCustomRewards(accessToken, channelId)) {
                 is io.rudione.chatone.util.Result.Success -> rewards = r.data.data
                 is io.rudione.chatone.util.Result.Error ->
-                    error = r.exception.message ?: "Failed to load rewards"
+                    error = r.exception.message ?: getString(Res.string.mod_panel_rewards_failed)
 
                 else -> {}
             }
@@ -675,7 +707,7 @@ private fun ChannelPointsSection(
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
         if (!isBroadcaster) {
             Text(
-                "Channel points are only available for the broadcaster.",
+                stringResource(Res.string.mod_panel_points_broadcaster_only),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -683,7 +715,7 @@ private fun ChannelPointsSection(
         }
         when {
             loading -> Text(
-                "Loading rewards…",
+                stringResource(Res.string.mod_panel_rewards_loading),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -695,7 +727,7 @@ private fun ChannelPointsSection(
             )
 
             rewards.isEmpty() -> Text(
-                "No custom rewards yet.",
+                stringResource(Res.string.mod_panel_rewards_empty),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -755,7 +787,7 @@ private fun ChannelPointsSection(
                         ) {
                             Icon(
                                 if (reward.isPaused) Lucide.Play else Lucide.Pause,
-                                contentDescription = if (reward.isPaused) "Resume" else "Pause",
+                                contentDescription = stringResource(if (reward.isPaused) Res.string.mod_panel_reward_resume else Res.string.mod_panel_reward_pause),
                                 modifier = Modifier.size(13.dp),
                                 tint = MaterialTheme.colorScheme.secondary
                             )
@@ -823,7 +855,7 @@ private fun ChannelPointsSection(
                             }
 
                             is io.rudione.chatone.util.Result.Error ->
-                                error = r.exception.message ?: "Failed to create reward"
+                                error = r.exception.message ?: getString(Res.string.mod_panel_reward_create_failed)
 
                             else -> {}
                         }

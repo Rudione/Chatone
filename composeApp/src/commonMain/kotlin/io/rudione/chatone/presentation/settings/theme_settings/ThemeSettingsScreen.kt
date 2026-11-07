@@ -8,6 +8,69 @@ import chatone.composeapp.generated.resources.ui_sidebar
 import chatone.composeapp.generated.resources.ui_top_bar
 import chatone.composeapp.generated.resources.ui_wallpaper_dominant_colour
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.theme_ui_auto_generator
+import chatone.composeapp.generated.resources.theme_ui_blur_intensity
+import chatone.composeapp.generated.resources.theme_ui_blur_linear_h
+import chatone.composeapp.generated.resources.theme_ui_blur_linear_v
+import chatone.composeapp.generated.resources.theme_ui_blur_radial
+import chatone.composeapp.generated.resources.theme_ui_blur_sunshine
+import chatone.composeapp.generated.resources.theme_ui_blur_uniform
+import chatone.composeapp.generated.resources.theme_ui_blur_vignette
+import chatone.composeapp.generated.resources.theme_ui_brightness
+import chatone.composeapp.generated.resources.theme_ui_chat_background
+import chatone.composeapp.generated.resources.theme_ui_chat_blur_info
+import chatone.composeapp.generated.resources.theme_ui_chat_blur_style
+import chatone.composeapp.generated.resources.theme_ui_chat_preview
+import chatone.composeapp.generated.resources.theme_ui_color_black
+import chatone.composeapp.generated.resources.theme_ui_color_ember
+import chatone.composeapp.generated.resources.theme_ui_color_forest
+import chatone.composeapp.generated.resources.theme_ui_color_gold
+import chatone.composeapp.generated.resources.theme_ui_color_light
+import chatone.composeapp.generated.resources.theme_ui_color_midnight
+import chatone.composeapp.generated.resources.theme_ui_color_navy
+import chatone.composeapp.generated.resources.theme_ui_color_ocean
+import chatone.composeapp.generated.resources.theme_ui_color_slate
+import chatone.composeapp.generated.resources.theme_ui_color_teal
+import chatone.composeapp.generated.resources.theme_ui_color_violet
+import chatone.composeapp.generated.resources.theme_ui_color_white
+import chatone.composeapp.generated.resources.theme_ui_contrast
+import chatone.composeapp.generated.resources.theme_ui_dark
+import chatone.composeapp.generated.resources.theme_ui_default
+import chatone.composeapp.generated.resources.theme_ui_dim
+import chatone.composeapp.generated.resources.theme_ui_dim_max
+import chatone.composeapp.generated.resources.theme_ui_dim_normal
+import chatone.composeapp.generated.resources.theme_ui_dim_strong
+import chatone.composeapp.generated.resources.theme_ui_dim_subtle
+import chatone.composeapp.generated.resources.theme_ui_disabled_wallpaper
+import chatone.composeapp.generated.resources.theme_ui_error
+import chatone.composeapp.generated.resources.theme_ui_fine_tuning
+import chatone.composeapp.generated.resources.theme_ui_glass
+import chatone.composeapp.generated.resources.theme_ui_glass_crystal
+import chatone.composeapp.generated.resources.theme_ui_glass_frosted
+import chatone.composeapp.generated.resources.theme_ui_glass_solid
+import chatone.composeapp.generated.resources.theme_ui_glass_tinted
+import chatone.composeapp.generated.resources.theme_ui_global
+import chatone.composeapp.generated.resources.theme_ui_hue
+import chatone.composeapp.generated.resources.theme_ui_less
+import chatone.composeapp.generated.resources.theme_ui_light
+import chatone.composeapp.generated.resources.theme_ui_lightness
+import chatone.composeapp.generated.resources.theme_ui_more
+import chatone.composeapp.generated.resources.theme_ui_off
+import chatone.composeapp.generated.resources.theme_ui_one_color
+import chatone.composeapp.generated.resources.theme_ui_one_color_off
+import chatone.composeapp.generated.resources.theme_ui_one_color_on
+import chatone.composeapp.generated.resources.theme_ui_opacity
+import chatone.composeapp.generated.resources.theme_ui_overlay_dimming
+import chatone.composeapp.generated.resources.theme_ui_panel_blur
+import chatone.composeapp.generated.resources.theme_ui_panels_info
+import chatone.composeapp.generated.resources.theme_ui_primary
+import chatone.composeapp.generated.resources.theme_ui_radius
+import chatone.composeapp.generated.resources.theme_ui_sat
+import chatone.composeapp.generated.resources.theme_ui_saturation
+import chatone.composeapp.generated.resources.theme_ui_surface
+import chatone.composeapp.generated.resources.theme_ui_using_theme
+import chatone.composeapp.generated.resources.theme_ui_using_yours
+import chatone.composeapp.generated.resources.theme_ui_wallpaper_active
 import chatone.composeapp.generated.resources.colors_section_subtitle
 import chatone.composeapp.generated.resources.colors_section_title
 import chatone.composeapp.generated.resources.theme_adjustments
@@ -300,26 +363,26 @@ private fun BackgroundTab(
 ) {
     ThemeTabList(spacing = 16.dp) {
         item(key = "chat_blur_info", contentType = "chat_blur_info") {
-            InfoBanner("This blur is for the CHAT area when a wallpaper image is active. To blur panels (sidebar, bars), use the Panels tab.")
+            InfoBanner(stringResource(Res.string.theme_ui_chat_blur_info))
         }
         item(key = "chat_blur_style", contentType = "chat_blur_style") {
-            SectionCard("Chat Blur Style", icon = Icons.Outlined.BlurOn) {
+            SectionCard(stringResource(Res.string.theme_ui_chat_blur_style), icon = Icons.Outlined.BlurOn) {
                 BlurTypeSelector(wallpaper.blurType, onBlurType)
             }
         }
         item(key = "blur_intensity", contentType = "blur_intensity") {
             AnimatedVisibility(wallpaper.blurType != BlurType.NONE) {
-                SectionCard("Blur Intensity", icon = Icons.Outlined.Tune) {
-                    LabeledSlider("Radius", wallpaper.blurRadius, onBlurRadius, 0f..40f, "${wallpaper.blurRadius.toInt()}dp")
+                SectionCard(stringResource(Res.string.theme_ui_blur_intensity), icon = Icons.Outlined.Tune) {
+                    LabeledSlider(stringResource(Res.string.theme_ui_radius), wallpaper.blurRadius, onBlurRadius, 0f..40f, "${wallpaper.blurRadius.toInt()}dp")
                 }
             }
         }
         item(key = "overlay_dimming", contentType = "overlay_dimming") {
-            SectionCard("Overlay Dimming", icon = Icons.Outlined.BrightnessLow) {
-                LabeledSlider("Dim", wallpaper.overlayDimming, onDimming, 0f..1f, "${(wallpaper.overlayDimming*100).toInt()}%")
+            SectionCard(stringResource(Res.string.theme_ui_overlay_dimming), icon = Icons.Outlined.BrightnessLow) {
+                LabeledSlider(stringResource(Res.string.theme_ui_dim), wallpaper.overlayDimming, onDimming, 0f..1f, "${(wallpaper.overlayDimming*100).toInt()}%")
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(0.3f to "Subtle", 0.55f to "Normal", 0.75f to "Strong", 0.90f to "Max").forEach { (v, l) ->
+                    listOf(0.3f to stringResource(Res.string.theme_ui_dim_subtle), 0.55f to stringResource(Res.string.theme_ui_dim_normal), 0.75f to stringResource(Res.string.theme_ui_dim_strong), 0.90f to stringResource(Res.string.theme_ui_dim_max)).forEach { (v, l) ->
                         SuggestionChip(onClick = { onDimming(v) }, label = { Text(l, style = MaterialTheme.typography.labelSmall) },
                             modifier = Modifier.weight(1f),
                             colors = SuggestionChipDefaults.suggestionChipColors(
@@ -345,7 +408,7 @@ private fun PanelsTab(
 
     ThemeTabList(spacing = 16.dp) {
         item(key = "panel_blur_info", contentType = "panel_blur_info") {
-            InfoBanner("Panel blur blurs the wallpaper behind each panel independently. Glass intensity controls LiquidGlass transparency.")
+            InfoBanner(stringResource(Res.string.theme_ui_panels_info))
         }
 
         item(key = "panel_reset", contentType = "panel_reset") {
@@ -480,7 +543,7 @@ private fun ChatColorTab(
                     Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Wallpaper, null, tint = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.size(20.dp))
                         Text(
-                            "Wallpaper is active — the dominant colour from the image is used as chat background. Custom colour is ignored while wallpaper is on.",
+                            stringResource(Res.string.theme_ui_wallpaper_active),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
@@ -492,13 +555,13 @@ private fun ChatColorTab(
         }
 
         item(key = "chat_background", contentType = "chat_background") {
-            SectionCard("Chat Background", icon = Icons.Outlined.Chat) {
+            SectionCard(stringResource(Res.string.theme_ui_chat_background), icon = Icons.Outlined.Chat) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text(stringResource(Res.string.theme_custom_color), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         Text(
-                            if (wallpaperActive) "Disabled while wallpaper is active"
-                            else if (cfg.useCustomColor) "Using your colour" else "Using theme default",
+                            if (wallpaperActive) stringResource(Res.string.theme_ui_disabled_wallpaper)
+                            else if (cfg.useCustomColor) stringResource(Res.string.theme_ui_using_yours) else stringResource(Res.string.theme_ui_using_theme),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (wallpaperActive) MaterialTheme.colorScheme.onSurfaceVariant.copy(0.5f)
                             else MaterialTheme.colorScheme.onSurfaceVariant
@@ -525,7 +588,7 @@ private fun ChatColorTab(
         }
 
         item(key = "fine_tuning", contentType = "fine_tuning") {
-            SectionCard("Fine-tuning", icon = Icons.Outlined.Tune) {
+            SectionCard(stringResource(Res.string.theme_ui_fine_tuning), icon = Icons.Outlined.Tune) {
 
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(stringResource(Res.string.theme_adjustments), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -537,13 +600,13 @@ private fun ChatColorTab(
                         }
                     }
                 }
-                LabeledSlider("Opacity", cfg.backgroundAlpha, { onUpdate(cfg.copy(backgroundAlpha = it)) }, 0.1f..1f, "${(cfg.backgroundAlpha*100).toInt()}%")
+                LabeledSlider(stringResource(Res.string.theme_ui_opacity), cfg.backgroundAlpha, { onUpdate(cfg.copy(backgroundAlpha = it)) }, 0.1f..1f, "${(cfg.backgroundAlpha*100).toInt()}%")
                 Spacer(Modifier.height(6.dp))
-                LabeledSlider("Brightness", cfg.brightness, { onUpdate(cfg.copy(brightness = it)) }, -0.8f..0.8f, adjStr(cfg.brightness))
+                LabeledSlider(stringResource(Res.string.theme_ui_brightness), cfg.brightness, { onUpdate(cfg.copy(brightness = it)) }, -0.8f..0.8f, adjStr(cfg.brightness))
                 Spacer(Modifier.height(6.dp))
-                LabeledSlider("Saturation", cfg.saturation, { onUpdate(cfg.copy(saturation = it)) }, 0f..2f, "${(cfg.saturation*100).toInt()}%")
+                LabeledSlider(stringResource(Res.string.theme_ui_saturation), cfg.saturation, { onUpdate(cfg.copy(saturation = it)) }, 0f..2f, "${(cfg.saturation*100).toInt()}%")
                 Spacer(Modifier.height(6.dp))
-                LabeledSlider("Contrast", cfg.contrast, { onUpdate(cfg.copy(contrast = it)) }, 0.5f..2f, "${(cfg.contrast*100).toInt()}%")
+                LabeledSlider(stringResource(Res.string.theme_ui_contrast), cfg.contrast, { onUpdate(cfg.copy(contrast = it)) }, 0.5f..2f, "${(cfg.contrast*100).toInt()}%")
             }
         }
 
@@ -580,7 +643,7 @@ private fun PanelSection(
                 }
             } else {
                 Text(
-                    "Default",
+                    stringResource(Res.string.theme_ui_default),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.5f)
                 )
@@ -588,7 +651,7 @@ private fun PanelSection(
 
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "Less" else "More")
+                    Text(if (expanded) stringResource(Res.string.theme_ui_less) else stringResource(Res.string.theme_ui_more))
                     Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, Modifier.size(16.dp))
                 }
                 ChatoneSwitch(checked = useCustom, onCheckedChange = onUseCustomChanged)
@@ -601,20 +664,20 @@ private fun PanelSection(
                 AnimatedVisibility(useCustom) {
                     HexColorInput(argb = colorArgb, onColorPicked = onColorChanged)
                 }
-                LabeledSlider("Opacity", alpha, onAlphaChanged, 0.1f..1f, "${(alpha*100).toInt()}%")
-                LabeledSlider("Brightness", brightness, onBrightnessChanged, -0.6f..0.6f, adjStr(brightness))
+                LabeledSlider(stringResource(Res.string.theme_ui_opacity), alpha, onAlphaChanged, 0.1f..1f, "${(alpha*100).toInt()}%")
+                LabeledSlider(stringResource(Res.string.theme_ui_brightness), brightness, onBrightnessChanged, -0.6f..0.6f, adjStr(brightness))
                 Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(0.5f))
                 LabeledSlider(
-                    "Panel blur", blurRadius, onBlurChanged, 0f..30f,
-                    if (blurRadius == 0f) "Off" else "${blurRadius.toInt()}dp"
+                    stringResource(Res.string.theme_ui_panel_blur), blurRadius, onBlurChanged, 0f..30f,
+                    if (blurRadius == 0f) stringResource(Res.string.theme_ui_off) else "${blurRadius.toInt()}dp"
                 )
                 LabeledSlider(
-                    "Glass", glassIntensity, onGlassChanged, 0.1f..1f,
+                    stringResource(Res.string.theme_ui_glass), glassIntensity, onGlassChanged, 0.1f..1f,
                     when {
-                        glassIntensity < 0.30f -> "Crystal"
-                        glassIntensity < 0.55f -> "Frosted"
-                        glassIntensity < 0.80f -> "Tinted"
-                        else -> "Solid"
+                        glassIntensity < 0.30f -> stringResource(Res.string.theme_ui_glass_crystal)
+                        glassIntensity < 0.55f -> stringResource(Res.string.theme_ui_glass_frosted)
+                        glassIntensity < 0.80f -> stringResource(Res.string.theme_ui_glass_tinted)
+                        else -> stringResource(Res.string.theme_ui_glass_solid)
                     }
                 )
             }
@@ -642,7 +705,7 @@ private fun ChatSimulationPreview(wallpaper: WallpaperState) {
         Msg("NewViewer123", Color(0xFFFFD54F), "Hello! First time watching PauseChamp", null, null, isFirst = true),
     ) }
 
-    SectionCard("Live Chat Preview", icon = Icons.Outlined.Visibility) {
+    SectionCard(stringResource(Res.string.theme_ui_chat_preview), icon = Icons.Outlined.Visibility) {
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.size(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error))
             Text(stringResource(Res.string.theme_live_preview), style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
@@ -725,13 +788,13 @@ private fun GlobalTab(
         }
 
         item(key = "master_color", contentType = "master_color") {
-            SectionCard("Apply One Color to Everything", icon = Icons.Outlined.Palette) {
+            SectionCard(stringResource(Res.string.theme_ui_one_color), icon = Icons.Outlined.Palette) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Column {
                         Text(stringResource(Res.string.theme_master_color), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                         Text(
-                            if (displayConfig.useMasterColor) "Overrides all panel defaults"
-                            else "Off — each panel uses its own color",
+                            if (displayConfig.useMasterColor) stringResource(Res.string.theme_ui_one_color_on)
+                            else stringResource(Res.string.theme_ui_one_color_off),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -760,7 +823,7 @@ private fun GlobalTab(
                                         .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
                                         .clickable { onUpdate(displayConfig.copy(masterColor = color.toArgb(), useMasterColor = true)) })
                                     Spacer(Modifier.height(3.dp))
-                                    Text(name, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center, maxLines = 1)
+                                    Text(stringResource(name), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center, maxLines = 1)
                                 }
                             }
                         }
@@ -788,14 +851,14 @@ private fun GlobalTab(
         }
 
         item(key = "global_adjustments", contentType = "global_adjustments") {
-            SectionCard("Global Adjustments", icon = Icons.Outlined.Tune) {
+            SectionCard(stringResource(Res.string.theme_ui_global), icon = Icons.Outlined.Tune) {
                 Text(stringResource(Res.string.theme_applied_on_top), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
-                LabeledSlider("Brightness", displayConfig.globalBrightness, { onUpdate(displayConfig.copy(globalBrightness = it)) }, -0.8f..0.8f, adjStr(displayConfig.globalBrightness))
+                LabeledSlider(stringResource(Res.string.theme_ui_brightness), displayConfig.globalBrightness, { onUpdate(displayConfig.copy(globalBrightness = it)) }, -0.8f..0.8f, adjStr(displayConfig.globalBrightness))
                 Spacer(Modifier.height(6.dp))
-                LabeledSlider("Saturation", displayConfig.globalSaturation, { onUpdate(displayConfig.copy(globalSaturation = it)) }, 0f..2f, "${(displayConfig.globalSaturation * 100).toInt()}%")
+                LabeledSlider(stringResource(Res.string.theme_ui_saturation), displayConfig.globalSaturation, { onUpdate(displayConfig.copy(globalSaturation = it)) }, 0f..2f, "${(displayConfig.globalSaturation * 100).toInt()}%")
                 Spacer(Modifier.height(6.dp))
-                LabeledSlider("Contrast", displayConfig.globalContrast, { onUpdate(displayConfig.copy(globalContrast = it)) }, 0.5f..2f, "${(displayConfig.globalContrast * 100).toInt()}%")
+                LabeledSlider(stringResource(Res.string.theme_ui_contrast), displayConfig.globalContrast, { onUpdate(displayConfig.copy(globalContrast = it)) }, 0.5f..2f, "${(displayConfig.globalContrast * 100).toInt()}%")
                 Spacer(Modifier.height(4.dp))
                 val isDefaultAdj = displayConfig.globalBrightness == 0f && displayConfig.globalSaturation == 1f && displayConfig.globalContrast == 1f
                 AnimatedVisibility(!isDefaultAdj) {
@@ -814,14 +877,14 @@ private fun GlobalTab(
 @Composable
 private fun BlurTypeSelector(selected: BlurType, onSelect: (BlurType) -> Unit) {
     val items = listOf(
-        BlurType.NONE to ("Off" to Icons.Outlined.BlurOff),
-        BlurType.UNIFORM to ("Uniform" to Icons.Outlined.BlurOn),
-        BlurType.FROSTED to ("Frosted" to Icons.Outlined.AcUnit),
-        BlurType.RADIAL to ("Radial" to Icons.Outlined.RadioButtonChecked),
-        BlurType.VIGNETTE to ("Vignette" to Icons.Outlined.Vignette),
-        BlurType.LINEAR_H to ("Linear H" to Icons.Outlined.MoreHoriz),
-        BlurType.LINEAR_V to ("Linear V" to Icons.Outlined.MoreVert),
-        BlurType.SUNSHINE to ("Sunshine" to Icons.Outlined.WbSunny)
+        BlurType.NONE to (stringResource(Res.string.theme_ui_off) to Icons.Outlined.BlurOff),
+        BlurType.UNIFORM to (stringResource(Res.string.theme_ui_blur_uniform) to Icons.Outlined.BlurOn),
+        BlurType.FROSTED to (stringResource(Res.string.theme_ui_glass_frosted) to Icons.Outlined.AcUnit),
+        BlurType.RADIAL to (stringResource(Res.string.theme_ui_blur_radial) to Icons.Outlined.RadioButtonChecked),
+        BlurType.VIGNETTE to (stringResource(Res.string.theme_ui_blur_vignette) to Icons.Outlined.Vignette),
+        BlurType.LINEAR_H to (stringResource(Res.string.theme_ui_blur_linear_h) to Icons.Outlined.MoreHoriz),
+        BlurType.LINEAR_V to (stringResource(Res.string.theme_ui_blur_linear_v) to Icons.Outlined.MoreVert),
+        BlurType.SUNSHINE to (stringResource(Res.string.theme_ui_blur_sunshine) to Icons.Outlined.WbSunny)
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items.chunked(4).forEach { row ->
@@ -852,7 +915,7 @@ private fun AutoGeneratorPanel(
     preview: ColorScheme, onApply: () -> Unit
 ) {
     var showPicker by remember { mutableStateOf(false) }
-    SectionCard("Auto Generator", icon = Icons.Default.AutoAwesome) {
+    SectionCard(stringResource(Res.string.theme_ui_auto_generator), icon = Icons.Default.AutoAwesome) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.size(52.dp).clip(RoundedCornerShape(12.dp)).background(seedColor)
                 .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
@@ -878,14 +941,14 @@ private fun AutoGeneratorPanel(
         Spacer(Modifier.height(14.dp)); Divider(color = MaterialTheme.colorScheme.outlineVariant); Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(Res.string.theme_mode), style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(50.dp))
-            M3SegBtn(listOf("Dark", "Light"), if (isDark) 0 else 1, { onDarkChanged(it == 0) }, Modifier.weight(1f))
+            M3SegBtn(listOf(stringResource(Res.string.theme_ui_dark), stringResource(Res.string.theme_ui_light)), if (isDark) 0 else 1, { onDarkChanged(it == 0) }, Modifier.weight(1f))
         }
         Spacer(Modifier.height(12.dp))
-        LabeledSlider("Contrast", contrast, onContrastChanged, -1f..1f, adjStr(contrast))
+        LabeledSlider(stringResource(Res.string.theme_ui_contrast), contrast, onContrastChanged, -1f..1f, adjStr(contrast))
         Spacer(Modifier.height(14.dp)); Divider(color = MaterialTheme.colorScheme.outlineVariant); Spacer(Modifier.height(12.dp))
         Text(stringResource(Res.string.theme_preview), style = MaterialTheme.typography.labelMedium); Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            listOf("Primary" to (preview.primary to preview.onPrimary), "Surface" to (preview.surface to preview.onSurface), "Error" to (preview.error to preview.onError)).forEach { (l,c) ->
+            listOf(stringResource(Res.string.theme_ui_primary) to (preview.primary to preview.onPrimary), stringResource(Res.string.theme_ui_surface) to (preview.surface to preview.onSurface), stringResource(Res.string.theme_ui_error) to (preview.error to preview.onError)).forEach { (l,c) ->
                 PreviewChip(l, c.first, c.second, Modifier.weight(1f))
             }
         }
@@ -948,7 +1011,7 @@ private fun CreateThemeDialog(onDismiss: () -> Unit, onCreate: (String, Color, B
                     Column { Text(stringResource(Res.string.theme_seed), style = MaterialTheme.typography.labelSmall); Text("#${seed.toArgb().toUInt().toString(16).padStart(8,'0').substring(2).uppercase()}", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium) }
                     Spacer(Modifier.weight(1f)); FilledTonalButton(onClick = { showPicker = true }) { Text(stringResource(Res.string.theme_pick)) }
                 }
-                M3SegBtn(listOf("Dark", "Light"), if (dark) 0 else 1, { dark = it == 0 })
+                M3SegBtn(listOf(stringResource(Res.string.theme_ui_dark), stringResource(Res.string.theme_ui_light)), if (dark) 0 else 1, { dark = it == 0 })
             }
         },
         confirmButton = { Button(onClick = { onCreate(name.ifBlank { "My Theme" }, seed, dark) }, enabled = name.isNotBlank()) { Text(stringResource(Res.string.theme_create)) } },
@@ -1026,9 +1089,9 @@ private fun ColorPickerDialog(initial: Color, onSelected: (Color) -> Unit, onDis
                     }
                 }
                 Divider(color = MaterialTheme.colorScheme.outlineVariant)
-                HslRow("Hue", hsl.hue, 0f..360f, "${hsl.hue.toInt()}°") { color = Color.hsl(it, hsl.saturation, hsl.lightness) }
-                HslRow("Sat", hsl.saturation, 0f..1f, "${(hsl.saturation*100).toInt()}%") { color = Color.hsl(hsl.hue, it, hsl.lightness) }
-                HslRow("Light", hsl.lightness, 0f..1f, "${(hsl.lightness*100).toInt()}%") { color = Color.hsl(hsl.hue, hsl.saturation, it) }
+                HslRow(stringResource(Res.string.theme_ui_hue), hsl.hue, 0f..360f, "${hsl.hue.toInt()}°") { color = Color.hsl(it, hsl.saturation, hsl.lightness) }
+                HslRow(stringResource(Res.string.theme_ui_sat), hsl.saturation, 0f..1f, "${(hsl.saturation*100).toInt()}%") { color = Color.hsl(hsl.hue, it, hsl.lightness) }
+                HslRow(stringResource(Res.string.theme_ui_lightness), hsl.lightness, 0f..1f, "${(hsl.lightness*100).toInt()}%") { color = Color.hsl(hsl.hue, hsl.saturation, it) }
             }
         },
         confirmButton = { Button(onClick = { onSelected(color) }) { Text(stringResource(Res.string.theme_apply)) } },
@@ -1076,7 +1139,7 @@ private fun ChatColorPresets(onPick: (Int) -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(Modifier.size(38.dp).clip(CircleShape).background(c).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape).clickable { onPick(c.toArgb()) })
                 Spacer(Modifier.height(3.dp))
-                Text(name, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(42.dp), textAlign = TextAlign.Center, maxLines = 1)
+                Text(stringResource(name), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(42.dp), textAlign = TextAlign.Center, maxLines = 1)
             }
         }
     }
@@ -1215,10 +1278,10 @@ private fun ThemeTabList(
 }
 
 private val MasterColorPresets = listOf(
-    Color(0xFF0A0A0F) to "Black", Color(0xFF18182A) to "Navy",
-    Color(0xFF12092A) to "Violet", Color(0xFF0D1B2A) to "Ocean",
-    Color(0xFF071A0E) to "Forest", Color(0xFF1A080A) to "Ember",
-    Color(0xFF1A1000) to "Gold", Color(0xFF101020) to "Midnight"
+    Color(0xFF0A0A0F) to Res.string.theme_ui_color_black, Color(0xFF18182A) to Res.string.theme_ui_color_navy,
+    Color(0xFF12092A) to Res.string.theme_ui_color_violet, Color(0xFF0D1B2A) to Res.string.theme_ui_color_ocean,
+    Color(0xFF071A0E) to Res.string.theme_ui_color_forest, Color(0xFF1A080A) to Res.string.theme_ui_color_ember,
+    Color(0xFF1A1000) to Res.string.theme_ui_color_gold, Color(0xFF101020) to Res.string.theme_ui_color_midnight
 )
 
 private val SeedColorPresets = listOf(
@@ -1229,7 +1292,7 @@ private val SeedColorPresets = listOf(
 private val PickerColorPresets = SeedColorPresets + listOf(Color(0xFF0A0A0F), Color(0xFFFFFFFF))
 
 private val ChatBackgroundPresets = listOf(
-    "Black" to Color(0xFF0A0A0F), "Navy" to Color(0xFF0D1117), "Violet" to Color(0xFF12092A),
-    "Slate" to Color(0xFF0F1621), "Teal" to Color(0xFF071A1A), "Ember" to Color(0xFF1A0A08),
-    "White" to Color(0xFFFFFFFF), "Light" to Color(0xFFF2F2F8)
+    Res.string.theme_ui_color_black to Color(0xFF0A0A0F), Res.string.theme_ui_color_navy to Color(0xFF0D1117), Res.string.theme_ui_color_violet to Color(0xFF12092A),
+    Res.string.theme_ui_color_slate to Color(0xFF0F1621), Res.string.theme_ui_color_teal to Color(0xFF071A1A), Res.string.theme_ui_color_ember to Color(0xFF1A0A08),
+    Res.string.theme_ui_color_white to Color(0xFFFFFFFF), Res.string.theme_ui_color_light to Color(0xFFF2F2F8)
 )

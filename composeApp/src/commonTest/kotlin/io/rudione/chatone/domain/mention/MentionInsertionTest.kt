@@ -39,6 +39,22 @@ class MentionInsertionTest {
     }
 
     @Test
+    fun appendAllAddsEveryAuthorOnceWithATrailingSpace() {
+        assertEquals("@user1 @user2 @user3 ", MentionInsertion.appendAll("", listOf("user1", "user2", "User1", "user3")))
+    }
+
+    @Test
+    fun appendAllSkipsNamesAlreadyTaggedAnywhere() {
+        assertEquals("@user2, привет @user1 ", MentionInsertion.appendAll("@user2, привет", listOf("user2", "user1")))
+    }
+
+    @Test
+    fun appendAllKeepsTheInputWhenNothingIsNew() {
+        assertEquals("@user1 ", MentionInsertion.appendAll("@user1 ", listOf("@User1")))
+        assertEquals("text", MentionInsertion.appendAll("text", emptyList()))
+    }
+
+    @Test
     fun localisedDisplayNamesFallBackToLogin() {
         assertEquals("Rudionee", MentionInsertion.preferredName("Rudionee", "rudionee"))
         assertEquals("hanako", MentionInsertion.preferredName("花子", "hanako"))

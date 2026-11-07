@@ -8,10 +8,8 @@ import chatone.composeapp.generated.resources.multi_chat_no_channels_to_add
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,12 +20,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.model.ChatPanel
 import io.rudione.chatone.presentation.main.MainViewModel
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.TactileIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.icons.lucide.Check
 import io.rudione.chatone.icons.lucide.Lucide
@@ -36,7 +35,9 @@ import io.rudione.chatone.icons.lucide.Plus
 @Composable
 fun ChatTopBarAddPanelButton(
     currentChannel: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    buttonSize: Dp = 30.dp,
+    iconSize: Dp = 16.dp
 ) {
     val panelManager: ChatPanelManager = koinInject()
     val mainViewModel: MainViewModel = koinViewModel()
@@ -54,17 +55,17 @@ fun ChatTopBarAddPanelButton(
 
     val canOpen = panels.size < ChatPanel.MAX_PANELS && candidates.isNotEmpty()
 
-    ChatoneIconButton(
+    TactileIconButton(
         onClick = { if (canOpen) expanded = true },
+        size = buttonSize,
         enabled = canOpen,
-        modifier = modifier.size(30.dp)
-    ) {
+        modifier = modifier
+    ) { tint ->
         Icon(
             Lucide.Plus,
             contentDescription = stringResource(Res.string.multi_chat_add_panel),
-            modifier = Modifier.size(16.dp),
-            tint = if (canOpen) MaterialTheme.colorScheme.onSurfaceVariant
-            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+            modifier = Modifier.size(iconSize + 1.dp),
+            tint = tint
         )
     }
 
