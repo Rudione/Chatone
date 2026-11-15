@@ -210,7 +210,8 @@ object IrcMessageParser {
             replyParentDisplayName = replyParentName,
             replyParentMsgBody = replyParentBody,
             replyThreadParentMsgId = replyThreadRootId,
-            gifs = displayGifs
+            gifs = displayGifs,
+            sourceRoomId = tags["source-room-id"]?.takeIf { it.isNotBlank() && it != tags["room-id"] }
         )
     }
 

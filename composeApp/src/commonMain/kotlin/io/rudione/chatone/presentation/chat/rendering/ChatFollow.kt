@@ -8,20 +8,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.first
+import androidx.compose.ui.unit.IntSize
 
 val ChatFollowPauseThreshold: Dp = 12.dp
 
@@ -54,6 +58,12 @@ class ChatFollowState internal constructor(
     var isPausedByScroll by mutableStateOf(false)
         private set
 
+    var isTouchHeld by mutableStateOf(false)
+        internal set
+
+    internal var bottomRequest by mutableIntStateOf(0)
+        private set
+
     val nestedScrollConnection: NestedScrollConnection = object : NestedScrollConnection {
         override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
             if (consumed.y != 0f) onUserScrolled()
@@ -76,6 +86,23 @@ class ChatFollowState internal constructor(
     fun resume() {
         isPausedByScroll = false
     }
+
+    fun requestBottom() {
+        bottomRequest++
+    }
+}
+
+fun Modifier.holdChatFollowing(follow: ChatFollowState): Modifier = pointerInput(follow) {
+    try {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                follow.isTouchHeld = event.changes.any { it.pressed && it.type != PointerType.Mouse }
+            }
+        }
+    } finally {
+        follow.isTouchHeld = false
+    }
 }
 
 @Composable
@@ -93,54 +120,62 @@ fun ChatFollowEffects(
     newestItemKey: Any?,
     paused: Boolean,
     onPinnedToBottom: () -> Unit,
-    holdBottomWhilePaused: Boolean = false
+    holdBottomWhilePaused: Boolean = false,
+    follow: ChatFollowState? = null
 ) {
+    val newestKeyLatest by rememberUpdatedState(newestItemKey)
     val pausedLatest by rememberUpdatedState(paused)
     val holdBottomLatest by rememberUpdatedState(holdBottomWhilePaused)
     val onPinnedLatest by rememberUpdatedState(onPinnedToBottom)
 
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it > 0 }
-        listState.stickToBottomExact()
-        onPinnedLatest()
-    }
-
-    LaunchedEffect(listState, newestItemKey, paused) {
-        if (newestItemKey == null || paused) return@LaunchedEffect
-        listState.stickToBottomExact()
-        onPinnedLatest()
-    }
-
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.layoutInfo.viewportSize }
-            .drop(1)
-            .collect { if (!pausedLatest) listState.stickToBottomExact() }
-    }
-
-    LaunchedEffect(listState) {
-        snapshotFlow { (listState.bottomOverflow() ?: 0f) to listState.isScrollInProgress }
-            .collect { (overflow, scrolling) ->
-                if (overflow > 0f && !scrolling && !pausedLatest) listState.scrollByUnlessInterrupted(overflow)
-            }
-    }
-
-    LaunchedEffect(listState) {
+    LaunchedEffect(listState, follow) {
         var previous: BottomEdge? = null
+        var initialPinDone = false
         snapshotFlow {
             val info = listState.layoutInfo
-            BottomEdge(
-                itemCount = info.totalItemsCount,
-                lastKey = info.visibleItemsInfo.lastOrNull()?.key,
-                overflowPx = listState.bottomOverflow(),
-                scrolling = listState.isScrollInProgress
+            FollowObservation(
+                edge = BottomEdge(
+                    itemCount = info.totalItemsCount,
+                    lastKey = info.visibleItemsInfo.lastOrNull()?.key,
+                    overflowPx = listState.bottomOverflow(),
+                    scrolling = listState.isScrollInProgress
+                ),
+                newestKey = newestKeyLatest,
+                viewportSize = info.viewportSize,
+                paused = pausedLatest,
+                holdBottom = holdBottomLatest,
+                touchHeld = follow?.isTouchHeld == true,
+                bottomRequest = follow?.bottomRequest ?: 0
             )
-        }.collect { edge ->
-            val delta = if (pausedLatest && holdBottomLatest) growthToAbsorb(previous, edge, BOTTOM_TOLERANCE_PX) else 0f
+        }.collect { observation ->
+            val edge = observation.edge
+            val delta = growthToAbsorb(previous, edge, BOTTOM_TOLERANCE_PX)
             previous = edge
-            if (delta > 0f) listState.scrollByUnlessInterrupted(delta)
+            if (observation.touchHeld || edge.scrolling || edge.itemCount == 0) return@collect
+            if (observation.paused && initialPinDone) {
+                if (observation.holdBottom && delta > 0f) listState.scrollByUnlessInterrupted(delta)
+            } else {
+                try {
+                    listState.stickToBottomExact()
+                    initialPinDone = true
+                    onPinnedLatest()
+                } catch (interrupted: CancellationException) {
+                    currentCoroutineContext().ensureActive()
+                }
+            }
         }
     }
 }
+
+private data class FollowObservation(
+    val edge: BottomEdge,
+    val newestKey: Any?,
+    val viewportSize: IntSize,
+    val paused: Boolean,
+    val holdBottom: Boolean,
+    val touchHeld: Boolean,
+    val bottomRequest: Int
+)
 
 private const val BOTTOM_TOLERANCE_PX = 1f
 

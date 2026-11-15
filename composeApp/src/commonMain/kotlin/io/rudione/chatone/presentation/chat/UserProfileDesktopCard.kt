@@ -99,19 +99,22 @@ internal fun UserProfileDesktopCard(
     val ffzBadges by badgeRepository.ffzByLogin.collectAsState()
     val bttvBadges by badgeRepository.bttvByUserId.collectAsState()
 
+    val chatoneBadge = rememberEquippedChatoneBadge(data.userId)
+    val activeSevenTvBadge = if (sevenTv != null) sevenTv.badge else data.sevenTvBadge
     val badgeItems = remember(
         data.userId, data.badges, profileState.gqlBadges, data.sevenTvBadge,
-        ffzBadges, bttvBadges, profileState.accountBadges
+        ffzBadges, bttvBadges, profileState.accountBadges, activeSevenTvBadge, chatoneBadge
     ) {
         buildProfileBadges(
             chatBadges = data.badges,
             gqlBadges = profileState.gqlBadges,
-            sevenTvBadge = data.sevenTvBadge ?: sevenTv?.badge,
+            sevenTvBadge = activeSevenTvBadge,
             thirdPartyBadges = buildList {
                 ffzBadges[data.username.lowercase()]?.let { addAll(it) }
                 bttvBadges[data.userId]?.let { add(it) }
             },
-            accountBadges = profileState.accountBadges
+            accountBadges = profileState.accountBadges,
+            chatoneBadge = chatoneBadge
         )
     }
 

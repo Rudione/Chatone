@@ -6,6 +6,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
 import io.ktor.client.statement.HttpResponse
+import io.rudione.chatone.domain.entitlements.BundledEntitlements
 import io.rudione.chatone.domain.entitlements.ChatoneUserEntitlement
 import io.rudione.chatone.domain.entitlements.EntitlementsManifest
 import io.rudione.chatone.domain.entitlements.EntitlementsRepository
@@ -20,10 +21,10 @@ class RemoteEntitlementsRepository(
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
-    private val _manifest = MutableStateFlow<EntitlementsManifest?>(null)
+    private val _manifest = MutableStateFlow<EntitlementsManifest?>(BundledEntitlements)
     override val manifest: StateFlow<EntitlementsManifest?> = _manifest
 
-    private var byUserId: Map<String, ChatoneUserEntitlement> = emptyMap()
+    private var byUserId: Map<String, ChatoneUserEntitlement> = BundledEntitlements.users.associateBy { it.twitchUserId }
 
     override suspend fun refresh(): Boolean {
         if (manifestUrl.isBlank()) return false

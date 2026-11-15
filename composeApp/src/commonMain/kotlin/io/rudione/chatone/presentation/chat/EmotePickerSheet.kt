@@ -1329,7 +1329,7 @@ internal fun EmoteTab(
             PickerTab.Bttv -> listOf(EmoteSection(null, bttv))
             PickerTab.Ffz -> listOf(EmoteSection(null, ffz))
             else -> emptyList()
-        }
+        }.map { section -> section.copy(emotes = section.emotes.distinctBy { it.listKey to it.code }) }
     }
 
     val flatSource = remember(baseSections) { baseSections.flatMap { it.emotes } }
@@ -1441,11 +1441,11 @@ internal fun EmoteTab(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                displaySections.forEach { section ->
+                displaySections.forEachIndexed { sectionIndex, section ->
                     if (section.title != null && section.emotes.isNotEmpty()) {
                         item(
                             span = { GridItemSpan(maxLineSpan) },
-                            key = "header_${section.title}",
+                            key = "header_$sectionIndex",
                             contentType = "header"
                         ) {
                             EmoteSectionHeader(section.title)
@@ -1453,7 +1453,7 @@ internal fun EmoteTab(
                     }
                     items(
                         items = section.emotes,
-                        key = { it.listKey },
+                        key = { "emote_${sectionIndex}_${it.listKey}:${it.code}" },
                         contentType = { it.provider }
                     ) { emote ->
                         val uiData = remember(emote.listKey, favoriteIds, lockedEmoteIds) {

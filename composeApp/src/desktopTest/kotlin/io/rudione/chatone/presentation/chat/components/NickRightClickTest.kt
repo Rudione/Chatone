@@ -7,10 +7,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerButtons
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.unit.Density
 import io.ktor.client.HttpClient
 import io.rudione.chatone.data.remote.TranslationClient
 import io.rudione.chatone.domain.model.DisplayMessage
+import io.rudione.chatone.domain.model.SevenTvCosmetics
 import io.rudione.chatone.presentation.chat.PrivMsgItem
 import io.rudione.chatone.presentation.chat.TranslationStore
 import io.rudione.chatone.presentation.settings.SettingsState
@@ -21,6 +23,7 @@ import io.rudione.chatone.util.chat.MessageToken
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -56,6 +59,109 @@ class NickRightClickTest {
         assertEquals(listOf("user2"), rightClickAt(Offset(140f, 12f), compact = true))
     }
 
+    @Test
+    fun holdingTheAuthorMentionsOnceWithoutOpeningTheProfile() {
+        for (compact in listOf(false, true)) {
+            val result = touchAt(Offset(12f, 12f), compact, hold = true)
+            assertEquals(listOf("Rudionee"), result.first)
+            assertEquals(0, result.second)
+        }
+    }
+
+    @Test
+    fun holdingAMentionInsertsThatUser() {
+        for (compact in listOf(false, true)) {
+            assertEquals(listOf("user2"), touchAt(Offset(140f, 12f), compact, hold = true).first)
+        }
+    }
+
+    @Test
+    fun tappingTheAuthorStillOpensTheProfile() {
+        for (compact in listOf(false, true)) {
+            val result = touchAt(Offset(12f, 12f), compact, hold = false)
+            assertEquals(emptyList(), result.first)
+            assertEquals(1, result.second)
+        }
+    }
+
+    @Test
+    fun paintedAuthorsSupportTouchHoldsAndTaps() {
+        for (compact in listOf(false, true)) {
+            val held = touchAt(Offset(12f, 12f), compact, hold = true, painted = true)
+            assertEquals(listOf("Rudionee"), held.first)
+            assertEquals(0, held.second)
+            val tapped = touchAt(Offset(12f, 12f), compact, hold = false, painted = true)
+            assertEquals(emptyList(), tapped.first)
+            assertEquals(1, tapped.second)
+        }
+    }
+
+    @Test
+    fun holdingTheMouseDoesNotInsertAMention() {
+        for (compact in listOf(false, true)) {
+            assertEquals(emptyList(), touchAt(Offset(12f, 12f), compact, hold = true, pointer = PointerType.Mouse).first)
+        }
+    }
+
+    @Test
+    fun holdingMessageSpaceDoesNotMentionTheNearestNickname() {
+        for (compact in listOf(false, true)) {
+            val result = touchAt(Offset(450f, 12f), compact, hold = true)
+            assertEquals(emptyList(), result.first)
+            assertEquals(0, result.second)
+        }
+    }
+
+    private fun touchAt(
+        position: Offset,
+        compact: Boolean,
+        hold: Boolean,
+        painted: Boolean = false,
+        pointer: PointerType = PointerType.Touch
+    ): Pair<List<String>, Int> {
+        val inserted = mutableListOf<String>()
+        var profiles = 0
+        val dispatcher = StandardTestDispatcher()
+        val rendered = if (painted) message.copy(sevenTvPaint = SevenTvCosmetics.Paint(
+            id = "paint", name = "paint", function = "LINEAR_GRADIENT", color = 0xFF0000FF.toInt(),
+            stops = emptyList(), repeat = false, angle = 0, imageUrl = "", shadows = emptyList()
+        )) else message
+        val scene = ImageComposeScene(width = 500, height = 100, density = Density(1f), coroutineContext = dispatcher) {
+            CompositionLocalProvider(LocalWallpaperController provides WallpaperController()) {
+                ChatoneTheme {
+                    PrivMsgItem(
+                        message = rendered,
+                        isCompact = compact,
+                        showModActions = compact,
+                        actorCanModerate = compact,
+                        modButtonsVisible = false,
+                        timestampFormat = SettingsState.TimestampFormat.OFF,
+                        chatFontSizeSp = 15f,
+                        onUsernameClick = { profiles++ },
+                        onRightClickUsername = { inserted += it }
+                    )
+                }
+            }
+        }
+        var frameTime = 0L
+        fun frames(count: Int) = repeat(count) {
+            scene.render(frameTime * 1_000_000)
+            frameTime += 16L
+            dispatcher.scheduler.advanceTimeBy(16L)
+            dispatcher.scheduler.runCurrent()
+        }
+        try {
+            frames(4)
+            scene.sendPointerEvent(PointerEventType.Press, position, type = pointer, timeMillis = frameTime)
+            frames(if (hold) 40 else 2)
+            scene.sendPointerEvent(PointerEventType.Release, position, type = pointer, timeMillis = frameTime)
+            frames(45)
+        } finally {
+            scene.close()
+        }
+        return inserted to profiles
+    }
+
     private fun rightClickAt(position: Offset, compact: Boolean): List<String> {
         val inserted = mutableListOf<String>()
         val scene = ImageComposeScene(width = 500, height = 60, density = Density(1f)) {
@@ -64,6 +170,9 @@ class NickRightClickTest {
                     PrivMsgItem(
                         message = message,
                         isCompact = compact,
+                        showModActions = compact,
+                        actorCanModerate = compact,
+                        modButtonsVisible = false,
                         timestampFormat = SettingsState.TimestampFormat.OFF,
                         chatFontSizeSp = 15f,
                         onRightClickUsername = { inserted += it }

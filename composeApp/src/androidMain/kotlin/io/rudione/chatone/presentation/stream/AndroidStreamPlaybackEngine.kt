@@ -2,12 +2,13 @@ package io.rudione.chatone.presentation.stream
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Base64
+import android.view.Surface
 import android.view.SurfaceView
-import android.view.TextureView
 import android.view.View
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -55,7 +56,8 @@ internal class AndroidStreamPlaybackEngine(
     private val adBreakSource: StreamAdBreakSource,
     private val supportedCodecs: String,
     capacityMemory: NetworkCapacityMemory,
-    private val sessions: StreamMediaSessions
+    private val sessions: StreamMediaSessions,
+    detachedVideoLayer: Boolean
 ) : StreamPlaybackEngine {
 
     private val appContext = context.applicationContext
@@ -80,7 +82,6 @@ internal class AndroidStreamPlaybackEngine(
     private var playerError: StreamErrorKind? = null
     private var released = false
     private var mediaInfo: StreamMediaInfo? = null
-    private val outputs = ArrayList<View>(2)
     private val trackSelector = DefaultTrackSelector(appContext, AutoQualityTrackSelectionFactory(autoQuality))
 
     val player: ExoPlayer = ExoPlayer.Builder(appContext, StreamRenderersFactory(appContext))
@@ -115,6 +116,11 @@ internal class AndroidStreamPlaybackEngine(
             handleError(error)
         }
     }
+
+    private val videoOutputs = VideoOutputs(
+        player = player,
+        layer = if (detachedVideoLayer && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) DetachedVideoLayer() else null
+    )
 
     init {
         player.addListener(listener)
@@ -223,7 +229,7 @@ internal class AndroidStreamPlaybackEngine(
                 .joinToString(",")
                 .ifEmpty { NOT_AVAILABLE },
             lowLatencyActive = lowLatency && playlistParser?.isPrefetchActive == true,
-            renderSurface = RENDER_SURFACE,
+            renderSurface = videoOutputs.surfaceName,
             backendVersion = "Media3 ${MediaLibraryInfo.VERSION}"
         )
     }
@@ -234,39 +240,26 @@ internal class AndroidStreamPlaybackEngine(
         mainHandler.removeCallbacks(liveEdgeCheck)
         liveEdgeCheckScheduled = false
         sessions.close(mediaSession)
-        outputs.clear()
         player.removeListener(listener)
         player.removeAnalyticsListener(metricsCollector)
         player.release()
+        videoOutputs.release()
         manifest = null
         _status.value = PlaybackStatus()
     }
 
     fun attachVideoOutput(view: View) {
         if (released) return
-        outputs.remove(view)
-        outputs.add(view)
-        render(view)
+        videoOutputs.attach(view)
     }
 
     fun detachVideoOutput(view: View) {
         if (released) return
-        val wasCurrent = outputs.lastOrNull() === view
-        outputs.remove(view)
-        if (!wasCurrent) return
-        when (view) {
-            is SurfaceView -> player.clearVideoSurfaceView(view)
-            is TextureView -> player.clearVideoTextureView(view)
-        }
-        outputs.lastOrNull()?.let(::render)
+        videoOutputs.detach(view)
     }
 
-    private fun render(view: View) {
-        when (view) {
-            is SurfaceView -> player.setVideoSurfaceView(view)
-            is TextureView -> player.setVideoTextureView(view)
-        }
-    }
+    fun videoFrameSource(view: SurfaceView): Surface? =
+        if (released) null else videoOutputs.frameSource(view)
 
     private fun updateLiveEdgeCheck() {
         if (released) return
@@ -427,7 +420,6 @@ internal class AndroidStreamPlaybackEngine(
         const val HTTP_FORBIDDEN = 403
         const val HTTP_NOT_FOUND = 404
         const val HTTP_GONE = 410
-        const val RENDER_SURFACE = "SurfaceView"
         const val NOT_AVAILABLE = "—"
         val NETWORK_ERRORS = setOf(
             PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,

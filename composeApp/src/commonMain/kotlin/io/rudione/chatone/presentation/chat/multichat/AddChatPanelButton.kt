@@ -36,6 +36,7 @@ import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.icons.lucide.Check
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Plus
+import androidx.compose.ui.unit.Dp
 
 @Composable
 fun AddChatPanelButton(
@@ -43,7 +44,7 @@ fun AddChatPanelButton(
     availableChannels: List<String>,
     currentChannel: String,
     modifier: Modifier = Modifier,
-    iconSize: androidx.compose.ui.unit.Dp = 18.dp,
+    iconSize: Dp = 18.dp,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
     var expanded by remember { mutableStateOf(false) }

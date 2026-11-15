@@ -113,6 +113,7 @@ import io.rudione.chatone.presentation.components.tactilePress
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Clock
+import androidx.compose.ui.unit.Dp
 
 private const val SHORT_TEXT = 80
 private const val MEDIUM_TEXT = 200
@@ -509,7 +510,7 @@ private fun AutoModDecisionButton(label: String, icon: ImageVector, accent: Colo
     }
 }
 
-private fun Modifier.fadeBottomEdge(height: androidx.compose.ui.unit.Dp, active: () -> Boolean): Modifier = this
+private fun Modifier.fadeBottomEdge(height: Dp, active: () -> Boolean): Modifier = this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
     .drawWithContent {
         drawContent()

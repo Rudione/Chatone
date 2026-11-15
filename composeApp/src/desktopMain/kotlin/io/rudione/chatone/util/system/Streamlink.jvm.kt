@@ -2,6 +2,8 @@ package io.rudione.chatone.util.system
 
 import io.github.aakira.napier.Napier
 import java.io.File
+import java.awt.Desktop
+import java.net.URI
 
 private val TWITCH_LOGIN = Regex("^[A-Za-z0-9_]{1,25}$")
 private val STREAM_QUALITY = Regex("^[A-Za-z0-9_,.\\-]{1,32}$")
@@ -39,7 +41,7 @@ actual fun openInStreamlink(channelLogin: String, quality: String) {
         Napier.w("streamlink launch failed: ${e.message}", tag = "Streamlink")
         notifySystem("Chatone", "streamlink не найден — открываю в браузере")
         try {
-            java.awt.Desktop.getDesktop().browse(java.net.URI(url))
+            Desktop.getDesktop().browse(URI(url))
         } catch (_: Exception) {
         }
     }

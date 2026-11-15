@@ -46,6 +46,7 @@ import io.rudione.chatone.tv.theme.TvDimens
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.foundation.lazy.LazyListScope
 
 private enum class TvSettingsSection(val label: StringResource) {
     PLAYER(Res.string.tv_settings_player),
@@ -125,7 +126,7 @@ fun TvSettingsScreen(
 }
 
 @Composable
-internal fun TvSettingsList(content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+internal fun TvSettingsList(content: LazyListScope.() -> Unit) {
     LazyColumn(
         Modifier
             .fillMaxSize()

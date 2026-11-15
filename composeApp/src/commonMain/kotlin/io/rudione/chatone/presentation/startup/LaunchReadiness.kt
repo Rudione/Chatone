@@ -11,6 +11,10 @@ class LaunchReadiness {
 
     private val _stage = MutableStateFlow(LaunchStage.Starting)
     val stage: StateFlow<LaunchStage> = _stage.asStateFlow()
+    private val _splashVisible = MutableStateFlow(true)
+    val splashVisible: StateFlow<Boolean> = _splashVisible.asStateFlow()
+
+    internal fun setSplashVisible(visible: Boolean) { _splashVisible.value = visible }
 
     val isReady: Boolean
         get() = _stage.value == LaunchStage.Ready

@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.runtime.rememberUpdatedState
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.secret_hide
 import chatone.composeapp.generated.resources.secret_reveal
@@ -33,15 +34,17 @@ private const val SECRET_AUTO_HIDE_MS = 20_000L
 private val SecretMask = PasswordVisualTransformation('•')
 
 @Stable
-class SecretVisibility {
+class SecretVisibility(private val canReveal: () -> Boolean = { true }) {
+    val revealBlocked: Boolean get() = !canReveal()
+
     var revealed by mutableStateOf(false)
         private set
 
     val transformation: VisualTransformation
-        get() = if (revealed) VisualTransformation.None else SecretMask
+        get() = if (revealed && !revealBlocked) VisualTransformation.None else SecretMask
 
     fun toggle() {
-        revealed = !revealed
+        if (!revealBlocked) revealed = !revealed
     }
 
     fun hide() {
@@ -51,7 +54,12 @@ class SecretVisibility {
 
 @Composable
 fun rememberSecretVisibility(autoHideMillis: Long = SECRET_AUTO_HIDE_MS): SecretVisibility {
-    val visibility = remember { SecretVisibility() }
+    val privacy = LocalStreamerPrivacy.current
+    val currentPrivacy by rememberUpdatedState(privacy)
+    val visibility = remember { SecretVisibility { !currentPrivacy.tokensHidden } }
+    LaunchedEffect(privacy.tokensHidden) {
+        if (privacy.tokensHidden) visibility.hide()
+    }
     LaunchedEffect(visibility.revealed) {
         if (visibility.revealed) {
             delay(autoHideMillis)
@@ -63,6 +71,7 @@ fun rememberSecretVisibility(autoHideMillis: Long = SECRET_AUTO_HIDE_MS): Secret
 
 @Composable
 fun SecretRevealButton(visibility: SecretVisibility, modifier: Modifier = Modifier) {
+    if (visibility.revealBlocked) return
     val label = if (visibility.revealed) stringResource(Res.string.secret_hide) else stringResource(Res.string.secret_reveal)
     ChatoneIconButton(onClick = visibility::toggle, modifier = modifier.size(26.dp)) {
         Icon(

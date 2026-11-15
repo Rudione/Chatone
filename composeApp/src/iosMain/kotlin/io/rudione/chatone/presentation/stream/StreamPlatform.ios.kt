@@ -1,18 +1,27 @@
 package io.rudione.chatone.presentation.stream
 
 import platform.UIKit.setNeedsUpdateOfSupportedInterfaceOrientations
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 import io.rudione.chatone.presentation.components.SystemBackHandler
+import io.rudione.chatone.presentation.stream.lowlatency.LowLatencyStreamPlaybackEngine
+import io.rudione.chatone.presentation.stream.lowlatency.LowLatencyVideoHost
 import io.rudione.chatone.presentation.system.IosSystemBars
+import io.rudione.chatone.presentation.system.NativeVideoPresenceEffect
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.UIKit.UIApplication
@@ -32,23 +41,62 @@ actual fun PlatformVideoView(
     surfaceKind: VideoSurfaceKind,
     frameSink: VideoFrameSink?
 ) {
-    val iosEngine = engine as? IosStreamPlaybackEngine
-    val player = iosEngine?.player
+    if (engine is IosRoutingPlaybackEngine) {
+        val current by engine.activeEngine.collectAsState()
+        PlatformVideoView(current, keepScreenOn, modifier, surfaceKind, frameSink)
+        return
+    }
     KeepScreenOnEffect(keepScreenOn)
-    if (iosEngine != null && frameSink != null) {
-        LaunchedEffect(iosEngine, frameSink) {
-            while (isActive) {
-                iosEngine.sampleFrame(frameSink.sampleWidth, frameSink.sampleHeight)?.let(frameSink::accept)
-                delay(frameSink.sampleIntervalMs)
+    NativeVideoPresenceEffect()
+    when (engine) {
+        is LowLatencyStreamPlaybackEngine -> {
+            if (frameSink != null) {
+                FrameSamplingEffect(engine, frameSink, engine::sampleFrame) {
+                    engine.frameSamplingIntervalMs(frameSink.sampleIntervalMs)
+                }
             }
+            UIKitView(
+                factory = { LowLatencyVideoHost() },
+                modifier = modifier,
+                update = { it.attach(engine.surfaces) },
+                onRelease = { it.dispose() },
+                properties = PassiveVideoSurface
+            )
+        }
+
+        else -> {
+            val avEngine = engine as? IosStreamPlaybackEngine
+            if (avEngine != null && frameSink != null) {
+                FrameSamplingEffect(avEngine, frameSink, avEngine::sampleFrame) { frameSink.sampleIntervalMs }
+            }
+            UIKitView(
+                factory = { PlayerLayerView(pictureInPicture = surfaceKind == VideoSurfaceKind.Direct) },
+                modifier = modifier,
+                update = { it.attach(avEngine?.player) },
+                onRelease = { it.dispose() },
+                properties = PassiveVideoSurface
+            )
         }
     }
-    UIKitView(
-        factory = { PlayerLayerView(pictureInPicture = surfaceKind == VideoSurfaceKind.Direct) },
-        modifier = modifier,
-        update = { it.attach(player) },
-        onRelease = { it.dispose() }
-    )
+}
+
+internal val PassiveVideoSurface = UIKitInteropProperties(interactionMode = null)
+
+@Composable
+private fun FrameSamplingEffect(
+    engine: Any,
+    frameSink: VideoFrameSink,
+    sample: (Int, Int) -> IntArray?,
+    nextDelayMs: () -> Long
+) {
+    val sampler = rememberUpdatedState(sample)
+    val pacing = rememberUpdatedState(nextDelayMs)
+    LaunchedEffect(engine, frameSink) {
+        while (isActive) {
+            sampler.value(frameSink.sampleWidth, frameSink.sampleHeight)?.let(frameSink::accept)
+            delay(pacing.value())
+        }
+    }
 }
 
 @Composable
@@ -83,15 +131,29 @@ actual fun StreamImmersiveEffect(enabled: Boolean) {
 @Composable
 actual fun StreamVisibilityEffect(onVisibilityChanged: (Boolean) -> Unit) {
     val latest = rememberUpdatedState(onVisibilityChanged)
+    val scope = rememberCoroutineScope()
     DisposableEffect(Unit) {
+        var pendingHide: Job? = null
         val center = NSNotificationCenter.defaultCenter
         val active = center.addObserverForName(UIApplicationDidBecomeActiveNotification, null, NSOperationQueue.mainQueue) { _ ->
+            pendingHide?.cancel()
+            pendingHide = null
             latest.value(true)
         }
         val background = center.addObserverForName(UIApplicationDidEnterBackgroundNotification, null, NSOperationQueue.mainQueue) { _ ->
-            latest.value(false)
+            pendingHide?.cancel()
+            pendingHide = if (IosPictureInPicture.isActive || IosPictureInPicture.startsAutomatically) {
+                scope.launch {
+                    delay(PICTURE_IN_PICTURE_SETTLE_MS)
+                    if (!IosPictureInPicture.isActive) latest.value(false)
+                }
+            } else {
+                latest.value(false)
+                null
+            }
         }
         onDispose {
+            pendingHide?.cancel()
             center.removeObserver(active)
             center.removeObserver(background)
         }
@@ -112,6 +174,8 @@ actual fun rememberPictureInPictureController(): PictureInPictureController = Sy
 actual fun rememberAppBackgroundController(): AppBackgroundController = NoOpAppBackgroundController
 
 private val NoOpAppBackgroundController = AppBackgroundController {}
+
+private const val PICTURE_IN_PICTURE_SETTLE_MS = 1_500L
 
 @Composable
 actual fun PictureInPictureDismissEffect(controller: PictureInPictureController, onDismissed: () -> Unit) {

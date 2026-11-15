@@ -49,9 +49,11 @@ import kotlinx.coroutines.launch
 @Composable
 fun UpdateAvailableOverlay() {
     val available by AutoUpdater.available.collectAsState()
+    val dialogVisible by AutoUpdater.dialogVisible.collectAsState()
     val stage by AutoUpdater.stage.collectAsState()
     val scope = rememberCoroutineScope()
     val entry = available ?: return
+    if (!dialogVisible) return
 
     Box(
         modifier = Modifier

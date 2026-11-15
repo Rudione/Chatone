@@ -6,6 +6,7 @@ import io.ktor.http.isSuccess
 import io.rudione.chatone.data.remote.proxy.buildHttpClientWithProxy
 import io.rudione.chatone.domain.model.AccountProxyConfig
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Clock
 
 object ProxyConnectionTester {
     sealed class Result {
@@ -19,13 +20,13 @@ object ProxyConnectionTester {
             return Result.Failure("Build failed: ${e.message ?: "unknown"}")
         }
         return try {
-            val start = kotlin.time.Clock.System.now().toEpochMilliseconds()
+            val start = Clock.System.now().toEpochMilliseconds()
             val response: HttpResponse? = withTimeoutOrNull(8_000L) { client.get(probeUrl) }
             if (response == null) Result.Failure("Timeout")
             else {
 
                 val ok = response.status.isSuccess() || response.status.value == 401
-                if (ok) Result.Ok(kotlin.time.Clock.System.now().toEpochMilliseconds() - start)
+                if (ok) Result.Ok(Clock.System.now().toEpochMilliseconds() - start)
                 else Result.Failure("HTTP ${response.status.value}")
             }
         } catch (e: Exception) {

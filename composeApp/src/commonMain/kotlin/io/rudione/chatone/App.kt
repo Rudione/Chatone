@@ -1,5 +1,10 @@
 package io.rudione.chatone
 
+import io.rudione.chatone.presentation.components.LocalStreamerPrivacy
+import io.rudione.chatone.data.repository.StreamerModeController
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.foundation.layout.Column
+import io.rudione.chatone.presentation.settings.SettingsState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -61,6 +66,25 @@ import kotlinx.coroutines.withContext
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
+import io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient
+import io.rudione.chatone.data.repository.NicknameRepository
+import io.rudione.chatone.data.repository.ThirdPartyBadgeRepository
+import io.rudione.chatone.presentation.chat.LocalChatGifsEnabled
+import io.rudione.chatone.presentation.chat.LocalNicknames
+import io.rudione.chatone.presentation.chat.LocalReadableNickColors
+import io.rudione.chatone.domain.entitlements.EntitlementsRepository
+import io.rudione.chatone.presentation.chat.ChatoneBadgeAssignment
+import io.rudione.chatone.presentation.components.ImagePreviewHost
+import io.rudione.chatone.presentation.chat.LocalChatoneBadges
+import io.rudione.chatone.presentation.chat.LocalSevenTvCosmetics
+import io.rudione.chatone.presentation.chat.LocalSevenTvPaints
+import io.rudione.chatone.presentation.chat.LocalThirdPartyBadges
+import io.rudione.chatone.presentation.chat.ThirdPartyBadgeMaps
+import io.rudione.chatone.presentation.chat.TranslationStore
+import io.rudione.chatone.presentation.theme.WallpaperState
+import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 
 @Immutable
 class AppScreens(
@@ -111,8 +135,10 @@ fun App(
     onThemeChanged: ((Boolean) -> Unit)? = null,
     onThemeTopBarColorChanged: ((Color?) -> Unit)? = null,
     onTitleBarModeChanged: ((TitleBarMode) -> Unit)? = null,
-    screens: AppScreens? = null
+    screens: AppScreens? = null,
+    windowTitleBar: (@Composable (SettingsState, (SettingsEvent) -> Unit) -> Unit)? = null
 ) {
+    val streamerPrivacy by koinInject<StreamerModeController>().state.collectAsState()
     val customThemeManager: CustomThemeManager = koinInject()
     val activeCustomTheme by customThemeManager.currentTheme.collectAsState()
 
@@ -131,22 +157,33 @@ fun App(
 
         val wallpaperLoader: WallpaperLoader = koinInject()
 
-        val translationStore: io.rudione.chatone.presentation.chat.TranslationStore = koinInject()
+        val translationStore: TranslationStore = koinInject()
         SideEffect(settingsState.translationTargetLang) {
             translationStore.targetLang = settingsState.translationTargetLang
         }
 
-        val nicknameRepository: io.rudione.chatone.data.repository.NicknameRepository = koinInject()
+        val nicknameRepository: NicknameRepository = koinInject()
         val nicknames by nicknameRepository.nicknames.collectAsState()
 
-        val thirdPartyBadgeRepository: io.rudione.chatone.data.repository.ThirdPartyBadgeRepository = koinInject()
+        val thirdPartyBadgeRepository: ThirdPartyBadgeRepository = koinInject()
         val ffzBadges by thirdPartyBadgeRepository.ffzByLogin.collectAsState()
         val bttvBadges by thirdPartyBadgeRepository.bttvByUserId.collectAsState()
         val thirdPartyBadgeMaps = remember(ffzBadges, bttvBadges) {
-            io.rudione.chatone.presentation.chat.ThirdPartyBadgeMaps(ffzBadges, bttvBadges)
+            ThirdPartyBadgeMaps(ffzBadges, bttvBadges)
         }
 
-        val sevenTvCosmeticsClient: io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient =
+        val entitlementsRepository: EntitlementsRepository = koinInject()
+        val entitlements by entitlementsRepository.manifest.collectAsState()
+        val chatoneBadges = remember(entitlements) {
+            val badgesById = entitlements?.badges.orEmpty().associateBy { it.id }
+            entitlements?.users.orEmpty().mapNotNull { user ->
+                val equipped = user.equippedBadgeId ?: user.badgeIds.singleOrNull()
+                val badge = equipped?.takeIf { it in user.badgeIds }?.let(badgesById::get)
+                badge?.let { user.twitchUserId to ChatoneBadgeAssignment(user, it) }
+            }.toMap()
+        }
+
+        val sevenTvCosmeticsClient: SevenTvCosmeticsClient =
             koinInject()
         val sevenTvCosmetics = sevenTvCosmeticsClient.cosmetics.collectAsState()
         val sevenTvPaints = sevenTvCosmeticsClient.paints.collectAsState()
@@ -171,7 +208,7 @@ fun App(
             if (settingsState.wallpaperPath.isBlank()) {
 
                 wallpaperController.update(
-                    io.rudione.chatone.presentation.theme.WallpaperState(
+                    WallpaperState(
                         displayConfig = wallpaperController.state.displayConfig
                     )
                 )
@@ -187,7 +224,7 @@ fun App(
     
                 } else {
                     wallpaperController.update(
-                        io.rudione.chatone.presentation.theme.WallpaperState(
+                        WallpaperState(
                             displayConfig = wallpaperController.state.displayConfig
                         )
                     )
@@ -259,21 +296,23 @@ fun App(
         val statusBarOverrides = remember { StatusBarOverrides() }
         CompositionLocalProvider(
             LocalStatusBarOverrides provides statusBarOverrides,
+            LocalStreamerPrivacy provides streamerPrivacy,
             LocalAppLocale provides settingsState.language,
             LocalWallpaperController provides wallpaperController,
             LocalCustomThemeManager provides customThemeManager,
-            io.rudione.chatone.presentation.chat.LocalNicknames provides nicknames,
-            io.rudione.chatone.presentation.chat.LocalThirdPartyBadges provides thirdPartyBadgeMaps,
-            io.rudione.chatone.presentation.chat.LocalChatGifsEnabled provides settingsState.showChatGifs,
-            io.rudione.chatone.presentation.chat.LocalReadableNickColors provides settingsState.readableNickColors,
+            LocalNicknames provides nicknames,
+            LocalThirdPartyBadges provides thirdPartyBadgeMaps,
+            LocalChatGifsEnabled provides settingsState.showChatGifs,
+            LocalReadableNickColors provides settingsState.readableNickColors,
             LocalChatMediaSettings provides ChatMediaSettings(
                 linkOpenMode = settingsState.linkOpenMode,
                 showInlineImages = settingsState.showInlineImages,
                 inlineImageMaxHeight = settingsState.inlineImageMaxHeight,
                 clipPreviewWidth = settingsState.clipPreviewWidth
             ),
-            io.rudione.chatone.presentation.chat.LocalSevenTvCosmetics provides sevenTvCosmetics,
-            io.rudione.chatone.presentation.chat.LocalSevenTvPaints provides sevenTvPaints,
+            LocalChatoneBadges provides chatoneBadges,
+            LocalSevenTvCosmetics provides sevenTvCosmetics,
+            LocalSevenTvPaints provides sevenTvPaints,
             LocalDensity provides Density(
                 LocalDensity.current.density * uiScale,
                 LocalDensity.current.fontScale
@@ -288,69 +327,75 @@ fun App(
                     colorTokens = settingsState.colorTokens
                 ) {
                     AppSystemBars(
-                        lightBackground = androidx.compose.material3.MaterialTheme.colorScheme.background.luminance() > 0.5f
+                        lightBackground = MaterialTheme.colorScheme.background.luminance() > 0.5f
                     )
-                    val resolvedTopBarColor = io.rudione.chatone.presentation.theme.topBarBackgroundColor(
+                    val resolvedTopBarColor = topBarBackgroundColor(
                         wallpaper,
-                        androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer
+                        MaterialTheme.colorScheme.surfaceContainer
                     )
-                    LaunchedEffect(resolvedTopBarColor) {
-                        onThemeTopBarColorChanged?.invoke(resolvedTopBarColor)
+                    val captionBackground = resolvedTopBarColor.compositeOver(MaterialTheme.colorScheme.background)
+                    LaunchedEffect(captionBackground) {
+                        onThemeTopBarColorChanged?.invoke(captionBackground)
                     }
-                    Box(
-                        modifier = androidx.compose.ui.Modifier
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        val event = awaitPointerEvent()
-                                        if (event.type == PointerEventType.Scroll) {
-                                            val isCtrl = event.keyboardModifiers.isCtrlPressed
-                                            if (isCtrl) {
-                                                val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
-                                                val newScale = (uiScale - delta * 0.05f).coerceIn(0.7f, 2.0f)
-                                                settingsViewModel.sendEvent(SettingsEvent.OnUiScaleChanged(newScale))
+                    ImagePreviewHost {
+                        Column(Modifier.fillMaxSize()) {
+                            windowTitleBar?.invoke(settingsState, settingsViewModel::sendEvent)
+                            Box(
+                                modifier = Modifier
+                                    .pointerInput(Unit) {
+                                        awaitPointerEventScope {
+                                            while (true) {
+                                                val event = awaitPointerEvent()
+                                                if (event.type == PointerEventType.Scroll) {
+                                                    val isCtrl = event.keyboardModifiers.isCtrlPressed
+                                                    if (isCtrl) {
+                                                        val delta = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                                                        val newScale = (uiScale - delta * 0.05f).coerceIn(0.7f, 2.0f)
+                                                        settingsViewModel.sendEvent(SettingsEvent.OnUiScaleChanged(newScale))
+                                                    }
+                                                }
                                             }
                                         }
                                     }
-                                }
-                            }
-                    ) {
-                        val currentRoute = backStack.lastOrNull() ?: RootRoute.Loading
-                        AnimatedContent(
-                            targetState = currentRoute,
-                            transitionSpec = {
-                                fadeIn(tween(180)) togetherWith fadeOut(tween(180))
-                            },
-                            label = "root-route"
-                        ) { route ->
-                            when (route) {
-                                RootRoute.Loading -> Box(androidx.compose.ui.Modifier.fillMaxSize())
-                                RootRoute.Auth -> if (screens != null) {
-                                    screens.auth { backStack.replaceWith(RootRoute.Main) }
-                                } else {
-                                    AuthScreen(
-                                        onAuthSuccess = { backStack.replaceWith(RootRoute.Main) },
-                                        language = settingsState.language,
-                                        onLanguageChange = { code ->
-                                            settingsViewModel.sendEvent(SettingsEvent.OnLanguageChanged(code))
+                            ) {
+                                val currentRoute = backStack.lastOrNull() ?: RootRoute.Loading
+                                AnimatedContent(
+                                    targetState = currentRoute,
+                                    transitionSpec = {
+                                        fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                                    },
+                                    label = "root-route"
+                                ) { route ->
+                                    when (route) {
+                                        RootRoute.Loading -> Box(Modifier.fillMaxSize())
+                                        RootRoute.Auth -> if (screens != null) {
+                                            screens.auth { backStack.replaceWith(RootRoute.Main) }
+                                        } else {
+                                            AuthScreen(
+                                                onAuthSuccess = { backStack.replaceWith(RootRoute.Main) },
+                                                language = settingsState.language,
+                                                onLanguageChange = { code ->
+                                                    settingsViewModel.sendEvent(SettingsEvent.OnLanguageChanged(code))
+                                                }
+                                            )
                                         }
-                                    )
-                                }
 
-                                RootRoute.Main -> if (screens != null) {
-                                    screens.main { backStack.replaceWith(RootRoute.Auth) }
-                                } else {
-                                    MainScreen(
-                                        onNavigateToAuth = { backStack.replaceWith(RootRoute.Auth) },
-                                        onThemeChanged = { dark ->
-                                            isDarkTheme = dark
-                                            onThemeChanged?.invoke(dark)
+                                        RootRoute.Main -> if (screens != null) {
+                                            screens.main { backStack.replaceWith(RootRoute.Auth) }
+                                        } else {
+                                            MainScreen(
+                                                onNavigateToAuth = { backStack.replaceWith(RootRoute.Auth) },
+                                                onThemeChanged = { dark ->
+                                                    isDarkTheme = dark
+                                                    onThemeChanged?.invoke(dark)
+                                                }
+                                            )
                                         }
-                                    )
+                                    }
                                 }
+                                LaunchSplashOverlay()
                             }
                         }
-                        LaunchSplashOverlay()
                     }
                 }
             }

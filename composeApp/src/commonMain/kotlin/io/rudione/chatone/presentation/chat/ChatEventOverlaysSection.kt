@@ -29,6 +29,11 @@ import io.rudione.chatone.presentation.chat.components.RaidBanner
 import io.rudione.chatone.presentation.components.DockHost
 import io.rudione.chatone.presentation.components.insetBottom
 import kotlin.time.Instant
+import io.rudione.chatone.presentation.chat.components.EventBannerItem
+import io.rudione.chatone.presentation.chat.components.PollBanner
+import io.rudione.chatone.presentation.chat.components.PredictionBanner
+import io.rudione.chatone.presentation.chat.components.UnifiedEventBanner
+import io.rudione.chatone.presentation.window.DetachedToolWindow
 
 @Composable
 internal fun BoxScope.ChatEventOverlaysSection(
@@ -48,18 +53,19 @@ internal fun BoxScope.ChatEventOverlaysSection(
     val bannerItems = buildList {
         state.pinnedMessage?.takeIf { showPinnedMessage && !state.pinLocallyHidden }?.let { pinned ->
             add(
-                io.rudione.chatone.presentation.chat.components.EventBannerItem(
+                EventBannerItem(
                     key = "pin",
                     label = stringResource(Res.string.event_label_pinned),
                     endsAtMs = state.pinEndsAtMs,
-                    totalDurationMs = null
+                    totalDurationMs = null,
+                    summary = pinned.displayName
                 ) {
                     PinnedMessageBar(
                         message = pinned,
                         canUnpin = state.canModerate,
-                        endsAtMs = state.pinEndsAtMs,
                         pinnedByName = state.pinnedByName,
                         pinnedByBadges = state.pinnedByBadges,
+                        pinnedByUser = state.pinnedByUser,
                         onUnpin = { viewModel.sendEvent(ChatEvent.OnUnpinMessage) },
                         onHide = { viewModel.sendEvent(ChatEvent.OnHideEventBanner("pin")) })
                 }
@@ -68,13 +74,16 @@ internal fun BoxScope.ChatEventOverlaysSection(
         state.livePoll?.takeIf { !pollHidden }?.let { poll ->
             val ends = isoToMs(poll.startedAt)?.plus(poll.duration * 1000L)
             add(
-                io.rudione.chatone.presentation.chat.components.EventBannerItem(
+                EventBannerItem(
                     key = "poll",
                     label = stringResource(Res.string.event_label_poll),
                     endsAtMs = ends?.takeIf { poll.status == "ACTIVE" },
-                    totalDurationMs = poll.duration * 1000L
+                    totalDurationMs = poll.duration * 1000L,
+                    summary = poll.title,
+                    countdownInContent = true
                 ) {
-                    io.rudione.chatone.presentation.chat.components.PollBanner(
+                    PollBanner(
+                        channelLogin = state.channelLogin,
                         poll = poll,
                         onVote = { choiceId ->
                             viewModel.sendEvent(ChatEvent.OnVotePoll(poll.id, choiceId))
@@ -87,14 +96,22 @@ internal fun BoxScope.ChatEventOverlaysSection(
         state.livePrediction?.takeIf { !predictionHidden }?.let { pred ->
             val ends = isoToMs(pred.createdAt)?.plus(pred.predictionWindow * 1000L)
             add(
-                io.rudione.chatone.presentation.chat.components.EventBannerItem(
+                EventBannerItem(
                     key = "prediction",
                     label = stringResource(Res.string.event_label_prediction),
                     endsAtMs = ends?.takeIf { pred.status == "ACTIVE" },
-                    totalDurationMs = pred.predictionWindow * 1000L
+                    totalDurationMs = pred.predictionWindow * 1000L,
+                    summary = pred.title,
+                    countdownInContent = true
                 ) {
-                    io.rudione.chatone.presentation.chat.components.PredictionBanner(
+                    PredictionBanner(
+                        channelLogin = state.channelLogin,
                         prediction = pred,
+                        canModerate = state.canModerate,
+                        actionPending = state.predictionActionPending,
+                        onLock = { viewModel.sendEvent(ChatEvent.OnLockPrediction(pred.id)) },
+                        onCancel = { viewModel.sendEvent(ChatEvent.OnCancelPrediction(pred.id)) },
+                        onResolve = { viewModel.sendEvent(ChatEvent.OnOpenPredictionCreation) },
                         pointsBalance = state.pointsBalance,
                         onPredict = { outcomeId, points ->
                             viewModel.sendEvent(ChatEvent.OnPlacePrediction(pred.id, outcomeId, points))
@@ -106,7 +123,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
         }
         state.pendingRaidTarget?.let { target ->
             add(
-                io.rudione.chatone.presentation.chat.components.EventBannerItem(
+                EventBannerItem(
                     key = "raid",
                     label = stringResource(Res.string.event_label_raid),
                     endsAtMs = state.pendingRaidStartedAt + 90_000L,
@@ -125,7 +142,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
     }
     val bannerEndInset = (scrollbarWidthDp + 10).dp
     if (bannerItems.isNotEmpty()) {
-        io.rudione.chatone.presentation.chat.components.UnifiedEventBanner(
+        UnifiedEventBanner(
             items = bannerItems,
             horizontalInset = bannerEndInset,
             modifier = Modifier
@@ -199,7 +216,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
         if (!resolvePanelAvailable) predictionResolveDetached = false
     }
     if (predictionResolveDetached && resolvablePrediction != null) {
-        io.rudione.chatone.presentation.window.DetachedToolWindow(
+        DetachedToolWindow(
             windowId = "prediction-resolve",
             title = "Chatone — ${resolvablePrediction.title}",
             defaultWidth = 460.dp,

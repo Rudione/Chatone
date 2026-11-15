@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.streamer_hide_private_messages
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.cancel
 import chatone.composeapp.generated.resources.ext_rights_approve_as
@@ -21,7 +22,6 @@ import chatone.composeapp.generated.resources.ext_rights_waiting
 import chatone.composeapp.generated.resources.ext_rights_what
 import chatone.composeapp.generated.resources.streamer_hide_mod
 import chatone.composeapp.generated.resources.streamer_hide_thumbs
-import chatone.composeapp.generated.resources.streamer_mask_channels
 import chatone.composeapp.generated.resources.streamer_mask_tokens
 import chatone.composeapp.generated.resources.streamer_mode_hide_data
 import chatone.composeapp.generated.resources.streamer_mode_obs
@@ -83,6 +83,7 @@ import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.util.link.openUrl
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun FirstPartyTokenCard(
@@ -320,7 +321,7 @@ private fun ExtRightsStatusRow(connected: Boolean, label: String?) {
 }
 
 @Composable
-private fun ExtRightsBanner(text: String, tone: androidx.compose.ui.graphics.Color) {
+private fun ExtRightsBanner(text: String, tone: Color) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -379,16 +380,16 @@ fun StreamerModeCard(controller: StreamerModeController = koinInject()) {
                 controller.setOptions { it.copy(hideModActions = v) }
             }
             StreamerToggle(
-                stringResource(Res.string.streamer_mask_channels),
-                state.options.hideChannelNames
-            ) { v ->
-                controller.setOptions { it.copy(hideChannelNames = v) }
-            }
-            StreamerToggle(
                 stringResource(Res.string.streamer_hide_thumbs),
                 state.options.hideThumbnails
             ) { v ->
                 controller.setOptions { it.copy(hideThumbnails = v) }
+            }
+            StreamerToggle(
+                stringResource(Res.string.streamer_hide_private_messages),
+                state.options.hidePrivateMessages
+            ) { v ->
+                controller.setOptions { it.copy(hidePrivateMessages = v) }
             }
             StreamerToggle(
                 stringResource(Res.string.streamer_suppress_notif),

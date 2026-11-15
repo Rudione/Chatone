@@ -45,11 +45,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.remote.dto.PredictionData
 import io.rudione.chatone.presentation.components.ChatoneIconButton
-import io.rudione.chatone.presentation.components.chatoneGlassPanel
 import io.rudione.chatone.icons.lucide.ExternalLink
 import io.rudione.chatone.icons.lucide.Lock
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 private fun outcomeAccent(color: String): Color = when (color.uppercase()) {
     "BLUE" -> Color(0xFF1E69FF)
@@ -86,7 +88,11 @@ internal fun PredictionResolvePanel(
         modifier = modifier
             .fillMaxWidth()
             .padding(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 4.dp)
-            .chatoneGlassPanel(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 1f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+            .heightIn(max = 520.dp)
+            .verticalScroll(rememberScrollState())
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null

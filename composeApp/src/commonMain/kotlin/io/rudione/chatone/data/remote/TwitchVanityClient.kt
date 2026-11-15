@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.JsonArray
 
 enum class VanityWrite { DONE, BLOCKED, FAILED }
 
@@ -129,7 +130,7 @@ class TwitchVanityClient(
             else -> VanityWrite.FAILED
         }
 
-    private fun kotlinx.serialization.json.JsonArray.badges(): List<VanityBadge> =
+    private fun JsonArray.badges(): List<VanityBadge> =
         objects().mapNotNull { it.badge() }.filter { it.setId.lowercase() !in RESERVED_SETS }
             .distinctBy { it.key }
 

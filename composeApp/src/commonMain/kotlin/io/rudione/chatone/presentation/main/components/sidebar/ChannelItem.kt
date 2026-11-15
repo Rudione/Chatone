@@ -106,6 +106,7 @@ import io.rudione.chatone.icons.lucide.Folder
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
 import io.rudione.chatone.presentation.components.PortalPopup
+import androidx.compose.ui.window.PopupProperties
 
 @Composable
 internal fun CompactChannelAvatar(
@@ -192,7 +193,7 @@ internal fun CompactChannelAvatar(
                     PortalPopup(
                         alignment = Alignment.TopStart,
                         offset = tooltipOffset,
-                        properties = androidx.compose.ui.window.PopupProperties(focusable = false)
+                        properties = PopupProperties(focusable = false)
                     ) {
                         Box(
                             modifier = Modifier.clip(RoundedCornerShape(6.dp))

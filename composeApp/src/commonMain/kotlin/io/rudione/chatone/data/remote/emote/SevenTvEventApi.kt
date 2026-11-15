@@ -4,8 +4,12 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.websocket.Frame
+import io.rudione.chatone.util.network.NetworkMonitor
+import io.rudione.chatone.util.network.recoverSocket
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.MutableStateFlow
 import io.ktor.websocket.WebSocketSession
-import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.rudione.chatone.data.remote.dto.SevenTvEventBody
 import io.rudione.chatone.data.remote.dto.SevenTvEventMessage
@@ -13,12 +17,14 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.CancellationException
 
 class SevenTvEventApi(
     private val httpClient: HttpClient,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val networkMonitor: NetworkMonitor = NetworkMonitor(scope)
 ) {
     companion object {
         private const val TAG = "7TV-EventAPI"
@@ -36,9 +42,11 @@ class SevenTvEventApi(
 
     private var session: WebSocketSession? = null
     private var heartbeatJob: Job? = null
-    private var receiveJob: Job? = null
-    private val subscribedSets = mutableSetOf<String>()
-    private val subscribedTwitchChannels = mutableSetOf<String>()
+    private var connectionJob: Job? = null
+    private val lifecycleMutex = Mutex()
+    private val heartbeatInterval = MutableStateFlow(30_000L)
+    private val subscribedSets = SevenTvSubscriptions()
+    private val subscribedTwitchChannels = SevenTvSubscriptions()
 
     private val _emoteSetUpdates = MutableSharedFlow<EmoteSetUpdateEvent>(
         extraBufferCapacity = 256,
@@ -81,20 +89,55 @@ class SevenTvEventApi(
         ) : EmoteSetUpdateEvent()
     }
 
-    suspend fun connect() {
-        try {
-            session = httpClient.webSocketSession(EVENT_API_URL)
-            Napier.d("Connected to 7TV EventAPI", tag = TAG)
-            startReceiving()
+    suspend fun connect() = lifecycleMutex.withLock {
+        if (connectionJob?.isActive == true) return@withLock
+        var initialSession = if (networkMonitor.status.value.available == false) null else try {
+            withTimeout(15_000.milliseconds) { httpClient.webSocketSession(EVENT_API_URL) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Napier.e("Failed to connect to 7TV EventAPI: ${e.message}", tag = TAG)
+            Napier.w("7TV connection unavailable: ${e::class.simpleName}", tag = TAG)
+            null
         }
+        connectionJob = scope.launch {
+            networkMonitor.recoverSocket(onFailure = {
+                Napier.w(
+                    "7TV connection interrupted: ${it::class.simpleName}",
+                    tag = TAG
+                )
+            }) {
+                val ws = initialSession
+                    ?: withTimeout(15_000.milliseconds) { httpClient.webSocketSession(EVENT_API_URL) }
+                initialSession = null
+                session = ws
+                heartbeatInterval.value = 30_000
+                try {
+                    var silenceLimit = 15_000L
+                    while (isActive) {
+                        val frame = withTimeoutOrNull(silenceLimit.milliseconds) {
+                            ws.incoming.receiveCatching().getOrNull()
+                        }
+                            ?: throw SevenTvHeartbeatTimeout()
+                        if (frame is Frame.Text) {
+                            handleMessage(frame.readText())
+                            silenceLimit = heartbeatInterval.value * 2 + 10_000
+                        }
+                    }
+                } finally {
+                    heartbeatJob?.cancelAndJoin()
+                    ws.cancel()
+                    session = null
+                }
+            }
+        }.also { job -> job.invokeOnCompletion { initialSession?.cancel() } }
     }
 
     fun subscribeToEmoteSet(emoteSetId: String) {
-        if (emoteSetId in subscribedSets) return
-        subscribedSets.add(emoteSetId)
+        if (emoteSetId.isBlank() || !subscribedSets.add(emoteSetId)) return
+        sendEmoteSetSubscription(emoteSetId)
+    }
 
+    private fun sendEmoteSetSubscription(emoteSetId: String) {
         scope.launch {
             val subscribeMsg = """
                 {"op":$OP_SUBSCRIBE,"d":{"type":"emote_set.update","condition":{"object_id":"$emoteSetId"}}}
@@ -110,14 +153,13 @@ class SevenTvEventApi(
         }
     }
 
-    fun unsubscribeFromEmoteSet(emoteSetId: String) {
-        subscribedSets.remove(emoteSetId)
-    }
 
     fun subscribeToTwitchChannel(twitchChannelId: String) {
-        if (twitchChannelId.isBlank() || twitchChannelId in subscribedTwitchChannels) return
-        subscribedTwitchChannels.add(twitchChannelId)
+        if (twitchChannelId.isBlank() || !subscribedTwitchChannels.add(twitchChannelId)) return
+        sendTwitchChannelSubscriptions(twitchChannelId)
+    }
 
+    private fun sendTwitchChannelSubscriptions(twitchChannelId: String) {
         scope.launch {
             val types = listOf("entitlement.create", "entitlement.delete", "cosmetic.create")
             for (type in types) {
@@ -126,34 +168,16 @@ class SevenTvEventApi(
                 """.trimIndent()
                 try {
                     session?.send(Frame.Text(msg))
-                } catch (e: kotlinx.coroutines.CancellationException) {
+                } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    Napier.e("Failed to subscribe $type for channel $twitchChannelId: ${e.message}", tag = TAG)
+                    Napier.e(
+                        "Failed to subscribe $type for channel $twitchChannelId: ${e.message}",
+                        tag = TAG
+                    )
                 }
             }
             Napier.d("Subscribed to channel entitlements: $twitchChannelId", tag = TAG)
-        }
-    }
-
-    fun unsubscribeFromTwitchChannel(twitchChannelId: String) {
-        subscribedTwitchChannels.remove(twitchChannelId)
-    }
-
-    private fun startReceiving() {
-        receiveJob?.cancel()
-        receiveJob = scope.launch {
-            val ws = session ?: return@launch
-            try {
-                for (frame in ws.incoming) {
-                    if (frame is Frame.Text) {
-                        handleMessage(frame.readText())
-                    }
-                }
-            } catch (e: Exception) {
-                Napier.e("7TV EventAPI receive error: ${e.message}", tag = TAG)
-                reconnect()
-            }
         }
     }
 
@@ -162,23 +186,17 @@ class SevenTvEventApi(
             val message = json.decodeFromString<SevenTvEventMessage>(text)
             when (message.op) {
                 OP_HELLO -> {
-                    val interval = message.d?.heartbeatInterval ?: 30000
+                    val interval = (message.d?.heartbeatInterval ?: 30000).coerceIn(1_000, 300_000)
+                    heartbeatInterval.value = interval
                     startHeartbeat(interval)
                     Napier.d("7TV EventAPI hello, heartbeat interval: ${interval}ms", tag = TAG)
 
-                    val setsToResub = subscribedSets.toList()
-                    val channelsToResub = subscribedTwitchChannels.toList()
-                    subscribedSets.clear()
-                    subscribedTwitchChannels.clear()
-                    setsToResub.forEach { setId ->
-                        scope.launch { subscribeToEmoteSet(setId) }
-                    }
-                    channelsToResub.forEach { channelId ->
-                        scope.launch { subscribeToTwitchChannel(channelId) }
-                    }
+                    subscribedSets.snapshot().forEach(::sendEmoteSetSubscription)
+                    subscribedTwitchChannels.snapshot().forEach(::sendTwitchChannelSubscriptions)
                 }
+
                 OP_DISPATCH -> handleDispatch(message)
-                OP_HEARTBEAT -> {  }
+                OP_HEARTBEAT -> {}
             }
         } catch (e: Exception) {
             Napier.w("Failed to parse 7TV event: ${e.message}", tag = TAG)
@@ -194,10 +212,12 @@ class SevenTvEventApi(
                 handleEntitlement(body, granted = true)
                 return
             }
+
             "entitlement.delete" -> {
                 handleEntitlement(body, granted = false)
                 return
             }
+
             "cosmetic.create" -> {
                 return
             }
@@ -288,29 +308,26 @@ class SevenTvEventApi(
                 delay(intervalMs)
                 try {
                     session?.send(Frame.Text("""{"op":$OP_HEARTBEAT}"""))
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    Napier.e("7TV heartbeat failed: ${e.message}", tag = TAG)
+                    Napier.w("7TV heartbeat failed: ${e::class.simpleName}", tag = TAG)
+                    session?.cancel()
                     break
                 }
             }
         }
     }
 
-    private fun reconnect() {
-        scope.launch {
-            delay(5000)
-            Napier.d("Reconnecting to 7TV EventAPI...", tag = TAG)
-            connect()
-        }
-    }
-
-    suspend fun disconnect() {
-        heartbeatJob?.cancel()
-        receiveJob?.cancel()
-        session?.close()
+    suspend fun disconnect() = lifecycleMutex.withLock {
+        connectionJob?.cancelAndJoin()
+        connectionJob = null
+        heartbeatJob?.cancelAndJoin()
+        session?.cancel()
         session = null
         subscribedSets.clear()
         subscribedTwitchChannels.clear()
-        Napier.d("Disconnected from 7TV EventAPI", tag = TAG)
     }
 }
+
+private class SevenTvHeartbeatTimeout : Exception()

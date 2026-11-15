@@ -78,6 +78,7 @@ dependencyResolutionManagement {
 
             version("nav3", "1.1.2")
             version("material3", "1.9.0")
+            version("playAppUpdate", "2.1.0")
             version("atomicfu", "0.33.0")
             version("androidxBrowser", "1.10.0")
             version("paging", "3.5.3")
@@ -147,6 +148,7 @@ dependencyResolutionManagement {
            
             library("androidx-core-ktx", "androidx.core", "core-ktx").versionRef("androidxCore")
             library("androidx-activity-compose", "androidx.activity", "activity-compose").versionRef("androidxActivity")
+            library("play-app-update", "com.google.android.play", "app-update").versionRef("playAppUpdate")
             library("androidx-lifecycle-runtime-compose", "androidx.lifecycle", "lifecycle-runtime-compose").versionRef("androidxLifecycle")
             library("androidx-lifecycle-viewmodel-compose", "androidx.lifecycle", "lifecycle-viewmodel-compose").versionRef("androidxLifecycle")
             library("androidx-core-splashscreen", "androidx.core", "core-splashscreen").versionRef("androidxSplashscreen")

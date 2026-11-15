@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.settings.search
 
+import chatone.composeapp.generated.resources.upload_history
+import chatone.composeapp.generated.resources.upload_presets
 import chatone.composeapp.generated.resources.mod_slider_ban_at_end
 import chatone.composeapp.generated.resources.mod_slider_ban_at_end_help
 import chatone.composeapp.generated.resources.mod_slider_delete_at_start
@@ -115,6 +117,9 @@ import chatone.composeapp.generated.resources.settings_always_on_top
 import chatone.composeapp.generated.resources.settings_always_on_top_desc
 import chatone.composeapp.generated.resources.settings_always_on_top_mode
 import chatone.composeapp.generated.resources.settings_always_on_top_mode_desc
+import chatone.composeapp.generated.resources.legal_privacy
+import chatone.composeapp.generated.resources.legal_terms
+import chatone.composeapp.generated.resources.legal_support
 import chatone.composeapp.generated.resources.settings_app_info
 import chatone.composeapp.generated.resources.settings_auto_translate_input
 import chatone.composeapp.generated.resources.settings_auto_translate_input_desc
@@ -218,7 +223,6 @@ import chatone.composeapp.generated.resources.settings_volume
 import chatone.composeapp.generated.resources.settings_window
 import chatone.composeapp.generated.resources.streamer_hide_mod
 import chatone.composeapp.generated.resources.streamer_hide_thumbs
-import chatone.composeapp.generated.resources.streamer_mask_channels
 import chatone.composeapp.generated.resources.streamer_mask_tokens
 import chatone.composeapp.generated.resources.streamer_mode_hide_data
 import chatone.composeapp.generated.resources.streamer_mode_obs
@@ -471,6 +475,8 @@ private suspend fun collectCatalog(context: SettingsCatalogContext): List<Catalo
                 }
                 group(text(Res.string.settings_hub_uploader_service_group)) {
                     entry(text(Res.string.uploader_request_url), keywords = "адрес url сервер endpoint")
+                entry(text(Res.string.upload_presets), keywords = "сервисы загрузки пресеты uploader services presets")
+                entry(text(Res.string.upload_history), keywords = "история ссылок 24 часа uploads history links")
                     entry(text(Res.string.uploader_form_field), keywords = "поле формы form field multipart")
                     entry(text(Res.string.settings_hub_uploader_fields_title), text(Res.string.settings_hub_uploader_fields_help), "свои поля параметры ключ api key fields")
                     entry(text(Res.string.uploader_extra_headers), keywords = "заголовки headers authorization токен")
@@ -623,7 +629,6 @@ private suspend fun collectCatalog(context: SettingsCatalogContext): List<Catalo
                 entry(text(Res.string.streamer_mode_hide_data), text(Res.string.streamer_mode_obs), "стример режим obs приватность скрывать streamer mode privacy")
                 entry(text(Res.string.streamer_mask_tokens), keywords = "токены маска tokens")
                 entry(text(Res.string.streamer_hide_mod), keywords = "мод действия mod actions")
-                entry(text(Res.string.streamer_mask_channels), keywords = "каналы названия channels")
                 entry(text(Res.string.streamer_hide_thumbs), keywords = "превью thumbnails")
                 entry(text(Res.string.streamer_suppress_notif), keywords = "уведомления notifications")
             }
@@ -633,6 +638,9 @@ private suspend fun collectCatalog(context: SettingsCatalogContext): List<Catalo
                 entry(text(Res.string.settings_backup_title), text(Res.string.settings_backup_desc), "бекап экспорт импорт резервная копия backup export import restore")
             }
             group(text(Res.string.settings_app_info)) {
+                entry(text(Res.string.legal_privacy), keywords = "конфиденциальность данные privacy data policy")
+                entry(text(Res.string.legal_terms), keywords = "условия использования terms use")
+                entry(text(Res.string.legal_support), keywords = "ошибка поддержка issue bug support")
                 entry(text(Res.string.settings_version), keywords = "версия о программе version about changelog")
                 entry(text(Res.string.settings_telegram), keywords = "телеграм поддержка telegram support")
             }

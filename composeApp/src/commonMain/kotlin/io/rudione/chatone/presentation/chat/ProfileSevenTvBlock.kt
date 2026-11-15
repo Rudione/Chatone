@@ -44,12 +44,15 @@ import io.rudione.chatone.icons.lucide.ExternalLink
 import io.rudione.chatone.icons.lucide.Link
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Star
+import androidx.compose.ui.graphics.vector.ImageVector
+import io.rudione.chatone.domain.model.DisplayMessage
+import coil3.compose.AsyncImage
 
 private val SEVEN_TV_COLOR = Color(0xFF29D8F6)
 
 @Composable
 fun resolveSevenTvPaint(
-    message: io.rudione.chatone.domain.model.DisplayMessage.PrivMsg
+    message: DisplayMessage.PrivMsg
 ): SevenTvCosmetics.Paint? {
     val paints = LocalSevenTvPaints.current
     val userId = message.userId
@@ -184,7 +187,7 @@ internal fun SevenTvDossierSection(cosmetic: SevenTvUserCosmetic) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                coil3.compose.AsyncImage(
+                AsyncImage(
                     model = badge.url2x.ifEmpty { badge.url1x },
                     contentDescription = badge.tooltip,
                     modifier = Modifier.size(14.dp)
@@ -277,7 +280,7 @@ internal fun SevenTvIdentityBlock(profile: SevenTvProfile, compact: Boolean) {
 }
 
 @Composable
-private fun SevenTvTag(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector?) {
+private fun SevenTvTag(text: String, icon: ImageVector?) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(5.dp))

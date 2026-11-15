@@ -9,6 +9,10 @@ internal object SchemaHealer {
     private const val TAG = "SchemaHealer"
 
     private val TABLES: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS WatchDayEntity (date TEXT NOT NULL, channel TEXT NOT NULL, durationMs INTEGER NOT NULL, sessions INTEGER NOT NULL, lastWatchedAtMs INTEGER NOT NULL, PRIMARY KEY (date, channel))",
+        "CREATE TABLE IF NOT EXISTS UploadHistoryEntity (id TEXT NOT NULL PRIMARY KEY, payload TEXT NOT NULL, uploadedAtMs INTEGER NOT NULL)",
+        "CREATE INDEX IF NOT EXISTS upload_history_time ON UploadHistoryEntity(uploadedAtMs)",
+        "CREATE TABLE IF NOT EXISTS UploaderPresetEntity (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, payload TEXT NOT NULL)",
         """
         CREATE TABLE IF NOT EXISTS ChannelFolderEntity (
             id TEXT NOT NULL PRIMARY KEY,

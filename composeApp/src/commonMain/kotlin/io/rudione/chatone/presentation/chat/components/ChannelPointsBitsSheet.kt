@@ -44,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import io.rudione.chatone.presentation.components.chatPanelSurface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -280,15 +281,7 @@ internal fun ChannelPointsBitsSheet(
     SwipeDismissSheet(
         onDismissRequest = onClose,
         modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp),
-        surface = Modifier
-            .shadow(24.dp, sheetShape, spotColor = Color.Black.copy(alpha = 0.4f))
-            .clip(sheetShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .border(
-                1.dp,
-                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.03f))),
-                sheetShape
-            ),
+        surface = Modifier.chatPanelSurface(sheetShape, elevation = 24.dp),
         scrimAlpha = 0.35f,
         handleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
     ) { sheet ->

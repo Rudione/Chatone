@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.settings.search
 
+import io.rudione.chatone.presentation.profile.PageNavigator
+import io.rudione.chatone.presentation.profile.PageDestination
+
+import io.rudione.chatone.presentation.settings.settingsSectionsMatching
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.mod_slider_tab_macros
 import chatone.composeapp.generated.resources.screen_chat_over_full_screen_title
@@ -195,4 +199,17 @@ class SettingsCatalogSearchTest {
         val best = hits.first().score
         assertTrue(hits.all { it.score >= best * 0.3f })
     }
+    @Test
+    fun laboratoryUsesAnIndependentPageInsteadOfASettingsSection() = runTest {
+        inRussian {
+            assertTrue(buildSettingsCatalog(desktop).none { it.section.name == "LABORATORY" })
+            assertTrue(buildSettingsCatalog(phone).none { it.section.name == "LABORATORY" })
+        }
+        val navigator = PageNavigator(isSupported = true)
+        navigator.openLaboratory()
+        assertEquals(PageDestination.Laboratory, navigator.stack.value.last())
+        navigator.back()
+        assertTrue(navigator.stack.value.isEmpty())
+    }
+
 }

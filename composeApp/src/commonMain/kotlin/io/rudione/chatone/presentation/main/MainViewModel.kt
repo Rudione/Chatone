@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.data.remote.TwitchIrcClient
 import chatone.composeapp.generated.resources.main_vm_search_failed
 import chatone.composeapp.generated.resources.main_vm_failed_to_send_whisper
 import chatone.composeapp.generated.resources.main_vm_failed_to_join
@@ -28,6 +29,7 @@ import io.rudione.chatone.domain.model.WhisperConversation
 import io.rudione.chatone.domain.model.WhisperMessage
 import io.rudione.chatone.domain.usecase.*
 import io.rudione.chatone.data.remote.TwitchApiClient
+import io.rudione.chatone.data.repository.LiveStreamsBoard
 import io.rudione.chatone.data.repository.ChannelFolderRepository
 import io.rudione.chatone.presentation.main.components.sidebar.FolderColors
 import io.rudione.chatone.data.repository.ChatRepository
@@ -49,11 +51,13 @@ import io.rudione.chatone.util.system.dismissSystemNotifications
 import io.rudione.chatone.domain.model.SidebarLayout
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.util.system.AppRestarter
-import io.rudione.chatone.util.automod.RegexCache
+import io.rudione.chatone.domain.mention.MentionMatcher
+import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.util.settings.AppConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
@@ -81,6 +85,7 @@ data class MainState(
     val searchResults: List<Channel> = emptyList(),
     val isSearching: Boolean = false,
     val isConnected: Boolean = false,
+    val connectionState: TwitchIrcClient.ConnectionState = TwitchIrcClient.ConnectionState.Disconnected,
     val showSettings: Boolean = false,
     val isCreateFolderDialogVisible: Boolean = false,
     val newFolderName: String = "",
@@ -162,6 +167,7 @@ sealed class MainEvent : UiEvent {
     data class SelectAccount(val account: TwitchAccount) : MainEvent()
     object AddAccount : MainEvent()
     data class DeleteAccount(val userId: String) : MainEvent()
+    object ReconnectChat : MainEvent()
     object ShowSettings : MainEvent()
     object HideSettings : MainEvent()
     data class IncrementMentionCount(val channelLogin: String) : MainEvent()
@@ -254,7 +260,8 @@ class MainViewModel(
     private val sidebarLayoutRepository: SidebarLayoutRepository,
     private val liveAlertsRepository: LiveAlertsRepository,
     private val recentChannelsRepository: RecentChannelsRepository,
-    private val liveStatusClient: TwitchLiveStatusClient
+    private val liveStatusClient: TwitchLiveStatusClient,
+    private val liveStreamsBoard: LiveStreamsBoard
 ) : BaseViewModel<MainState, MainEvent, MainEffect>(MainState()) {
 
     val mentionMuteRepository = MentionMuteRepository()
@@ -267,12 +274,18 @@ class MainViewModel(
         private const val KEY_UNFOLDERED_ORDER = "unfoldered_order_v2"
         private const val KEY_WARNED_SCOPES = "warned_missing_scopes"
         private const val LIVE_POLL_INTERVAL_MS = 60_000L
+        private const val HELIX_STREAMS_BATCH = 100
     }
 
     private val settings = Settings()
 
     init {
         restoreSidebarLayout()
+        viewModelScope.launch {
+            chatRepository.connectionState.collect { connection ->
+                update { it.copy(isConnected = connection is TwitchIrcClient.ConnectionState.Connected, connectionState = connection) }
+            }
+        }
         subscribeToEvents()
         loadAccounts()
         restoreRecentChannels()
@@ -492,6 +505,7 @@ class MainViewModel(
             is MainEvent.SelectAccount -> selectAccount(event.account)
             MainEvent.AddAccount -> sendEffect(MainEffect.NavigateToAuth)
             is MainEvent.DeleteAccount -> deleteAccount(event.userId)
+            MainEvent.ReconnectChat -> chatRepository.reconnect()
             MainEvent.ShowSettings -> update { it.copy(showSettings = true) }
             MainEvent.HideSettings -> update { it.copy(showSettings = false) }
 
@@ -806,7 +820,6 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 connectChatUseCase(account)
-                update { it.copy(isConnected = true) }
                 launch { emoteRepository.loadGlobalEmotes() }
                 launch { thirdPartyBadgeRepository.loadAll() }
                 launch { sevenTvEventApi.connect() }
@@ -868,7 +881,6 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 chatRepository.connectAnonymous()
-                update { it.copy(isConnected = true) }
                 launch { emoteRepository.loadGlobalEmotes() }
                 launch { thirdPartyBadgeRepository.loadAll() }
                 Napier.d("Connected anonymously", tag = TAG)
@@ -1062,18 +1074,12 @@ class MainViewModel(
         if (current.recentChannels.none { it.login == active }) return
         update { it.copy(activeChannelLogin = active) }
         viewModelScope.launch {
-            var attempts = 0
-            while (!state.value.isConnected && attempts < 20) {
-                delay(500); attempts++
-            }
-            if (state.value.isConnected) {
-                runCatching { joinChannelUseCase(active) }
-                    .onFailure {
-                        Napier.w(
-                            "Failed to restore recent channel $active: ${it.message}",
-                            tag = TAG
-                        )
-                    }
+            try {
+                joinChannelUseCase(active)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Napier.w("Failed to restore recent channel $active: ${e.message}", tag = TAG)
             }
         }
     }
@@ -1463,23 +1469,19 @@ class MainViewModel(
             )
         }
         viewModelScope.launch {
-            var attempts = 0
-            while (!state.value.isConnected && attempts < 20) {
-                delay(500); attempts++
-            }
-            if (state.value.isConnected) {
-                channelLogins.forEach { login ->
-                    try {
-                        joinChannelUseCase(login)
-                    } catch (e: Exception) {
-                        Napier.w("Failed to restore channel $login: ${e.message}", tag = TAG)
-                    }
+            channelLogins.forEach { login ->
+                try {
+                    joinChannelUseCase(login)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Napier.w("Failed to restore channel $login: ${e.message}", tag = TAG)
                 }
-                fetchAndUpdateProfileImages()
-
-                delay(1500)
-                scanAllChannelsForMentions(channelLogins)
             }
+            chatRepository.connectionState.first { it is TwitchIrcClient.ConnectionState.Connected }
+            fetchAndUpdateProfileImages()
+            delay(1500)
+            scanAllChannelsForMentions(channelLogins)
         }
     }
 
@@ -1512,10 +1514,18 @@ class MainViewModel(
     }
 
     private suspend fun helixLiveLogins(accessToken: String, logins: List<String>): Set<String>? = try {
-        when (val result = apiClient.getStreams(accessToken = accessToken, userLogins = logins.take(100), first = 100)) {
-            is Result.Success -> result.data.data.mapTo(HashSet()) { it.userLogin.lowercase() }
-            else -> null
+        val live = HashSet<String>()
+        var complete = true
+        for (batch in logins.chunked(HELIX_STREAMS_BATCH)) {
+            val result = apiClient.getStreams(accessToken = accessToken, userLogins = batch, first = HELIX_STREAMS_BATCH)
+            if (result !is Result.Success) {
+                complete = false
+                break
+            }
+            liveStreamsBoard.publish(batch, result.data.data)
+            result.data.data.mapTo(live) { it.userLogin.lowercase() }
         }
+        live.takeIf { complete }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -1554,18 +1564,26 @@ class MainViewModel(
         }
     }
 
+    private val knownProfiles = HashMap<String, ChannelSnapshot?>()
+
+    private fun ChannelTab.withKnownProfile(): ChannelTab {
+        val profile = knownProfiles[login.lowercase()] ?: return this
+        val name = profile.displayName.takeIf { it.isNotBlank() }
+        return copy(
+            profileImageUrl = profileImageUrl.ifEmpty { profile.avatarUrl },
+            displayName = if (name != null && displayName.equals(login, ignoreCase = true)) name else displayName
+        )
+    }
+
     private suspend fun fetchAndUpdateProfileImages() {
         val missing = channelsMissingProfile()
         if (missing.isEmpty()) return
-        val profiles = loadProfiles(missing.take(100)) ?: return
-        fun enrich(ch: ChannelTab): ChannelTab {
-            val profile = profiles[ch.login.lowercase()] ?: return ch
-            val name = profile.displayName.takeIf { it.isNotBlank() }
-            return ch.copy(
-                profileImageUrl = ch.profileImageUrl.ifEmpty { profile.avatarUrl },
-                displayName = if (name != null && ch.displayName.equals(ch.login, ignoreCase = true)) name else ch.displayName
-            )
+        val unknown = missing.filterNot(knownProfiles::containsKey).take(100)
+        if (unknown.isNotEmpty()) {
+            val profiles = loadProfiles(unknown) ?: return
+            unknown.forEach { knownProfiles[it] = profiles[it] }
         }
+        fun enrich(ch: ChannelTab): ChannelTab = ch.withKnownProfile()
         update { state ->
             state.copy(
                 openChannels = state.openChannels.map(::enrich),
@@ -1582,7 +1600,11 @@ class MainViewModel(
             .groupBy { it.login.lowercase() }
         return getAllChannelLogins().filter { login ->
             val group = tabs[login]
-            group == null || group.any { it.profileImageUrl.isEmpty() || it.displayName.equals(it.login, ignoreCase = true) }
+            when {
+                group == null -> login !in knownProfiles
+                login in knownProfiles -> group.any { it.withKnownProfile() != it }
+                else -> group.any { it.profileImageUrl.isEmpty() || it.displayName.equals(it.login, ignoreCase = true) }
+            }
         }
     }
 
@@ -1659,11 +1681,7 @@ class MainViewModel(
                 if (message.userId == account.userId) return@collect
 
                 val settings = SettingsViewModel.loadInitialState()
-                val userLogin = account.login.lowercase()
-                val matched = checkMentionInText(
-                    message.message, userLogin,
-                    settings.highlightRules.filter { it.enabled }
-                )
+                val matched = checkMention(message, account, settings.highlightRules)
                 if (!matched) return@collect
 
                 val channelLogin = message.channelName.lowercase()
@@ -1727,7 +1745,6 @@ class MainViewModel(
         val account = state.value.selectedAccount ?: return
         val activeChannel = state.value.activeChannelLogin?.lowercase()
         val settings = SettingsViewModel.loadInitialState()
-        val userLogin = account.login.lowercase()
         val userId = account.userId
 
         channelLogins.forEach { login ->
@@ -1744,11 +1761,7 @@ class MainViewModel(
 
                         if (state.value.mentions.any { it.messageId == msg.id }) return@forEach
 
-                        if (checkMentionInText(
-                                msg.message,
-                                userLogin,
-                                settings.highlightRules.filter { it.enabled })
-                        ) {
+                        if (checkMention(msg, account, settings.highlightRules)) {
                             val entry = MentionEntry(
                                 messageId = msg.id,
                                 channelLogin = normalized,
@@ -1788,32 +1801,19 @@ class MainViewModel(
         }
     }
 
-    private fun checkMentionInText(
-        text: String,
-        userLogin: String,
-        rules: List<HighlightRule>
-    ): Boolean {
-        if (userLogin.isNotEmpty() && text.contains("@$userLogin", ignoreCase = true)) return true
-        for (rule in rules) {
-            val pattern = when (rule.id) {
-                "username" -> userLogin
-                "whispers", "subscriptions", "first_message" -> continue
-                else -> rule.pattern
-            }
-            if (pattern.isEmpty()) continue
-            val matches = if (rule.isRegex) {
-                RegexCache.regex(pattern, ignoreCase = !rule.caseSensitive)
-                    ?.containsMatchIn(text) ?: false
-            } else if (rule.matchSubstring) {
-                text.contains(pattern, ignoreCase = !rule.caseSensitive)
-            } else {
-                RegexCache.wholeWord(pattern, ignoreCase = !rule.caseSensitive)
-                    ?.containsMatchIn(text)
-                    ?: text.equals(pattern, ignoreCase = !rule.caseSensitive)
-            }
-            if (matches) return true
+    private fun checkMention(message: ChatMessage, account: TwitchAccount, rules: List<HighlightRule>): Boolean {
+        val match = MentionMatcher.match(
+            text = message.message,
+            login = account.login,
+            displayName = account.displayName,
+            replyParentLogin = message.replyParentUserLogin,
+            replyParentDisplayName = message.replyParentDisplayName,
+            rules = rules
+        ) ?: return false
+        return when (match) {
+            MentionMatcher.Match.OwnName -> rules.firstOrNull { it.id == HighlightRule.USERNAME_RULE.id }?.showInMentions != false
+            is MentionMatcher.Match.Rule -> match.rule.showInMentions
         }
-        return false
     }
 
     override fun onCleared() {

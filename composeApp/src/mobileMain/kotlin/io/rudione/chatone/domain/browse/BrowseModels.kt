@@ -1,6 +1,7 @@
 package io.rudione.chatone.domain.browse
 
 import androidx.compose.runtime.Immutable
+import kotlinx.coroutines.flow.StateFlow
 
 @Immutable
 data class BrowseCategory(
@@ -87,7 +88,7 @@ data class StreamFilter(
 data class FollowedAccount(val userId: String, val token: String, val canReadFollows: Boolean = true)
 
 interface FollowedAccountProvider {
-    val activeAccountId: kotlinx.coroutines.flow.StateFlow<String>
+    val activeAccountId: StateFlow<String>
     suspend fun account(activeId: String): FollowedAccount?
 }
 

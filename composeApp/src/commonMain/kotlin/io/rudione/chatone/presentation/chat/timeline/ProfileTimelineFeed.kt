@@ -18,7 +18,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.DisableSelection
-import io.rudione.chatone.presentation.chat.rendering.ChatSelectionContainer
+import io.rudione.chatone.presentation.chat.ProfileHistorySelection
+import io.rudione.chatone.presentation.chat.ProfileMessageCopy
+import io.rudione.chatone.util.chat.plainText
+import io.rudione.chatone.util.system.isDesktopPlatform
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -126,7 +129,7 @@ internal fun ProfileTimelineFeed(
         SettingsState.FontSize.LARGE -> 18f
     }
     val today = remember { localEpochDay(Clock.System.now().toEpochMilliseconds(), zone) }
-    ChatSelectionContainer(modifier = modifier) {
+    ProfileHistorySelection(modifier = modifier) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -137,16 +140,22 @@ internal fun ProfileTimelineFeed(
             items(shown, key = { it.key }, contentType = { it::class }) { row ->
                 when (row) {
                     is TimelineRow.Day -> DisableSelection { DayBreak(chatDayLabel(row.epochDay, today)) }
-                    is TimelineRow.Message -> PrivMsgItem(
-                        message = row.message,
-                        isCompact = true,
-                        timestampFormat = settings.timestampFormat,
-                        showBadges = settings.showBadges,
-                        emoteSize = settings.emoteSize,
-                        chatFontSizeSp = fontSize,
-                        highlightRules = settings.highlightRules,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    is TimelineRow.Message -> ProfileMessageCopy(
+                        row.message.rawMessage?.message ?: row.message.tokens.joinToString("") { it.plainText() }
+                    ) { copy ->
+                        PrivMsgItem(
+                            message = row.message,
+                            isCompact = true,
+                            timestampFormat = settings.timestampFormat,
+                            showBadges = settings.showBadges,
+                            emoteSize = settings.emoteSize,
+                            chatFontSizeSp = fontSize,
+                            highlightRules = settings.highlightRules,
+                            onMessageLongPress = copy.takeUnless { isDesktopPlatform },
+                            onCopyText = copy,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     is TimelineRow.Event -> ArchiveLineRow(row.line, author.displayName, nameColor)
                 }
             }

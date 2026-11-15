@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.channelmenu
 
+import chatone.composeapp.generated.resources.report_content
+import io.rudione.chatone.presentation.legal.ContentReport
+import io.rudione.chatone.presentation.legal.ContentReports
+import io.rudione.chatone.presentation.legal.ReportTarget
+import io.rudione.chatone.icons.material.outlined.Flag
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.channel_page_menu_profile
 import chatone.composeapp.generated.resources.main_channel_badges_bits
@@ -40,6 +45,7 @@ import io.rudione.chatone.presentation.profile.PageNavigator
 import io.rudione.chatone.presentation.screenchat.ScreenChatController
 import io.rudione.chatone.util.system.ChannelPanelRequestBus
 import org.koin.compose.koinInject
+import io.rudione.chatone.icons.material.Icons
 
 @Immutable
 class ChannelMenuActions(
@@ -54,14 +60,20 @@ class ChannelMenuModel(
     val actions: ChannelMenuActions
 )
 
-fun busChannelMenu(channelLogin: String, canSeeViewers: Boolean): ChannelMenuModel = ChannelMenuModel(
-    channelLogin = channelLogin,
-    canSeeViewers = canSeeViewers,
-    actions = ChannelMenuActions(
-        onShowViewers = { ChannelPanelRequestBus.requestShowChatters(channelLogin) },
-        onSetMentionsMuted = { muted -> ChannelPanelRequestBus.requestSetMentionsMuted(channelLogin, muted) }
+fun busChannelMenu(channelLogin: String, canSeeViewers: Boolean): ChannelMenuModel =
+    ChannelMenuModel(
+        channelLogin = channelLogin,
+        canSeeViewers = canSeeViewers,
+        actions = ChannelMenuActions(
+            onShowViewers = { ChannelPanelRequestBus.requestShowChatters(channelLogin) },
+            onSetMentionsMuted = { muted ->
+                ChannelPanelRequestBus.requestSetMentionsMuted(
+                    channelLogin,
+                    muted
+                )
+            }
+        )
     )
-)
 
 @Composable
 fun ChannelOptionsMenu(
@@ -79,7 +91,10 @@ fun ChannelOptionsMenu(
     val profiles: PageNavigator = koinInject()
     ChatoneDropdownMenu(expanded = expanded, onDismissRequest = onDismissRequest, offset = offset) {
         if (profiles.isSupported && login.isNotBlank()) {
-            ChannelMenuItem(stringResource(Res.string.channel_page_menu_profile), Lucide.CircleUser) {
+            ChannelMenuItem(
+                stringResource(Res.string.channel_page_menu_profile),
+                Lucide.CircleUser
+            ) {
                 onDismissRequest()
                 profiles.openChannel(login)
             }
@@ -91,7 +106,9 @@ fun ChannelOptionsMenu(
         if (screenChats.isSupported) {
             val open = login.lowercase() in openScreenChats
             ChannelMenuItem(
-                label = if (open) stringResource(Res.string.screen_chat_menu_close) else stringResource(Res.string.screen_chat_menu_open),
+                label = if (open) stringResource(Res.string.screen_chat_menu_close) else stringResource(
+                    Res.string.screen_chat_menu_open
+                ),
                 icon = Lucide.MessageSquare
             ) {
                 onDismissRequest()
@@ -105,7 +122,9 @@ fun ChannelOptionsMenu(
             }
         }
         ChannelMenuItem(
-            label = if (muted) stringResource(Res.string.unmute_mentions_for_channel) else stringResource(Res.string.mute_mentions_for_channel),
+            label = if (muted) stringResource(Res.string.unmute_mentions_for_channel) else stringResource(
+                Res.string.mute_mentions_for_channel
+            ),
             icon = if (muted) Lucide.Bell else Lucide.BellOff
         ) {
             onDismissRequest()
@@ -114,6 +133,10 @@ fun ChannelOptionsMenu(
         ChannelMenuItem(stringResource(Res.string.main_channel_badges_bits), Lucide.Star) {
             onDismissRequest()
             ChannelPanelRequestBus.requestOpenPointsBitsPanel(login)
+        }
+        ChannelMenuItem(stringResource(Res.string.report_content), Icons.Outlined.Flag) {
+            onDismissRequest()
+            ContentReports.open(ContentReport(ReportTarget.STREAM, login, login))
         }
         ChannelMenuItem(stringResource(Res.string.main_toggle_pinned_message), Lucide.Pin) {
             onDismissRequest()

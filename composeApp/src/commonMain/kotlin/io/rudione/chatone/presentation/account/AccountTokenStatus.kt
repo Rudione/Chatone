@@ -10,6 +10,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.Box
 
 @Composable
 fun AccountTokenStatusDot(
@@ -18,7 +19,7 @@ fun AccountTokenStatusDot(
     modifier: Modifier = Modifier
 ) {
     val color = if (isValid) Color(0xFF4CAF50) else Color(0xFFE53935)
-    androidx.compose.foundation.layout.Box(
+    Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)

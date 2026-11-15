@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.profile.editor
 
+import androidx.compose.animation.core.animateDpAsState
+import io.rudione.chatone.util.platform.currentFormFactor
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.profile_editor_avatar_and_banner
 import chatone.composeapp.generated.resources.profile_editor_avatar_and_banner_hint
@@ -34,6 +36,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -167,7 +170,7 @@ internal fun TwitchBadgeSection(twitch: TwitchVanity, draft: VanityDraft, onGlob
         if (twitch.globalBadges.isEmpty()) {
             Hint(stringResource(Res.string.profile_editor_badges_empty))
         } else {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 NoneTile(draft.globalBadge == null) { onGlobal(null) }
                 twitch.globalBadges.forEach { badge -> BadgeTile(badge, draft.globalBadge == badge.key) { onGlobal(badge.key) } }
             }
@@ -175,7 +178,7 @@ internal fun TwitchBadgeSection(twitch: TwitchVanity, draft: VanityDraft, onGlob
         val channelName = twitch.channelName
         if (channelName != null && twitch.channelBadges.isNotEmpty()) {
             SubTitle(stringResource(Res.string.profile_editor_badge_channel, channelName))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 twitch.channelBadges.forEach { badge -> BadgeTile(badge, draft.channelBadge == badge.key) { onChannel(badge.key) } }
             }
         }
@@ -185,7 +188,7 @@ internal fun TwitchBadgeSection(twitch: TwitchVanity, draft: VanityDraft, onGlob
 @Composable
 private fun BadgeTile(badge: VanityBadge, selected: Boolean, onClick: () -> Unit) {
     SelectableTile(selected, onClick) {
-        AsyncImage(model = badge.imageUrl, contentDescription = badge.title, modifier = Modifier.size(28.dp))
+        AsyncImage(model = badge.imageUrl, contentDescription = badge.title, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -208,11 +211,14 @@ internal fun SelectableTile(selected: Boolean, onClick: () -> Unit, content: @Co
         tween(180),
         label = "tileBorder"
     )
-    val scale by animateFloatAsState(if (selected) 1.06f else 1f, spring(dampingRatio = 0.5f), label = "tileScale")
+    val scale by animateFloatAsState(if (selected) 1.03f else 1f, spring(dampingRatio = 0.7f), label = "tileScale")
+    val smallCorner by animateDpAsState(if (selected) 5.dp else 10.dp, tween(180), label = "badgeCorner")
+    val shape = RoundedCornerShape(topStart = 14.dp, topEnd = smallCorner, bottomEnd = 14.dp, bottomStart = smallCorner)
+    val target = if (currentFormFactor().isHandheld) 48.dp else 40.dp
     Box(
-        Modifier.size(52.dp).graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(14.dp)).background(container)
-            .border(2.dp, border, RoundedCornerShape(14.dp))
+        Modifier.size(target).graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(shape).background(container)
+            .border(1.5.dp, border, shape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) { content() }
@@ -238,25 +244,43 @@ internal fun ProfileFieldsSection(twitch: TwitchVanity, draft: VanityDraft, onNa
             singleLine = false,
             minLines = 3
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(Res.string.profile_editor_avatar_and_banner), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Hint(stringResource(Res.string.profile_editor_avatar_and_banner_hint))
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth < 440.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AvatarSettingsLabel()
+                    PillButton(
+                        text = stringResource(Res.string.profile_editor_open_twitch_settings),
+                        onClick = onOpenSettings, icon = Lucide.ExternalLink, tone = PillTone.Tonal,
+                        height = 40.dp, modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            } else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AvatarSettingsLabel(Modifier.weight(1f))
+                PillButton(text = stringResource(Res.string.profile_editor_open_twitch_settings), onClick = onOpenSettings, icon = Lucide.ExternalLink, tone = PillTone.Tonal, height = 40.dp)
             }
-            PillButton(text = stringResource(Res.string.profile_editor_open_twitch_settings), onClick = onOpenSettings, icon = Lucide.ExternalLink, tone = PillTone.Tonal, height = 40.dp)
         }
     }
 }
 
 @Composable
+private fun AvatarSettingsLabel(modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(stringResource(Res.string.profile_editor_avatar_and_banner), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Hint(stringResource(Res.string.profile_editor_avatar_and_banner_hint))
+    }
+}
+
+@Composable
 internal fun EditorSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    val compact = LocalCompactProfileEditor.current
+    val shape = if (compact) RoundedCornerShape(20.dp, 7.dp, 20.dp, 7.dp) else RoundedCornerShape(22.dp)
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+        Modifier.fillMaxWidth().clip(shape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(if (compact) 12.dp else 16.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp)
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(title, style = if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         content()
     }
 }

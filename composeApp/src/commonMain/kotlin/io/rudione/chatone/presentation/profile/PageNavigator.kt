@@ -11,6 +11,10 @@ import kotlinx.coroutines.flow.update
 sealed interface PageDestination {
     val key: String
 
+    data object Laboratory : PageDestination {
+        override val key: String = "laboratory"
+    }
+
     data class Channel(val login: String) : PageDestination {
         override val key: String get() = "channel:$login"
     }
@@ -42,6 +46,8 @@ class PageNavigator(val isSupported: Boolean) {
     }
 
     fun openEditor(channelLogin: String?) = push(PageDestination.Editor(channelLogin?.lowercase()))
+
+    fun openLaboratory() = push(PageDestination.Laboratory)
 
     fun openClip(slug: String) {
         if (SLUG.matches(slug)) push(PageDestination.Clip(slug))

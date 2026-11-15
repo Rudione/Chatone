@@ -10,6 +10,7 @@ import kotlin.time.Clock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlin.random.Random
+import kotlinx.serialization.builtins.ListSerializer
 
 @Serializable
 private data class AutomodExportFile(
@@ -175,7 +176,7 @@ object AutomodImportExport {
             ImportResult(words, chats)
         }.getOrElse {
             val words = runCatching {
-                json.decodeFromString(kotlinx.serialization.builtins.ListSerializer(AutomodRule.serializer()), trimmed)
+                json.decodeFromString(ListSerializer(AutomodRule.serializer()), trimmed)
                     .map { it.copy(id = if (it.id.isBlank()) newId() else it.id, createdAt = 0L, updatedAt = 0L) }
             }.getOrDefault(emptyList())
             ImportResult(words, emptyList())

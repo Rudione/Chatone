@@ -46,6 +46,8 @@ import io.rudione.chatone.icons.lucide.ChevronRight
 import io.rudione.chatone.icons.lucide.Folder
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
+import androidx.compose.ui.geometry.Size
+import io.github.aakira.napier.Napier
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -74,7 +76,7 @@ internal fun ChannelTabBar(
     val collapsedFolders =
         remember(folders) { folders.filterNot { it.isExpanded }.mapTo(HashSet()) { it.id } }
     SideEffect(folders, channels) {
-        io.github.aakira.napier.Napier.d(
+        Napier.d(
             "ChannelTabBar: folders=${folders.size} (${folders.joinToString { it.name + "[${it.channels.size}]" }}), channels=${channels.size}, mapped=${folderByLogin.size}",
             tag = "ChannelTabBar"
         )
@@ -212,7 +214,7 @@ internal fun ChannelTabBar(
                                     drawRect(
                                         color = folderInfo.color,
                                         topLeft = Offset(0f, size.height - stripeHeight),
-                                        size = androidx.compose.ui.geometry.Size(
+                                        size = Size(
                                             size.width,
                                             stripeHeight
                                         )

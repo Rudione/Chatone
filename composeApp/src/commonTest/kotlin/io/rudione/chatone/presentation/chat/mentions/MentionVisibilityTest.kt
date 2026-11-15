@@ -27,6 +27,12 @@ class MentionVisibilityTest {
     }
 
     @Test
+    fun fullShareNeedsTheWholeRowInside() {
+        val shown = shownKeys(rows, viewportTop = 0, viewportBottom = 400, wanted = setOf("half", "full"), minShare = 1f)
+        assertEquals(setOf("full"), shown)
+    }
+
+    @Test
     fun emptyViewportShowsNothing() {
         assertTrue(shownKeys(rows, viewportTop = 0, viewportBottom = 0, wanted = setOf("full")).isEmpty())
     }

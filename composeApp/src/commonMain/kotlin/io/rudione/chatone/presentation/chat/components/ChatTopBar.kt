@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat.components
 
+
+import io.rudione.chatone.presentation.components.LocalStreamerPrivacy
+import io.rudione.chatone.presentation.components.LocalSidebarExpanded
+import io.rudione.chatone.presentation.components.AnimatedMenuIcon
+import io.rudione.chatone.data.remote.TwitchIrcClient
 import chatone.composeapp.generated.resources.ui_menu
 import chatone.composeapp.generated.resources.ui_mod_mode
 import chatone.composeapp.generated.resources.ui_mod_panel
@@ -85,10 +90,10 @@ import io.rudione.chatone.presentation.stream.StreamWatchButton
 import io.rudione.chatone.util.format.groupedNumber
 import io.rudione.chatone.util.icons.TwitchPointsIcon
 import io.rudione.chatone.icons.lucide.Lucide
-import io.rudione.chatone.icons.lucide.Menu
 import io.rudione.chatone.icons.lucide.RefreshCw
 import io.rudione.chatone.icons.lucide.Swords
 import io.rudione.chatone.icons.lucide.Wrench
+import io.rudione.chatone.data.remote.dto.ChannelData
 
 private val DefaultBarHeight = 36.dp
 private val MinButtonSize = 22.dp
@@ -119,9 +124,8 @@ private data class TopBarMetrics(
 internal fun ChatTopBar(
     channelLogin: String,
     channelDisplayName: String = "",
-    liveStream: io.rudione.chatone.data.remote.dto.ChannelData? = null,
-    connectionStatus: String,
-    isConnected: Boolean,
+    liveStream: ChannelData? = null,
+    connectionState: TwitchIrcClient.ConnectionState,
     roomState: RoomState,
     isMod: Boolean,
     modModeEnabled: Boolean,
@@ -133,6 +137,7 @@ internal fun ChatTopBar(
     onExecuteMacro: (Macro) -> Unit = {},
     onEditMacro: (Macro) -> Unit = {},
     onRefresh: () -> Unit = {},
+    onReconnect: () -> Unit = {},
     onOpenPointsBits: () -> Unit = {},
     points: TopBarPoints = TopBarPoints(),
     isCompact: Boolean = false,
@@ -140,6 +145,7 @@ internal fun ChatTopBar(
     menuBadgeCount: Int = 0,
     barHeight: Dp = DefaultBarHeight
 ) {
+    val privacy = LocalStreamerPrivacy.current
     val topBarWallpaper = LocalWallpaperController.current.state
     val topBarBlur =
         if (topBarWallpaper.glowEffectsEnabled) topBarWallpaper.panelColorConfig.topBarBlurRadius else 0f
@@ -184,8 +190,8 @@ internal fun ChatTopBar(
                         size = metrics.button,
                         colors = TactileIconButtonDefaults.colors(content = MaterialTheme.colorScheme.onSurface)
                     ) { tint ->
-                        Icon(
-                            Lucide.Menu,
+                        AnimatedMenuIcon(
+                            expanded = LocalSidebarExpanded.current,
                             contentDescription = stringResource(Res.string.ui_menu),
                             tint = tint,
                             modifier = Modifier.size(metrics.icon + 2.dp)
@@ -203,8 +209,8 @@ internal fun ChatTopBar(
                 channelLogin = channelLogin,
                 channelDisplayName = channelDisplayName,
                 liveStream = liveStream,
-                connectionStatus = connectionStatus,
-                isConnected = isConnected,
+                connectionState = connectionState,
+                onReconnect = onReconnect,
                 channelMenu = channelMenu,
                 singleLine = metrics.barHeight < SingleLineHeaderBelow,
                 compactLatency = narrowBar
@@ -213,7 +219,7 @@ internal fun ChatTopBar(
                 TopBarActions(
                     channelLogin = channelLogin,
                     metrics = metrics,
-                    isMod = isMod,
+                    isMod = isMod && !privacy.modActionsHidden,
                     modModeEnabled = modModeEnabled,
                     modPanelOpen = modPanelOpen,
                     pinnedMacros = pinnedMacros,
@@ -227,7 +233,7 @@ internal fun ChatTopBar(
                 TopBarActions(
                     channelLogin = channelLogin,
                     metrics = metrics,
-                    isMod = isMod,
+                    isMod = isMod && !privacy.modActionsHidden,
                     modModeEnabled = modModeEnabled,
                     modPanelOpen = modPanelOpen,
                     pinnedMacros = pinnedMacros,

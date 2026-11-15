@@ -4,7 +4,14 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.switch_state_on
+import chatone.composeapp.generated.resources.switch_state_off
+import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
@@ -37,7 +44,9 @@ fun ChatoneSwitch(
     modifier: Modifier = Modifier,
     enabled: Boolean = true
 ) {
+    val changeValue = controlToggle(onCheckedChange)
     val cs = MaterialTheme.colorScheme
+    val description = stringResource(if (checked) Res.string.switch_state_on else Res.string.switch_state_off)
 
     val trackColor by animateColorAsState(
         targetValue = if (checked) cs.primary else cs.surfaceContainerHighest.copy(alpha = 0.6f),
@@ -58,6 +67,7 @@ fun ChatoneSwitch(
 
     Box(
         modifier = modifier
+            .semantics { stateDescription = description }
             .alpha(if (enabled) 1f else 0.4f)
             .width(48.dp)
             .clip(RoundedCornerShape(24.dp))
@@ -67,11 +77,14 @@ fun ChatoneSwitch(
                 color = borderColor,
                 shape = RoundedCornerShape(24.dp)
             )
-            .clickable(
+            .toggleable(
+                value = checked,
                 enabled = enabled,
+                role = Role.Switch,
                 interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onCheckedChange(!checked) }
+                indication = null,
+                onValueChange = changeValue
+            )
             .padding(vertical = 2.dp)
     ) {
         Box(

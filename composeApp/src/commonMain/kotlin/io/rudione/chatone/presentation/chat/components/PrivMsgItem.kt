@@ -1,11 +1,15 @@
 package io.rudione.chatone.presentation.chat
 
+
+import io.rudione.chatone.presentation.components.LocalStreamerPrivacy
+import io.rudione.chatone.presentation.chat.components.nativeChatMessageMenu
 import io.rudione.chatone.presentation.chat.threads.threadRootId
 import io.rudione.chatone.presentation.chat.threads.LocalReplyThreadOpener
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.LinkAnnotation
 import chatone.composeapp.generated.resources.ui_image_preview
 import chatone.composeapp.generated.resources.ui_pin
+import chatone.composeapp.generated.resources.profile_message_deleted
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chat_ban_user
 import chatone.composeapp.generated.resources.chat_click_to_reveal
@@ -108,8 +112,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
+import io.rudione.chatone.presentation.nativecontext.NativeMessageMenus
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
@@ -131,7 +135,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboard
 import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.platform.LocalUriHandler
@@ -173,7 +176,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
-import coil3.compose.AsyncImage
 import io.ktor.client.HttpClient
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.repository.EmoteRepository
@@ -200,6 +202,8 @@ import io.rudione.chatone.presentation.chat.components.collectBadgeVisuals
 import io.rudione.chatone.presentation.chat.components.roomModeLabels
 import io.rudione.chatone.presentation.chat.rendering.MessageTranslationLine
 import io.rudione.chatone.presentation.chat.rendering.rawTokenText
+import io.rudione.chatone.presentation.chat.components.ExpandableImagePreview
+import io.rudione.chatone.presentation.chat.components.rememberLinkHoverPreview
 import io.rudione.chatone.presentation.chat.components.LinkHoverPopup
 import io.rudione.chatone.presentation.chat.components.ModActionConfirmDialog
 import io.rudione.chatone.presentation.chat.components.PendingModAction
@@ -212,7 +216,7 @@ import io.rudione.chatone.presentation.chat.components.SlashCommandSuggestionsRo
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.interactiveIcon
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
-import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.components.ChatPanelSurface
 import io.rudione.chatone.presentation.settings.InlineImageMode
 import io.rudione.chatone.presentation.settings.PauseHotkeyMode
 import io.rudione.chatone.presentation.settings.SettingsState
@@ -292,6 +296,7 @@ fun PrivMsgItem(
     onMentionClick: (String) -> Unit = {},
     onReply: () -> Unit = {},
     onCopyText: () -> Unit = {},
+    onMessageLongPress: (() -> Unit)? = null,
     onPin: () -> Unit = {},
     onTimeout: () -> Unit = {},
     onCustomTimeout: (Int) -> Unit = {},
@@ -311,6 +316,7 @@ fun PrivMsgItem(
     accessToken: String = "",
     modifier: Modifier = Modifier
 ) {
+    val messageLongPress by rememberUpdatedState(onMessageLongPress)
     val extraColors = ChatoneTheme.extraColors
 
     val resolvedModButtons = allModButtons
@@ -418,7 +424,8 @@ fun PrivMsgItem(
         hoverTarget,
         tween(100)
     ) else rememberUpdatedState(hoverTarget)
-    val modActionsAllowed = showModActions && (actorCanModerate || actorIsBroadcaster)
+    val modActionsAllowed = showModActions && (actorCanModerate || actorIsBroadcaster) &&
+        !LocalStreamerPrivacy.current.modActionsHidden
     val modActionsVisible = modActionsAllowed && (!modActionsOnHover || rowHovered)
     val sliderHandle = if (modSlider != null && modActionsAllowed) {
         val sliderCanAct = canActOnUser(
@@ -501,10 +508,16 @@ fun PrivMsgItem(
             )
         }
         val showTimestamp = timestampFormat != SettingsState.TimestampFormat.OFF
-        val hasBadges = showBadges && (message.badges.any { it.imageUrl.isNotEmpty() } ||
-                (message.sevenTvBadge?.let { it.url2x.isNotEmpty() || it.url1x.isNotEmpty() }
-                    ?: false))
-        val useCompact = isCompact && (showTimestamp || hasBadges || modActionsAllowed)
+        val badgeVisuals = if (showBadges) {
+            collectBadgeVisuals(
+                message.username,
+                message.userId,
+                message.badges,
+                message.sevenTvBadge,
+                sharedChat = message.rawMessage?.sourceRoomId != null
+            )
+        } else emptyList()
+        val useCompact = isCompact && (showTimestamp || badgeVisuals.isNotEmpty() || modActionsAllowed)
 
         if (useCompact) {
             CompactMessageLayout(
@@ -512,7 +525,7 @@ fun PrivMsgItem(
                 showModActions = prefixVisible,
                 showTimestamp = showTimestamp,
                 timestampFormat = timestampFormat,
-                showBadges = showBadges,
+                badgeVisuals = badgeVisuals,
                 isMod = isMod,
                 isOwnMessage = isOwnMessage,
                 currentUserId = currentUserId,
@@ -531,6 +544,7 @@ fun PrivMsgItem(
                 onMentionClick = onMentionClick,
                 onReply = onReply,
                 onCopyText = onCopyText,
+                onMessageLongPress = onMessageLongPress,
                 onPin = onPin,
                 onTimeout = onTimeout,
                 onCustomTimeout = onCustomTimeout,
@@ -619,14 +633,6 @@ fun PrivMsgItem(
                     }
                 }
             }
-            val badgeVisuals = if (showBadges) {
-                collectBadgeVisuals(
-                    message.username,
-                    message.userId,
-                    message.badges,
-                    message.sevenTvBadge
-                )
-            } else emptyList()
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -731,7 +737,8 @@ fun PrivMsgItem(
 
                 var showContextMenu by remember { mutableStateOf(false) }
                 val nickColors = rememberNickColors()
-                val userColor = nickColors.of(message.color, message.username)
+                val nickname = rememberChatNickname(message.userId, message.username, message.displayName, message.color, message.sevenTvPaint)
+                val userColor = nickname.color
                 val resolvedChatFontSize = resolvedChatFontSizeOf(chatFontSizeSp)
                 val lineHeightSp = resolvedChatFontSize * 1.35f
                 val emoteSizeSp = when (emoteSize) {
@@ -740,7 +747,7 @@ fun PrivMsgItem(
                     SettingsState.EmoteSize.LARGE -> lineHeightSp * 1.5f
                 }.sp
                 val nickFontSize = (resolvedChatFontSize + 2f).sp
-                val shownName = LocalNicknames.current[message.userId] ?: message.displayName
+                val shownName = nickname.name
                 val inlineContent = mutableMapOf<String, InlineTextContent>()
                 val emoteKeyMap = mutableMapOf<String, GenericEmote>()
                 var emoteCounter = 0
@@ -784,202 +791,182 @@ fun PrivMsgItem(
                             }
                         }
                     }
-                    if (message.isDeleted) {
-                        pushStringAnnotation("username", message.userId)
+                    pushStringAnnotation("username", message.userId)
+                    val nickPaint = nickname.paint
+                    if (nickPaint != null) {
+                        appendInlineGlyph("nick_paint", shownName)
+                        if (message.isAction) append(" ") else append(": ")
+                    } else if (message.isAction) {
+                        withStyle(
+                            SpanStyle(
+                                color = userColor,
+                                fontStyle = FontStyle.Italic,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = nickFontSize
+                            )
+                        ) { append(shownName); append(" ") }
+                    } else {
                         withStyle(
                             SpanStyle(
                                 color = userColor,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = nickFontSize
                             )
-                        ) {
-                            append(
-                                shownName
-                            )
-                        }
-                        pop()
+                        ) { append(shownName) }
                         append(": ")
-                        val originalText = message.tokens.joinToString("") { token ->
-                            token.plainText()
-                        }
-                        withStyle(
-                            SpanStyle(
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
-                                textDecoration = TextDecoration.LineThrough
-                            )
-                        ) {
-                            append(originalText.ifEmpty { "message deleted" })
-                        }
-                    } else {
-                        pushStringAnnotation("username", message.userId)
-                        val nickPaint =
-                            resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
-                        if (nickPaint != null) {
-                            appendInlineGlyph("nick_paint", shownName)
-                            if (message.isAction) append(" ") else append(": ")
-                        } else if (message.isAction) {
-                            withStyle(
-                                SpanStyle(
-                                    color = userColor,
-                                    fontStyle = FontStyle.Italic,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = nickFontSize
-                                )
-                            ) { append(shownName); append(" ") }
-                        } else {
-                            withStyle(
-                                SpanStyle(
-                                    color = userColor,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = nickFontSize
-                                )
-                            ) { append(shownName) }
-                            append(": ")
-                        }
-                        pop()
-                        val messageColor = if (message.isAction) userColor else Color.Unspecified
-                        message.tokens.forEach { token ->
-                            when (token) {
-                                is MessageToken.Text -> {
-                                    if (message.isAction) withStyle(
-                                        SpanStyle(
-                                            color = messageColor,
-                                            fontStyle = FontStyle.Italic
-                                        )
-                                    ) { append(token.text) }
-                                    else append(token.text)
-                                }
-
-                                is MessageToken.TwitchEmoteToken -> {
-                                    val key = "emote_${emoteCounter++}"
-                                    appendInlineGlyph(key, token.name)
-                                    inlineContent[key] = InlineTextContent(
-                                        Placeholder(
-                                            emoteSizeSp,
-                                            emoteSizeSp,
-                                            PlaceholderVerticalAlign.TextCenter
-                                        )
-                                    ) {
-                                        AnimatedEmoteImage(
-                                            url = token.url,
-                                            contentDescription = token.name,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    }
-                                }
-
-                                is MessageToken.ThirdPartyEmoteToken -> {
-                                    val key = "emote_${emoteCounter++}"
-                                    appendInlineGlyph(key, token.emote.code)
-                                    val (emoteW, emoteH) = computeEmoteDisplaySize(
-                                        token.emote.width,
-                                        token.emote.height,
-                                        emoteSizeSp
+                    }
+                    pop()
+                    val messageColor = if (message.isDeleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
+                    else if (message.isAction) userColor else Color.Unspecified
+                    if (message.isDeleted) pushStyle(SpanStyle(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
+                        textDecoration = TextDecoration.LineThrough
+                    ))
+                    if (message.isDeleted && messageRawText.isEmpty()) append(stringResource(Res.string.profile_message_deleted))
+                    message.tokens.forEach { token ->
+                        when (token) {
+                            is MessageToken.Text -> {
+                                if (message.isAction) withStyle(
+                                    SpanStyle(
+                                        color = messageColor,
+                                        fontStyle = FontStyle.Italic
                                     )
-                                    emoteKeyMap[key] = token.emote
-                                    inlineContent[key] = InlineTextContent(
-                                        Placeholder(
-                                            emoteW,
-                                            emoteH,
-                                            PlaceholderVerticalAlign.TextCenter
+                                ) { append(token.text) }
+                                else append(token.text)
+                            }
+
+                            is MessageToken.TwitchEmoteToken -> {
+                                val key = "emote_${emoteCounter++}"
+                                appendInlineGlyph(key, token.name)
+                                inlineContent[key] = InlineTextContent(
+                                    Placeholder(
+                                        emoteSizeSp,
+                                        emoteSizeSp,
+                                        PlaceholderVerticalAlign.TextCenter
+                                    )
+                                ) {
+                                    AnimatedEmoteImage(
+                                        url = token.url,
+                                        contentDescription = token.name,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
+
+                            is MessageToken.ThirdPartyEmoteToken -> {
+                                val key = "emote_${emoteCounter++}"
+                                appendInlineGlyph(key, token.emote.code)
+                                val (emoteW, emoteH) = computeEmoteDisplaySize(
+                                    token.emote.width,
+                                    token.emote.height,
+                                    emoteSizeSp
+                                )
+                                emoteKeyMap[key] = token.emote
+                                inlineContent[key] = InlineTextContent(
+                                    Placeholder(
+                                        emoteW,
+                                        emoteH,
+                                        PlaceholderVerticalAlign.TextCenter
+                                    )
+                                ) {
+                                    Box {
+                                        EmoteImageWithTooltip(
+                                            emote = token.emote,
+                                            modifier = Modifier.fillMaxSize(),
+                                            onShowContextMenu = null
                                         )
-                                    ) {
-                                        Box {
+                                        token.overlays.forEach { overlay ->
                                             EmoteImageWithTooltip(
-                                                emote = token.emote,
+                                                emote = overlay,
                                                 modifier = Modifier.fillMaxSize(),
-                                                onShowContextMenu = null
+                                                onShowContextMenu = { }
                                             )
-                                            token.overlays.forEach { overlay ->
-                                                EmoteImageWithTooltip(
-                                                    emote = overlay,
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    onShowContextMenu = { }
-                                                )
-                                            }
                                         }
                                     }
                                 }
+                            }
 
-                                is MessageToken.Link -> {
-                                    val clipTitle =
-                                        clipInfoByUrl[token.url]?.title?.takeIf { it.isNotBlank() }
-                                    pushStringAnnotation("url", token.url)
-                                    withStyle(
-                                        SpanStyle(
-                                            color = MaterialTheme.colorScheme.primary,
-                                            textDecoration = TextDecoration.Underline
-                                        )
-                                    ) { append(clipTitle ?: token.displayText) }
-                                    pop()
-                                    if (clipTitle != null) {
-                                        withStyle(
-                                            SpanStyle(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                    alpha = 0.55f
-                                                ),
-                                                fontSize = (resolvedChatFontSize - 1).sp
-                                            )
-                                        ) { append(" (clips.twitch.tv)") }
-                                    }
-                                }
-
-                                is MessageToken.Cheer -> {
-                                    val key = "cheer_${emoteCounter++}"
-                                    appendInlineGlyph(key, "${token.prefix}${token.amount}")
-                                    val cheerWidth =
-                                        (resolvedChatFontSize * (1.6f + 0.62f * token.amount.toString().length)).sp
-                                    inlineContent[key] = InlineTextContent(
-                                        Placeholder(
-                                            cheerWidth,
-                                            (resolvedChatFontSize * 1.45f).sp,
-                                            PlaceholderVerticalAlign.TextCenter
-                                        )
-                                    ) {
-                                        CheerToken(
-                                            amount = token.amount,
-                                            fontSizeSp = resolvedChatFontSize
-                                        )
-                                    }
-                                }
-
-                                is MessageToken.Mention -> {
-
-                                    pushStringAnnotation("mention", token.username)
-                                    val mentionedLogin = token.username
-                                        .removePrefix("@")
-                                        .lowercase()
-                                    val mentionColor = nickColors.adjust(
-                                        userColorByLogin[mentionedLogin]
-                                            ?: stableUserColor(mentionedLogin)
+                            is MessageToken.Link -> {
+                                val clipTitle =
+                                    clipInfoByUrl[token.url]?.title?.takeIf { it.isNotBlank() }
+                                pushStringAnnotation("url", token.url)
+                                withStyle(
+                                    SpanStyle(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        textDecoration = TextDecoration.Underline
                                     )
+                                ) { append(clipTitle ?: token.displayText) }
+                                pop()
+                                if (clipTitle != null) {
                                     withStyle(
                                         SpanStyle(
-                                            color = mentionColor,
-                                            fontWeight = FontWeight.Bold
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                alpha = 0.55f
+                                            ),
+                                            fontSize = (resolvedChatFontSize - 1).sp
                                         )
-                                    ) { append(token.username) }
-                                    pop()
+                                    ) { append(" (clips.twitch.tv)") }
                                 }
+                            }
 
-                                is MessageToken.GifToken -> {
-                                    if (!gifsEnabled || message.isDeleted) {
-                                        withStyle(
-                                            SpanStyle(
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    .copy(alpha = 0.7f),
-                                                fontStyle = FontStyle.Italic
-                                            )
-                                        ) { append("[${token.title}]") }
-                                    }
+                            is MessageToken.Cheer -> {
+                                val key = "cheer_${emoteCounter++}"
+                                appendInlineGlyph(key, "${token.prefix}${token.amount}")
+                                val cheerWidth =
+                                    (resolvedChatFontSize * (1.6f + 0.62f * token.amount.toString().length)).sp
+                                inlineContent[key] = InlineTextContent(
+                                    Placeholder(
+                                        cheerWidth,
+                                        (resolvedChatFontSize * 1.45f).sp,
+                                        PlaceholderVerticalAlign.TextCenter
+                                    )
+                                ) {
+                                    CheerToken(
+                                        amount = token.amount,
+                                        fontSizeSp = resolvedChatFontSize
+                                    )
+                                }
+                            }
+
+                            is MessageToken.Mention -> {
+
+                                pushStringAnnotation("mention", token.username)
+                                val mentionedLogin = token.username
+                                    .removePrefix("@")
+                                    .lowercase()
+                                val mentionColor = nickColors.adjust(
+                                    userColorByLogin[mentionedLogin]
+                                        ?: stableUserColor(mentionedLogin)
+                                )
+                                withStyle(
+                                    SpanStyle(
+                                        color = mentionColor,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                ) { append(token.username) }
+                                pop()
+                            }
+
+                            is MessageToken.GifToken -> {
+                                if (!gifsEnabled || message.isDeleted) {
+                                    withStyle(
+                                        SpanStyle(
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                .copy(alpha = 0.7f),
+                                            fontStyle = FontStyle.Italic
+                                        )
+                                    ) { append("[${token.title}]") }
                                 }
                             }
                         }
                     }
+                    if (message.isDeleted) pop()
+
                 }
 
                 val clipboard = LocalClipboard.current
                 val scope = rememberCoroutineScope()
+                val nickMention = rememberNicknameMentionFeedback(onRightClickUsername)
                 var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
                 val uriHandler = LocalUriHandler.current
                 var textLayoutResult by remember {
@@ -992,21 +979,19 @@ fun PrivMsgItem(
                 var hoveredEmote by remember { mutableStateOf<GenericEmote?>(null) }
                 var hoverOffset by remember { mutableStateOf(IntOffset.Zero) }
 
-                if (!message.isDeleted) {
-                    resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
-                        ?.let { paint ->
-                            registerPaintedNick(
-                                inlineContent = inlineContent,
-                                key = "nick_paint",
-                                name = shownName,
-                                paint = paint,
-                                fontSizeSp = resolvedChatFontSize + 1f,
-                                isAction = message.isAction,
-                                userColor = userColor,
-                                onClick = onUsernameClick,
-                                onRightClick = { onRightClickUsername(message.displayName) }
-                            )
-                        }
+                nickname.paint?.let { paint ->
+                    registerPaintedNick(
+                        inlineContent = inlineContent,
+                        key = "nick_paint",
+                        name = shownName,
+                        paint = paint,
+                        fontSizeSp = resolvedChatFontSize + 1f,
+                        isAction = message.isAction,
+                        userColor = userColor,
+                        onClick = onUsernameClick,
+                        onRightClick = { onRightClickUsername(message.displayName) },
+                        onTouchLongPress = onMessageLongPress
+                    )
                 }
                 Box(modifier = Modifier.weight(1f)) {
                     val messageText: @Composable () -> Unit = {
@@ -1038,7 +1023,32 @@ fun PrivMsgItem(
                             ),
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.fillMaxWidth()
+                                .then(nickMention.decoration)
                                 .inlineTextSemantics(annotatedString)
+                                .nativeChatMessageMenu(
+                                    message = message,
+                                    plainText = messageRawText,
+                                    annotatedText = annotatedString,
+                                    layout = { textLayoutResult },
+                                    enabled = messageLongPress == null,
+                                    isMod = isMod,
+                                    onReply = onReply,
+                                    onCopy = { scope.launch { clipboard.setText(messageRawText) } },
+                                    onTranslate = { translationStore.toggle(message.id, messageRawText) },
+                                    onPin = onPin
+                                )
+                                .nicknameTouchGestures(
+                                    text = annotatedString,
+                                    layout = { textLayoutResult },
+                                    authorName = message.displayName,
+                                    onClick = { name ->
+                                        if (name == message.displayName) onUsernameClick() else onMentionClick(name)
+                                    },
+                                    onMention = { name, position ->
+                                        val copyMessage = messageLongPress
+                                        if (copyMessage != null) copyMessage() else nickMention.mention(name, position)
+                                    }
+                                )
                                 .focusable()
                                 .onPreviewKeyEvent { event ->
                                     if (event.type == KeyEventType.KeyDown &&
@@ -1052,7 +1062,7 @@ fun PrivMsgItem(
                                         true
                                     } else false
                                 }
-                                .pointerInput(annotatedString) {
+                                .pointerInput(annotatedString, onMessageLongPress != null, NativeMessageMenus.enabled) {
                                     detectTapGestures(
                                         onTap = { offset ->
                                             textLayoutResult?.let { layoutResult ->
@@ -1092,13 +1102,14 @@ fun PrivMsgItem(
                                                     }
                                             }
                                         },
-                                        onLongPress = { offset ->
-                                            contextMenuOffset =
-                                                IntOffset(
-                                                    offset.x.roundToInt(),
-                                                    offset.y.roundToInt()
-                                                )
-                                            showContextMenu = true
+                                        onLongPress = if (NativeMessageMenus.enabled && messageLongPress == null) null else { offset ->
+                                            val copyMessage = messageLongPress
+                                            if (copyMessage != null) {
+                                                copyMessage()
+                                            } else if (!NativeMessageMenus.enabled) {
+                                                contextMenuOffset = IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
+                                                showContextMenu = true
+                                            }
                                         }
                                     )
                                 }
@@ -1268,7 +1279,8 @@ fun PrivMsgItem(
                     }
                     if (isDesktopPlatform) ChatSelectionContainer(content = messageText) else messageText()
 
-                    hoveredUrl?.let { url ->
+                    val hoverPreview = rememberLinkHoverPreview(hoveredUrl, hoverOffset)
+                    hoverPreview.url?.let { url ->
                         PortalPopup(
                             popupPositionProvider = object : PopupPositionProvider {
                                 override fun calculatePosition(
@@ -1277,10 +1289,10 @@ fun PrivMsgItem(
                                     layoutDirection: LayoutDirection,
                                     popupContentSize: IntSize
                                 ): IntOffset {
-                                    val x = anchorBounds.left + hoverOffset.x + 16
-                                    val yBelow = anchorBounds.top + hoverOffset.y + 24
+                                    val x = anchorBounds.left + hoverPreview.offset.x + 16
+                                    val yBelow = anchorBounds.top + hoverPreview.offset.y + 24
                                     val yAbove =
-                                        anchorBounds.top + hoverOffset.y - popupContentSize.height - 8
+                                        anchorBounds.top + hoverPreview.offset.y - popupContentSize.height - 8
                                     val finalY =
                                         if (yBelow + popupContentSize.height > windowSize.height) yAbove else yBelow
                                     val finalX =
@@ -1295,7 +1307,7 @@ fun PrivMsgItem(
                                 clippingEnabled = false
                             )
                         ) {
-                            LinkHoverPopup(url = url)
+                            LinkHoverPopup(url = url, onHoverChanged = { hoverPreview.popupHovered = it })
                         }
                     }
                 }
@@ -1311,14 +1323,10 @@ fun PrivMsgItem(
                         ),
                         onDismissRequest = { showContextMenu = false }
                     ) {
-                        LiquidGlassSurface(
+                        ChatPanelSurface(
                             modifier = Modifier.widthIn(min = 160.dp, max = 240.dp),
                             shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(vertical = 4.dp),
-                            backgroundAlphaHigh = 0.94f,
-                            backgroundAlphaLow = 0.85f,
-                            borderAlphaHigh = 0f,
-                            borderAlphaLow = 0f
+                            contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
                             Column {
                                 if (isMod) {
@@ -1418,42 +1426,20 @@ fun PrivMsgItem(
                         )
                     }
                 } else if (resolvedImageUrl != null) {
-                    Box(
-                        modifier = Modifier
-                            .padding(start = 4.dp, top = 4.dp)
-                            .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                if (!isRevealed) isRevealed = true
-                                else try {
-                                    openChatUrl(link.url, inlineSettings.linkOpenMode)
-                                } catch (_: Exception) {
-                                }
-                            }
-                    ) {
-                        AsyncImage(
-                            model = resolvedImageUrl,
-                            contentDescription = stringResource(Res.string.ui_image_preview),
-                            modifier = Modifier
-                                .heightIn(max = inlineSettings.inlineImageMaxHeight.dp)
-                                .widthIn(max = 400.dp)
-                                .then(if (!isRevealed) Modifier.blur(20.dp) else Modifier),
-                            contentScale = ContentScale.Fit
-                        )
-                        if (!isRevealed) {
-                            Box(
-                                modifier = Modifier.matchParentSize()
-                                    .background(Color.Black.copy(alpha = 0.3f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    stringResource(Res.string.chat_click_to_reveal),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White
-                                )
+                    ExpandableImagePreview(
+                        imageUrl = resolvedImageUrl,
+                        description = stringResource(Res.string.ui_image_preview),
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+                        imageModifier = Modifier.heightIn(max = inlineSettings.inlineImageMaxHeight.dp).widthIn(max = 400.dp),
+                        obscured = !isRevealed,
+                        onClick = {
+                            if (!isRevealed) isRevealed = true
+                            else try {
+                                openChatUrl(link.url, inlineSettings.linkOpenMode)
+                            } catch (_: Exception) {
                             }
                         }
-                    }
+                    )
                 }
             }
         }

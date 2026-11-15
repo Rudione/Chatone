@@ -49,6 +49,7 @@ import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.merge
 
 enum class PauseHotkeyMode { TOGGLE, HOLD }
 enum class InlineImageMode { ON, OFF, BLUR }
@@ -174,6 +175,7 @@ sealed class SettingsEvent : UiEvent {
         val seedColor: Int? = null,
         val section: ThemeCreatorSection = ThemeCreatorSection.THEMES
     ) : SettingsEvent()
+
     data object OnCloseThemeCreator : SettingsEvent()
     data class OnCustomThemeApplied(val theme: CustomThemeConfig?) : SettingsEvent()
     data class OnTimestampFormatChanged(val format: SettingsState.TimestampFormat) : SettingsEvent()
@@ -210,8 +212,10 @@ sealed class SettingsEvent : UiEvent {
     data class OnHighlightRuleToggled(val ruleId: String, val enabled: Boolean) : SettingsEvent()
     data class OnHighlightRuleSoundToggled(val ruleId: String, val playSound: Boolean) :
         SettingsEvent()
+
     data class OnHighlightRuleSubstringToggled(val ruleId: String, val matchSubstring: Boolean) :
         SettingsEvent()
+
     data class OnHideChatPlaceholderChanged(val hide: Boolean) : SettingsEvent()
     data class OnHideEmojiButtonChanged(val hide: Boolean) : SettingsEvent()
     data class OnChatInputGlowChanged(val enabled: Boolean) : SettingsEvent()
@@ -405,10 +409,12 @@ class SettingsViewModel(
         private val _macrosLive = MutableStateFlow<List<Macro>?>(null)
         val macrosLive: StateFlow<List<Macro>?> = _macrosLive.asStateFlow()
 
-        fun currentLanguage(): String = settings.getString(KEY_LANGUAGE, "en").also(::applyAppLocale)
+        fun currentLanguage(): String =
+            settings.getString(KEY_LANGUAGE, "en").also(::applyAppLocale)
 
         fun isTrustedUploaderHost(host: String): Boolean =
-            settings.getStringOrNull(KEY_IMAGE_UPLOADER_TRUSTED_HOST).equals(host, ignoreCase = true)
+            settings.getStringOrNull(KEY_IMAGE_UPLOADER_TRUSTED_HOST)
+                .equals(host, ignoreCase = true)
 
         fun trustUploaderHost(host: String) {
             settings.putString(KEY_IMAGE_UPLOADER_TRUSTED_HOST, host.lowercase())
@@ -431,7 +437,11 @@ class SettingsViewModel(
         }
 
         private fun migrateMobileNavigationDefault() {
-            if (isDesktopPlatform || settings.getBoolean(KEY_MOBILE_NAVIGATION_DEFAULT, false)) return
+            if (isDesktopPlatform || settings.getBoolean(
+                    KEY_MOBILE_NAVIGATION_DEFAULT,
+                    false
+                )
+            ) return
             settings.putBoolean(KEY_NAVIGATION_HIDDEN, true)
             settings.putBoolean(KEY_MOBILE_NAVIGATION_DEFAULT, true)
         }
@@ -441,7 +451,10 @@ class SettingsViewModel(
             if (stored >= ACCENT_PALETTE_SCHEMA_VERSION) return
             if (stored == TWITCH_PALETTE_SCHEMA_BEFORE) {
                 val index = settings.getInt(KEY_ACCENT_COLOR_INDEX, DEFAULT_ACCENT_INDEX)
-                if (index >= TWITCH_PALETTE_INDEX) settings.putInt(KEY_ACCENT_COLOR_INDEX, index + 1)
+                if (index >= TWITCH_PALETTE_INDEX) settings.putInt(
+                    KEY_ACCENT_COLOR_INDEX,
+                    index + 1
+                )
             } else {
                 settings.putInt(KEY_ACCENT_COLOR_INDEX, DEFAULT_ACCENT_INDEX)
                 settings.putString(KEY_ACTIVE_THEME_ID, "")
@@ -572,7 +585,10 @@ class SettingsViewModel(
                 customMentionSoundPath = settings.getStringOrNull(KEY_CUSTOM_SOUND_PATH) ?: "",
                 alwaysOnTop = settings.getBoolean(KEY_ALWAYS_ON_TOP, false),
                 alwaysOnTopMode = AlwaysOnTopMode.entries.firstOrNull {
-                    it.name == settings.getString(KEY_ALWAYS_ON_TOP_MODE, AlwaysOnTopMode.EXCEPT_SYSTEM.name)
+                    it.name == settings.getString(
+                        KEY_ALWAYS_ON_TOP_MODE,
+                        AlwaysOnTopMode.EXCEPT_SYSTEM.name
+                    )
                 } ?: AlwaysOnTopMode.EXCEPT_SYSTEM,
                 hideSidebar = settings.getBoolean(KEY_HIDE_SIDEBAR, false),
                 uiScale = settings.getFloat(KEY_UI_SCALE, 1.0f),
@@ -617,10 +633,12 @@ class SettingsViewModel(
                 modButtonsOnHover = settings.getBoolean(KEY_MOD_BUTTONS_ON_HOVER, false),
                 modButtonsInChat = settings.getBoolean(KEY_MOD_BUTTONS_IN_CHAT, true),
                 modSlider = runCatching {
-                    settings.getStringOrNull(KEY_MOD_SLIDER)?.let { json.decodeFromString<ModSliderSettings>(it).sanitized() }
+                    settings.getStringOrNull(KEY_MOD_SLIDER)
+                        ?.let { json.decodeFromString<ModSliderSettings>(it).sanitized() }
                 }.getOrNull() ?: ModSliderSettings(),
                 screenChat = runCatching {
-                    settings.getStringOrNull(KEY_SCREEN_CHAT)?.let { json.decodeFromString<ScreenChatSettings>(it).sanitized() }
+                    settings.getStringOrNull(KEY_SCREEN_CHAT)
+                        ?.let { json.decodeFromString<ScreenChatSettings>(it).sanitized() }
                 }.getOrNull() ?: ScreenChatSettings(),
                 disableScrollOnAlt = settings.getBoolean(KEY_DISABLE_SCROLL_ON_ALT, true),
                 linkOpenMode = try {
@@ -657,8 +675,15 @@ class SettingsViewModel(
                     settings.getInt(KEY_MESSAGE_SPACING, SettingsState.MessageSpacing.LOW.ordinal)
                 ) ?: SettingsState.MessageSpacing.LOW,
                 titleBarMode = try {
-                    TitleBarMode.valueOf(settings.getString(KEY_TITLE_BAR_MODE, TitleBarMode.ADAPTIVE.name))
-                } catch (_: Exception) { TitleBarMode.ADAPTIVE },
+                    TitleBarMode.valueOf(
+                        settings.getString(
+                            KEY_TITLE_BAR_MODE,
+                            TitleBarMode.ADAPTIVE.name
+                        )
+                    )
+                } catch (_: Exception) {
+                    TitleBarMode.ADAPTIVE
+                },
                 showBlockedMode = settings.getInt(KEY_SHOW_BLOCKED_MODE, 0),
                 hideChatInputPlaceholder = settings.getBoolean(KEY_HIDE_CHAT_PLACEHOLDER, false),
                 hideEmojiButton = settings.getBoolean(KEY_HIDE_EMOJI_BUTTON, false),
@@ -677,7 +702,8 @@ class SettingsViewModel(
                 navigationHidden = settings.getBoolean(KEY_NAVIGATION_HIDDEN, false),
                 hotkeys = try {
                     val j = settings.getStringOrNull(KEY_HOTKEYS)
-                    val stored = if (j != null) json.decodeFromString<Map<String, String>>(j) else emptyMap()
+                    val stored =
+                        if (j != null) json.decodeFromString<Map<String, String>>(j) else emptyMap()
                     defaultHotkeys() + stored
                 } catch (_: Exception) {
                     defaultHotkeys()
@@ -702,7 +728,7 @@ class SettingsViewModel(
             }
         }
         viewModelScope.launch {
-            kotlinx.coroutines.flow.merge(
+            merge(
                 changeBroadcast.filter { it >= 0 }.debounce(50),
                 changeBroadcast.filter { it < 0 }
             ).collect { stamp ->
@@ -983,22 +1009,34 @@ class SettingsViewModel(
                 settings.putString(KEY_TITLE_BAR_MODE, event.mode.name)
                 update { it.copy(titleBarMode = event.mode) }
             }
+
             is SettingsEvent.OnShowBlockedModeChanged -> {
                 settings.putInt(KEY_SHOW_BLOCKED_MODE, event.mode)
                 update { it.copy(showBlockedMode = event.mode) }
             }
+
             is SettingsEvent.OnLoadBlockedUsers -> {
                 update { it.copy(isLoadingBlockedUsers = true, blockedLoadError = null) }
                 viewModelScope.launch {
                     try {
                         val api = twitchApiClient
                         if (api == null) {
-                            update { it.copy(isLoadingBlockedUsers = false, blockedLoadError = "API not available") }
+                            update {
+                                it.copy(
+                                    isLoadingBlockedUsers = false,
+                                    blockedLoadError = "API not available"
+                                )
+                            }
                             return@launch
                         }
                         val accounts = authRepository.getAccounts().first()
                         if (accounts.isEmpty()) {
-                            update { it.copy(isLoadingBlockedUsers = false, blockedLoadError = "Not logged in") }
+                            update {
+                                it.copy(
+                                    isLoadingBlockedUsers = false,
+                                    blockedLoadError = "Not logged in"
+                                )
+                            }
                             return@launch
                         }
                         val aggregated = linkedSetOf<String>()
@@ -1009,15 +1047,21 @@ class SettingsViewModel(
                                 val v = api.validateToken(account.accessToken)
                                 if (v is Result.Success) v.data.userId else account.userId
                             }.getOrDefault(account.userId)
-                            val result = api.getBlockedUsers(account.accessToken, validatedUserId, first = 100)
+                            val result = api.getBlockedUsers(
+                                account.accessToken,
+                                validatedUserId,
+                                first = 100
+                            )
                             when (result) {
                                 is Result.Success -> {
                                     anySuccess = true
                                     result.data.data.forEach { aggregated.add(it.userLogin) }
                                 }
+
                                 is Result.Error -> {
                                     lastError = result.exception.message ?: "Failed to load"
                                 }
+
                                 else -> {}
                             }
                         }
@@ -1029,16 +1073,29 @@ class SettingsViewModel(
                             )
                         }
                     } catch (e: Exception) {
-                        update { it.copy(isLoadingBlockedUsers = false, blockedLoadError = e.message ?: "Failed to load") }
+                        update {
+                            it.copy(
+                                isLoadingBlockedUsers = false,
+                                blockedLoadError = e.message ?: "Failed to load"
+                            )
+                        }
                     }
                 }
             }
+
             is SettingsEvent.BlockedUsersLoaded -> {
-                update { it.copy(blockedUsernames = event.usernames, isLoadingBlockedUsers = false) }
+                update {
+                    it.copy(
+                        blockedUsernames = event.usernames,
+                        isLoadingBlockedUsers = false
+                    )
+                }
             }
+
             is SettingsEvent.BlockedUsersLoadFailed -> {
                 update { it.copy(isLoadingBlockedUsers = false, blockedLoadError = event.error) }
             }
+
             is SettingsEvent.OnUnblockUserFromSettings -> {
                 update { st ->
                     st.copy(blockedUsernames = st.blockedUsernames.filter {
@@ -1054,7 +1111,8 @@ class SettingsViewModel(
                         var targetId: String? = event.userId.takeIf { it.isNotBlank() }
                         val resolver = accounts.first()
                         if (targetId.isNullOrEmpty()) {
-                            val r = api.getUsers(resolver.accessToken, logins = listOf(event.username))
+                            val r =
+                                api.getUsers(resolver.accessToken, logins = listOf(event.username))
                             if (r is Result.Success) {
                                 targetId = r.data.data.firstOrNull()?.id
                             }
@@ -1130,27 +1188,33 @@ class SettingsViewModel(
                 settings.putBoolean(KEY_HIDE_CHAT_PLACEHOLDER, event.hide)
                 update { it.copy(hideChatInputPlaceholder = event.hide) }
             }
+
             is SettingsEvent.OnHideEmojiButtonChanged -> {
                 settings.putBoolean(KEY_HIDE_EMOJI_BUTTON, event.hide)
                 update { it.copy(hideEmojiButton = event.hide) }
             }
+
             is SettingsEvent.OnChatInputGlowChanged -> {
                 settings.putBoolean(KEY_CHAT_INPUT_GLOW, event.enabled)
                 update { it.copy(chatInputEventGlow = event.enabled) }
             }
+
             is SettingsEvent.OnShowRepeatedCounterChanged -> {
                 settings.putBoolean(KEY_SHOW_REPEAT_COUNTER, event.show)
                 update { it.copy(showRepeatedMessageCounter = event.show) }
             }
+
             is SettingsEvent.OnRepeatedWindowChanged -> {
                 val v = event.seconds.coerceIn(5, 300)
                 settings.putInt(KEY_REPEAT_WINDOW, v)
                 update { it.copy(repeatedMessageWindow = v) }
             }
+
             is SettingsEvent.OnSavedTimeoutReasonChanged -> {
                 settings.putString(KEY_SAVED_TIMEOUT_REASON, event.text)
                 update { it.copy(savedTimeoutReason = event.text) }
             }
+
             is SettingsEvent.OnSavedBanReasonChanged -> {
                 settings.putString(KEY_SAVED_BAN_REASON, event.text)
                 update { it.copy(savedBanReason = event.text) }
@@ -1293,13 +1357,15 @@ class SettingsViewModel(
             }
 
             is SettingsEvent.OnToggleAutomation -> update { st ->
-                val n = st.automations.map { if (it.id == event.id) it.copy(enabled = event.enabled) else it }
+                val n =
+                    st.automations.map { if (it.id == event.id) it.copy(enabled = event.enabled) else it }
                 settings.putString(KEY_AUTOMATIONS, json.encodeToString(n))
                 st.copy(automations = n)
             }
 
             is SettingsEvent.OnUpdateAutomation -> update { st ->
-                val n = st.automations.map { if (it.id == event.automation.id) event.automation else it }
+                val n =
+                    st.automations.map { if (it.id == event.automation.id) event.automation else it }
                 settings.putString(KEY_AUTOMATIONS, json.encodeToString(n))
                 st.copy(automations = n)
             }
@@ -1311,7 +1377,12 @@ class SettingsViewModel(
 
             is SettingsEvent.OnAddMutedPhrase -> update { st ->
                 val phrase = event.phrase.trim()
-                if (phrase.isEmpty() || st.mutedPhrases.any { it.equals(phrase, ignoreCase = true) }) st
+                if (phrase.isEmpty() || st.mutedPhrases.any {
+                        it.equals(
+                            phrase,
+                            ignoreCase = true
+                        )
+                    }) st
                 else {
                     val n = st.mutedPhrases + phrase
                     settings.putString(KEY_MUTED_PHRASES, json.encodeToString(n))
@@ -1390,7 +1461,11 @@ class SettingsViewModel(
                 val custom = reordered.filter { !it.isDefault }
                 saveModButtons(custom)
                 val newVer = s.modButtonsVersion + 1
-                s.copy(allModButtons = reordered, customModButtons = custom, modButtonsVersion = newVer)
+                s.copy(
+                    allModButtons = reordered,
+                    customModButtons = custom,
+                    modButtonsVersion = newVer
+                )
             }
 
             is SettingsEvent.OnSetModButtonEnabled -> update { s ->
@@ -1409,17 +1484,32 @@ class SettingsViewModel(
 
             is SettingsEvent.OnShowDefaultDeleteChanged -> {
                 settings.putBoolean(KEY_SHOW_DEFAULT_DELETE, event.show)
-                update { it.copy(showDefaultDeleteButton = event.show, modButtonsVersion = it.modButtonsVersion + 1) }
+                update {
+                    it.copy(
+                        showDefaultDeleteButton = event.show,
+                        modButtonsVersion = it.modButtonsVersion + 1
+                    )
+                }
             }
 
             is SettingsEvent.OnShowDefaultTimeoutChanged -> {
                 settings.putBoolean(KEY_SHOW_DEFAULT_TIMEOUT, event.show)
-                update { it.copy(showDefaultTimeoutButton = event.show, modButtonsVersion = it.modButtonsVersion + 1) }
+                update {
+                    it.copy(
+                        showDefaultTimeoutButton = event.show,
+                        modButtonsVersion = it.modButtonsVersion + 1
+                    )
+                }
             }
 
             is SettingsEvent.OnShowDefaultBanChanged -> {
                 settings.putBoolean(KEY_SHOW_DEFAULT_BAN, event.show)
-                update { it.copy(showDefaultBanButton = event.show, modButtonsVersion = it.modButtonsVersion + 1) }
+                update {
+                    it.copy(
+                        showDefaultBanButton = event.show,
+                        modButtonsVersion = it.modButtonsVersion + 1
+                    )
+                }
             }
 
             is SettingsEvent.OnModButtonsOnHoverChanged -> {
@@ -1551,7 +1641,8 @@ class SettingsViewModel(
             }
 
             is SettingsEvent.OnHotkeyChanged -> {
-                val updated = state.value.hotkeys.toMutableMap().apply { put(event.actionId, event.combo) }
+                val updated =
+                    state.value.hotkeys.toMutableMap().apply { put(event.actionId, event.combo) }
                 settings.putString(KEY_HOTKEYS, json.encodeToString(updated))
                 update { it.copy(hotkeys = updated) }
             }

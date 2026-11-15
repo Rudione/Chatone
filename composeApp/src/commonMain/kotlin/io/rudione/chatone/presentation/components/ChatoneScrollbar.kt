@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
@@ -27,11 +29,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import io.rudione.chatone.presentation.chat.rendering.stickToBottomExact
+import androidx.compose.ui.graphics.drawscope.DrawScope
 
 @Stable
 data class ScrollbarThumb(
@@ -81,8 +91,8 @@ private const val METRICS_RETENTION_SLACK = 4096
 
 @Composable
 private fun rememberLazyMetrics(listState: LazyListState, itemCount: Int): State<Float> {
-    val metrics = remember { LazyContentMetrics() }
-    val average = remember { mutableStateOf(0f) }
+    val metrics = remember(listState) { LazyContentMetrics() }
+    val average = remember(listState) { mutableStateOf(0f) }
 
     LaunchedEffect(listState) {
         snapshotFlow { listState.layoutInfo.visibleItemsInfo }
@@ -103,7 +113,7 @@ private fun rememberLazyMetrics(listState: LazyListState, itemCount: Int): State
     return average
 }
 
-private fun computeLazyThumb(
+internal fun computeLazyThumb(
     listState: LazyListState,
     averageHeight: Float,
     frozenAverage: Float?
@@ -121,7 +131,8 @@ private fun computeLazyThumb(
     val average = frozenAverage ?: averageHeight.takeIf { it > 0f } ?: fallback
     if (average <= 0f) return ScrollbarThumb.Hidden
 
-    val contentHeight = (average * total).coerceAtLeast(viewport)
+    val contentHeight = (average * total + info.beforeContentPadding + info.afterContentPadding +
+            info.mainAxisItemSpacing * (total - 1)).coerceAtLeast(viewport)
     val maxScroll = contentHeight - viewport
     if (maxScroll <= 0f) return ScrollbarThumb.Hidden
 
@@ -129,13 +140,17 @@ private fun computeLazyThumb(
         .coerceIn(0f, maxScroll)
 
     return ScrollbarThumb(
-        offset = scrolled / maxScroll,
+        offset = when {
+            !listState.canScrollBackward -> 0f
+            !listState.canScrollForward -> 1f
+            else -> scrolled / maxScroll
+        },
         size = (viewport / contentHeight).coerceIn(0f, 1f),
         scrollable = true
     )
 }
 
-private class LazyScrollTarget(val index: Int, val offset: Int)
+private class LazyScrollTarget(val index: Int, val offset: Int, val atEnd: Boolean)
 
 @Composable
 fun ChatoneLazyScrollbar(
@@ -143,14 +158,16 @@ fun ChatoneLazyScrollbar(
     itemCount: Int,
     modifier: Modifier = Modifier,
     ticks: List<ScrollbarTick> = emptyList(),
-    onUserScroll: () -> Unit = {}
+    onUserScroll: () -> Unit = {},
+    autoHideDelayMillis: Long? = null
 ) {
     val scope = rememberCoroutineScope()
     val onUserScrollLatest by rememberUpdatedState(onUserScroll)
     val averageHeight = rememberLazyMetrics(listState, itemCount)
-    val frozenAverage = remember { mutableStateOf<Float?>(null) }
-    val isDragging = remember { mutableStateOf(false) }
-    val isHovered = remember { mutableStateOf(false) }
+    val frozenAverage = remember(listState) { mutableStateOf<Float?>(null) }
+    val isDragging = remember(listState) { mutableStateOf(false) }
+    val isHovered = remember(listState) { mutableStateOf(false) }
+    val opacity = rememberScrollbarOpacity(listState, isDragging, isHovered, autoHideDelayMillis)
     val thumbState = remember(listState, averageHeight) {
         derivedStateOf { computeLazyThumb(listState, averageHeight.value, frozenAverage.value) }
     }
@@ -158,8 +175,13 @@ fun ChatoneLazyScrollbar(
     val targets = remember(listState) { Channel<LazyScrollTarget>(Channel.CONFLATED) }
     LaunchedEffect(listState, targets) {
         for (target in targets) {
-            listState.scrollToItem(target.index, target.offset)
-            onUserScrollLatest()
+            try {
+                if (target.atEnd) listState.stickToBottomExact()
+                else listState.scrollToItem(target.index, target.offset)
+                onUserScrollLatest()
+            } catch (interrupted: CancellationException) {
+                currentCoroutineContext().ensureActive()
+            }
             withFrameNanos { }
         }
     }
@@ -184,7 +206,8 @@ fun ChatoneLazyScrollbar(
 
                     val total = info.totalItemsCount
                     val viewport = info.viewportSize.height.toFloat()
-                    val contentHeight = (dragAvg * total).coerceAtLeast(viewport)
+                    val contentHeight = (dragAvg * total + info.beforeContentPadding + info.afterContentPadding +
+                            info.mainAxisItemSpacing * (total - 1)).coerceAtLeast(viewport)
                     val maxScroll = (contentHeight - viewport).coerceAtLeast(0f)
 
                     val thumb = thumbState.value
@@ -201,7 +224,7 @@ fun ChatoneLazyScrollbar(
                         val targetPx = fraction * maxScroll
                         val index = (targetPx / dragAvg).toInt().coerceIn(0, total - 1)
                         val rest = (targetPx - index * dragAvg).toInt().coerceAtLeast(0)
-                        targets.trySend(LazyScrollTarget(index, rest))
+                        targets.trySend(LazyScrollTarget(index, rest, atEnd = fraction >= 1f))
                     }
 
                     if (!grabbedThumb) jumpTo(down.position.y)
@@ -230,7 +253,7 @@ fun ChatoneLazyScrollbar(
                     while (true) {
                         val event = awaitPointerEvent()
                         when (event.type) {
-                            PointerEventType.Enter -> isHovered.value = true
+                            PointerEventType.Enter -> isHovered.value = event.changes.any { it.type == PointerType.Mouse }
                             PointerEventType.Exit -> isHovered.value = false
                             PointerEventType.Scroll -> {
                                 val amount = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
@@ -255,9 +278,32 @@ fun ChatoneLazyScrollbar(
             progress = thumb.offset,
             sizeFraction = thumb.size,
             active = isDragging.value || isHovered.value,
-            ticks = ticks
+            ticks = ticks,
+            opacity = opacity.value
         )
     }
+}
+
+@Composable
+private fun rememberScrollbarOpacity(
+    listState: LazyListState,
+    dragging: State<Boolean>,
+    hovered: State<Boolean>,
+    hideDelayMillis: Long?
+): State<Float> {
+    if (hideDelayMillis == null) return rememberUpdatedState(1f)
+    var visible by remember(listState, hideDelayMillis) { mutableStateOf(true) }
+    LaunchedEffect(listState, hideDelayMillis) {
+        snapshotFlow { listState.isScrollInProgress || dragging.value || hovered.value }
+            .collectLatest { active ->
+                if (active) visible = true
+                else {
+                    delay(hideDelayMillis.coerceAtLeast(0L))
+                    visible = false
+                }
+            }
+    }
+    return animateFloatAsState(if (visible) 1f else 0f, tween(120), label = "scrollbarOpacity")
 }
 
 @Composable
@@ -355,15 +401,16 @@ data class ScrollbarTick(val fraction: Float, val color: Color)
 private fun thumbHeightPx(trackHeight: Float, sizeFraction: Float, minThumb: Float): Float =
     (sizeFraction * trackHeight).coerceIn(minThumb.coerceAtMost(trackHeight), trackHeight)
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawScrollbar(
+private fun DrawScope.drawScrollbar(
     trackHeight: Float,
     trackWidth: Float,
     progress: Float,
     sizeFraction: Float,
     active: Boolean,
-    ticks: List<ScrollbarTick>
+    ticks: List<ScrollbarTick>,
+    opacity: Float = 1f
 ) {
-    drawRect(color = TrackColor)
+    drawRect(color = TrackColor.copy(alpha = TrackColor.alpha * opacity))
 
     ticks.forEach { tick ->
         drawRect(
@@ -377,8 +424,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawScrollbar(
     val usableTrack = (trackHeight - thumbHeight).coerceAtLeast(0f)
     val thumbTop = progress.coerceIn(0f, 1f) * usableTrack
 
+    val thumbColor = if (active) ThumbColorHover else ThumbColor
     drawRoundRect(
-        color = if (active) ThumbColorHover else ThumbColor,
+        color = thumbColor.copy(alpha = thumbColor.alpha * opacity),
         topLeft = Offset(1.dp.toPx(), thumbTop),
         size = Size((trackWidth - 2.dp.toPx()).coerceAtLeast(1f), thumbHeight),
         cornerRadius = CornerRadius(4.dp.toPx())

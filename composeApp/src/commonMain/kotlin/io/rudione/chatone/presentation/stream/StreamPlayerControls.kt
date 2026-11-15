@@ -121,7 +121,8 @@ internal data class StreamControlsCallbacks(
     val onEvent: (StreamPlayerEvent) -> Unit,
     val onBack: (() -> Unit)?,
     val onToggleFullscreen: () -> Unit,
-    val onEnterPictureInPicture: () -> Unit
+    val onEnterPictureInPicture: () -> Unit,
+    val onNativeMenuVisibilityChanged: (Boolean) -> Unit = {}
 )
 
 @Composable
@@ -180,6 +181,7 @@ internal fun BoxScope.StreamControlsOverlay(
                 iconSize = iconSize
             )
         }
+        AirPlayRouteButton(Modifier.size(buttonSize), callbacks.onNativeMenuVisibilityChanged)
         if (pictureInPictureSupported && state.isPlaybackActive) {
             PlayerIconButton(
                 icon = Icons.Rounded.PictureInPictureAlt,

@@ -29,6 +29,7 @@ import java.awt.Toolkit
 import java.awt.event.WindowAdapter
 import java.awt.event.WindowEvent
 import java.util.concurrent.atomic.AtomicInteger
+import androidx.compose.runtime.snapshotFlow
 
 private val PROFILE_RESIZER_THICKNESS = 12.dp
 private const val POINTER_GAP = 12
@@ -109,12 +110,12 @@ actual fun UserProfileContainer(
     )
 
     LaunchedEffect(windowState) {
-        androidx.compose.runtime.snapshotFlow { windowState.size }
+        snapshotFlow { windowState.size }
             .collect { size -> onResize(size.width, size.height) }
     }
 
     LaunchedEffect(windowState) {
-        androidx.compose.runtime.snapshotFlow { windowState.position }
+        snapshotFlow { windowState.position }
             .collect { position ->
                 if (isPrimary && position is WindowPosition.Absolute) {
                     settings.putFloat(KEY_CARD_X, position.x.value)

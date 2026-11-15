@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.PictureInPictureUiStateCompat
 import androidx.core.app.PictureInPictureModeChangedInfo
 import androidx.core.content.ContextCompat
 import androidx.core.util.Consumer
@@ -102,10 +103,15 @@ actual fun rememberPictureInPictureController(): PictureInPictureController {
         val listener = Consumer<PictureInPictureModeChangedInfo> { info ->
             controller.isActive = info.isInPictureInPictureMode
         }
+        val transitionListener = Consumer<PictureInPictureUiStateCompat> { info ->
+            if (info.isTransitioningToPip) controller.isActive = true
+        }
         activity?.addOnPictureInPictureModeChangedListener(listener)
+        activity?.addOnPictureInPictureUiStateChangedListener(transitionListener)
         controller.isActive = activity?.isInPictureInPictureMode == true
         onDispose {
             activity?.removeOnPictureInPictureModeChangedListener(listener)
+            activity?.removeOnPictureInPictureUiStateChangedListener(transitionListener)
             controller.isActive = false
         }
     }

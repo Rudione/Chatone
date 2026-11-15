@@ -8,7 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import io.rudione.chatone.data.remote.AccountBadge
-import io.rudione.chatone.data.remote.BadgeHqClient
+import io.rudione.chatone.data.repository.ProfileBadgeRepository
 import io.rudione.chatone.data.remote.BestLogsClient
 import io.rudione.chatone.data.remote.GqlDisplayBadge
 import io.rudione.chatone.data.remote.GqlUserDossier
@@ -45,7 +45,7 @@ class UserProfileState internal constructor(
     private val moderationAuthStore: ModerationAuthStore,
     private val ivrApiClient: IvrApiClient,
     private val bestLogsClient: BestLogsClient,
-    private val badgeHqClient: BadgeHqClient,
+    private val profileBadgeRepository: ProfileBadgeRepository,
     private val userId: String,
     private val username: String,
     private val channelId: String,
@@ -148,7 +148,7 @@ class UserProfileState internal constructor(
             scope.launch { subAge = ivrApiClient.getSubAge(username, channelLogin) }
         }
         if (username.isNotBlank()) {
-            scope.launch { accountBadges = badgeHqClient.accountBadges(username).orEmpty() }
+            scope.launch { profileBadgeRepository.badgesFor(userId, username).collect { accountBadges = it } }
         }
         if (userId.isNotBlank()) {
             scope.launch {
@@ -246,7 +246,7 @@ internal fun rememberUserProfileState(
     val moderationAuthStore: ModerationAuthStore = koinInject()
     val ivrApiClient: IvrApiClient = koinInject()
     val bestLogsClient: BestLogsClient = koinInject()
-    val badgeHqClient: BadgeHqClient = koinInject()
+    val profileBadgeRepository: ProfileBadgeRepository = koinInject()
     val rolesClient: RolesTvClient = koinInject()
 
     val state = remember(userId, channelId) {
@@ -259,7 +259,7 @@ internal fun rememberUserProfileState(
             moderationAuthStore = moderationAuthStore,
             ivrApiClient = ivrApiClient,
             bestLogsClient = bestLogsClient,
-            badgeHqClient = badgeHqClient,
+            profileBadgeRepository = profileBadgeRepository,
             userId = userId,
             username = username,
             channelId = channelId,

@@ -32,6 +32,7 @@ import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.PinOff
 import io.rudione.chatone.icons.lucide.X
 import io.rudione.chatone.util.system.isDesktopPlatform
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
 internal fun SettingsSurface(
@@ -123,7 +124,7 @@ internal fun SettingsPaneHeader(
 
 @Composable
 private fun SettingsPaneIcon(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     tint: Color,
     onClick: () -> Unit

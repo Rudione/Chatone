@@ -32,10 +32,16 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.decodeFromString
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
 
 class ChatMessageRejectedException(val code: String, reason: String) : Exception(reason)
 
-class HelixModerationException(val status: Int, reason: String) : Exception(reason) {
+open class HelixApiException(val status: Int, reason: String) : Exception(reason)
+
+class HelixModerationException(status: Int, reason: String) : HelixApiException(status, reason) {
     val isAlreadyBanned: Boolean
         get() = status == 400 && message.orEmpty().contains("already banned", ignoreCase = true)
 }
@@ -154,8 +160,10 @@ class TwitchApiClient(
             } else {
                 val errorBody = response.bodyAsText()
                 Napier.e("Failed to get users: ${response.status} — $errorBody", tag = TAG)
-                Result.Error(Exception("Failed to get users: ${response.status}"))
+                Result.Error(HelixApiException(response.status.value, "Failed to get users: ${response.status}"))
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("Exception in getUsers: ${e.message}", e, tag = TAG)
             Result.Error(e)
@@ -253,7 +261,7 @@ class TwitchApiClient(
             Napier.d("Got ${streams.data.size} streams", tag = TAG)
             Result.Success(streams)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            if (e is CancellationException) throw e
             Napier.e("Failed to get streams: ${e.message}", e, tag = TAG)
             Result.Error(e)
         }
@@ -327,7 +335,7 @@ class TwitchApiClient(
     private suspend fun moderationResult(action: String, response: HttpResponse): Result<Unit> {
         if (response.status.isSuccess()) return Result.Success(Unit)
         val reason = runCatching {
-            kotlinx.serialization.json.Json.parseToJsonElement(response.bodyAsText()).jsonObject["message"]?.jsonPrimitive?.content
+            Json.parseToJsonElement(response.bodyAsText()).jsonObject["message"]?.jsonPrimitive?.content
         }.getOrNull()?.takeIf { it.isNotBlank() } ?: "HTTP ${response.status.value}"
         Napier.w("Failed to $action: ${response.status.value} $reason", tag = TAG)
         return Result.Error(HelixModerationException(response.status.value, reason))
@@ -473,7 +481,7 @@ class TwitchApiClient(
                     }
                 })
             }
-            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            val json = Json { ignoreUnknownKeys = true }
             if (!response.status.isSuccess()) {
                 val errText = response.bodyAsText()
                 Napier.e("sendChatMessage HTTP ${response.status}: $errText", tag = TAG)
@@ -544,7 +552,7 @@ class TwitchApiClient(
         } else {
             val body = response.bodyAsText()
             val reason = runCatching {
-                kotlinx.serialization.json.Json.parseToJsonElement(body).jsonObject["message"]?.jsonPrimitive?.content
+                Json.parseToJsonElement(body).jsonObject["message"]?.jsonPrimitive?.content
             }.getOrNull()?.takeIf { it.isNotBlank() } ?: "HTTP ${response.status.value}"
             Napier.w("Failed to $action: ${response.status.value} $reason", tag = TAG)
             Result.Error(Exception(reason))
@@ -990,14 +998,14 @@ class TwitchApiClient(
         }
     }
 
-    @kotlinx.serialization.Serializable
+    @Serializable
     private data class ChatColorEntry(
-        @kotlinx.serialization.SerialName("user_id") val userId: String,
-        @kotlinx.serialization.SerialName("user_login") val userLogin: String = "",
-        @kotlinx.serialization.SerialName("color") val color: String = ""
+        @SerialName("user_id") val userId: String,
+        @SerialName("user_login") val userLogin: String = "",
+        @SerialName("color") val color: String = ""
     )
 
-    @kotlinx.serialization.Serializable
+    @Serializable
     private data class ChatColorResponse(val data: List<ChatColorEntry> = emptyList())
 
     suspend fun getUserChatColor(accessToken: String, userId: String): Result<String?> {
@@ -1163,7 +1171,7 @@ class TwitchApiClient(
                     Result.Error(Exception("HTTP ${response.status.value}"))
                 }
             }
-        } catch (e: kotlinx.serialization.SerializationException) {
+        } catch (e: SerializationException) {
             Napier.e("Failed to parse moderators response: ${e.message}", e, tag = TAG)
             Result.Success(ModeratorsResponse(emptyList()))
         } catch (e: Exception) {

@@ -84,6 +84,7 @@ import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.ChatoneTextField
+import io.rudione.chatone.presentation.components.ChatoneSecretField
 
 @Composable
 fun AccountsSettingsSection(
@@ -422,7 +423,7 @@ private fun ProxyConfigSection(
                     singleLine = true
                 )
                 Spacer(Modifier.width(6.dp))
-                io.rudione.chatone.presentation.components.ChatoneSecretField(
+                ChatoneSecretField(
                     value = password,
                     onValueChange = { password = it },
                     label = stringResource(Res.string.accounts_proxy_password),

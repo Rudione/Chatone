@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 class SevenTvCosmeticsClient(
     private val httpClient: HttpClient,
@@ -30,12 +32,12 @@ class SevenTvCosmeticsClient(
     private val v4Client = SevenTvV4Client(httpClient)
 
     private val _cosmetics =
-        kotlinx.coroutines.flow.MutableStateFlow<Map<String, SevenTvUserCosmetic>>(emptyMap())
-    val cosmetics: kotlinx.coroutines.flow.StateFlow<Map<String, SevenTvUserCosmetic>> = _cosmetics
+        MutableStateFlow<Map<String, SevenTvUserCosmetic>>(emptyMap())
+    val cosmetics: StateFlow<Map<String, SevenTvUserCosmetic>> = _cosmetics
 
     private val _paints =
-        kotlinx.coroutines.flow.MutableStateFlow<Map<String, SevenTvCosmetics.Paint>>(emptyMap())
-    val paints: kotlinx.coroutines.flow.StateFlow<Map<String, SevenTvCosmetics.Paint>> = _paints
+        MutableStateFlow<Map<String, SevenTvCosmetics.Paint>>(emptyMap())
+    val paints: StateFlow<Map<String, SevenTvCosmetics.Paint>> = _paints
 
     fun requestCosmetics(twitchUserId: String) {
         if (twitchUserId.isBlank()) return

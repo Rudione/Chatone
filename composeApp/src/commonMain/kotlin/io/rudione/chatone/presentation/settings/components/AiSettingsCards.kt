@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.settings.components
 
+import chatone.composeapp.generated.resources.ai_consent_accept
+import chatone.composeapp.generated.resources.ai_consent_revoke
+import chatone.composeapp.generated.resources.ai_consent_settings
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.ai_active_hours
 import chatone.composeapp.generated.resources.ai_auto_mod_title
@@ -48,7 +51,11 @@ import io.rudione.chatone.presentation.ai.AiSetupContent
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.SettingsCard
 import org.koin.compose.koinInject
+import kotlinx.coroutines.launch
 import io.rudione.chatone.presentation.components.ChatoneTextField
+import androidx.compose.runtime.rememberCoroutineScope
+import io.rudione.chatone.domain.ai.AiConsentStore
+import io.rudione.chatone.domain.ai.aiRecipient
 
 @Composable
 fun AiAssistantConfigCard(
@@ -70,6 +77,20 @@ fun AiAssistantConfigCard(
             ChatoneSwitch(checked = enabled, onCheckedChange = { controller.setEnabled(it) })
         }
 
+        val consent: AiConsentStore = koinInject()
+        val config by controller.config.collectAsState()
+        val grants by consent.granted.collectAsState()
+        val scope = rememberCoroutineScope()
+        val granted = aiRecipient(config.baseUrl) in grants
+        Text(stringResource(Res.string.ai_consent_settings), style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = {
+            if (granted) {
+                consent.revokeAll()
+                controller.stopHighlight()
+                controller.updateAutoMod { it.copy(enabled = false) }
+            } else scope.launch { consent.authorize(config.baseUrl) }
+        }) { Text(stringResource(if (granted) Res.string.ai_consent_revoke else Res.string.ai_consent_accept)) }
+
         AiSetupContent(
             controller = controller,
             client = client,
@@ -83,6 +104,8 @@ fun AiAssistantConfigCard(
 @Composable
 fun AiAutoModCard(controller: AiAssistantController = koinInject()) {
     val autoMod by controller.autoMod.collectAsState()
+    val consent: AiConsentStore = koinInject()
+    val scope = rememberCoroutineScope()
 
     SettingsCard(title = stringResource(Res.string.ai_auto_mod_title)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -94,7 +117,13 @@ fun AiAutoModCard(controller: AiAssistantController = koinInject()) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            ChatoneSwitch(checked = autoMod.enabled, onCheckedChange = { v -> controller.updateAutoMod { it.copy(enabled = v) } })
+            ChatoneSwitch(checked = autoMod.enabled, onCheckedChange = { v ->
+                scope.launch {
+                    if (!v || consent.authorize(controller.config.value.baseUrl)) {
+                        controller.updateAutoMod { it.copy(enabled = v) }
+                    }
+                }
+            })
         }
 
         if (autoMod.enabled) {

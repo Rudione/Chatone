@@ -17,6 +17,8 @@ import chatone.composeapp.generated.resources.ai_assist_error_request_hint
 import chatone.composeapp.generated.resources.ai_assist_error_request_title
 import chatone.composeapp.generated.resources.ai_assist_error_server_hint
 import chatone.composeapp.generated.resources.ai_assist_error_server_title
+import chatone.composeapp.generated.resources.ai_consent_title
+import chatone.composeapp.generated.resources.ai_consent_required
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.ai_assist_retry
 import chatone.composeapp.generated.resources.ai_connect_error_hint
@@ -67,6 +69,7 @@ internal fun aiFailureMessage(failure: AiFailure, baseUrl: String, model: String
     fun text(title: StringResource, hint: StringResource, showDetail: Boolean = false) =
         AiFailureMessage(title, args, hint, args, failure.detail?.takeIf { showDetail })
     return when (failure.kind) {
+        AiFailureKind.CONSENT_REQUIRED -> text(Res.string.ai_consent_title, Res.string.ai_consent_required)
         AiFailureKind.OVERLOADED -> text(Res.string.ai_assist_error_overloaded_title, Res.string.ai_assist_error_overloaded_hint)
         AiFailureKind.RATE_LIMITED -> text(Res.string.ai_assist_error_rate_limited_title, Res.string.ai_assist_error_rate_limited_hint)
         AiFailureKind.UNAUTHORIZED -> text(Res.string.ai_assist_error_key_title, Res.string.ai_assist_error_key_hint)

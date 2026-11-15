@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat.components
 
+import io.rudione.chatone.presentation.components.FitText
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.cancel
 import chatone.composeapp.generated.resources.chat_banned_word_message
@@ -28,6 +29,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.contextmenu.provider.LocalTextContextMenuDropdownProvider
+import androidx.compose.foundation.text.contextmenu.provider.TextContextMenuDataProvider
+import androidx.compose.foundation.text.contextmenu.provider.TextContextMenuProvider
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
@@ -62,6 +66,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.window.PopupProperties
 import io.rudione.chatone.data.remote.TranslationClient
 import io.rudione.chatone.presentation.chat.pauseHotkeyMatches
@@ -89,11 +95,12 @@ import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
 import io.rudione.chatone.presentation.components.HoverTooltipBox
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.PortalPopup
+import androidx.compose.ui.graphics.lerp
 
 private object NoOpTextContextMenuProvider :
-    androidx.compose.foundation.text.contextmenu.provider.TextContextMenuProvider {
+    TextContextMenuProvider {
     override suspend fun showTextContextMenu(
-        dataProvider: androidx.compose.foundation.text.contextmenu.provider.TextContextMenuDataProvider
+        dataProvider: TextContextMenuDataProvider
     ) {
     }
 }
@@ -295,8 +302,13 @@ internal fun MessageInput(
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
+        InputRoomModesHint(chrome.roomModes, chrome.channelKey, chrome.showRoomModesHint)
 
         val glowAnim = remember { Animatable(0f) }
+        val baseDividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+        val glowColor = MaterialTheme.colorScheme.primary
+        val glowAlpha: () -> Float = { glowAnim.value.coerceIn(0f, 1f) }
+
         LaunchedEffect(glowTriggerTs, glowIntensity) {
             if (glowIntensity > 0f) {
                 glowAnim.snapTo(glowIntensity)
@@ -306,9 +318,7 @@ internal fun MessageInput(
                 )
             }
         }
-        val baseDividerColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
-        val glowColor = MaterialTheme.colorScheme.primary
-        val glowAlpha: () -> Float = { glowAnim.value.coerceIn(0f, 1f) }
+
         if (glass == null) {
             Box(
                 modifier = Modifier
@@ -323,7 +333,7 @@ internal fun MessageInput(
 
         val surface = InputSurface(
             resting = { containerColor.compositeOver(bottomBarColor) },
-            border = { androidx.compose.ui.graphics.lerp(borderColor, glowColor, glowAlpha()) },
+            border = { lerp(borderColor, glowColor, glowAlpha()) },
             borderWidth = { borderWidth },
             focused = isFocused,
             shadow = shadowColor
@@ -378,10 +388,22 @@ internal fun MessageInput(
                     onTurnOff = { onToggleAutoTranslate(false) }
                 )
             }
+            if (slowmodeRemainingSeconds > 0) {
+                Text(
+                    formatSlowmodeRemaining(slowmodeRemainingSeconds),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontFeatureSettings = "tnum"),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
         }
         val slowmodeRing: @Composable BoxScope.() -> Unit = {
             if (showSlowmodeRing) {
-                MessageInputSlowmodeRing(fraction = { slowmodeFraction.value }, color = slowmodeColor)
+                MessageInputSlowmodeRing(
+                    fraction = { slowmodeFraction.value },
+                    color = slowmodeColor
+                )
             }
         }
         val limits: @Composable () -> Unit = {
@@ -389,9 +411,7 @@ internal fun MessageInput(
                 charCount = charCount,
                 maxChars = MAX_CHARS,
                 isNearLimit = isNearLimit,
-                isOverLimit = isOverLimit,
-                slowmodeRemainingSeconds = slowmodeRemainingSeconds,
-                slowmodeColor = slowmodeColor
+                isOverLimit = isOverLimit
             )
         }
 
@@ -402,10 +422,21 @@ internal fun MessageInput(
                 surface = surface,
                 upload = upload,
                 emoji = if (hideEmojiButton || isBanned) null else {
-                    { MessageInputEmojiButton(enabled = enabled, metrics = metrics, onClick = onEmotePickerClick) }
+                    {
+                        MessageInputEmojiButton(
+                            enabled = enabled,
+                            metrics = metrics,
+                            onClick = onEmotePickerClick
+                        )
+                    }
                 },
                 send = { size ->
-                    MessageInputSendButton(canSend = canSend, metrics = metrics, onClick = { performSend(false) }, diameter = size)
+                    MessageInputSendButton(
+                        canSend = canSend,
+                        metrics = metrics,
+                        onClick = { performSend(false) },
+                        diameter = size
+                    )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -428,10 +459,22 @@ internal fun MessageInput(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val startInset = if (hideEmojiButton) FieldInsetSplit else FieldInsetMerged
-                        Spacer(Modifier.layoutWidth { androidx.compose.ui.unit.lerp(startInset, FieldInsetSplit, split()) })
+                        Spacer(Modifier.layoutWidth {
+                            lerp(
+                                startInset,
+                                FieldInsetSplit,
+                                split()
+                            )
+                        })
                         fieldContent()
                         limits()
-                        Spacer(Modifier.layoutWidth { androidx.compose.ui.unit.lerp(FieldInsetMerged, FieldInsetSplit, split()) })
+                        Spacer(Modifier.layoutWidth {
+                            lerp(
+                                FieldInsetMerged,
+                                FieldInsetSplit,
+                                split()
+                            )
+                        })
                     }
                 }
             }
@@ -458,18 +501,28 @@ internal fun MessageInput(
                             if (hideEmojiButton) {
                                 Spacer(modifier = Modifier.width(8.dp))
                             } else {
-                                MessageInputEmojiButton(enabled = enabled, metrics = metrics, onClick = onEmotePickerClick)
+                                MessageInputEmojiButton(
+                                    enabled = enabled,
+                                    metrics = metrics,
+                                    onClick = onEmotePickerClick
+                                )
                             }
                             fieldContent()
                             if (upload.progress != null || upload.link != null) {
-                                MessageInputUploadButton(upload = upload, size = metrics.emojiTarget)
+                                MessageInputUploadButton(
+                                    upload = upload,
+                                    size = metrics.emojiTarget
+                                )
                             }
                             if (!metrics.touch) {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier.padding(end = 2.dp)
                                 ) {
-                                    MessageInputSendButton(canSend = canSend, metrics = metrics, onClick = { performSend(false) })
+                                    MessageInputSendButton(
+                                        canSend = canSend,
+                                        metrics = metrics,
+                                        onClick = { performSend(false) })
                                     limits()
                                 }
                             }
@@ -478,7 +531,10 @@ internal fun MessageInput(
                 },
                 send = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        MessageInputSendButton(canSend = canSend, metrics = metrics, onClick = { performSend(false) })
+                        MessageInputSendButton(
+                            canSend = canSend,
+                            metrics = metrics,
+                            onClick = { performSend(false) })
                         limits()
                     }
                 }
@@ -520,11 +576,14 @@ internal data class InputCompletionCallbacks(
 )
 
 internal data class MessageInputChrome(
+    val channelKey: String = "",
     val isBanned: Boolean = false,
     val banReason: String? = null,
     val hidePlaceholder: Boolean = false,
     val hideEmojiButton: Boolean = false,
     val placeholderText: String? = null,
+    val roomModes: List<String> = emptyList(),
+    val showRoomModesHint: Boolean = false,
     val pauseHotkey: String = "",
     val glowIntensity: Float = 0f,
     val glowTriggerTs: Long = 0L,
@@ -545,7 +604,9 @@ internal data class MessageInputActions(
 internal data class MessageInputUploadState(
     val progress: Float? = null,
     val link: String? = null,
-    val onCopyLink: () -> Unit = {}
+    val onCopyLink: () -> Unit = {},
+    val onInsertLink: () -> Unit = {},
+    val expiresAtMs: Long? = null
 )
 
 internal data class MessageInputTranslation(
@@ -620,7 +681,7 @@ private fun RowScope.MessageInputTextField(
     onContextMenu: (IntOffset) -> Unit
 ) {
     CompositionLocalProvider(
-        androidx.compose.foundation.text.contextmenu.provider.LocalTextContextMenuDropdownProvider provides NoOpTextContextMenuProvider
+        LocalTextContextMenuDropdownProvider provides NoOpTextContextMenuProvider
     ) {
         BasicTextField(
             value = tfv,
@@ -733,12 +794,10 @@ private fun RowScope.MessageInputTextField(
             cursorBrush = SolidColor(primaryCol),
             decorationBox = { inner ->
                 if (tfv.text.isEmpty() && !hidePlaceholder) {
-                    Text(
-                        placeholderText ?: stringResource(Res.string.chat_placeholder),
+                    FitText(
+                        text = placeholderText ?: stringResource(Res.string.chat_placeholder),
                         style = textStyle,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
+                        marquee = false,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -773,7 +832,12 @@ private fun BoxScope.MessageInputSlowmodeRing(fraction: () -> Float, color: Colo
             val stroke = Stroke(width = strokePx, cap = StrokeCap.Round)
             onDrawBehind {
                 segment.rewind()
-                measure.getSegment(0f, measure.length * fraction(), segment, true)
+                measure.getSegment(
+                    0f,
+                    measure.length * fraction(),
+                    segment,
+                    true
+                )
                 drawPath(path = segment, color = color, style = stroke)
             }
         }
@@ -1057,25 +1121,6 @@ fun ReplyParentHoverTooltip(
         },
         content = content
     )
-}
-
-private fun formatTimestampFor(
-    timestamp: Long,
-    format: SettingsState.TimestampFormat
-): String {
-    val instant = kotlin.time.Instant.fromEpochMilliseconds(timestamp)
-    val dt = instant.toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
-    return when (format) {
-        SettingsState.TimestampFormat.H24 ->
-            "${dt.hour.toString().padStart(2, '0')}:${dt.minute.toString().padStart(2, '0')}"
-
-        SettingsState.TimestampFormat.H12 -> {
-            val h = if (dt.hour == 0) 12 else if (dt.hour > 12) dt.hour - 12 else dt.hour
-            "$h:${dt.minute.toString().padStart(2, '0')} ${if (dt.hour < 12) "AM" else "PM"}"
-        }
-
-        SettingsState.TimestampFormat.OFF -> ""
-    }
 }
 
 private val FieldInsetMerged = 2.dp

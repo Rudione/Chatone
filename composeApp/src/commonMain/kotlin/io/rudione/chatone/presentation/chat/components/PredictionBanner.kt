@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.components
 
+
+import io.rudione.chatone.presentation.liveactivity.liveChatEvent
+import io.rudione.chatone.presentation.liveactivity.FollowLiveEventButton
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chat_hide_event_banner
 import chatone.composeapp.generated.resources.event_label_prediction
@@ -43,9 +46,10 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.remote.dto.PredictionData
-import io.rudione.chatone.presentation.components.chatoneGlassPanel
 import io.rudione.chatone.icons.lucide.Lock
 import io.rudione.chatone.icons.lucide.Lucide
+import kotlin.time.Clock
+import androidx.compose.foundation.border
 
 private val PredictionWinnerGreen = Color(0xFF3FB950)
 
@@ -55,12 +59,20 @@ fun PredictionBanner(
     pointsBalance: Long = 0L,
     onPredict: (outcomeId: String, points: Int) -> Unit = { _, _ -> },
     onHide: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    channelLogin: String = prediction.broadcasterLogin,
+    canModerate: Boolean = false,
+    actionPending: Boolean = false,
+    onLock: () -> Unit = {},
+    onCancel: () -> Unit = {},
+    onResolve: () -> Unit = {}
 ) {
     val totalPoints = prediction.outcomes.sumOf { it.channelPoints }
     val totalUsers = prediction.outcomes.sumOf { it.users }
     val hasPredicted = prediction.selfOutcomeId != null
     val compact = LocalEventBannerCompact.current
+    val deadline = remember(prediction.createdAt, prediction.predictionWindow) { eventDeadline(prediction.createdAt, prediction.predictionWindow) }
+    var windowExpired by remember(prediction.id, deadline) { mutableStateOf(deadline != null && deadline <= Clock.System.now().toEpochMilliseconds()) }
 
     val statusLabel: String
     val accent: Color
@@ -79,9 +91,10 @@ fun PredictionBanner(
         }
 
         else -> {
-            statusLabel = if (compact) stringResource(Res.string.event_prediction_open_short) else stringResource(Res.string.event_prediction_open)
+            statusLabel = if (windowExpired) stringResource(Res.string.event_prediction_locked_short)
+            else if (compact) stringResource(Res.string.event_prediction_open_short) else stringResource(Res.string.event_prediction_open)
             accent = MaterialTheme.colorScheme.tertiary
-            canPredict = true
+            canPredict = !windowExpired && prediction.status == "ACTIVE"
         }
     }
     val summary = "${pluralStringResource(Res.plurals.event_predictors, totalUsers, totalUsers)} · ${eventPoints(totalPoints, formatPoints(totalPoints))}"
@@ -92,10 +105,13 @@ fun PredictionBanner(
         modifier = modifier
             .fillMaxWidth()
             .padding(eventBannerPadding(compact))
-            .chatoneGlassPanel(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 1f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
             .padding(if (compact) 8.dp else 10.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            FollowLiveEventButton(prediction.liveChatEvent(channelLogin, Clock.System.now().toEpochMilliseconds()))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -159,6 +175,14 @@ fun PredictionBanner(
                     compact = compact,
                     onClick = { pendingOutcomeId = o.id }
                 )
+            }
+            if (prediction.status == "ACTIVE" && deadline != null) {
+                EventCountdown(deadline, prediction.predictionWindow * 1000L, Modifier.fillMaxWidth().padding(vertical = 4.dp), wavy = true) {
+                    windowExpired = true
+                }
+            }
+            if (canModerate && prediction.status in setOf("ACTIVE", "LOCKED")) {
+                PredictionModerationActions(prediction.status, !actionPending, onLock, onCancel, onResolve)
             }
             if (prediction.status == "RESOLVED" && prediction.winningOutcomeId != null) {
                 val winner = prediction.outcomes.firstOrNull { it.id == prediction.winningOutcomeId }

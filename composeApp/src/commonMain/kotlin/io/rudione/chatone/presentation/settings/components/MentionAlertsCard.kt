@@ -2,6 +2,7 @@ package io.rudione.chatone.presentation.settings.components
 
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.settings_mention_alerts
+import chatone.composeapp.generated.resources.settings_mention_alerts_ios_desc
 import chatone.composeapp.generated.resources.settings_mention_alerts_desc
 import chatone.composeapp.generated.resources.settings_notifications_blocked
 import chatone.composeapp.generated.resources.settings_open_notification_settings
@@ -45,7 +46,7 @@ internal fun MentionAlertsCard(preferences: NotificationPreferencesRepository = 
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        stringResource(Res.string.settings_mention_alerts_desc),
+                        stringResource(if (NotificationAccess.keepsChatInBackground) Res.string.settings_mention_alerts_desc else Res.string.settings_mention_alerts_ios_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

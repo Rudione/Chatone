@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
+import androidx.compose.foundation.layout.PaddingValues
 
 @Composable
 fun PanelHeaderTabs(
@@ -44,7 +45,7 @@ fun PanelHeaderTabs(
             .fillMaxWidth()
             .height(30.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp)
+        contentPadding = PaddingValues(horizontal = 4.dp)
     ) {
         items(panels, key = { it.panelId }, contentType = { "panel" }) { panel ->
             val isActive = panel.panelId == activeId

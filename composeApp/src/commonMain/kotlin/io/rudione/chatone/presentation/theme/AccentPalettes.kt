@@ -44,8 +44,8 @@ private val TwitchSurfaces = PaletteSurfaces(
     onSurfaceMuted = Color(0xFFADADB8),
     outline = Color(0xFF53535F),
     outlineVariant = Color(0xFF2F2F35),
-    secondary = Color(0xFFBF94FF),
-    tertiary = Color(0xFFA970FF)
+    secondary = Color(0xFFB39DFF),
+    tertiary = Color(0xFF9C7CFF)
 )
 
 object ChatoneBrand {
@@ -58,24 +58,64 @@ val ExpressivePalettes = listOf(
     AccentPalette(
         "Chatone",
         accent = ChatoneBrand.Accent,
-        base = Color(0xFF16131E)
+        base = Color(0xFF141218)
     ),
     AccentPalette(
         "Twitch",
-        accent = Color(0xFF9147FF),
+        accent = Color(0xFF9D84FF),
         base = Color(0xFF0E0E10),
         surfaces = TwitchSurfaces
     ),
-    AccentPalette("Cosmic", accent = Color(0xFFB3AECB), base = Color(0xFF23212C)),
-    AccentPalette("Lavender", accent = Color(0xFFD2C3F6), base = Color(0xFF191424)),
-    AccentPalette("Violet", accent = ChatoneColors.Violet500, base = Color(0xFF1C132F)),
-    AccentPalette("Wine Ash", accent = Color(0xFFD4AFC8), base = Color(0xFF32292F)),
-    AccentPalette("Candy Blue", accent = Color(0xFFB2D5E5), base = Color(0xFF101B20)),
-    AccentPalette("Turquoise", accent = Color(0xFF99E1D9), base = Color(0xFF0E1D1B)),
-    AccentPalette("Lime", accent = Color(0xFFC6FF34), base = Color(0xFF16190D)),
-    AccentPalette("Vanilla", accent = Color(0xFFF1FEC8), base = Color(0xFF1A1611)),
-    AccentPalette("Carbon", accent = Color(0xFFE9E9E9), base = Color(0xFF171717)),
-    AccentPalette("Onyx", accent = Color(0xFFC7CBD2), base = Color(0xFF020202))
+    AccentPalette(
+        "Cosmic",
+        accent = Color(0xFFB3AECB),
+        base = Color(0xFF23212C)
+    ),
+    AccentPalette(
+        "Lavender",
+        accent = Color(0xFFD2C3F6),
+        base = Color(0xFF191424)
+    ),
+    AccentPalette(
+        "Violet",
+        accent = ChatoneColors.Violet500,
+        base = Color(0xFF1C132F)
+    ),
+    AccentPalette(
+        "Wine Ash",
+        accent = Color(0xFFD4AFC8),
+        base = Color(0xFF32292F)
+    ),
+    AccentPalette(
+        "Candy Blue",
+        accent = Color(0xFFB2D5E5),
+        base = Color(0xFF101B20)
+    ),
+    AccentPalette(
+        "Turquoise",
+        accent = Color(0xFF99E1D9),
+        base = Color(0xFF0E1D1B)
+    ),
+    AccentPalette(
+        "Lime",
+        accent = Color(0xFFC6FF34),
+        base = Color(0xFF16190D)
+    ),
+    AccentPalette(
+        "Vanilla",
+        accent = Color(0xFFF1FEC8),
+        base = Color(0xFF1A1611)
+    ),
+    AccentPalette(
+        "Carbon",
+        accent = Color(0xFFE9E9E9),
+        base = Color(0xFF171717)
+    ),
+    AccentPalette(
+        "Onyx",
+        accent = Color(0xFFC7CBD2),
+        base = Color(0xFF020202)
+    )
 )
 
 const val DEFAULT_ACCENT_INDEX = 0

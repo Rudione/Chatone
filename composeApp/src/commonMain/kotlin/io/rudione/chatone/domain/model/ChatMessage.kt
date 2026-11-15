@@ -33,6 +33,7 @@ data class ChatMessage(
     val replyThreadParentMsgId: String? = null,
     val bits: Int = 0,
     val gifs: List<ChatGif> = emptyList(),
+    val sourceRoomId: String? = null,
 )
 
 @Serializable

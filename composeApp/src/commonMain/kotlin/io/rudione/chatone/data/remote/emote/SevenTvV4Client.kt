@@ -23,6 +23,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.JsonElement
 
 class SevenTvV4Client(private val httpClient: HttpClient) {
 
@@ -207,8 +208,8 @@ class SevenTvV4Client(private val httpClient: HttpClient) {
         return normalized.toUIntOrNull(16)?.toInt()
     }
 
-    private fun kotlinx.serialization.json.JsonElement.asObject(): JsonObject? = this as? JsonObject
-    private fun kotlinx.serialization.json.JsonElement.asArray(): JsonArray? = this as? JsonArray
+    private fun JsonElement.asObject(): JsonObject? = this as? JsonObject
+    private fun JsonElement.asArray(): JsonArray? = this as? JsonArray
 
     companion object {
         private const val TAG = "7TV-v4"

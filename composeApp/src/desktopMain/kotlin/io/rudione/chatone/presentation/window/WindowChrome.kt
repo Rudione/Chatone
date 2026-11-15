@@ -29,13 +29,21 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import org.jetbrains.compose.resources.painterResource
+import io.rudione.chatone.util.system.windowsSystem32Path
+import java.awt.Color as AwtColor
+import java.awt.Dimension
+import java.awt.Frame
+import java.awt.Window as AwtWindow
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
+import java.lang.Long.parseLong
 
 private val osName: String = System.getProperty("os.name", "").lowercase()
 internal val isMacOs: Boolean = osName.contains("mac")
 internal val isWindowsOs: Boolean = osName.contains("win")
 internal val useCustomTitleBar: Boolean = !isMacOs
 
-internal val NATIVE_WINDOW_BG = java.awt.Color(0x0A, 0x0A, 0x0F)
+internal val NATIVE_WINDOW_BG = AwtColor(0x0A, 0x0A, 0x0F)
 
 val MIN_WINDOW_WIDTH: Dp = 100.dp
 val MIN_WINDOW_HEIGHT: Dp = 300.dp
@@ -44,11 +52,11 @@ val MIN_CHAT_WINDOW_HEIGHT: Dp = MIN_WINDOW_HEIGHT / 2
 val MIN_TOOL_WINDOW_WIDTH: Dp = 400.dp
 val MIN_TOOL_WINDOW_HEIGHT: Dp = 400.dp
 
-internal fun java.awt.Window.applyMinimumSize(width: Dp = MIN_WINDOW_WIDTH, height: Dp = MIN_WINDOW_HEIGHT) {
+internal fun AwtWindow.applyMinimumSize(width: Dp = MIN_WINDOW_WIDTH, height: Dp = MIN_WINDOW_HEIGHT) {
     val scale = runCatching {
         graphicsConfiguration?.defaultTransform?.scaleX?.takeIf { it > 0.0 } ?: 1.0
     }.getOrDefault(1.0)
-    minimumSize = java.awt.Dimension(
+    minimumSize = Dimension(
         (width.value * scale).toInt(),
         (height.value * scale).toInt()
     )
@@ -92,7 +100,7 @@ internal fun isSystemDarkMode(): Boolean = runCatching {
     if (isWindowsOs) {
         val proc = Runtime.getRuntime().exec(
             arrayOf(
-                io.rudione.chatone.util.system.windowsSystem32Path("reg.exe"), "query",
+                windowsSystem32Path("reg.exe"), "query",
                 "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
                 "/v", "AppsUseLightTheme"
             )
@@ -101,7 +109,7 @@ internal fun isSystemDarkMode(): Boolean = runCatching {
         val value = output.lines()
             .firstOrNull { it.contains("AppsUseLightTheme") }
             ?.trim()?.split("\\s+".toRegex())?.lastOrNull()
-            ?.let { java.lang.Long.parseLong(it.removePrefix("0x"), 16) }
+            ?.let { parseLong(it.removePrefix("0x"), 16) }
         value == 0L
     } else {
         true
@@ -203,8 +211,8 @@ fun ChatoneDetachedWindow(
                 }
             }
             if (window.isDisplayable) applyChrome()
-            val listener = object : java.awt.event.WindowAdapter() {
-                override fun windowOpened(e: java.awt.event.WindowEvent) {
+            val listener = object : WindowAdapter() {
+                override fun windowOpened(e: WindowEvent) {
                     applyChrome()
                 }
             }
@@ -229,7 +237,7 @@ fun ChatoneDetachedWindow(
                             icon = appIcon,
                             background = captionColor,
                             windowState = windowState,
-                            onMinimize = { window.extendedState = java.awt.Frame.ICONIFIED },
+                            onMinimize = { window.extendedState = Frame.ICONIFIED },
                             onToggleMaximize = {
                                 windowState.placement =
                                     if (windowState.placement == WindowPlacement.Maximized)

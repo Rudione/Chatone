@@ -112,10 +112,18 @@ private fun InterfaceGroup(state: SettingsState, vm: SettingsViewModel) {
                     SettingsState.ChannelNavigation.MINI_RAIL -> stringResource(Res.string.settings_mini_rail)
                     SettingsState.ChannelNavigation.BOTH -> stringResource(Res.string.settings_both)
                 },
-                listOf(stringResource(Res.string.settings_tab_bar), stringResource(Res.string.settings_mini_rail), stringResource(Res.string.settings_both))
+                listOf(
+                    stringResource(Res.string.settings_tab_bar),
+                    stringResource(Res.string.settings_mini_rail),
+                    stringResource(Res.string.settings_both)
+                )
             ) { vm.sendEvent(SettingsEvent.OnChannelNavigationChanged(SettingsState.ChannelNavigation.entries[it])) }
             RowDivider()
-            SwitchRow(stringResource(Res.string.settings_navigation_hidden), stringResource(Res.string.settings_navigation_hidden_desc), state.navigationHidden) {
+            SwitchRow(
+                stringResource(Res.string.settings_navigation_hidden),
+                stringResource(Res.string.settings_navigation_hidden_desc),
+                state.navigationHidden
+            ) {
                 vm.sendEvent(SettingsEvent.OnNavigationHiddenChanged(it))
             }
         }
@@ -126,7 +134,11 @@ private fun InterfaceGroup(state: SettingsState, vm: SettingsViewModel) {
 private fun WindowSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
     SettingsGroup(stringResource(Res.string.settings_window)) {
         if (isDesktopPlatform) {
-            SwitchRow(stringResource(Res.string.settings_always_on_top), stringResource(Res.string.settings_always_on_top_desc), state.alwaysOnTop) {
+            SwitchRow(
+                stringResource(Res.string.settings_always_on_top),
+                stringResource(Res.string.settings_always_on_top_desc),
+                state.alwaysOnTop
+            ) {
                 vm.sendEvent(SettingsEvent.OnAlwaysOnTopChanged(it))
             }
             if (state.alwaysOnTop) {
@@ -148,12 +160,21 @@ private fun WindowSettingsGroup(state: SettingsState, vm: SettingsViewModel) {
             }
             RowDivider()
         }
-        SwitchRow(stringResource(Res.string.settings_hide_sidebar), stringResource(Res.string.settings_hide_sidebar_desc), state.hideSidebar) {
+        SwitchRow(
+            stringResource(Res.string.settings_hide_sidebar),
+            stringResource(Res.string.settings_hide_sidebar_desc),
+            state.hideSidebar
+        ) {
             vm.sendEvent(SettingsEvent.OnHideSidebarChanged(it))
         }
         if (isDesktopPlatform) {
             RowDivider()
-            val titleBarModes = listOf(TitleBarMode.DARK, TitleBarMode.LIGHT, TitleBarMode.ADAPTIVE, TitleBarMode.SYSTEM)
+            val titleBarModes = listOf(
+                TitleBarMode.DARK,
+                TitleBarMode.LIGHT,
+                TitleBarMode.ADAPTIVE,
+                TitleBarMode.SYSTEM
+            )
             DropdownRow(
                 label = stringResource(Res.string.settings_title_bar_mode),
                 description = stringResource(Res.string.settings_title_bar_mode_desc),
@@ -177,11 +198,18 @@ private fun UiScaleRow(currentScale: Float, onScaleChanged: (Float) -> Unit) {
         modifier = Modifier
             .settingsAnchor(title)
             .fillMaxWidth()
-            .padding(horizontal = SettingsRowMetrics.horizontal, vertical = SettingsRowMetrics.vertical),
+            .padding(
+                horizontal = SettingsRowMetrics.horizontal,
+                vertical = SettingsRowMetrics.vertical
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            HighlightedSettingsText(title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            HighlightedSettingsText(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             HighlightedSettingsText(
                 "${(currentScale * 100).toInt()}%",
                 style = MaterialTheme.typography.bodySmall,

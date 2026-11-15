@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import androidx.compose.ui.graphics.Color
 
 enum class CountChipTone { Mention, Quiet, Silent }
 
@@ -31,7 +32,7 @@ fun ChatoneCountChip(
 ) {
     if (count <= 0) return
     val mention = ChatoneTheme.colorTokens.mentionAccent
-    val accent = androidx.compose.ui.graphics.Color(mention)
+    val accent = Color(mention)
 
     val background = when (tone) {
         CountChipTone.Mention -> accent.copy(alpha = 0.17f)
@@ -71,7 +72,7 @@ fun ChatoneCountBadge(
     max: Int = 9
 ) {
     if (count <= 0) return
-    val accent = androidx.compose.ui.graphics.Color(ChatoneTheme.colorTokens.mentionAccent)
+    val accent = Color(ChatoneTheme.colorTokens.mentionAccent)
 
     Box(
         modifier = modifier
@@ -94,6 +95,6 @@ fun ChatoneCountBadge(
     }
 }
 
-private fun onAccentColor(accent: androidx.compose.ui.graphics.Color): androidx.compose.ui.graphics.Color =
-    if (accent.luminance() > 0.55f) androidx.compose.ui.graphics.Color(0xFF1A1420)
-    else androidx.compose.ui.graphics.Color.White
+private fun onAccentColor(accent: Color): Color =
+    if (accent.luminance() > 0.55f) Color(0xFF1A1420)
+    else Color.White

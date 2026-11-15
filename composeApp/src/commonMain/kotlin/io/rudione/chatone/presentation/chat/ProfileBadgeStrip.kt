@@ -29,7 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
+import org.jetbrains.compose.resources.DrawableResource
+import io.rudione.chatone.domain.entitlements.ChatoneBadgeDef
+import io.rudione.chatone.presentation.chat.components.BadgeArtwork
 import io.rudione.chatone.data.remote.AccountBadge
 import io.rudione.chatone.data.remote.GqlDisplayBadge
 import io.rudione.chatone.data.repository.ThirdPartyBadge
@@ -42,7 +44,8 @@ import io.rudione.chatone.icons.lucide.Lucide
 internal data class ProfileBadgeItem(
     val key: String,
     val imageUrl: String,
-    val tooltip: String
+    val tooltip: String,
+    val drawable: DrawableResource? = null
 )
 
 private const val EXPANDED_MAX_ROWS = 6
@@ -53,7 +56,8 @@ internal fun buildProfileBadges(
     gqlBadges: List<GqlDisplayBadge>,
     sevenTvBadge: SevenTvCosmetics.Badge?,
     thirdPartyBadges: List<ThirdPartyBadge>,
-    accountBadges: List<AccountBadge> = emptyList()
+    accountBadges: List<AccountBadge> = emptyList(),
+    chatoneBadge: ChatoneBadgeDef? = null
 ): List<ProfileBadgeItem> {
     val seen = mutableSetOf<String>()
     val result = mutableListOf<ProfileBadgeItem>()
@@ -62,6 +66,16 @@ internal fun buildProfileBadges(
         if (imageUrl.isBlank()) return
         if (!seen.add(key.lowercase())) return
         result += ProfileBadgeItem(key = key, imageUrl = imageUrl, tooltip = tooltip)
+    }
+
+    chatoneBadge?.let { badge ->
+        val url = badge.imageUrl2x.ifBlank { badge.imageUrl1x }
+        val drawable = badge.bundledDrawable()
+        if (drawable != null || url.isNotBlank()) {
+            val key = "chatone_${badge.id}"
+            seen.add(key.lowercase())
+            result += ProfileBadgeItem(key, url, badge.title, drawable)
+        }
     }
 
     gqlBadges.forEach { badge ->
@@ -162,11 +176,7 @@ internal fun ProfileBadgeStrip(
 @Composable
 private fun ProfileBadge(badge: ProfileBadgeItem, size: Dp) {
     LiquidGlassTooltipBox(tooltip = badge.tooltip) {
-        AsyncImage(
-            model = badge.imageUrl,
-            contentDescription = badge.tooltip,
-            modifier = Modifier.size(size)
-        )
+        BadgeArtwork(badge.imageUrl, badge.drawable, badge.tooltip, Modifier.size(size))
     }
 }
 

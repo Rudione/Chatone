@@ -45,4 +45,6 @@ internal object VideoCodecQuirks {
 
     fun reopensOnSurfaceChange(codecName: String): Boolean =
         unsafeSurfaceSwitchPrefixes.any { codecName.startsWith(it, ignoreCase = true) }
+
+    fun anyReopensOnSurfaceChange(codecNames: Collection<String>): Boolean = codecNames.any(::reopensOnSurfaceChange)
 }

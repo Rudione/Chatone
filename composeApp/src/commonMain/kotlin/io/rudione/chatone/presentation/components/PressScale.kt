@@ -19,10 +19,13 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun Modifier.pressScale(interaction: MutableInteractionSource, pressedScale: Float = 0.96f): Modifier {
+    val motion = LocalControlMotion.current
+    if (motion == ControlMotion.Reduced) return this
+    val targetScale = if (motion == ControlMotion.Ios) pressedScale.coerceAtLeast(0.96f) else pressedScale
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = if (pressed) targetScale else 1f,
+        animationSpec = spring(dampingRatio = if (motion == ControlMotion.Ios) Spring.DampingRatioNoBouncy else Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "pressScale"
     )
     return graphicsLayer {
@@ -36,18 +39,21 @@ private const val TACTILE_SETTLED_EPSILON = 0.015f
 
 @Composable
 fun Modifier.tactilePress(interactionSource: InteractionSource, pressedScale: Float = 0.9f): Modifier {
+    val motion = LocalControlMotion.current
+    if (motion == ControlMotion.Reduced) return this
+    val targetScale = if (motion == ControlMotion.Ios) pressedScale.coerceAtLeast(0.96f) else pressedScale
     val scale = remember { Animatable(1f) }
-    LaunchedEffect(interactionSource, pressedScale) {
+    LaunchedEffect(interactionSource, targetScale, motion) {
         interactionSource.interactions.collect { interaction ->
             when (interaction) {
                 is PressInteraction.Press -> launch {
-                    scale.animateTo(pressedScale, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessHigh))
+                    scale.animateTo(targetScale, spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessHigh))
                 }
                 is PressInteraction.Release, is PressInteraction.Cancel -> launch {
-                    if (scale.value > pressedScale + TACTILE_SETTLED_EPSILON) {
-                        scale.animateTo(pressedScale, tween(TACTILE_DIP_MS))
+                    if ((interaction is PressInteraction.Release || motion == ControlMotion.Default) && scale.value > targetScale + TACTILE_SETTLED_EPSILON) {
+                        scale.animateTo(targetScale, tween(TACTILE_DIP_MS))
                     }
-                    scale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow))
+                    scale.animateTo(1f, spring(dampingRatio = if (motion == ControlMotion.Ios) Spring.DampingRatioNoBouncy else Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow))
                 }
             }
         }

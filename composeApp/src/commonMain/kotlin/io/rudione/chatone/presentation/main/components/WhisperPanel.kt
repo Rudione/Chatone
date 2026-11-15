@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.icons.lucide.Shield
+import chatone.composeapp.generated.resources.ui_close
+import chatone.composeapp.generated.resources.streamer_mode_title
+import chatone.composeapp.generated.resources.streamer_private_messages_hidden
+import io.rudione.chatone.presentation.components.LocalStreamerPrivacy
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.panel_message_placeholder
 import chatone.composeapp.generated.resources.panel_whispers
@@ -50,6 +55,34 @@ fun WhisperPanel(
     onEvent: (MainEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val privacy = LocalStreamerPrivacy.current
+    if (privacy.privateMessagesHidden) {
+        Surface(
+            modifier = modifier.width(340.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Lucide.Shield, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(Res.string.streamer_mode_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    ChatoneIconButton(onClick = { onEvent(MainEvent.HideWhisperPanel) }) {
+                        Icon(Lucide.X, stringResource(Res.string.ui_close))
+                    }
+                }
+                Text(
+                    stringResource(Res.string.streamer_private_messages_hidden),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+        return
+    }
     val extra = ChatoneTheme.extraColors
     val activeConversation = state.activeWhisperUserId?.let { uid ->
         state.whisperConversations.find { it.userId == uid }

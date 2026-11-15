@@ -4,8 +4,13 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
+import io.rudione.chatone.util.network.NetworkMonitor
+import io.rudione.chatone.util.network.recoverSocket
+import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.coroutineScope
+import kotlin.time.Clock
 import io.ktor.websocket.WebSocketSession
-import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.rudione.chatone.data.remote.dto.PollChoice
 import io.rudione.chatone.data.remote.dto.PollData
@@ -14,7 +19,6 @@ import io.rudione.chatone.data.remote.dto.PredictionOutcome
 import io.rudione.chatone.domain.model.IrcEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -33,7 +37,8 @@ import kotlinx.serialization.json.jsonPrimitive
 class TwitchPubSubClient(
     private val httpClient: HttpClient,
     private val scope: CoroutineScope,
-    private val channelEventsToken: (String) -> String = { it }
+    private val channelEventsToken: (String) -> String = { it },
+    private val networkMonitor: NetworkMonitor = NetworkMonitor(scope)
 ) {
     private val TAG = "TwitchPubSub"
     private val PUBSUB_URL = "wss://pubsub-edge.twitch.tv/v1"
@@ -47,7 +52,6 @@ class TwitchPubSubClient(
 
     private var connectionJob: Job? = null
     private var session: WebSocketSession? = null
-    private var pingJob: Job? = null
 
     private var currentToken: String = ""
     private var currentUserId: String = ""
@@ -68,7 +72,6 @@ class TwitchPubSubClient(
     }
 
     fun disconnect() {
-        pingJob?.cancel()
         connectionJob?.cancel()
         session = null
         currentToken = ""
@@ -78,11 +81,11 @@ class TwitchPubSubClient(
     }
 
     private fun reconnect() {
-        pingJob?.cancel()
-        connectionJob?.cancel()
+        val previous = connectionJob
+        previous?.cancel()
         connectionJob = scope.launch {
-            var backoff = 2_000L
-            while (isActive && currentToken.isNotEmpty()) {
+            previous?.join()
+            networkMonitor.recoverSocket(onFailure = { Napier.w("PubSub connection interrupted: ${it::class.simpleName}", tag = TAG) }) {
                 try {
                     Napier.d("Connecting to PubSub...", tag = TAG)
                     httpClient.webSocket(PUBSUB_URL) {
@@ -141,34 +144,33 @@ class TwitchPubSubClient(
                             Napier.d("Subscribed to PubSub topic: $modActionsTopic", tag = TAG)
                         }
 
-                        pingJob = scope.launch {
-                            while (isActive) {
-                                delay(60_000L)
-                                try {
-                                    send(Frame.Text("{\"type\":\"PING\"}"))
-                                } catch (_: Exception) {
+                        val socket = this
+                        coroutineScope {
+                            val lastPong = atomic(Clock.System.now().toEpochMilliseconds())
+                            val watchdog = launch {
+                                while (isActive) {
+                                    delay(30_000)
+                                    if (Clock.System.now().toEpochMilliseconds() - lastPong.value > 45_000) throw PubSubHeartbeatTimeout()
+                                    socket.send(Frame.Text("{\"type\":\"PING\"}"))
                                 }
                             }
-                        }
-
-                        backoff = 2_000L
-                        for (frame in incoming) {
-                            if (frame is Frame.Text) {
-                                handleMessage(frame.readText())
-                            }
+                            try {
+                                while (isActive) {
+                                    val frame = withTimeoutOrNull(45_000) { incoming.receiveCatching().getOrNull() }
+                                        ?: throw PubSubHeartbeatTimeout()
+                                    if (frame is Frame.Text) {
+                                        val raw = frame.readText()
+                                        val type = runCatching { json.parseToJsonElement(raw).jsonObject["type"]?.jsonPrimitive?.content }.getOrNull()
+                                        if (type == "PONG") lastPong.value = Clock.System.now().toEpochMilliseconds()
+                                        if (type == "RECONNECT") return@coroutineScope
+                                        handleMessage(raw)
+                                    }
+                                }
+                            } finally { watchdog.cancel() }
                         }
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Napier.e("PubSub error: ${e.message}", e, tag = TAG)
-                }
-                session = null
-                pingJob?.cancel()
-                if (isActive && currentToken.isNotEmpty()) {
-                    Napier.d("PubSub reconnecting in ${backoff}ms", tag = TAG)
-                    delay(backoff)
-                    backoff = (backoff * 2).coerceAtMost(120_000L)
+                } finally {
+                    session = null
                 }
             }
         }
@@ -356,7 +358,9 @@ class TwitchPubSubClient(
                             pinnerUserId = data["pinned_by"]?.jsonObject
                                 ?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty(),
                             pinnerLogin = data["pinned_by"]?.jsonObject
-                                ?.get("login")?.jsonPrimitive?.contentOrNull.orEmpty()
+                                ?.get("login")?.jsonPrimitive?.contentOrNull.orEmpty(),
+                            pinnerBadges = pinnedChatBadges(data["pinned_by"] as? JsonObject),
+                            pinnerColor = data["pinned_by"]?.jsonObject?.get("chat_color")?.jsonPrimitive?.contentOrNull
                         )
                     } else null
                     scope.launch { _events.emit(IrcEvent.PinnedChatUpdated(channelId, pin = pin)) }
@@ -589,3 +593,5 @@ class TwitchPubSubClient(
         }
     }
 }
+
+private class PubSubHeartbeatTimeout : Exception()

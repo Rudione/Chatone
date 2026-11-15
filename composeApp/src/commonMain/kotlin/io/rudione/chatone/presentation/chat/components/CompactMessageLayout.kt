@@ -1,10 +1,14 @@
 package io.rudione.chatone.presentation.chat
 
+
+import io.rudione.chatone.presentation.chat.components.nativeChatMessageMenu
+import io.rudione.chatone.presentation.nativecontext.NativeMessageMenus
 import io.rudione.chatone.presentation.chat.threads.threadRootId
 import io.rudione.chatone.presentation.chat.threads.LocalReplyThreadOpener
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.LinkAnnotation
 import chatone.composeapp.generated.resources.ui_pin
+import chatone.composeapp.generated.resources.profile_message_deleted
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chat_copy_message
 import chatone.composeapp.generated.resources.chat_delete_message
@@ -176,10 +180,10 @@ import io.rudione.chatone.presentation.chat.components.BadgeVisual
 import io.rudione.chatone.presentation.chat.components.ChannelHeaderBlock
 import io.rudione.chatone.presentation.chat.components.ChatTopBar
 import io.rudione.chatone.presentation.chat.components.BadgeIcon
-import io.rudione.chatone.presentation.chat.components.collectBadgeVisuals
 import io.rudione.chatone.presentation.chat.components.roomModeLabels
 import io.rudione.chatone.presentation.chat.rendering.MessageTranslationLine
 import io.rudione.chatone.presentation.chat.rendering.rawTokenText
+import io.rudione.chatone.presentation.chat.components.rememberLinkHoverPreview
 import io.rudione.chatone.presentation.chat.components.LinkHoverPopup
 import io.rudione.chatone.presentation.chat.components.ModActionConfirmDialog
 import io.rudione.chatone.presentation.chat.components.PendingModAction
@@ -191,7 +195,7 @@ import io.rudione.chatone.presentation.chat.components.MessageInput
 import io.rudione.chatone.presentation.chat.components.SlashCommandSuggestionsRow
 import io.rudione.chatone.presentation.components.GlowSurface
 import io.rudione.chatone.presentation.components.LiquidGlassDropdownItem
-import io.rudione.chatone.presentation.components.LiquidGlassSurface
+import io.rudione.chatone.presentation.components.ChatPanelSurface
 import io.rudione.chatone.presentation.settings.InlineImageMode
 import io.rudione.chatone.presentation.settings.PauseHotkeyMode
 import io.rudione.chatone.presentation.settings.SettingsState
@@ -232,6 +236,7 @@ import io.rudione.chatone.icons.lucide.Reply
 import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.presentation.components.PortalPopup
+import io.rudione.chatone.presentation.theme.ChatoneExtraColors
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -240,7 +245,7 @@ internal fun CompactMessageLayout(
     showModActions: Boolean,
     showTimestamp: Boolean,
     timestampFormat: SettingsState.TimestampFormat,
-    showBadges: Boolean,
+    badgeVisuals: List<BadgeVisual>,
     isMod: Boolean,
     isOwnMessage: Boolean,
     currentUserId: String,
@@ -259,6 +264,7 @@ internal fun CompactMessageLayout(
     onMentionClick: (String) -> Unit,
     onReply: () -> Unit,
     onCopyText: () -> Unit,
+    onMessageLongPress: (() -> Unit)? = null,
     onPin: () -> Unit,
     onTimeout: () -> Unit,
     onCustomTimeout: (Int) -> Unit,
@@ -268,7 +274,7 @@ internal fun CompactMessageLayout(
     onDelete: () -> Unit,
     actorCanModerate: Boolean,
     actorIsBroadcaster: Boolean,
-    extraColors: io.rudione.chatone.presentation.theme.ChatoneExtraColors,
+    extraColors: ChatoneExtraColors,
     mentionColor: Color,
     backgroundColor: Color,
     hasAccentBar: Boolean,
@@ -286,13 +292,15 @@ internal fun CompactMessageLayout(
         actorIsGrandMod = false,
         targetIsGrandMod = message.isGrandMod
     )
-    val compactModOrderKey = if (!showModActions) "" else "$modButtonsVersion:" + if (allModButtons.isNotEmpty())
-        allModButtons.joinToString("|") { "${it.id}:${it.sortOrder}:${it.enabled}" }
-    else
-        customModButtons.joinToString("|") { it.id }
+    val compactModOrderKey =
+        if (!showModActions) "" else "$modButtonsVersion:" + if (allModButtons.isNotEmpty())
+            allModButtons.joinToString("|") { "${it.id}:${it.sortOrder}:${it.enabled}" }
+        else
+            customModButtons.joinToString("|") { it.id }
     val prefixKey = if (!showModActions) null else buildString {
         append(compactModOrderKey).append('|').append(canAct).append('|').append(isOwnMessage)
-        append('|').append(showDefaultDeleteButton).append(showDefaultTimeoutButton).append(showDefaultBanButton)
+        append('|').append(showDefaultDeleteButton).append(showDefaultTimeoutButton)
+            .append(showDefaultBanButton)
         append('|').append(showCustomModButtons).append('|').append(chatFontSizeSp)
         append('|').append(density.density).append('|').append(density.fontScale)
     }
@@ -331,7 +339,11 @@ internal fun CompactMessageLayout(
                         Spacer(Modifier.width(3.dp))
                         Text(
                             text = buildAnnotatedString {
-                                withLink(LinkAnnotation.Clickable(REPLY_AUTHOR_TAG) { onMentionClick("@$replyParentLogin") }) {
+                                withLink(LinkAnnotation.Clickable(REPLY_AUTHOR_TAG) {
+                                    onMentionClick(
+                                        "@$replyParentLogin"
+                                    )
+                                }) {
                                     withStyle(
                                         SpanStyle(
                                             color = parentColor,
@@ -365,10 +377,6 @@ internal fun CompactMessageLayout(
             }
         }
 
-        val badgeVisuals = if (showBadges) {
-            collectBadgeVisuals(message.username, message.userId, message.badges, message.sevenTvBadge)
-        } else emptyList()
-
         Box(modifier = Modifier.fillMaxWidth()) {
             CompactMessageContentWithIndent(
                 message = message,
@@ -383,6 +391,7 @@ internal fun CompactMessageLayout(
                 onMentionClick = onMentionClick,
                 onReply = onReply,
                 onCopyText = onCopyText,
+                onMessageLongPress = onMessageLongPress,
                 onPin = onPin,
                 mentionColor = mentionColor,
                 backgroundColor = backgroundColor,
@@ -478,6 +487,7 @@ internal fun CompactMessageContentWithIndent(
     onMentionClick: (String) -> Unit,
     onReply: () -> Unit,
     onCopyText: () -> Unit,
+    onMessageLongPress: (() -> Unit)? = null,
     onPin: () -> Unit,
     mentionColor: Color,
     backgroundColor: Color,
@@ -488,6 +498,7 @@ internal fun CompactMessageContentWithIndent(
     sliderHandle: ModSliderHandle? = null,
     firstLine: FirstLineAnchor? = null
 ) {
+    val messageLongPress by rememberUpdatedState(onMessageLongPress)
     val lineHeightSp = when (chatFontSizeSp) {
         13f -> 20f; 15f -> 22f; 17f -> 24f; else -> chatFontSizeSp + 6f
     }
@@ -497,34 +508,35 @@ internal fun CompactMessageContentWithIndent(
         SettingsState.EmoteSize.LARGE -> lineHeightSp * 1.5f
     }.sp
     val nickColors = rememberNickColors()
-    val userColor = nickColors.of(message.color, message.username)
+    val nickname = rememberChatNickname(message.userId, message.username, message.displayName, message.color, message.sevenTvPaint)
+    val userColor = nickname.color
     val messageRawText = remember(message.tokens) {
         message.tokens.joinToString("") { token ->
             token.plainText()
         }
     }
-    val shownName = LocalNicknames.current[message.userId] ?: message.displayName
+    val shownName = nickname.name
     val nickFontSize = (chatFontSizeSp.coerceIn(11f, 16f) + 2f).sp
     val inlineContent = mutableMapOf<String, InlineTextContent>()
     val emoteKeyMap = mutableMapOf<String, GenericEmote>()
     var emoteCounter = 0
     val gifsEnabled = LocalChatGifsEnabled.current
-    if (!message.isDeleted) {
-        resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }?.let { paint ->
-            registerPaintedNick(
-                inlineContent = inlineContent,
-                key = "nick_paint",
-                name = shownName,
-                paint = paint,
-                fontSizeSp = chatFontSizeSp.coerceIn(11f, 16f) + 1f,
-                isAction = message.isAction,
-                userColor = userColor,
-                onClick = onUsernameClick,
-                onRightClick = { onRightClickUsername(message.displayName) }
-            )
-        }
+    nickname.paint?.let { paint ->
+        registerPaintedNick(
+            inlineContent = inlineContent,
+            key = "nick_paint",
+            name = shownName,
+            paint = paint,
+            fontSizeSp = chatFontSizeSp.coerceIn(11f, 16f) + 1f,
+            isAction = message.isAction,
+            userColor = userColor,
+            onClick = onUsernameClick,
+            onRightClick = { onRightClickUsername(message.displayName) },
+            onTouchLongPress = onMessageLongPress
+        )
     }
-    val timestampLength = if (showTimestamp) formatTimestamp(message.timestamp, timestampFormat).length else 0
+    val timestampLength =
+        if (showTimestamp) formatTimestamp(message.timestamp, timestampFormat).length else 0
     val annotatedString = buildAnnotatedString {
         if (showTimestamp) {
             withStyle(
@@ -556,172 +568,163 @@ internal fun CompactMessageContentWithIndent(
                 }
             }
         }
-        if (message.isDeleted) {
-            pushStringAnnotation("username", message.userId)
+        pushStringAnnotation("username", message.userId)
+        val nickPaint = nickname.paint
+        if (nickPaint != null) {
+            appendInlineGlyph("nick_paint", shownName)
+            if (message.isAction) append(" ") else append(": ")
+        } else if (message.isAction) {
+            withStyle(
+                SpanStyle(
+                    color = userColor,
+                    fontStyle = FontStyle.Italic,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = nickFontSize
+                )
+            ) { append(shownName); append(" ") }
+        } else {
             withStyle(
                 SpanStyle(
                     color = userColor,
                     fontWeight = FontWeight.Bold,
                     fontSize = nickFontSize
                 )
-            ) { append(shownName) }
-            pop()
-            append(": ")
-            val originalText = message.tokens.joinToString("") {
-                it.plainText()
-            }
-            withStyle(
-                SpanStyle(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
-                    textDecoration = TextDecoration.LineThrough
-                )
             ) {
-                append(originalText.ifEmpty { "message deleted" })
+                append(
+                    shownName
+                )
             }
-        } else {
-            pushStringAnnotation("username", message.userId)
-            val nickPaint = resolveSevenTvPaint(message)?.takeIf { it.hasRenderableGradient() }
-            if (nickPaint != null) {
-                appendInlineGlyph("nick_paint", shownName)
-                if (message.isAction) append(" ") else append(": ")
-            } else if (message.isAction) {
-                withStyle(
-                    SpanStyle(
-                        color = userColor,
-                        fontStyle = FontStyle.Italic,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = nickFontSize
-                    )
-                ) { append(shownName); append(" ") }
-            } else {
-                withStyle(SpanStyle(color = userColor, fontWeight = FontWeight.Bold, fontSize = nickFontSize)) {
-                    append(
-                        shownName
-                    )
-                }
-                append(": ")
-            }
-            pop()
-            val messageColor = if (message.isAction) userColor else Color.Unspecified
-            message.tokens.forEach { token ->
-                when (token) {
-                    is MessageToken.Text -> {
-                        if (message.isAction) withStyle(
-                            SpanStyle(
-                                color = messageColor,
-                                fontStyle = FontStyle.Italic
-                            )
-                        ) { append(token.text) } else append(token.text)
-                    }
-
-                    is MessageToken.TwitchEmoteToken -> {
-                        val key = "emote_${emoteCounter++}"
-                        appendInlineGlyph(key, token.name)
-                        inlineContent[key] = InlineTextContent(
-                            Placeholder(
-                                emoteSizeSp,
-                                emoteSizeSp,
-                                PlaceholderVerticalAlign.TextCenter
-                            )
-                        ) {
-                            AnimatedEmoteImage(
-                                url = token.url,
-                                contentDescription = token.name,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-
-                    is MessageToken.ThirdPartyEmoteToken -> {
-                        val key = "emote_${emoteCounter++}"
-                        appendInlineGlyph(key, token.emote.code)
-                        val (emoteW, emoteH) = computeEmoteDisplaySize(
-                            token.emote.width,
-                            token.emote.height,
-                            emoteSizeSp
+            append(": ")
+        }
+        pop()
+        val messageColor = if (message.isDeleted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
+        else if (message.isAction) userColor else Color.Unspecified
+        if (message.isDeleted) pushStyle(SpanStyle(
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f),
+            textDecoration = TextDecoration.LineThrough
+        ))
+        if (message.isDeleted && messageRawText.isEmpty()) append(stringResource(Res.string.profile_message_deleted))
+        message.tokens.forEach { token ->
+            when (token) {
+                is MessageToken.Text -> {
+                    if (message.isAction) withStyle(
+                        SpanStyle(
+                            color = messageColor,
+                            fontStyle = FontStyle.Italic
                         )
-                        emoteKeyMap[key] = token.emote
-                        inlineContent[key] = InlineTextContent(
-                            Placeholder(
-                                emoteW,
-                                emoteH,
-                                PlaceholderVerticalAlign.TextCenter
+                    ) { append(token.text) } else append(token.text)
+                }
+
+                is MessageToken.TwitchEmoteToken -> {
+                    val key = "emote_${emoteCounter++}"
+                    appendInlineGlyph(key, token.name)
+                    inlineContent[key] = InlineTextContent(
+                        Placeholder(
+                            emoteSizeSp,
+                            emoteSizeSp,
+                            PlaceholderVerticalAlign.TextCenter
+                        )
+                    ) {
+                        AnimatedEmoteImage(
+                            url = token.url,
+                            contentDescription = token.name,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                }
+
+                is MessageToken.ThirdPartyEmoteToken -> {
+                    val key = "emote_${emoteCounter++}"
+                    appendInlineGlyph(key, token.emote.code)
+                    val (emoteW, emoteH) = computeEmoteDisplaySize(
+                        token.emote.width,
+                        token.emote.height,
+                        emoteSizeSp
+                    )
+                    emoteKeyMap[key] = token.emote
+                    inlineContent[key] = InlineTextContent(
+                        Placeholder(
+                            emoteW,
+                            emoteH,
+                            PlaceholderVerticalAlign.TextCenter
+                        )
+                    ) {
+                        Box {
+                            EmoteImageWithTooltip(
+                                emote = token.emote,
+                                modifier = Modifier.fillMaxSize(),
+                                onShowContextMenu = null
                             )
-                        ) {
-                            Box {
+                            token.overlays.forEach { overlay ->
                                 EmoteImageWithTooltip(
-                                    emote = token.emote,
+                                    emote = overlay,
                                     modifier = Modifier.fillMaxSize(),
-                                    onShowContextMenu = null
-                                )
-                                token.overlays.forEach { overlay ->
-                                    EmoteImageWithTooltip(
-                                        emote = overlay,
-                                        modifier = Modifier.fillMaxSize(),
-                                        onShowContextMenu = {})
-                                }
+                                    onShowContextMenu = {})
                             }
                         }
                     }
+                }
 
-                    is MessageToken.Link -> {
-                        pushStringAnnotation("url", token.url)
-                        withStyle(
-                            SpanStyle(
-                                color = MaterialTheme.colorScheme.primary,
-                                textDecoration = TextDecoration.Underline
-                            )
-                        ) { append(token.displayText) }
-                        pop()
-                    }
-
-                    is MessageToken.Cheer -> {
-                        val key = "cheer_${emoteCounter++}"
-                        appendInlineGlyph(key, "${token.prefix}${token.amount}")
-                        inlineContent[key] = InlineTextContent(
-                            Placeholder(
-                                (chatFontSizeSp * (1.6f + 0.62f * token.amount.toString().length)).sp,
-                                (chatFontSizeSp * 1.45f).sp,
-                                PlaceholderVerticalAlign.TextCenter
-                            )
-                        ) {
-                            CheerToken(amount = token.amount, fontSizeSp = chatFontSizeSp)
-                        }
-                    }
-
-                    is MessageToken.Mention -> {
-                        pushStringAnnotation("mention", token.username)
-                        val mentionedLogin = token.username.removePrefix("@").lowercase()
-                        val mentionColorReal = nickColors.adjust(
-                            userColorByLogin[mentionedLogin] ?: stableUserColor(mentionedLogin)
+                is MessageToken.Link -> {
+                    pushStringAnnotation("url", token.url)
+                    withStyle(
+                        SpanStyle(
+                            color = MaterialTheme.colorScheme.primary,
+                            textDecoration = TextDecoration.Underline
                         )
+                    ) { append(token.displayText) }
+                    pop()
+                }
+
+                is MessageToken.Cheer -> {
+                    val key = "cheer_${emoteCounter++}"
+                    appendInlineGlyph(key, "${token.prefix}${token.amount}")
+                    inlineContent[key] = InlineTextContent(
+                        Placeholder(
+                            (chatFontSizeSp * (1.6f + 0.62f * token.amount.toString().length)).sp,
+                            (chatFontSizeSp * 1.45f).sp,
+                            PlaceholderVerticalAlign.TextCenter
+                        )
+                    ) {
+                        CheerToken(amount = token.amount, fontSizeSp = chatFontSizeSp)
+                    }
+                }
+
+                is MessageToken.Mention -> {
+                    pushStringAnnotation("mention", token.username)
+                    val mentionedLogin = token.username.removePrefix("@").lowercase()
+                    val mentionColorReal = nickColors.adjust(
+                        userColorByLogin[mentionedLogin] ?: stableUserColor(mentionedLogin)
+                    )
+                    withStyle(
+                        SpanStyle(
+                            color = mentionColorReal,
+                            fontWeight = FontWeight.Bold
+                        )
+                    ) { append(token.username) }
+                    pop()
+                }
+
+                is MessageToken.GifToken -> {
+                    if (!gifsEnabled || message.isDeleted) {
                         withStyle(
                             SpanStyle(
-                                color = mentionColorReal,
-                                fontWeight = FontWeight.Bold
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    .copy(alpha = 0.7f),
+                                fontStyle = FontStyle.Italic
                             )
-                        ) { append(token.username) }
-                        pop()
-                    }
-
-                    is MessageToken.GifToken -> {
-                        if (!gifsEnabled || message.isDeleted) {
-                            withStyle(
-                                SpanStyle(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        .copy(alpha = 0.7f),
-                                    fontStyle = FontStyle.Italic
-                                )
-                            ) { append("[${token.title}]") }
-                        }
+                        ) { append("[${token.title}]") }
                     }
                 }
             }
         }
+        if (message.isDeleted) pop()
+
     }
     var showContextMenu by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val nickMention = rememberNicknameMentionFeedback(onRightClickUsername)
     var contextMenuOffset by remember { mutableStateOf(IntOffset.Zero) }
     val uriHandler = LocalUriHandler.current
     var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -743,15 +746,40 @@ internal fun CompactMessageContentWithIndent(
                     lineHeight = when (chatFontSizeSp) {
                         13f -> 20.sp; 15f -> 22.sp; 17f -> 24.sp; else -> (chatFontSizeSp + 6).sp
                     },
-                    textIndent = androidx.compose.ui.text.style.TextIndent(
+                    textIndent = TextIndent(
                         firstLine = prefixIndent,
                         restLine = 0.sp
                     )
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth()
+                    .then(nickMention.decoration)
                     .inlineTextSemantics(annotatedString)
-                    .pointerInput(annotatedString) {
+                    .nativeChatMessageMenu(
+                        message = message,
+                        plainText = messageRawText,
+                        annotatedText = annotatedString,
+                        layout = { textLayoutResult },
+                        enabled = messageLongPress == null,
+                        isMod = isMod,
+                        onReply = onReply,
+                        onCopy = { scope.launch { clipboard.setText(messageRawText) } },
+                        onTranslate = { translationStore.toggle(message.id, messageRawText) },
+                        onPin = onPin
+                    )
+                    .nicknameTouchGestures(
+                        text = annotatedString,
+                        layout = { textLayoutResult },
+                        authorName = message.displayName,
+                        onClick = { name ->
+                            if (name == message.displayName) onUsernameClick() else onMentionClick(name)
+                        },
+                        onMention = { name, position ->
+                            val copyMessage = messageLongPress
+                            if (copyMessage != null) copyMessage() else nickMention.mention(name, position)
+                        }
+                    )
+                    .pointerInput(annotatedString, onMessageLongPress != null, NativeMessageMenus.enabled) {
                         detectTapGestures(
                             onTap = { offset ->
                                 textLayoutResult?.let { layoutResult ->
@@ -780,71 +808,81 @@ internal fun CompactMessageContentWithIndent(
                                         ?.let { onMentionClick(it.item); return@detectTapGestures }
                                 }
                             },
-                            onLongPress = { offset ->
-                                contextMenuOffset =
-                                    IntOffset(offset.x.toInt(), offset.y.toInt()); showContextMenu =
-                                true
+                            onLongPress = if (NativeMessageMenus.enabled && messageLongPress == null) null else { offset ->
+                                val copyMessage = messageLongPress
+                                if (copyMessage != null) {
+                                    copyMessage()
+                                } else if (!NativeMessageMenus.enabled) {
+                                    contextMenuOffset = IntOffset(offset.x.toInt(), offset.y.toInt())
+                                    showContextMenu = true
+                                }
                             }
                         )
                     }
-                    .then(if (!isDesktopPlatform) Modifier else Modifier.pointerInput(message.id, annotatedString) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent(PointerEventPass.Initial)
-                                val pos = event.changes.firstOrNull()?.position ?: continue
-                                when (event.type) {
-                                    PointerEventType.Move, PointerEventType.Enter -> {
+                    .then(
+                        if (!isDesktopPlatform) Modifier else Modifier.pointerInput(
+                            message.id,
+                            annotatedString
+                        ) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    val pos = event.changes.firstOrNull()?.position ?: continue
+                                    when (event.type) {
+                                        PointerEventType.Move, PointerEventType.Enter -> {
+                                            textLayoutResult?.let { layout ->
+                                                val charOffset = layout.getOffsetForPosition(pos)
+                                                val urlAnn = annotatedString.getStringAnnotations(
+                                                    "url",
+                                                    charOffset,
+                                                    charOffset
+                                                ).firstOrNull()
+                                                hoveredUrl = urlAnn?.item
+                                                hoverOffset =
+                                                    IntOffset(pos.x.toInt(), pos.y.toInt())
+                                            }
+                                        }
+
+                                        PointerEventType.Exit -> hoveredUrl = null
+                                        else -> {}
+                                    }
+                                    if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed &&
+                                        event.changes.none { it.isConsumed }
+                                    ) {
                                         textLayoutResult?.let { layout ->
                                             val charOffset = layout.getOffsetForPosition(pos)
-                                            val urlAnn = annotatedString.getStringAnnotations(
-                                                "url",
+                                            val onUsername = annotatedString.getStringAnnotations(
+                                                "username",
                                                 charOffset,
                                                 charOffset
-                                            ).firstOrNull()
-                                            hoveredUrl = urlAnn?.item
-                                            hoverOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
-                                        }
-                                    }
-
-                                    PointerEventType.Exit -> hoveredUrl = null
-                                    else -> {}
-                                }
-                                if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed &&
-                                    event.changes.none { it.isConsumed }
-                                ) {
-                                    textLayoutResult?.let { layout ->
-                                        val charOffset = layout.getOffsetForPosition(pos)
-                                        val onUsername = annotatedString.getStringAnnotations(
-                                            "username",
-                                            charOffset,
-                                            charOffset
-                                        ).isNotEmpty()
-                                        val mention = annotatedString.getStringAnnotations(
-                                            "mention",
-                                            charOffset,
-                                            charOffset
-                                        ).firstOrNull()?.item
-                                        if (onUsername) {
-                                            onRightClickUsername(message.displayName)
-                                            event.changes.forEach { it.consume() }
-                                        } else if (mention != null) {
-                                            onRightClickUsername(mention)
-                                            event.changes.forEach { it.consume() }
-                                        } else {
+                                            ).isNotEmpty()
+                                            val mention = annotatedString.getStringAnnotations(
+                                                "mention",
+                                                charOffset,
+                                                charOffset
+                                            ).firstOrNull()?.item
+                                            if (onUsername) {
+                                                onRightClickUsername(message.displayName)
+                                                event.changes.forEach { it.consume() }
+                                            } else if (mention != null) {
+                                                onRightClickUsername(mention)
+                                                event.changes.forEach { it.consume() }
+                                            } else {
+                                                contextMenuOffset =
+                                                    IntOffset(pos.x.toInt(), pos.y.toInt())
+                                                showContextMenu = true
+                                                event.changes.forEach { it.consume() }
+                                            }
+                                        } ?: run {
                                             contextMenuOffset =
                                                 IntOffset(pos.x.toInt(), pos.y.toInt())
                                             showContextMenu = true
                                             event.changes.forEach { it.consume() }
                                         }
-                                    } ?: run {
-                                        contextMenuOffset = IntOffset(pos.x.toInt(), pos.y.toInt())
-                                        showContextMenu = true
-                                        event.changes.forEach { it.consume() }
                                     }
                                 }
                             }
-                        }
-                    }),
+                        }),
                 onTextLayout = { layout ->
                     textLayoutResult = layout
                     firstLine?.update(layout)
@@ -853,7 +891,8 @@ internal fun CompactMessageContentWithIndent(
             )
         }
         if (isDesktopPlatform) ChatSelectionContainer(content = messageText) else messageText()
-        hoveredUrl?.let { url ->
+        val hoverPreview = rememberLinkHoverPreview(hoveredUrl, hoverOffset)
+        hoverPreview.url?.let { url ->
             PortalPopup(
                 popupPositionProvider = object : PopupPositionProvider {
                     override fun calculatePosition(
@@ -862,9 +901,9 @@ internal fun CompactMessageContentWithIndent(
                         layoutDirection: LayoutDirection,
                         popupContentSize: IntSize
                     ): IntOffset {
-                        val x = anchorBounds.left + hoverOffset.x + 16
-                        val yBelow = anchorBounds.top + hoverOffset.y + 24
-                        val yAbove = anchorBounds.top + hoverOffset.y - popupContentSize.height - 8
+                        val x = anchorBounds.left + hoverPreview.offset.x + 16
+                        val yBelow = anchorBounds.top + hoverPreview.offset.y + 24
+                        val yAbove = anchorBounds.top + hoverPreview.offset.y - popupContentSize.height - 8
                         val finalY =
                             if (yBelow + popupContentSize.height > windowSize.height) yAbove else yBelow
                         val finalX =
@@ -878,7 +917,7 @@ internal fun CompactMessageContentWithIndent(
                     dismissOnClickOutside = false,
                     clippingEnabled = false
                 )
-            ) { LinkHoverPopup(url = url) }
+            ) { LinkHoverPopup(url = url, onHoverChanged = { hoverPreview.popupHovered = it }) }
         }
         if (showContextMenu) {
             PortalPopup(
@@ -891,21 +930,17 @@ internal fun CompactMessageContentWithIndent(
                 ),
                 onDismissRequest = { showContextMenu = false }
             ) {
-                LiquidGlassSurface(
+                ChatPanelSurface(
                     modifier = Modifier.widthIn(min = 160.dp, max = 240.dp),
                     shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    backgroundAlphaHigh = 0.94f,
-                    backgroundAlphaLow = 0.85f,
-                    borderAlphaHigh = 0f,
-                    borderAlphaLow = 0f
+                    contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
                     Column {
                         if (isMod) {
                             LiquidGlassDropdownItem(
                                 text = stringResource(Res.string.ui_pin),
                                 icon = Lucide.Pin,
-                                iconTint = MaterialTheme.colorScheme.primary,
+                                iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 onClick = { showContextMenu = false; onPin() })
                             HorizontalDivider(
                                 modifier = Modifier.padding(vertical = 4.dp),
@@ -915,7 +950,7 @@ internal fun CompactMessageContentWithIndent(
                         LiquidGlassDropdownItem(
                             text = stringResource(Res.string.chat_reply_to),
                             icon = Lucide.Reply,
-                            iconTint = MaterialTheme.colorScheme.primary,
+                            iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                             onClick = { showContextMenu = false; onReply() })
                         LiquidGlassDropdownItem(
                             text = stringResource(Res.string.chat_copy_message),
@@ -929,9 +964,13 @@ internal fun CompactMessageContentWithIndent(
                                 scope.launch { clipboard.setText(rawText) }
                             })
                         LiquidGlassDropdownItem(
-                            text = if (translationStore.states.containsKey(message.id)) "${stringResource(Res.string.chat_translate)} ✓" else stringResource(Res.string.chat_translate),
+                            text = if (translationStore.states.containsKey(message.id)) "${
+                                stringResource(
+                                    Res.string.chat_translate
+                                )
+                            } ✓" else stringResource(Res.string.chat_translate),
                             icon = Lucide.Languages,
-                            iconTint = MaterialTheme.colorScheme.primary,
+                            iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
                             onClick = {
                                 showContextMenu = false
                                 translationStore.toggle(message.id, messageRawText)

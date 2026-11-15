@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
@@ -68,6 +70,11 @@ fun TactileIconButton(
     val hovered by source.collectIsHoveredAsState()
     val pressed by source.collectIsPressedAsState()
     val isChecked = checked == true
+    val click = controlClick(onClick, when (checked) {
+        true -> HapticFeedbackType.ToggleOff
+        false -> HapticFeedbackType.ToggleOn
+        null -> HapticFeedbackType.VirtualKey
+    })
     val container by animateColorAsState(
         when {
             isChecked -> colors.checkedContainer
@@ -105,7 +112,7 @@ fun TactileIconButton(
             indication = null,
             enabled = enabled,
             role = Role.Switch,
-            onValueChange = { onClick() }
+            onValueChange = { click() }
         )
     } else {
         Modifier.clickable(
@@ -113,7 +120,7 @@ fun TactileIconButton(
             indication = null,
             enabled = enabled,
             role = Role.Button,
-            onClick = onClick
+            onClick = click
         )
     }
     Box(

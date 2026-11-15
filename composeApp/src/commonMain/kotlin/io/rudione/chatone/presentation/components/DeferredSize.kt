@@ -11,11 +11,14 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import kotlin.math.roundToInt
 
-fun Modifier.layoutWidth(width: () -> Dp): Modifier = this then DeferredSizeElement(width, horizontal = true)
+fun Modifier.layoutWidth(width: () -> Dp): Modifier =
+    this then DeferredSizeElement(width, horizontal = true)
 
-fun Modifier.layoutHeight(height: () -> Dp): Modifier = this then DeferredSizeElement(height, horizontal = false)
+fun Modifier.layoutHeight(height: () -> Dp): Modifier =
+    this then DeferredSizeElement(height, horizontal = false)
 
-fun Modifier.layoutWidthFraction(fraction: () -> Float): Modifier = this then WidthFractionElement(fraction)
+fun Modifier.layoutWidthFraction(fraction: () -> Float): Modifier =
+    this then WidthFractionElement(fraction)
 
 private data class DeferredSizeElement(
     val size: () -> Dp,
@@ -35,7 +38,10 @@ private class DeferredSizeNode(
     var horizontal: Boolean
 ) : Modifier.Node(), LayoutModifierNode {
 
-    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints
+    ): MeasureResult {
         val px = size().roundToPx()
         val fixed = if (horizontal) {
             val width = px.coerceIn(constraints.minWidth, constraints.maxWidth)
@@ -49,7 +55,8 @@ private class DeferredSizeNode(
     }
 }
 
-private data class WidthFractionElement(val fraction: () -> Float) : ModifierNodeElement<WidthFractionNode>() {
+private data class WidthFractionElement(val fraction: () -> Float) :
+    ModifierNodeElement<WidthFractionNode>() {
     override fun create(): WidthFractionNode = WidthFractionNode(fraction)
 
     override fun update(node: WidthFractionNode) {
@@ -60,7 +67,10 @@ private data class WidthFractionElement(val fraction: () -> Float) : ModifierNod
 
 private class WidthFractionNode(var fraction: () -> Float) : Modifier.Node(), LayoutModifierNode {
 
-    override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
+    override fun MeasureScope.measure(
+        measurable: Measurable,
+        constraints: Constraints
+    ): MeasureResult {
         val width = if (constraints.hasBoundedWidth) {
             (constraints.maxWidth * fraction().coerceIn(0f, 1f)).roundToInt()
                 .coerceIn(constraints.minWidth, constraints.maxWidth)

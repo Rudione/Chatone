@@ -4,13 +4,15 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
+import io.rudione.chatone.util.network.NetworkMonitor
+import io.rudione.chatone.util.network.recoverSocket
+import kotlinx.coroutines.withTimeoutOrNull
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.readText
 import io.rudione.chatone.domain.model.IrcEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
@@ -21,11 +23,13 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.CancellationException
 
 class TwitchEventSubClient(
     private val httpClient: HttpClient,
     private val apiClient: TwitchApiClient,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val networkMonitor: NetworkMonitor = NetworkMonitor(scope)
 ) {
     private val TAG = "EventSub"
     private val DEFAULT_URL = "wss://eventsub.wss.twitch.tv/ws"
@@ -63,19 +67,34 @@ class TwitchEventSubClient(
     }
 
     private fun reconnect(url: String) {
-        connectionJob?.cancel()
+        val previous = connectionJob
+        previous?.cancel()
         connectionJob = scope.launch {
-            var backoff = 2_000L
+            previous?.join()
             var nextUrl = url
-            while (isActive && currentToken.isNotEmpty()) {
+            networkMonitor.recoverSocket(onFailure = {
+                nextUrl = DEFAULT_URL
+                Napier.w("EventSub connection interrupted: ${it::class.simpleName}", tag = TAG)
+            }) {
                 try {
-                    Napier.d("Connecting to EventSub ($nextUrl)...", tag = TAG)
-                    httpClient.webSocket(nextUrl) {
+                    val connectUrl = nextUrl
+                    nextUrl = DEFAULT_URL
+                    Napier.d("Connecting to EventSub", tag = TAG)
+                    httpClient.webSocket(connectUrl) {
                         session = this
-                        backoff = 2_000L
-                        for (frame in incoming) {
+                        var silenceLimitMs = 15_000L
+                        while (isActive) {
+                            val frame = withTimeoutOrNull(silenceLimitMs) { incoming.receiveCatching().getOrNull() }
+                                ?: throw EventSubHeartbeatTimeout()
                             if (frame is Frame.Text) {
-                                val reconnectUrl = handleMessage(frame.readText())
+                                val raw = frame.readText()
+                                val sessionData = runCatching {
+                                    json.parseToJsonElement(raw).jsonObject["payload"]?.jsonObject?.get("session")?.jsonObject
+                                }.getOrNull()
+                                sessionData?.get("keepalive_timeout_seconds")?.jsonPrimitive?.content?.toLongOrNull()?.let {
+                                    silenceLimitMs = (it.coerceIn(10, 600) + 10) * 1_000
+                                }
+                                val reconnectUrl = handleMessage(raw)
                                 if (reconnectUrl != null) {
                                     nextUrl = reconnectUrl
                                     return@webSocket
@@ -83,16 +102,8 @@ class TwitchEventSubClient(
                             }
                         }
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Napier.e("EventSub error: ${e.message}", e, tag = TAG)
-                }
-                session = null
-                if (isActive && currentToken.isNotEmpty()) {
-                    Napier.d("EventSub reconnecting in ${backoff}ms", tag = TAG)
-                    delay(backoff)
-                    backoff = (backoff * 2).coerceAtMost(120_000L)
+                } finally {
+                    session = null
                 }
             }
         }
@@ -136,6 +147,8 @@ class TwitchEventSubClient(
                     }
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("EventSub parse error: ${e.message}", e, tag = TAG)
         }
@@ -220,3 +233,5 @@ class TwitchEventSubClient(
         )
     }
 }
+
+private class EventSubHeartbeatTimeout : Exception()

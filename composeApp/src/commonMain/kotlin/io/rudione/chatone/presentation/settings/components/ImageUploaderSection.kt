@@ -77,6 +77,7 @@ internal fun UploadsContent(state: SettingsState, onEvent: (SettingsEvent) -> Un
         RowDivider()
         SwitchRow(stringResource(Res.string.uploader_ask_on_upload), null, config.askOnUpload) { update(config.copy(askOnUpload = it)) }
     }
+    UploadLibraryControls(config, update)
     UploaderServiceGroup(config, update)
 }
 

@@ -97,6 +97,7 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import io.rudione.chatone.presentation.components.ChatoneIconButton
+import io.rudione.chatone.presentation.components.ChatoneSwitch
 
 @Composable
 internal fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) {
@@ -122,7 +123,7 @@ internal fun NotificationGroupCard(state: SettingsState, vm: SettingsViewModel) 
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                io.rudione.chatone.presentation.components.ChatoneSwitch(
+                ChatoneSwitch(
                     checked = state.mentionSoundEnabled,
                     onCheckedChange = { vm.sendEvent(SettingsEvent.OnMentionSoundChanged(it)) })
             }

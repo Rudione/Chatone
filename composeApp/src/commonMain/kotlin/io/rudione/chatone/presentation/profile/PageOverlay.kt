@@ -29,6 +29,7 @@ import io.rudione.chatone.presentation.media.MediaViewerNavigation
 import io.rudione.chatone.presentation.media.MediaViewerScreen
 import io.rudione.chatone.presentation.profile.editor.ProfileEditorScreen
 import io.rudione.chatone.presentation.settings.SettingsState
+import io.rudione.chatone.presentation.laboratory.LaboratoryScreen
 import io.rudione.chatone.presentation.stream.FloatingStreamPlayer
 import io.rudione.chatone.util.link.InAppLinkRouter
 import io.rudione.chatone.util.link.TwitchLink
@@ -123,6 +124,7 @@ fun PageOverlay(
         Box(Modifier.fillMaxSize()) {
             when (top) {
                 null -> Unit
+                PageDestination.Laboratory -> LaboratoryScreen(onClose = navigator::back)
                 is PageDestination.Channel -> saved.SaveableStateProvider(top.key) {
                     ChannelProfileScreen(login = top.login, navigation = navigation)
                 }

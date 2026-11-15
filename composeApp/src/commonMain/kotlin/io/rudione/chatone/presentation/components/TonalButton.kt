@@ -36,6 +36,7 @@ fun TonalButton(
     contentColor: Color,
     modifier: Modifier = Modifier
 ) {
+    val click = controlClick(onClick)
     var hovered by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (hovered) 1.03f else 1f, tween(150), label = "tonalButtonScale")
     val container by animateColorAsState(
@@ -53,7 +54,7 @@ fun TonalButton(
             .clip(TonalButtonShape)
             .background(container)
             .handleHover(onEnter = { hovered = true }, onExit = { hovered = false })
-            .clickable(onClick = onClick),
+            .clickable(onClick = click),
         contentAlignment = Alignment.Center
     ) {
         Text(

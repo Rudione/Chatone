@@ -3,6 +3,9 @@ options:
   bundleIdPrefix: io.rudione
   deploymentTarget:
     iOS: "16.0"
+packages:
+  AmazonIVSPlayer:
+    path: AmazonIVSPlayer
 schemes:
   ChatoneSmoke:
     build:
@@ -19,12 +22,21 @@ targets:
     platform: iOS
     sources:
       - iosApp
+      - Shared
+    dependencies:
+      - package: AmazonIVSPlayer
+      - target: ChatoneLiveActivity
+        embed: true
     info:
       path: iosApp/Info.plist
       properties:
+        NSSupportsLiveActivities: true
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: [chatone]
+            CFBundleURLName: io.rudione.chatone.channel
         CFBundleDisplayName: Chatone
-        CFBundleShortVersionString: "0.0.0"
-        CFBundleVersion: "0"
+        CFBundleShortVersionString: CHATONE_MARKETING_VERSION
+        CFBundleVersion: CHATONE_BUILD_NUMBER
         CADisableMinimumFrameDurationOnPhone: true
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -39,34 +51,32 @@ targets:
         UIBackgroundModes:
           - audio
         ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.rudione.chatone
         PRODUCT_NAME: Chatone
+        INFOPLIST_PREPROCESS: YES
+        INFOPLIST_PREFIX_HEADER: $(DERIVED_FILE_DIR)/ChatoneAppVersion.h
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
         OTHER_LDFLAGS: [$(inherited), -framework, ComposeApp, -lsqlite3]
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     preBuildScripts:
+      - name: Generate App Version
+        inputFiles:
+          - $(SRCROOT)/../gradle.properties
+          - $(SRCROOT)/scripts/generate-app-version.sh
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/ChatoneAppVersion.h
+        script: /bin/sh "$SRCROOT/scripts/generate-app-version.sh"
       - name: Compile Kotlin Framework
         basedOnDependencyAnalysis: false
         script: |
           cd "$SRCROOT/.."
           ./gradlew :composeApp:embedAndSignAppleFrameworkForXcode
-    postBuildScripts:
-      - name: Apply App Version
-        basedOnDependencyAnalysis: false
-        script: |
-          PROPS="$SRCROOT/../gradle.properties"
-          VERSION=$(sed -n 's/^app\.version=//p' "$PROPS" | tr -d '[:space:]')
-          CODE=$(sed -n 's/^app\.versionCode=//p' "$PROPS" | tr -d '[:space:]')
-          if [ -z "$VERSION" ] || [ -z "$CODE" ]; then
-            echo "error: app.version or app.versionCode is missing in gradle.properties"
-            exit 1
-          fi
-          PLIST="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" -c "Set :CFBundleVersion $CODE" "$PLIST"
   iosAppUITests:
     type: bundle.ui-testing
     platform: iOS
@@ -80,3 +90,36 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
         TEST_TARGET_NAME: iosApp
+  ChatoneLiveActivity:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.2"
+    sources:
+      - ChatoneLiveActivity
+      - Shared
+    info:
+      path: ChatoneLiveActivity/Info.plist
+      properties:
+        CFBundleDisplayName: Chatone Events
+        CFBundleShortVersionString: CHATONE_MARKETING_VERSION
+        CFBundleVersion: CHATONE_BUILD_NUMBER
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.rudione.chatone.liveactivity
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_PREPROCESS: YES
+        INFOPLIST_PREFIX_HEADER: $(DERIVED_FILE_DIR)/ChatoneAppVersion.h
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+    preBuildScripts:
+      - name: Generate App Version
+        inputFiles:
+          - $(SRCROOT)/../gradle.properties
+          - $(SRCROOT)/scripts/generate-app-version.sh
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/ChatoneAppVersion.h
+        script: /bin/sh "$SRCROOT/scripts/generate-app-version.sh"

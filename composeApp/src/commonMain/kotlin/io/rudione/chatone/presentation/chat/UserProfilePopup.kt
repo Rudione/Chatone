@@ -48,13 +48,12 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
 import io.rudione.chatone.util.platform.setText
-import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import chatone.composeapp.generated.resources.Res
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.AccountBadge
-import io.rudione.chatone.data.remote.BadgeHqClient
+import io.rudione.chatone.data.repository.ProfileBadgeRepository
 import io.rudione.chatone.data.remote.GqlDisplayBadge
 import io.rudione.chatone.data.remote.GqlUsercardMessage
 import io.rudione.chatone.data.remote.IvrApiClient
@@ -86,6 +85,7 @@ import io.rudione.chatone.icons.lucide.ExternalLink
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
 import io.rudione.chatone.presentation.components.PortalPopup
+import kotlinx.coroutines.delay
 
 private const val MOBILE_PROFILE_POSITION_KEY = "mobile.profile_popup"
 
@@ -228,7 +228,7 @@ fun UserProfilePopup(
         mutableStateOf<List<GqlDisplayBadge>>(emptyList())
     }
     var accountBadges by remember(userId) { mutableStateOf<List<AccountBadge>>(emptyList()) }
-    val badgeHqClient: BadgeHqClient = koinInject()
+    val profileBadgeRepository: ProfileBadgeRepository = koinInject()
     var followedAt by remember(userId) { mutableStateOf<String?>(null) }
     var subAge by remember(userId) { mutableStateOf<SubAgeInfo?>(null) }
     val ivrApiClient: IvrApiClient = koinInject()
@@ -267,7 +267,7 @@ fun UserProfilePopup(
                     twitchGqlClient.getUserDisplayBadges(username, channelLogin, accessToken)
                 }.getOrDefault(emptyList())
             }
-            launch { accountBadges = badgeHqClient.accountBadges(username).orEmpty() }
+            launch { profileBadgeRepository.badgesFor(userId, username).collect { accountBadges = it } }
         }
 
         if (channelId.isNotEmpty() && userId.isNotEmpty()) {
@@ -604,23 +604,26 @@ fun UserProfileHeader(
     val uriHandler = LocalUriHandler.current
     val sevenTv = rememberSevenTvCosmetic(userId)
     val thirdPartyMaps = LocalThirdPartyBadges.current
+    val chatoneBadge = rememberEquippedChatoneBadge(userId)
+    val activeSevenTvBadge = if (sevenTv != null) sevenTv.badge else sevenTvBadge
     val badgeItems =
-        remember(userId, badges, gqlBadges, sevenTvBadge, thirdPartyMaps, accountBadges) {
+        remember(userId, badges, gqlBadges, activeSevenTvBadge, thirdPartyMaps, accountBadges, chatoneBadge) {
             buildProfileBadges(
                 chatBadges = badges,
                 gqlBadges = gqlBadges,
-                sevenTvBadge = sevenTvBadge,
+                sevenTvBadge = activeSevenTvBadge,
                 thirdPartyBadges = buildList {
                     thirdPartyMaps.ffzByLogin[username.lowercase()]?.let { addAll(it) }
                     thirdPartyMaps.bttvByUserId[userId]?.let { add(it) }
                 },
-                accountBadges = accountBadges
+                accountBadges = accountBadges,
+                chatoneBadge = chatoneBadge
             )
         }
 
     LaunchedEffect(showCopied) {
         if (showCopied) {
-            kotlinx.coroutines.delay(1500)
+            delay(1500)
             showCopied = false
         }
     }
@@ -708,16 +711,16 @@ fun UserProfileHeader(
                             )
                         }
                     }
-                    if (onDetach != null) {
-                        ProfileHeaderAction(onClick = onDetach) {
-                            Icon(
-                                Lucide.ExternalLink,
-                                contentDescription = stringResource(Res.string.profile_detach_card),
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                }
+            }
+            if (onDetach != null) {
+                ChatoneIconButton(onClick = onDetach, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Lucide.ExternalLink,
+                        contentDescription = stringResource(Res.string.profile_detach_card),
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             if (onDismiss != null && showIconDetached) {

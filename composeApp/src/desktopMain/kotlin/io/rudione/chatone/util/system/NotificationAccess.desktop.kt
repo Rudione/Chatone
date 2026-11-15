@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 actual object NotificationAccess {
+    actual val keepsChatInBackground: Boolean = true
     actual val granted: StateFlow<Boolean> = MutableStateFlow(true).asStateFlow()
 
     actual fun refresh() = Unit

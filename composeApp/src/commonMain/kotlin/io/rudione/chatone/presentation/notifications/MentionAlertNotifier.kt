@@ -10,7 +10,6 @@ import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.HighlightRule
 import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.platform.DeviceFormFactor
 import io.rudione.chatone.util.platform.currentFormFactor
 import io.rudione.chatone.util.system.NotificationTarget
 import io.rudione.chatone.util.system.NotificationTopic
@@ -33,7 +32,7 @@ class MentionAlertNotifier(
     private val preferences: NotificationPreferencesRepository,
     private val scope: CoroutineScope
 ) {
-    private val gatedBySetting = currentFormFactor() == DeviceFormFactor.PHONE
+    private val gatedBySetting = currentFormFactor().isHandheld
     private val identity = MutableStateFlow<TwitchAccount?>(null)
     private val recentIds = ArrayDeque<String>()
     @Volatile

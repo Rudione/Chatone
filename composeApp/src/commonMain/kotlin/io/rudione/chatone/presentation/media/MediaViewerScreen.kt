@@ -83,6 +83,7 @@ import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
+import androidx.compose.foundation.layout.Arrangement
 
 @Immutable
 class MediaViewerNavigation(
@@ -158,7 +159,7 @@ fun MediaViewerScreen(
 
                 details == null || state.load != ViewerLoad.READY -> Column(
                     Modifier.fillMaxSize().padding(top = topInset),
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                    verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(

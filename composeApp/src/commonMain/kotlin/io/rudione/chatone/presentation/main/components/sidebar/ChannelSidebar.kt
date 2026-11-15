@@ -1,5 +1,18 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+
+import io.rudione.chatone.util.system.isDesktopPlatform
+import chatone.composeapp.generated.resources.lab_title
+import io.rudione.chatone.icons.lucide.Activity
+import io.rudione.chatone.icons.lucide.Download
+import chatone.composeapp.generated.resources.update_now
+import androidx.compose.ui.platform.LocalUriHandler
+import io.rudione.chatone.util.system.appStoreUrl
+import io.rudione.chatone.util.system.rememberStoreUpdateAvailable
+import io.rudione.chatone.util.BuildConfig
+import io.rudione.chatone.presentation.components.AnimatedMenuIcon
+import io.rudione.chatone.presentation.components.LocalSidebarExpanded
+import io.rudione.chatone.presentation.components.ChatConnectionIndicator
 import chatone.composeapp.generated.resources.ui_close
 import chatone.composeapp.generated.resources.ai_assistant_content_description
 import chatone.composeapp.generated.resources.channel_page_my_profile
@@ -26,7 +39,6 @@ import io.rudione.chatone.presentation.points.rememberWatchStreak
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.clickable
 import io.rudione.chatone.presentation.profile.PageNavigator
-import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -45,7 +57,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
@@ -76,7 +87,6 @@ import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.icons.lucide.AtSign
 import io.rudione.chatone.icons.lucide.ChevronDown
-import io.rudione.chatone.icons.lucide.ChevronLeft
 import io.rudione.chatone.icons.lucide.ChevronRight
 import io.rudione.chatone.icons.lucide.EllipsisVertical
 import io.rudione.chatone.icons.lucide.Folder
@@ -89,7 +99,7 @@ import io.rudione.chatone.icons.lucide.Settings
 import io.rudione.chatone.icons.lucide.Sparkles
 import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.icons.lucide.User
-import io.rudione.chatone.icons.lucide.X
+import androidx.compose.ui.geometry.Size
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
 @Composable
@@ -99,12 +109,14 @@ internal fun ChannelSidebar(
     isWideScreen: Boolean = false,
     onOpenBrowse: (() -> Unit)? = null
 ) {
+    val pages = koinInject<PageNavigator>()
     val extra = ChatoneTheme.extraColors
 
     val dropIndex = remember { SidebarDropIndex() }
     val dragState = remember { SidebarDragState() }
     val listState = rememberLazyListState()
     val density = LocalDensity.current
+    val compactBrowseThreshold = with(density) { 48.dp.roundToPx() }
     val dropTarget by remember(dropIndex, dragState, listState) {
         derivedStateOf {
             if (!dragState.isDragging) return@derivedStateOf null
@@ -130,14 +142,19 @@ internal fun ChannelSidebar(
         else -> RoundedCornerShape(0.dp)
     }
     val sidebarDivider = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-    val tiled = isWideScreen
+    val aiControllerAcct = koinInject<AiAssistantController>()
     Column(
         modifier = Modifier
-            .then(if (tiled) Modifier.fillMaxWidth() else Modifier.width(256.dp))
+            .then(if (isWideScreen) Modifier.fillMaxWidth() else Modifier.width(256.dp))
             .fillMaxHeight()
             .then(
                 when {
-                    floating && tiled -> Modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp)
+                    floating && isWideScreen -> Modifier.padding(
+                        start = 4.dp,
+                        top = 4.dp,
+                        bottom = 4.dp
+                    )
+
                     floating -> Modifier.padding(4.dp)
                     else -> Modifier
                 }
@@ -150,7 +167,7 @@ internal fun ChannelSidebar(
                     spotColor = extra.elevatedShadow
                 ) else Modifier
             )
-            .then(if (tiled) Modifier else Modifier.clip(sidebarShape))
+            .then(if (isWideScreen) Modifier else Modifier.clip(sidebarShape))
             .background(
                 if (glowEnabled) extra.sidebarSurface
                 else MaterialTheme.colorScheme.surfaceContainerLow
@@ -158,12 +175,12 @@ internal fun ChannelSidebar(
             .then(
                 when {
                     glowEnabled -> Modifier.border(1.dp, extra.glassBorder, sidebarShape)
-                    tiled -> Modifier
+                    isWideScreen -> Modifier
                     else -> Modifier.drawBehind {
                         drawRect(
                             color = sidebarDivider,
                             topLeft = Offset(size.width - 1.dp.toPx(), 0f),
-                            size = androidx.compose.ui.geometry.Size(1.dp.toPx(), size.height)
+                            size = Size(1.dp.toPx(), size.height)
                         )
                     }
                 }
@@ -184,15 +201,36 @@ internal fun ChannelSidebar(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
+            Text(
+                text = "v${BuildConfig.VERSION}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+            val storeUrl = appStoreUrl
+            val updateAvailable = rememberStoreUpdateAvailable()
+            val uriHandler = LocalUriHandler.current
+            if (storeUrl != null && updateAvailable) {
+                ChatoneIconButton(
+                    onClick = { uriHandler.openUri(storeUrl) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Lucide.Download,
+                        contentDescription = stringResource(Res.string.update_now),
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             if (isWideScreen) {
                 ChatoneIconButton(
                     onClick = { onEvent(MainEvent.ToggleSidebarCollapsed) },
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(
-                        if (state.sidebarCollapsed)
-                            Lucide.ChevronLeft
-                        else Lucide.ChevronRight,
+                    AnimatedMenuIcon(
+                        expanded = !state.sidebarCollapsed,
                         contentDescription = stringResource(Res.string.main_collapse_sidebar),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
@@ -203,8 +241,8 @@ internal fun ChannelSidebar(
                     onClick = { onEvent(MainEvent.CloseSidebar) },
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(
-                        Lucide.X,
+                    AnimatedMenuIcon(
+                        expanded = LocalSidebarExpanded.current,
                         contentDescription = stringResource(Res.string.ui_close),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
@@ -268,7 +306,6 @@ internal fun ChannelSidebar(
                         }
                     }
                 }
-                val aiControllerAcct = koinInject<AiAssistantController>()
                 ChatoneIconButton(
                     onClick = { aiControllerAcct.open() },
                     modifier = Modifier.size(26.dp)
@@ -277,7 +314,7 @@ internal fun ChannelSidebar(
                         Lucide.Sparkles,
                         contentDescription = stringResource(Res.string.ai_assistant_content_description),
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 if (state.activeChannelLogin != null) {
@@ -321,9 +358,9 @@ internal fun ChannelSidebar(
                         )
                     }
                 }
-                Box(
-                    modifier = Modifier.size(8.dp).clip(CircleShape)
-                        .background(if (state.isConnected) ChatoneTheme.extraColors.connected else MaterialTheme.colorScheme.error)
+                ChatConnectionIndicator(
+                    state = state.connectionState,
+                    onReconnect = { onEvent(MainEvent.ReconnectChat) }
                 )
             }
         } ?: run {
@@ -348,6 +385,15 @@ internal fun ChannelSidebar(
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
         )
 
+        if (onOpenBrowse != null) {
+            val compactBrowse by remember(compactBrowseThreshold) {
+                derivedStateOf {
+                    listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > compactBrowseThreshold
+                }
+            }
+            BrowseEntryItem(onClick = onOpenBrowse, compact = compactBrowse)
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -365,11 +411,6 @@ internal fun ChannelSidebar(
             contentPadding = PaddingValues(vertical = 4.dp),
             verticalArrangement = Arrangement.Top
         ) {
-            if (onOpenBrowse != null) {
-                item(key = "browse_entry", contentType = "browse_entry") {
-                    BrowseEntryItem(onClick = onOpenBrowse)
-                }
-            }
             itemsIndexed(
                 state.folders,
                 key = { _: Int, f: ChannelFolder -> "folder_${f.id}" },
@@ -540,7 +581,7 @@ internal fun ChannelSidebar(
         }
 
         ChatoneIconRail(
-            actions = listOf(
+            actions = listOfNotNull(
                 RailAction(
                     icon = Lucide.AtSign,
                     label = stringResource(Res.string.panel_mentions_title),
@@ -553,6 +594,11 @@ internal fun ChannelSidebar(
                     badge = state.totalUnreadWhispers,
                     onClick = { onEvent(MainEvent.ToggleWhisperPanel) }
                 ),
+                if (!isDesktopPlatform) RailAction(
+                    icon = Lucide.Activity,
+                    label = stringResource(Res.string.lab_title),
+                    onClick = { onEvent(MainEvent.CloseSidebar); pages.openLaboratory() }
+                ) else null,
                 RailAction(
                     icon = Lucide.Settings,
                     label = stringResource(Res.string.settings_title),
@@ -686,7 +732,7 @@ internal fun FolderItem(
                             Lucide.Plus,
                             contentDescription = stringResource(Res.string.main_add_channel_to_folder),
                             modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
                     }
                     ChatoneDropdownMenu(

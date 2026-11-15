@@ -16,6 +16,8 @@ import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import io.ktor.http.Url
+import kotlinx.coroutines.delay
 
 sealed interface ImageSource {
     data class Direct(val imageUrl: String) : ImageSource
@@ -204,7 +206,7 @@ private fun absolutize(base: String, candidate: String): String? {
     if (value.isEmpty()) return null
     if (value.startsWith("http://") || value.startsWith("https://")) return value
     return try {
-        val url = io.ktor.http.Url(base)
+        val url = Url(base)
         when {
             value.startsWith("//") -> "${url.protocol.name}:$value"
             value.startsWith("/") -> "${url.protocol.name}://${url.host}$value"
@@ -216,7 +218,7 @@ private fun absolutize(base: String, candidate: String): String? {
 }
 
 private fun hostAndPath(url: String): Pair<String, String>? = try {
-    val parsed = io.ktor.http.Url(url)
+    val parsed = Url(url)
     parsed.host.lowercase() to parsed.encodedPath
 } catch (_: Exception) {
     null
@@ -286,7 +288,7 @@ object LinkImageResolver {
         }
         if (!acquired) {
             repeat(20) {
-                kotlinx.coroutines.delay(150)
+                delay(150)
                 cached(url)?.let { return it }
             }
             return ImageSource.None

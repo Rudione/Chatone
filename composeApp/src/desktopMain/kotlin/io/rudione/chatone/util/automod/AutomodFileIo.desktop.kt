@@ -6,6 +6,12 @@ import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
 import java.util.Base64
+import io.rudione.chatone.domain.model.AutomodRule
+import io.rudione.chatone.domain.model.ChatRule
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 
 actual suspend fun saveAutomodText(defaultName: String, content: String): String? =
     withContext(Dispatchers.IO) {
@@ -48,7 +54,7 @@ actual suspend fun readAutomodText(): String? =
     }
 
 private fun readXlsxAsCsv(file: File): String {
-    val zip = java.util.zip.ZipFile(file)
+    val zip = ZipFile(file)
     fun readEntry(name: String): String {
         val entry = zip.getEntry(name) ?: return ""
         return zip.getInputStream(entry).bufferedReader(Charsets.UTF_8).readText()
@@ -94,13 +100,13 @@ private fun readXlsxAsCsv(file: File): String {
 }
 
 actual fun buildXlsxContent(
-    wordRules: List<io.rudione.chatone.domain.model.AutomodRule>,
-    chatRules: List<io.rudione.chatone.domain.model.ChatRule>
+    wordRules: List<AutomodRule>,
+    chatRules: List<ChatRule>
 ): String {
-    val baos = java.io.ByteArrayOutputStream()
-    java.util.zip.ZipOutputStream(baos).use { zip ->
+    val baos = ByteArrayOutputStream()
+    ZipOutputStream(baos).use { zip ->
         fun entry(name: String, content: String) {
-            zip.putNextEntry(java.util.zip.ZipEntry(name))
+            zip.putNextEntry(ZipEntry(name))
             zip.write(content.toByteArray(Charsets.UTF_8))
             zip.closeEntry()
         }

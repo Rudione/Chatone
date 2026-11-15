@@ -23,6 +23,12 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import io.rudione.chatone.domain.ai.AiDataConsent
+import io.rudione.chatone.domain.ai.AiDataRedactor
+import io.rudione.chatone.domain.ai.DeniedAiDataConsent
+import io.rudione.chatone.domain.ai.aiRecipient
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 
 data class AiChatMessage(val role: String, val content: String) {
     companion object {
@@ -32,7 +38,15 @@ data class AiChatMessage(val role: String, val content: String) {
     }
 }
 
-class AiAssistantClient(private val httpClient: HttpClient) {
+class AiAssistantClient(
+    private val httpClient: HttpClient,
+    private val consent: AiDataConsent = DeniedAiDataConsent
+) {
+    fun canSendTo(endpoint: String): Boolean = consent.isGranted(endpoint)
+    private fun consentDenied(): Result<String> = Result.Error(AiRequestException(AiFailure(AiFailureKind.CONSENT_REQUIRED)))
+
+    private val completionHttpClient = httpClient.config { followRedirects = false }
+
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     suspend fun complete(
@@ -40,14 +54,19 @@ class AiAssistantClient(private val httpClient: HttpClient) {
         model: String,
         messages: List<AiChatMessage>,
         temperature: Double = 0.7,
-        apiKey: String = ""
+        apiKey: String = "",
+        interactiveConsent: Boolean = true
     ): Result<String> {
-        val primary = completeWithRetries(baseUrl, model, messages, temperature, apiKey, MAX_ATTEMPTS)
+        val endpoint = aiRecipient(baseUrl)
+            ?: return Result.Error(AiRequestException(AiFailure(AiFailureKind.BAD_REQUEST)))
+        val allowed = if (interactiveConsent) consent.authorize(endpoint) else consent.isGranted(endpoint)
+        if (!allowed) return consentDenied()
+        val primary = completeWithRetries(endpoint, model, messages, temperature, apiKey, MAX_ATTEMPTS)
         if (primary.failureKind() != AiFailureKind.OVERLOADED) return primary
-        val fallback = AiProviders.overloadFallback(baseUrl, model) ?: return primary
+        val fallback = AiProviders.overloadFallback(endpoint, model) ?: return primary
         Napier.i("AI model $model is overloaded, asking $fallback", tag = TAG)
-        val reserve = completeWithRetries(baseUrl, fallback, messages, temperature, apiKey, FALLBACK_ATTEMPTS)
-        return if (reserve is Result.Success) reserve else primary
+        val reserve = completeWithRetries(endpoint, fallback, messages, temperature, apiKey, FALLBACK_ATTEMPTS)
+        return if (reserve is Result.Success || reserve.failureKind() == AiFailureKind.CONSENT_REQUIRED) reserve else primary
     }
 
     private suspend fun completeWithRetries(
@@ -83,6 +102,7 @@ class AiAssistantClient(private val httpClient: HttpClient) {
         temperature: Double,
         apiKey: String
     ): Result<String> {
+        if (!consent.isGranted(baseUrl)) return consentDenied()
         return try {
             val url = baseUrl.trimEnd('/') + "/chat/completions"
             val body = buildJsonObject {
@@ -93,25 +113,26 @@ class AiAssistantClient(private val httpClient: HttpClient) {
                     messages.forEach { m ->
                         addJsonObject {
                             put("role", m.role)
-                            put("content", m.content)
+                            put("content", AiDataRedactor.redact(m.content))
                         }
                     }
                 }
             }
-            val response = httpClient.post(url) {
+            val response = completionHttpClient.post(url) {
                 if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
                 contentType(ContentType.Application.Json)
                 setBody(
                     json.encodeToString(
-                        kotlinx.serialization.json.JsonObject.serializer(),
+                        JsonObject.serializer(),
                         body
                     )
                 )
             }
             val text = response.bodyAsText()
+            if (!consent.isGranted(baseUrl)) return consentDenied()
             if (!response.status.isSuccess()) {
                 val failure = AiErrorParser.failureFor(response.status.value, text)
-                Napier.w("AI HTTP ${failure.status} (${failure.kind}) for $model: ${failure.detail ?: text.take(300)}", tag = TAG)
+                Napier.w("AI HTTP ${failure.status} (${failure.kind})", tag = TAG)
                 val retryAfter = AiErrorParser.retryAfterMs(response.headers[HttpHeaders.RetryAfter])
                 return Result.Error(AiRequestException(failure, retryAfter))
             }
@@ -129,8 +150,8 @@ class AiAssistantClient(private val httpClient: HttpClient) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Napier.w("AI request failed: ${e.message}", tag = TAG)
-            Result.Error(AiRequestException(AiFailure(AiFailureKind.NETWORK, detail = e.message), cause = e))
+            Napier.w("AI transport request failed", tag = TAG)
+            Result.Error(AiRequestException(AiFailure(AiFailureKind.NETWORK, detail = e.message?.let(AiDataRedactor::redact)), cause = e))
         }
     }
 
@@ -149,7 +170,7 @@ class AiAssistantClient(private val httpClient: HttpClient) {
         var reachable = false
         for (url in urls) {
             try {
-                val response = httpClient.get(url) {
+                val response = completionHttpClient.get(url) {
                     if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
                 }
                 reachable = true
@@ -157,6 +178,8 @@ class AiAssistantClient(private val httpClient: HttpClient) {
                     val models = parseModelList(response.bodyAsText())
                     if (models.isNotEmpty()) return ServerStatus.Reachable(models)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
 
             }
@@ -175,11 +198,13 @@ class AiAssistantClient(private val httpClient: HttpClient) {
 
     private suspend fun fetchModels(url: String, apiKey: String): List<String> {
         return try {
-            val response = httpClient.get(url) {
+            val response = completionHttpClient.get(url) {
                 if (apiKey.isNotBlank()) header("Authorization", "Bearer $apiKey")
             }
             if (!response.status.isSuccess()) return emptyList()
             parseModelList(response.bodyAsText())
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             emptyList()
         }
@@ -188,15 +213,15 @@ class AiAssistantClient(private val httpClient: HttpClient) {
     private fun parseModelList(text: String): List<String> {
         val root = runCatching { json.parseToJsonElement(text) }.getOrNull() ?: return emptyList()
         return when {
-            root is kotlinx.serialization.json.JsonObject ->
+            root is JsonObject ->
                 root["data"]?.jsonArray
                     ?.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
                     .orEmpty()
 
-            root is kotlinx.serialization.json.JsonArray ->
+            root is JsonArray ->
                 root.mapNotNull { el ->
                     when (el) {
-                        is kotlinx.serialization.json.JsonObject ->
+                        is JsonObject ->
                             el["name"]?.jsonPrimitive?.contentOrNull
                                 ?: el["id"]?.jsonPrimitive?.contentOrNull
 

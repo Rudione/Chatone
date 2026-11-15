@@ -1,5 +1,7 @@
 package io.rudione.chatone.util.font
 
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.platform.SystemFont
 import androidx.compose.ui.text.platform.Font
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -9,10 +11,6 @@ import platform.Foundation.dataWithContentsOfFile
 import platform.posix.memcpy
 import androidx.compose.ui.text.font.FontFamily
 import platform.Foundation.NSFileManager
-import platform.Foundation.NSString
-import platform.Foundation.lastPathComponent
-import platform.Foundation.pathExtension
-import platform.Foundation.stringByDeletingPathExtension
 import platform.UIKit.UIFont
 
 private val FONT_EXTENSIONS = setOf("ttf", "otf")
@@ -36,13 +34,12 @@ private fun fileExists(path: String): Boolean =
     NSFileManager.defaultManager.fileExistsAtPath(path)
 
 private fun pathExtension(path: String): String =
-    (path as NSString).pathExtension.lowercase()
+    path.substringAfterLast('/').substringAfterLast('.', "").lowercase()
 
 private fun fileNameWithoutExtension(path: String): String =
-    (path as NSString).lastPathComponent.let { last ->
-        (last as NSString).stringByDeletingPathExtension
-    }
+    path.substringAfterLast('/').substringBeforeLast('.')
 
+@OptIn(ExperimentalTextApi::class)
 actual fun resolveFontFamily(name: String, customPaths: List<String>): FontFamily {
     if (name.isBlank() || name == "Default") return FontFamily.Default
 
@@ -55,7 +52,7 @@ actual fun resolveFontFamily(name: String, customPaths: List<String>): FontFamil
     }
 
     if (collectSystemFontNames().contains(name)) {
-        return guessGenericFamily(name)
+        return FontFamily(SystemFont(identity = name))
     }
 
     return FontFamily.Default

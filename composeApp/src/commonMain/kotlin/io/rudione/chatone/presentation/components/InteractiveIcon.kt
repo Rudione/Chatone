@@ -28,6 +28,7 @@ fun Modifier.interactiveIcon(
     pressRotation: Float = ICON_PRESS_ROTATION,
     enabled: Boolean = true
 ): Modifier {
+    if (LocalControlMotion.current != ControlMotion.Default) return this
     val hovered by interactionSource.collectIsHoveredAsState()
     val pressed by interactionSource.collectIsPressedAsState()
 
@@ -60,9 +61,10 @@ fun ChatoneIconButton(
     content: @Composable () -> Unit
 ) {
     val source = interactionSource ?: remember { MutableInteractionSource() }
+    val click = controlClick(onClick)
     IconButton(
-        onClick = onClick,
-        modifier = modifier,
+        onClick = click,
+        modifier = modifier.nativeControlPress(source),
         enabled = enabled,
         colors = colors,
         interactionSource = source

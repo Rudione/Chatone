@@ -64,13 +64,32 @@ private class Grain(
     val color: Color
 )
 
-fun Modifier.crumble(state: CrumbleState, palette: List<Color>): Modifier = this
+fun Modifier.crumble(state: CrumbleState, palette: List<Color>): Modifier =
+    crumbleParticles(state, palette)
+        .graphicsLayer {
+            if (!state.isCrumbling) return@graphicsLayer
+            val progress = state.progress
+            val fade = (1f - progress / CONTENT_FADE_END).coerceIn(0f, 1f)
+            alpha = fade * fade
+            val scale = 1f - CONTENT_SHRINK * progress
+            scaleX = scale
+            scaleY = scale
+        }
+
+fun Modifier.crumbleBurst(state: CrumbleState, palette: List<Color>, origin: () -> Offset): Modifier =
+    crumbleParticles(state, palette, origin)
+
+private fun Modifier.crumbleParticles(
+    state: CrumbleState,
+    palette: List<Color>,
+    origin: (() -> Offset)? = null
+): Modifier = this
     .drawWithCache {
         val unit = density
         val seed = state.seed
         val random = Random(seed)
-        val center = Offset(size.width / 2f, size.height / 2f)
-        val maxRadius = minOf(size.width, size.height) / 2f
+        val center = origin?.invoke() ?: Offset(size.width / 2f, size.height / 2f)
+        val maxRadius = if (origin != null) 8f * unit else minOf(size.width, size.height) / 2f
         val grains = if (palette.isEmpty()) emptyList() else List(PARTICLE_COUNT) {
             val angle = random.nextFloat() * 2f * PI.toFloat()
             val distance = sqrt(random.nextFloat()) * maxRadius
@@ -100,13 +119,4 @@ fun Modifier.crumble(state: CrumbleState, palette: List<Color>): Modifier = this
                 drawCircle(grain.color.copy(alpha = grain.color.alpha * fade), grain.radius * (1f - 0.4f * local), position)
             }
         }
-    }
-    .graphicsLayer {
-        if (!state.isCrumbling) return@graphicsLayer
-        val progress = state.progress
-        val fade = (1f - progress / CONTENT_FADE_END).coerceIn(0f, 1f)
-        alpha = fade * fade
-        val scale = 1f - CONTENT_SHRINK * progress
-        scaleX = scale
-        scaleY = scale
     }

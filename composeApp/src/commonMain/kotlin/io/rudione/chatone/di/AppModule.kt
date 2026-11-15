@@ -1,5 +1,9 @@
 package io.rudione.chatone.di
 
+import io.rudione.chatone.util.system.isDesktopPlatform
+import io.rudione.chatone.data.repository.UploaderPresetsRepository
+import io.rudione.chatone.data.repository.UploadHistoryRepository
+import io.rudione.chatone.data.repository.WatchHistoryRepository
 import io.rudione.chatone.presentation.profile.editor.ProfileEditorLauncher
 import io.rudione.chatone.data.remote.TwitchChannelSettingsClient
 import org.koin.dsl.bind
@@ -50,6 +54,8 @@ import io.rudione.chatone.data.local.DatabaseDriverFactory
 import io.rudione.chatone.data.local.createDatabase
 import io.rudione.chatone.data.remote.AiAssistantClient
 import io.rudione.chatone.data.remote.BadgeHqClient
+import io.rudione.chatone.data.remote.CommunityBadgeClient
+import io.rudione.chatone.data.repository.ProfileBadgeRepository
 import io.rudione.chatone.data.remote.BestLogsClient
 import io.rudione.chatone.data.remote.ImageUploaderClient
 import io.rudione.chatone.data.remote.IvrApiClient
@@ -61,6 +67,7 @@ import io.rudione.chatone.data.remote.TranslationClient
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.remote.TwitchBadgeGqlClient
 import io.rudione.chatone.data.remote.TwitchDeviceAuthClient
+import io.rudione.chatone.util.network.NetworkMonitor
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.remote.TwitchPubSubClient
 import io.rudione.chatone.data.remote.TwitchEventSubClient
@@ -79,6 +86,8 @@ import io.rudione.chatone.data.repository.ChannelFolderRepository
 import io.rudione.chatone.data.repository.ChatRepository
 import io.rudione.chatone.data.repository.AutoModHub
 import io.rudione.chatone.data.remote.TwitchAutoModSocket
+import io.rudione.chatone.data.repository.ChannelUnbanGateway
+import io.rudione.chatone.data.repository.ChannelUnbanRepository
 import io.rudione.chatone.data.repository.ChannelBanGateway
 import io.rudione.chatone.data.repository.ChannelBanRepository
 import io.rudione.chatone.data.repository.ChannelRoleGateway
@@ -127,6 +136,7 @@ import io.rudione.chatone.data.repository.ModerationAuthStore
 import io.rudione.chatone.data.repository.ModerationHistoryRepository
 import io.rudione.chatone.data.repository.MultiAccountConnectionRegistry
 import io.rudione.chatone.data.repository.NicknameRepository
+import io.rudione.chatone.data.repository.LiveStreamsBoard
 import io.rudione.chatone.data.repository.RecentChannelsRepository
 import io.rudione.chatone.data.repository.RemoteEntitlementsRepository
 import io.rudione.chatone.data.repository.StreamerModeController
@@ -167,6 +177,7 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
+import io.rudione.chatone.domain.ai.AiConsentStore
 
 val IoScopeQualifier = named("io-scope")
 val UntrustedContentClientQualifier = named("untrusted-content")
@@ -217,10 +228,13 @@ val networkModule = module {
         CoroutineScope(SupervisorJob() + IoDispatcher)
     }
 
+    single { NetworkMonitor(get(IoScopeQualifier)) }
+
     single {
         TwitchIrcClient(
             httpClient = get(),
-            scope = get(IoScopeQualifier)
+            scope = get(IoScopeQualifier),
+            networkMonitor = get()
         )
     }
 
@@ -229,17 +243,19 @@ val networkModule = module {
         TwitchPubSubClient(
             httpClient = get(),
             scope = get(IoScopeQualifier),
-            channelEventsToken = moderationAuth::resolveToken
+            channelEventsToken = moderationAuth::resolveToken,
+            networkMonitor = get()
         )
     }
     single {
         TwitchEventSubClient(
             httpClient = get(),
             apiClient = get(),
-            scope = get(IoScopeQualifier)
+            scope = get(IoScopeQualifier),
+            networkMonitor = get()
         )
     }
-    single { TwitchAutoModSocket(httpClient = get(), apiClient = get(), scope = get(IoScopeQualifier)) }
+    single { TwitchAutoModSocket(httpClient = get(), apiClient = get(), scope = get(IoScopeQualifier), networkMonitor = get()) }
     single { AutoModHub(socket = get(), apiClient = get(), sessions = get(), scope = get(IoScopeQualifier)) }
     single { ImageUploaderClient(httpClient = get()) }
     single { MentionMuteRepository() }
@@ -249,6 +265,8 @@ val networkModule = module {
     single { TwitchChatterFameClient(httpClient = get()) }
     single { RolesTvClient(httpClient = get()) }
     single { BadgeHqClient(httpClient = get()) }
+    single { CommunityBadgeClient(httpClient = get()) }
+    single { ProfileBadgeRepository(badgeHq = get(), community = get()) }
     single { MentionRepository(get()) }
 
     single { SevenTvApiClient(httpClient = get()) }
@@ -257,7 +275,7 @@ val networkModule = module {
     single { GiphyApiClient(httpClient = get()) }
 
     single { SevenTvCosmeticsClient(httpClient = get(), scope = get(IoScopeQualifier)) }
-    single { SevenTvEventApi(httpClient = get(), scope = get(IoScopeQualifier)) }
+    single { SevenTvEventApi(httpClient = get(), scope = get(IoScopeQualifier), networkMonitor = get()) }
 
     single { TranslationClient(httpClient = get()) }
     single { TranslationStore(client = get()) }
@@ -271,6 +289,7 @@ val networkModule = module {
         )
     }
     single<ChannelBanGateway> { ChannelBanRepository(helix = get()) }
+    single<ChannelUnbanGateway> { ChannelUnbanRepository(helix = get(), auth = get()) }
     single<ChannelRoleGateway> {
         ChannelRoleRepository(
             helix = get(),
@@ -345,7 +364,8 @@ val networkModule = module {
         )
     }
     single { StreamerModeController(settings = get()) }
-    single { AiAssistantClient(httpClient = get()) }
+    single { AiConsentStore(settings = get()) }
+    single { AiAssistantClient(httpClient = get(), consent = get<AiConsentStore>()) }
     single { OllamaClient(httpClient = get()) }
     single { AiAssistantController(settings = get()) }
     single { AiChatScanner(client = get(), controller = get()) }
@@ -555,7 +575,8 @@ val appModule = module {
         IrcConnectionFactory(
             httpClientFactory = get(),
             accountManager = get(),
-            scope = get(IoScopeQualifier)
+            scope = get(IoScopeQualifier),
+            networkMonitor = get()
         )
     }
     single {
@@ -588,9 +609,13 @@ val appModule = module {
 val settingsModule = module {
     single { Settings() }
     single { SidebarLayoutRepository(settings = get()) }
+    single { WatchHistoryRepository(settings = get(), database = get(), scope = get(IoScopeQualifier)) }
+    single { UploadHistoryRepository(database = get(), scope = get(IoScopeQualifier)) }
+    single { UploaderPresetsRepository(database = get()) }
     single { ChatMessageScaleRepository(settings = get()) }
     single<MentionReadStore> { MentionReadRepository(settings = get()) }
     single { RecentChannelsRepository(settings = get()) }
+    single { LiveStreamsBoard() }
     single { SettingsNavigator() }
     single { ScreenChatController(settings = get()) }
 }
@@ -613,6 +638,7 @@ val viewModelModule = module {
             pubSubClient = get(),
             eventSubClient = get(),
             imageUploaderClient = get(),
+            uploadHistory = get(),
             twitchGqlClient = get(),
             moderationAuthStore = get(),
             aiAssistantController = get(),
@@ -624,7 +650,9 @@ val viewModelModule = module {
             channelRoleGateway = get(),
             gifRepository = get(),
             channelBanGateway = get(),
-            autoModHub = get()
+            channelUnbanGateway = get(),
+            autoModHub = get(),
+            liveStreamsBoard = get()
         )
     }
     viewModel { SettingsViewModel(get(), get(), get()) }
@@ -691,7 +719,8 @@ val streamModule = module {
             manifestSource = get(),
             preferencesRepository = get(),
             engineFactory = get(),
-            watchActivity = get()
+            watchActivity = get(),
+            localWatchActivity = if (isDesktopPlatform) WatchActivitySink.None else get<WatchHistoryRepository>()
         )
     }
 }

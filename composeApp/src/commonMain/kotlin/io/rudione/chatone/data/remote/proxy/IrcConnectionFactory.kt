@@ -1,5 +1,6 @@
 package io.rudione.chatone.data.remote.proxy
 
+import io.rudione.chatone.util.network.NetworkMonitor
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.repository.AccountManager
 import kotlinx.atomicfu.locks.SynchronizedObject
@@ -10,7 +11,8 @@ import kotlinx.coroutines.InternalCoroutinesApi
 class IrcConnectionFactory(
     private val httpClientFactory: HttpClientFactory,
     private val accountManager: AccountManager,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val networkMonitor: NetworkMonitor
 ) {
     private val clients = mutableMapOf<String, TwitchIrcClient>()
 
@@ -22,7 +24,7 @@ class IrcConnectionFactory(
         synchronized(lock) { clients[userId] }?.let { return it }
 
         val httpClient = httpClientFactory.forAccount(userId)
-        val client = TwitchIrcClient(httpClient = httpClient, scope = scope)
+        val client = TwitchIrcClient(httpClient = httpClient, scope = scope, networkMonitor = networkMonitor)
         return synchronized(lock) { clients.getOrPut(userId) { client } }
     }
 

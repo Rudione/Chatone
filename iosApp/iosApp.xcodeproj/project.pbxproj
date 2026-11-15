@@ -7,9 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		09CA22524B13C8335D50D312 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 8F475D3C40BC28416DFA75E2 /* Localizable.strings */; };
+		09FED4B446BD58DF150C455A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C6D2DD7FE2E0BF5DB2A96B4B /* PrivacyInfo.xcprivacy */; };
 		0B986899651E3AD0A7BEAE89 /* ChatoneSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE23E021A59E190D5A295B4 /* ChatoneSmokeUITests.swift */; };
+		0BFB209C0442D090ECF956B7 /* LiveEventController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC5D3B937DC9176086DAFBD /* LiveEventController.swift */; };
+		1C81D6F669B7BB6D2FFCCEB3 /* AmazonIVSPlayer in Frameworks */ = {isa = PBXBuildFile; productRef = D896F75CD8C3D5AF1E89E033 /* AmazonIVSPlayer */; };
 		22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F543015C899423D4B01CEB2E /* Assets.xcassets */; };
 		307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CECA83ACC03A83C85A623 /* iOSApp.swift */; };
+		5DF851CC25509E06AC35DDD1 /* PixelBufferSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E23E2D9F014C723C8C68AE4B /* PixelBufferSampler.swift */; };
+		7565063AF24C2180CB37B281 /* ChatoneEventAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB67B70A1E082913C5045C3 /* ChatoneEventAttributes.swift */; };
+		83F04976416F85562A482FC1 /* ChatoneLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = EC975B7FF9D71544E798BE86 /* ChatoneLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DA3D27DF222FD55C154F9488 /* ChatoneEventAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB67B70A1E082913C5045C3 /* ChatoneEventAttributes.swift */; };
+		E254D5E85FBDB3CD91B90524 /* ChatoneLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5D7C12433EE293A3EA55C40 /* ChatoneLiveActivity.swift */; };
+		E4A998B39C38EC5E90F63774 /* IvsLowLatencyPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9993BFB1D1322A420DA6E2FD /* IvsLowLatencyPlayer.swift */; };
+		F6E7F11B785D1AF80E016E2A /* MessageContextMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBEF6E5848FB72EEA764842E /* MessageContextMenus.swift */; };
+		FB16BF6EECD8C7528F465B55 /* NowPlayingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB8DD5C686678BD9AB197F4E /* NowPlayingController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -20,16 +32,61 @@
 			remoteGlobalIDString = 78B53CC79860CBFC2F5543C6;
 			remoteInfo = iosApp;
 		};
+		E13BB7321AE707207F60B220 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 242FB5348943441C388468CE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DEBC4286B719BCD8A984F484;
+			remoteInfo = ChatoneLiveActivity;
+		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		E99160E501832DB2CECE6CFF /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				83F04976416F85562A482FC1 /* ChatoneLiveActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		0DB67B70A1E082913C5045C3 /* ChatoneEventAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatoneEventAttributes.swift; sourceTree = "<group>"; };
 		323906AFB18147ABEDEBDB38 /* iosAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = iosAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		668CECA83ACC03A83C85A623 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		86038AE1032E284E79B32AD6 /* iosApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8DC73093AE275EDA65E8135A /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		8E13ABFB0D185696BF739ACC /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
+		9993BFB1D1322A420DA6E2FD /* IvsLowLatencyPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IvsLowLatencyPlayer.swift; sourceTree = "<group>"; };
 		9CE23E021A59E190D5A295B4 /* ChatoneSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatoneSmokeUITests.swift; sourceTree = "<group>"; };
 		C117AD187833E2513BD2F553 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C6D2DD7FE2E0BF5DB2A96B4B /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		D5D7C12433EE293A3EA55C40 /* ChatoneLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatoneLiveActivity.swift; sourceTree = "<group>"; };
+		E23E2D9F014C723C8C68AE4B /* PixelBufferSampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelBufferSampler.swift; sourceTree = "<group>"; };
+		E2425EF8589AC470E4CBDAE5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E5B2CB891816CA7070EC76B6 /* AmazonIVSPlayer */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AmazonIVSPlayer; path = AmazonIVSPlayer; sourceTree = SOURCE_ROOT; };
+		EB8DD5C686678BD9AB197F4E /* NowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingController.swift; sourceTree = "<group>"; };
+		EBEF6E5848FB72EEA764842E /* MessageContextMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageContextMenus.swift; sourceTree = "<group>"; };
+		EC975B7FF9D71544E798BE86 /* ChatoneLiveActivity.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ChatoneLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F543015C899423D4B01CEB2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FAC5D3B937DC9176086DAFBD /* LiveEventController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveEventController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		EF8A6E9BFD470986D9D5C9B5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1C81D6F669B7BB6D2FFCCEB3 /* AmazonIVSPlayer in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		1DB4B685CAEE8BEFEBBAEF94 /* iosApp */ = {
@@ -38,15 +95,32 @@
 				F543015C899423D4B01CEB2E /* Assets.xcassets */,
 				C117AD187833E2513BD2F553 /* Info.plist */,
 				668CECA83ACC03A83C85A623 /* iOSApp.swift */,
+				9993BFB1D1322A420DA6E2FD /* IvsLowLatencyPlayer.swift */,
+				FAC5D3B937DC9176086DAFBD /* LiveEventController.swift */,
+				EBEF6E5848FB72EEA764842E /* MessageContextMenus.swift */,
+				EB8DD5C686678BD9AB197F4E /* NowPlayingController.swift */,
+				E23E2D9F014C723C8C68AE4B /* PixelBufferSampler.swift */,
+				C6D2DD7FE2E0BF5DB2A96B4B /* PrivacyInfo.xcprivacy */,
 			);
 			path = iosApp;
+			sourceTree = "<group>";
+		};
+		2BE9D1071031C3FC069C34FC /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				E5B2CB891816CA7070EC76B6 /* AmazonIVSPlayer */,
+			);
+			name = Packages;
 			sourceTree = "<group>";
 		};
 		38B69C3F79CD97858CF7B609 = {
 			isa = PBXGroup;
 			children = (
+				D7652D303A7DF96284698A21 /* ChatoneLiveActivity */,
 				1DB4B685CAEE8BEFEBBAEF94 /* iosApp */,
 				FC16215C5E8EEAF655CB992F /* iosAppUITests */,
+				2BE9D1071031C3FC069C34FC /* Packages */,
+				D729CB25B4FA03B3484F4F1E /* Shared */,
 				94C98B8B3A2BFC1966447269 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,10 +128,29 @@
 		94C98B8B3A2BFC1966447269 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				EC975B7FF9D71544E798BE86 /* ChatoneLiveActivity.appex */,
 				86038AE1032E284E79B32AD6 /* iosApp.app */,
 				323906AFB18147ABEDEBDB38 /* iosAppUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		D729CB25B4FA03B3484F4F1E /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				0DB67B70A1E082913C5045C3 /* ChatoneEventAttributes.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		D7652D303A7DF96284698A21 /* ChatoneLiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				D5D7C12433EE293A3EA55C40 /* ChatoneLiveActivity.swift */,
+				E2425EF8589AC470E4CBDAE5 /* Info.plist */,
+				8F475D3C40BC28416DFA75E2 /* Localizable.strings */,
+			);
+			path = ChatoneLiveActivity;
 			sourceTree = "<group>";
 		};
 		FC16215C5E8EEAF655CB992F /* iosAppUITests */ = {
@@ -75,17 +168,21 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 29DCA9F0B3A40325067EB163 /* Build configuration list for PBXNativeTarget "iosApp" */;
 			buildPhases = (
+				A90A5386C81C832DBD16A26C /* Generate App Version */,
 				4B44A75E2FD10EFE3C97FCF5 /* Compile Kotlin Framework */,
 				297B59D9CE634556D6007C40 /* Sources */,
 				1623B02D10928C8101C1F806 /* Resources */,
-				59830691479EE19D35F5BB79 /* Apply App Version */,
+				EF8A6E9BFD470986D9D5C9B5 /* Frameworks */,
+				E99160E501832DB2CECE6CFF /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				D797890D13BB34FF399CD49F /* PBXTargetDependency */,
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				D896F75CD8C3D5AF1E89E033 /* AmazonIVSPlayer */,
 			);
 			productName = iosApp;
 			productReference = 86038AE1032E284E79B32AD6 /* iosApp.app */;
@@ -109,6 +206,25 @@
 			productReference = 323906AFB18147ABEDEBDB38 /* iosAppUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		DEBC4286B719BCD8A984F484 /* ChatoneLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 783716F91C857107955F0BEB /* Build configuration list for PBXNativeTarget "ChatoneLiveActivity" */;
+			buildPhases = (
+				0EB70397CF31A18B456126BD /* Generate App Version */,
+				D7B462636EDC0148AA1D64A3 /* Sources */,
+				027310D68DCA3A591A740FFA /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ChatoneLiveActivity;
+			packageProductDependencies = (
+			);
+			productName = ChatoneLiveActivity;
+			productReference = EC975B7FF9D71544E798BE86 /* ChatoneLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -125,6 +241,9 @@
 						ProvisioningStyle = Automatic;
 						TestTargetID = 78B53CC79860CBFC2F5543C6;
 					};
+					DEBC4286B719BCD8A984F484 = {
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = FF7CA1CA754D017066F1822F /* Build configuration list for PBXProject "iosApp" */;
@@ -133,9 +252,13 @@
 			knownRegions = (
 				Base,
 				en,
+				ru,
 			);
 			mainGroup = 38B69C3F79CD97858CF7B609;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				91740648991E69CBF058A929 /* XCLocalSwiftPackageReference "AmazonIVSPlayer" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 94C98B8B3A2BFC1966447269 /* Products */;
 			projectDirPath = "";
@@ -143,22 +266,53 @@
 			targets = (
 				78B53CC79860CBFC2F5543C6 /* iosApp */,
 				C6FCE5742C7A4D59A165E213 /* iosAppUITests */,
+				DEBC4286B719BCD8A984F484 /* ChatoneLiveActivity */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		027310D68DCA3A591A740FFA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				09CA22524B13C8335D50D312 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		1623B02D10928C8101C1F806 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */,
+				09FED4B446BD58DF150C455A /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		0EB70397CF31A18B456126BD /* Generate App Version */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../gradle.properties",
+				"$(SRCROOT)/scripts/generate-app-version.sh",
+			);
+			name = "Generate App Version";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/ChatoneAppVersion.h",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "/bin/sh \"$SRCROOT/scripts/generate-app-version.sh\"";
+		};
 		4B44A75E2FD10EFE3C97FCF5 /* Compile Kotlin Framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -178,24 +332,26 @@
 			shellPath = /bin/sh;
 			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode\n";
 		};
-		59830691479EE19D35F5BB79 /* Apply App Version */ = {
+		A90A5386C81C832DBD16A26C /* Generate App Version */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"$(SRCROOT)/../gradle.properties",
+				"$(SRCROOT)/scripts/generate-app-version.sh",
 			);
-			name = "Apply App Version";
+			name = "Generate App Version";
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/ChatoneAppVersion.h",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "PROPS=\"$SRCROOT/../gradle.properties\"\nVERSION=$(sed -n 's/^app\\.version=//p' \"$PROPS\" | tr -d '[:space:]')\nCODE=$(sed -n 's/^app\\.versionCode=//p' \"$PROPS\" | tr -d '[:space:]')\nif [ -z \"$VERSION\" ] || [ -z \"$CODE\" ]; then\n  echo \"error: app.version or app.versionCode is missing in gradle.properties\"\n  exit 1\nfi\nPLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n/usr/libexec/PlistBuddy -c \"Set :CFBundleShortVersionString $VERSION\" -c \"Set :CFBundleVersion $CODE\" \"$PLIST\"\n";
+			shellScript = "/bin/sh \"$SRCROOT/scripts/generate-app-version.sh\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -212,7 +368,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7565063AF24C2180CB37B281 /* ChatoneEventAttributes.swift in Sources */,
+				E4A998B39C38EC5E90F63774 /* IvsLowLatencyPlayer.swift in Sources */,
+				0BFB209C0442D090ECF956B7 /* LiveEventController.swift in Sources */,
+				F6E7F11B785D1AF80E016E2A /* MessageContextMenus.swift in Sources */,
+				FB16BF6EECD8C7528F465B55 /* NowPlayingController.swift in Sources */,
+				5DF851CC25509E06AC35DDD1 /* PixelBufferSampler.swift in Sources */,
 				307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D7B462636EDC0148AA1D64A3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DA3D27DF222FD55C154F9488 /* ChatoneEventAttributes.swift in Sources */,
+				E254D5E85FBDB3CD91B90524 /* ChatoneLiveActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -224,7 +395,24 @@
 			target = 78B53CC79860CBFC2F5543C6 /* iosApp */;
 			targetProxy = AF7B34C8ADC44424B579AC0A /* PBXContainerItemProxy */;
 		};
+		D797890D13BB34FF399CD49F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DEBC4286B719BCD8A984F484 /* ChatoneLiveActivity */;
+			targetProxy = E13BB7321AE707207F60B220 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		8F475D3C40BC28416DFA75E2 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				8DC73093AE275EDA65E8135A /* en */,
+				8E13ABFB0D185696BF739ACC /* ru */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		11814011E7D6EC822BFBC66D /* Release */ = {
@@ -280,6 +468,50 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		5DAE1C4143E4D6E965D4631D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ChatoneLiveActivity/Info.plist;
+				INFOPLIST_PREFIX_HEADER = "$(DERIVED_FILE_DIR)/ChatoneAppVersion.h";
+				INFOPLIST_PREPROCESS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.rudione.chatone.liveactivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		61F3FA3C357488B6B7C896E1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ChatoneLiveActivity/Info.plist;
+				INFOPLIST_PREFIX_HEADER = "$(DERIVED_FILE_DIR)/ChatoneAppVersion.h";
+				INFOPLIST_PREPROCESS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = io.rudione.chatone.liveactivity;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -391,6 +623,8 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_PREFIX_HEADER = "$(DERIVED_FILE_DIR)/ChatoneAppVersion.h";
+				INFOPLIST_PREPROCESS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -417,6 +651,8 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
 				INFOPLIST_FILE = iosApp/Info.plist;
+				INFOPLIST_PREFIX_HEADER = "$(DERIVED_FILE_DIR)/ChatoneAppVersion.h";
+				INFOPLIST_PREPROCESS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -455,6 +691,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		783716F91C857107955F0BEB /* Build configuration list for PBXNativeTarget "ChatoneLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5DAE1C4143E4D6E965D4631D /* Debug */,
+				61F3FA3C357488B6B7C896E1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		FF7CA1CA754D017066F1822F /* Build configuration list for PBXProject "iosApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -465,6 +710,20 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		91740648991E69CBF058A929 /* XCLocalSwiftPackageReference "AmazonIVSPlayer" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = AmazonIVSPlayer;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D896F75CD8C3D5AF1E89E033 /* AmazonIVSPlayer */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AmazonIVSPlayer;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 242FB5348943441C388468CE /* Project object */;
 }

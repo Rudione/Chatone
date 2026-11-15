@@ -5,6 +5,7 @@ import kotlinx.cinterop.readValue
 import platform.AVFoundation.AVLayerVideoGravityResizeAspect
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerLayer
+import platform.AVKit.AVPictureInPictureController
 import platform.CoreGraphics.CGRectZero
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
@@ -48,7 +49,9 @@ internal class PlayerLayerView(private val pictureInPicture: Boolean = false) : 
         if (refresh) playerLayer.player = null
         rendered = player
         playerLayer.player = player
-        if (pictureInPicture && player != null) IosPictureInPicture.bind(playerLayer)
+        if (pictureInPicture && player != null) {
+            IosPictureInPicture.bind(playerLayer) { AVPictureInPictureController(playerLayer = playerLayer) }
+        }
     }
 
     fun dispose() {

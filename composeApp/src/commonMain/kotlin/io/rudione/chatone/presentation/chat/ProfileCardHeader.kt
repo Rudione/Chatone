@@ -52,6 +52,7 @@ import io.rudione.chatone.util.platform.setText
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
 import org.jetbrains.compose.resources.painterResource
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -76,10 +77,10 @@ internal fun ProfileCardHeader(
     var copiedId by remember { mutableStateOf(false) }
 
     LaunchedEffect(copiedName) {
-        if (copiedName) { kotlinx.coroutines.delay(1400); copiedName = false }
+        if (copiedName) { delay(1400); copiedName = false }
     }
     LaunchedEffect(copiedId) {
-        if (copiedId) { kotlinx.coroutines.delay(1400); copiedId = false }
+        if (copiedId) { delay(1400); copiedId = false }
     }
 
     val avatarSize = if (compact) 38.dp else 46.dp

@@ -35,7 +35,8 @@ data class ChatoneUserEntitlement(
     val badgeIds: List<String> = emptyList(),
     val featureIds: List<String> = emptyList(),
     val nicknameColorHex: String? = null,
-    val expiresAtEpochMs: Long? = null
+    val expiresAtEpochMs: Long? = null,
+    val equippedBadgeId: String? = null
 )
 
 @Serializable

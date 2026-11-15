@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat.components
 
+import io.rudione.chatone.presentation.components.LocalStreamerPrivacy
 import io.rudione.chatone.presentation.stream.decimalSeparator
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.unit_hour_short
@@ -51,11 +52,12 @@ internal fun StreamInfoContent(
     footer: String?,
     modifier: Modifier = Modifier
 ) {
+    val privacy = LocalStreamerPrivacy.current
     val content = LocalContentColor.current
     val muted = content.copy(alpha = 0.72f)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         val preview = liveStream.thumbnailUrl.replace("{width}", "320").replace("{height}", "180")
-        if (showPreview && preview.isNotBlank()) {
+        if (showPreview && !privacy.thumbnailsHidden && preview.isNotBlank()) {
             AsyncImage(
                 model = preview,
                 contentDescription = null,

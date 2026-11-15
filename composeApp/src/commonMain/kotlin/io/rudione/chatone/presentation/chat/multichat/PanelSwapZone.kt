@@ -2,6 +2,7 @@ package io.rudione.chatone.presentation.chat.multichat
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
 
 @Composable
 fun PanelSwapZone(
@@ -13,7 +14,7 @@ fun PanelSwapZone(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    androidx.compose.foundation.layout.Box(
+    Box(
         modifier = modifier.channelDropTarget(
             onChannelDropped = { channel ->
 

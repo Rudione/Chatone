@@ -84,6 +84,7 @@ fun ChatoneTextField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     contentPaddingVertical: Dp = 7.dp,
+    placeholderColor: Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null
 ) {
@@ -192,7 +193,7 @@ fun ChatoneTextField(
                             BasicText(
                                 text = placeholder,
                                 style = textStyle.copy(
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                                    color = placeholderColor
                                 ),
                                 maxLines = if (singleLine) 1 else 2,
                                 overflow = TextOverflow.Ellipsis

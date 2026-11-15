@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.components
 
+
+import io.rudione.chatone.presentation.components.connectionStatusResource
+import io.rudione.chatone.presentation.components.ChatConnectionIndicator
+import io.rudione.chatone.data.remote.TwitchIrcClient
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chat_offline
 import chatone.composeapp.generated.resources.screen_chat_menu_copy_link
@@ -72,6 +76,7 @@ import io.rudione.chatone.icons.lucide.Link
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.MessagesSquare
 import io.rudione.chatone.icons.lucide.Play
+import kotlin.time.Instant
 
 internal fun formatStreamUptime(
     startedAt: String,
@@ -79,7 +84,7 @@ internal fun formatStreamUptime(
     minuteUnit: String
 ): String {
     return try {
-        val start = kotlin.time.Instant.parse(startedAt)
+        val start = Instant.parse(startedAt)
         val elapsed = Clock.System.now() - start
         val h = elapsed.inWholeHours
         val m = elapsed.inWholeMinutes % 60
@@ -96,8 +101,8 @@ internal fun ChannelHeaderBlock(
     channelLogin: String,
     channelDisplayName: String,
     liveStream: ChannelData?,
-    connectionStatus: String,
-    isConnected: Boolean,
+    connectionState: TwitchIrcClient.ConnectionState,
+    onReconnect: () -> Unit,
     channelMenu: ChannelMenuModel,
     singleLine: Boolean = false,
     compactLatency: Boolean = false
@@ -154,7 +159,7 @@ internal fun ChannelHeaderBlock(
             PhoneChannelHeader(
                 title = "#${channelDisplayName.ifBlank { channelLogin }}",
                 live = shownLive,
-                statusHint = connectionStatus,
+                statusHint = stringResource(connectionStatusResource(connectionState)),
                 secondary = secondary,
                 singleLine = singleLine,
                 modifier = headerModifier
@@ -163,8 +168,8 @@ internal fun ChannelHeaderBlock(
             DesktopChannelHeader(
                 title = "#${channelDisplayName.ifBlank { channelLogin }}",
                 liveStream = liveStream,
-                connectionStatus = connectionStatus,
-                isConnected = isConnected,
+                connectionState = connectionState,
+                onReconnect = onReconnect,
                 modifier = headerModifier
             )
         }
@@ -275,8 +280,8 @@ private fun PhoneChannelHeader(
 private fun DesktopChannelHeader(
     title: String,
     liveStream: ChannelData?,
-    connectionStatus: String,
-    isConnected: Boolean,
+    connectionState: TwitchIrcClient.ConnectionState,
+    onReconnect: () -> Unit,
     modifier: Modifier
 ) {
     val isLive = liveStream != null
@@ -291,12 +296,8 @@ private fun DesktopChannelHeader(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.width(4.dp))
-            LiquidGlassTooltipBox(tooltip = connectionStatus) {
-                Box(
-                    modifier = Modifier.size(6.dp).clip(CircleShape)
-                        .background(if (isConnected) ChatoneTheme.extraColors.connected else MaterialTheme.colorScheme.error)
-                )
-            }
+            ChatConnectionIndicator(connectionState, onReconnect, automaticHintEnabled = false)
+
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(

@@ -15,18 +15,12 @@ import chatone.composeapp.generated.resources.ai_history_empty
 import chatone.composeapp.generated.resources.ai_input_placeholder
 import chatone.composeapp.generated.resources.ai_model
 import chatone.composeapp.generated.resources.ai_new_chat
-import chatone.composeapp.generated.resources.ai_preset_idea
-import chatone.composeapp.generated.resources.ai_preset_idea_prompt
 import chatone.composeapp.generated.resources.ai_preset_mentions
 import chatone.composeapp.generated.resources.ai_preset_mentions_prompt
 import chatone.composeapp.generated.resources.ai_preset_mood
 import chatone.composeapp.generated.resources.ai_preset_mood_prompt
-import chatone.composeapp.generated.resources.ai_preset_reply
-import chatone.composeapp.generated.resources.ai_preset_reply_prompt
 import chatone.composeapp.generated.resources.ai_preset_risky
 import chatone.composeapp.generated.resources.ai_preset_risky_prompt
-import chatone.composeapp.generated.resources.ai_preset_rule
-import chatone.composeapp.generated.resources.ai_preset_rule_prompt
 import chatone.composeapp.generated.resources.ai_preset_summary
 import chatone.composeapp.generated.resources.ai_preset_summary_prompt
 import chatone.composeapp.generated.resources.ai_role_you
@@ -138,6 +132,8 @@ import io.rudione.chatone.presentation.components.swipeToDismiss
 import io.rudione.chatone.presentation.stream.FloatingStreamPlayer
 import io.rudione.chatone.presentation.stream.LocalFloatingStreamPlayer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.PaddingValues
+import io.rudione.chatone.data.repository.AutomodRepository
 
 private data class Preset(
     val label: String,
@@ -201,12 +197,6 @@ internal fun AiAssistantPanel(
     val aiPresetMentionsPromptText = stringResource(Res.string.ai_preset_mentions_prompt)
     val aiPresetRiskyText = stringResource(Res.string.ai_preset_risky)
     val aiPresetRiskyPromptText = stringResource(Res.string.ai_preset_risky_prompt)
-    val aiPresetReplyText = stringResource(Res.string.ai_preset_reply)
-    val aiPresetReplyPromptText = stringResource(Res.string.ai_preset_reply_prompt)
-    val aiPresetIdeaText = stringResource(Res.string.ai_preset_idea)
-    val aiPresetIdeaPromptText = stringResource(Res.string.ai_preset_idea_prompt)
-    val aiPresetRuleText = stringResource(Res.string.ai_preset_rule)
-    val aiPresetRulePromptText = stringResource(Res.string.ai_preset_rule_prompt)
     val scope = rememberCoroutineScope()
     val config by controller.config.collectAsState()
 
@@ -216,9 +206,6 @@ internal fun AiAssistantPanel(
             Preset(aiPresetMoodText, "🎭", true, false, aiPresetMoodPromptText),
             Preset(aiPresetMentionsText, "🔔", true, true, aiPresetMentionsPromptText),
             Preset(aiPresetRiskyText, "🛡️", true, false, aiPresetRiskyPromptText),
-            Preset(aiPresetReplyText, "✍️", true, false, aiPresetReplyPromptText),
-            Preset(aiPresetIdeaText, "💡", false, false, aiPresetIdeaPromptText),
-            Preset(aiPresetRuleText, "🛠️", true, false, aiPresetRulePromptText)
         )
     }
     val clipboard = LocalClipboard.current
@@ -314,7 +301,7 @@ internal fun AiAssistantPanel(
                 LazyColumn(
                     state = session.listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    contentPadding = PaddingValues(
                         horizontal = 12.dp,
                         vertical = 8.dp
                     ),
@@ -676,7 +663,7 @@ private fun MessageBubble(
 
 @Composable
 private fun AiRuleActionCard(proposal: AiRuleProposal) {
-    val repo = koinInject<io.rudione.chatone.data.repository.AutomodRepository>()
+    val repo = koinInject<AutomodRepository>()
     val rule = remember(proposal) { AiActions.toChatRule(proposal) } ?: return
     var state by remember(proposal) { mutableStateOf(0) }
     if (state == 2) return
@@ -742,7 +729,7 @@ private fun ThreadHistory(
     }
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+        contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         items(threads, key = { it.id }, contentType = { "thread" }) { t ->

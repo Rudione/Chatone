@@ -101,7 +101,8 @@ fun StreamPlayerView(
                 chrome.touch()
                 onToggleFullscreen()
             },
-            onEnterPictureInPicture = pictureInPicture::enter
+            onEnterPictureInPicture = pictureInPicture::enter,
+            onNativeMenuVisibilityChanged = { visible -> if (visible) chrome.hold() else chrome.release() }
         )
     }
 

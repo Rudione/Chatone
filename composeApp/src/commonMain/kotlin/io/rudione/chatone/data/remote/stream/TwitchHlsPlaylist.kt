@@ -3,6 +3,7 @@ package io.rudione.chatone.data.remote.stream
 import io.rudione.chatone.domain.stream.StreamVariant
 import io.rudione.chatone.domain.stream.TwitchServingInfo
 import kotlin.time.Instant
+import kotlin.math.round
 
 internal class LiveStartHint(val serverNowMs: Long, val latencyMs: Long)
 
@@ -95,7 +96,7 @@ internal object TwitchHlsPlaylist {
                     pendingSeconds = 0.0
                     if (seconds != null && seconds.isFinite() && seconds >= 0.0) {
                         pendingSeconds = seconds
-                        longestRounded = maxOf(longestRounded, kotlin.math.round(seconds).toLong())
+                        longestRounded = maxOf(longestRounded, round(seconds).toLong())
                         if (seconds >= MIN_PREFETCH_DURATION_SECONDS) lastDuration = duration
                     }
                     body += line
@@ -104,7 +105,7 @@ internal object TwitchHlsPlaylist {
                     val uri = line.substring(TAG_PREFETCH.length).trim()
                     if (uri.isNotEmpty() && !uri.startsWith("#")) {
                         val seconds = lastDuration.toDoubleOrNull() ?: 0.0
-                        longestRounded = maxOf(longestRounded, kotlin.math.round(seconds).toLong())
+                        longestRounded = maxOf(longestRounded, round(seconds).toLong())
                         prefetchSeconds += seconds
                         body += "$TAG_EXTINF$lastDuration,live"
                         body += uri

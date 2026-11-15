@@ -265,6 +265,10 @@ private fun SettingsDialogContent(
     val pendingDestination by settingsNavigator.pending.collectAsState()
     SideEffect(pendingDestination) {
         pendingDestination?.let { destination ->
+            if (!destination.section().isAvailable(input)) {
+                settingsNavigator.consume(destination)
+                return@let
+            }
             search.clear()
             selectedSection = destination.section()
             activeSubsection = null

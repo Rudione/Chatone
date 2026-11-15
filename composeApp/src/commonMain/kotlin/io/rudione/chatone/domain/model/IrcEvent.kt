@@ -1,5 +1,9 @@
 package io.rudione.chatone.domain.model
 
+import io.rudione.chatone.data.remote.dto.PollData
+import io.rudione.chatone.data.remote.dto.PredictionData
+import io.rudione.chatone.domain.points.RewardRedemption
+
 sealed class IrcEvent {
     data class PrivMsg(val message: ChatMessage) : IrcEvent()
 
@@ -145,16 +149,16 @@ sealed class IrcEvent {
 
     data class PointsClaimAvailable(val channelId: String, val claimId: String) : IrcEvent()
 
-    data class RewardRedeemed(val redemption: io.rudione.chatone.domain.points.RewardRedemption) : IrcEvent()
+    data class RewardRedeemed(val redemption: RewardRedemption) : IrcEvent()
 
     data class PollUpdated(
         val channelId: String,
-        val poll: io.rudione.chatone.data.remote.dto.PollData?
+        val poll: PollData?
     ) : IrcEvent()
 
     data class PredictionUpdated(
         val channelId: String,
-        val prediction: io.rudione.chatone.data.remote.dto.PredictionData?
+        val prediction: PredictionData?
     ) : IrcEvent()
 
     data class PinnedChatPayload(
@@ -168,6 +172,8 @@ sealed class IrcEvent {
         val endsAtEpochMs: Long?,
         val pinnerName: String,
         val pinnerUserId: String = "",
-        val pinnerLogin: String = ""
+        val pinnerLogin: String = "",
+        val pinnerBadges: List<Badge> = emptyList(),
+        val pinnerColor: String? = null
     )
 }

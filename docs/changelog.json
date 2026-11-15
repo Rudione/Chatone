@@ -2,11 +2,33 @@
   "schema": 1,
   "releases": [
     {
+      "version": "1.4.1",
+      "upcoming": true,
+      "items": [
+        { "type": "new", "ru": "Новый плеер на iPhone: задержка теперь как на твиче", "en": "New player on iPhone: streams latency like on twitch" },
+        { "type": "new", "ru": "iPhone: прогнозы и опросы на экране блокировки, стрим в «Сейчас играет» и AirPlay", "en": "iPhone: predictions and polls on the Lock Screen, Now Playing controls and AirPlay" },
+        { "type": "new", "ru": "Статус соединения в чате, а после обрыва сети чат переподключается сам", "en": "Chat shows its connection status and reconnects on its own after a dropped network" },
+        { "type": "new", "ru": "Подарочные сабки собираются в одну строку со списком получателей", "en": "Gift subs fold into one line with a list of recipients" },
+        { "type": "new", "ru": "Модераторы закрывают, завершают и отменяют прогноз прямо с баннера", "en": "Mods can lock, resolve or cancel a prediction right from its banner" },
+        { "type": "new", "ru": "Лаборатория: статистика просмотра на устройстве и новые функции на пробу", "en": "Laboratory: viewing stats kept on your device, plus features to try out" },
+        { "type": "new", "ru": "На ПК в шапке окна появились кнопки обновления, режима стримера и «поверх всех окон»", "en": "Desktop title bar buttons for updates, streamer mode and staying on top" },
+        { "type": "new", "ru": "Значки Chatterino и Homies в мини-профиле", "en": "Chatterino and Homies badges in the mini-profile" },
+        { "type": "improved", "ru": "ИИ-ассистент спрашивает разрешение перед отправкой данных и ищет вопросы без ответа", "en": "The AI assistant asks before sending data and can find unanswered questions" },
+        { "type": "improved", "ru": "Режим стримера скрывает личные сообщения и уведомления", "en": "Streamer mode hides whispers and notifications" },
+        { "type": "improved", "ru": "Закреп показывает, кто его закрепил, и сворачивается в строку", "en": "Pinned messages show who pinned them and collapse to one line" },
+        { "type": "improved", "ru": "Полоса прокрутки чата и кнопка упоминаний прячутся, когда не нужны", "en": "The chat scrollbar and mentions button hide when you don't need them" },
+        { "type": "fixed", "ru": "Чат на телефоне больше не залипает у нижнего края и не уезжает из-под пальца", "en": "Chat on phones no longer gets stuck at the bottom or slides from under your finger" },
+        { "type": "fixed", "ru": "Видео больше не мигает чёрным при повороте и переходе в «картинку в картинке»", "en": "Video no longer flashes black when you rotate or switch to picture-in-picture" },
+        { "type": "fixed", "ru": "Анимированные смайлики 7TV снова появляются сразу и не замирают на ПК и iPhone", "en": "Animated 7TV emotes show up right away again and keep moving on desktop and iPhone" },
+        { "type": "fixed", "ru": "На iPhone редактор правил автомода больше не закрывает приложение", "en": "The automod rules editor no longer closes the app on iPhone" }
+      ]
+    },
+    {
       "version": "1.4.0",
       "upcoming": true,
       "items": [
         { "type": "new", "ru": "Приложение для Android TV и Google TV: вход по QR-коду, плеер с чатом, управление пультом", "en": "Android TV and Google TV app: QR sign-in, player with chat, remote-friendly controls" },
-        { "type": "new", "ru": "iPhone и iPad: плеер стримов, клипы и записи, картинка в картинке и звук в фоне", "en": "iPhone and iPad: stream player, clips and VODs, picture-in-picture and background audio" },
+        { "type": "new", "ru": "iPhone и iPad: плеер стримов с низкой задержкой, клипы и записи, картинка в картинке и звук в фоне", "en": "iPhone and iPad: low-latency stream player, clips and VODs, picture-in-picture and background audio" },
         { "type": "new", "ru": "Клипы прямо в приложении: редактор с последними 30 секундами, просмотр без браузера", "en": "Clips in the app: an editor with the last 30 seconds, and watching without a browser" },
         { "type": "new", "ru": "Профиль канала на телефоне: эфир, клипы, видео и календарь трансляций", "en": "Channel profile on phones: live now, clips, videos and a stream calendar" },
         { "type": "new", "ru": "Ветки ответов: вся переписка вокруг сообщения в одном окне", "en": "Reply threads: the whole conversation around a message in one place" },
@@ -19,6 +41,7 @@
         { "type": "improved", "ru": "Новый логотип, а тексты интерфейса стали проще и короче", "en": "New logo, and simpler, shorter interface text" },
         { "type": "improved", "ru": "Мини-профиль: ник целиком, сообщения как в чате, ровная история модерации", "en": "Mini-profile: full nicknames, messages that look like chat, a tidy moderation history" },
         { "type": "improved", "ru": "Записи стримов: подсветка вокруг плеера, тонкая полоса прогресса, плавный «Чат в этот момент»", "en": "VODs: ambient light around the player, a thin progress line, smoother chat replay" },
+        { "type": "improved", "ru": "Меньше лишних запросов в сеть: статус стримов, картинки 7TV и превью ссылок", "en": "Fewer network requests for stream status, 7TV images and link previews" },
         { "type": "fixed", "ru": "«Чат в этот момент» после перемотки показывает сообщения нужного времени", "en": "Chat replay shows the right messages after seeking" },
         { "type": "fixed", "ru": "Создание клипов снова работает", "en": "Clip creation works again" },
         { "type": "fixed", "ru": "Копирование части сообщения на ПК больше не захватывает кусок ника", "en": "Copying part of a message on desktop no longer grabs part of the nickname" },

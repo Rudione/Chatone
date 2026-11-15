@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.presentation.components.LocalSidebarExpanded
+import io.rudione.chatone.presentation.components.AnimatedMenuIcon
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.monitor_channel_input_hint
 import chatone.composeapp.generated.resources.open_channel_automod_desc
@@ -46,10 +48,10 @@ import io.rudione.chatone.presentation.chat.rememberNickColors
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.icons.lucide.Lucide
-import io.rudione.chatone.icons.lucide.Menu
 import io.rudione.chatone.icons.lucide.Radio
 import io.rudione.chatone.icons.lucide.SendHorizontal
 import io.rudione.chatone.icons.lucide.Shield
+import androidx.compose.foundation.layout.PaddingValues
 
 private enum class MonitorMode { LIVE, AUTOMOD }
 
@@ -126,8 +128,8 @@ fun MonitorFeedScreen(
         ) {
             if (onMenuClick != null) {
                 ChatoneIconButton(onClick = onMenuClick, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        Lucide.Menu,
+                    AnimatedMenuIcon(
+                        expanded = LocalSidebarExpanded.current,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(20.dp)
@@ -162,7 +164,7 @@ fun MonitorFeedScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp)
+                contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 items(lines, key = { it.id }, contentType = { "line" }) { line -> MonitorRow(line) }
             }

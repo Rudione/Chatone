@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.uploader_link_copied
+import chatone.composeapp.generated.resources.upload_link_actions
+import io.rudione.chatone.icons.lucide.Check
+import io.rudione.chatone.icons.lucide.Link
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
@@ -128,7 +132,8 @@ internal fun ChatJumpButtons(
     onJumpToMention: () -> Unit,
     onMentionAuthors: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
-    glass: ChatInputGlass? = null
+    glass: ChatInputGlass? = null,
+    upload: MessageInputUploadState = MessageInputUploadState()
 ) {
     val metrics = remember { if (isDesktopPlatform) JumpMetrics.Desktop else JumpMetrics.Touch }
     val haptics = LocalHapticFeedback.current
@@ -136,6 +141,10 @@ internal fun ChatJumpButtons(
     val crumble = rememberCrumbleState()
     var dissolving by remember { mutableStateOf(false) }
     val mentionCount = mentions.count
+    var uploadCopied by remember(upload.link) { mutableStateOf(false) }
+    LaunchedEffect(uploadCopied) {
+        if (uploadCopied) { delay(1_600); uploadCopied = false }
+    }
     LaunchedEffect(mentionCount > 0, dissolving) {
         if (mentionCount > 0 && !dissolving && crumble.isCrumbling) crumble.reset()
     }
@@ -149,6 +158,30 @@ internal fun ChatJumpButtons(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(metrics.gap)
     ) {
+        AnimatedVisibility(
+            visible = upload.progress != null || upload.link != null,
+            enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.6f) + expandVertically(),
+            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.6f) + shrinkVertically()
+        ) {
+            if (upload.progress != null) {
+                MessageInputUploadButton(upload, metrics.button)
+            } else {
+                val label = stringResource(if (uploadCopied) Res.string.uploader_link_copied else Res.string.upload_link_actions)
+                LiquidGlassTooltipBox(tooltip = label) {
+                    JumpCircle(
+                        glass = glass,
+                        icon = if (uploadCopied) Lucide.Check else Lucide.Link,
+                        contentDescription = label,
+                        metrics = metrics,
+                        onClick = { upload.onCopyLink(); uploadCopied = true },
+                        onSecondary = upload.onInsertLink,
+                        decorations = {
+                            DismissCountdown(upload.expiresAtMs, metrics, Modifier.align(Alignment.BottomEnd))
+                        }
+                    )
+                }
+            }
+        }
         AnimatedVisibility(
             visible = mentionCount > 0 || dissolving,
             enter = fadeIn(tween(160)) + scaleIn(
@@ -190,8 +223,8 @@ internal fun ChatJumpButtons(
                         metrics = metrics,
                         modifier = Modifier.align(Alignment.TopCenter)
                     )
-                    LingerTimer(
-                        endsAtMs = mentions.lingerEndsAtMs,
+                    DismissCountdown(
+                        endsAtMs = mentions.dismissAtMs,
                         metrics = metrics,
                         modifier = Modifier.align(Alignment.BottomEnd)
                     )
@@ -356,7 +389,7 @@ private fun JumpBadge(count: Int, metrics: JumpMetrics, modifier: Modifier = Mod
 }
 
 @Composable
-private fun LingerTimer(endsAtMs: Long?, metrics: JumpMetrics, modifier: Modifier = Modifier) {
+private fun DismissCountdown(endsAtMs: Long?, metrics: JumpMetrics, modifier: Modifier = Modifier) {
     val secondsLeft by produceState(initialValue = 0, endsAtMs) {
         if (endsAtMs == null) {
             value = 0

@@ -2,6 +2,7 @@ package io.rudione.chatone.domain.model
 
 import androidx.compose.runtime.Immutable
 import io.rudione.chatone.util.chat.MessageToken
+import io.rudione.chatone.domain.moderation.AutoModContext
 
 @Immutable
 sealed class DisplayMessage {
@@ -54,7 +55,8 @@ sealed class DisplayMessage {
         val systemText: String,
         val innerMessage: PrivMsg? = null,
         val noticeType: String = "",
-        val announceColor: String? = null
+        val announceColor: String? = null,
+        val details: ChatNoticeDetails? = null
     ) : DisplayMessage()
 
     data class ModerationMsg(
@@ -67,7 +69,8 @@ sealed class DisplayMessage {
         val duration: Int? = null,
         val moderatorLogin: String? = null,
         val targetMessageId: String? = null,
-        val serverTimestamp: Long? = null
+        val serverTimestamp: Long? = null,
+        val targetUserId: String? = null
     ) : DisplayMessage() {
         enum class ModerationAction {
             BAN, TIMEOUT, DELETE, CLEAR, UNBAN, UNTIMEOUT, MOD, UNMOD, VIP, UNVIP, AUTOMOD_ALLOWED, AUTOMOD_DENIED
@@ -116,7 +119,7 @@ sealed class DisplayMessage {
         val reasonLevel: Int? = null,
         val flaggedFragments: List<String> = emptyList(),
         val preview: PrivMsg? = null,
-        val context: io.rudione.chatone.domain.moderation.AutoModContext? = null
+        val context: AutoModContext? = null
     ) : DisplayMessage() {
         enum class AutoModStatus { PENDING, ALLOWED, DENIED }
     }

@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.selection.SelectionState
+import androidx.compose.foundation.text.selection.rememberSelectionState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +30,7 @@ import org.jetbrains.skia.Image
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import androidx.compose.runtime.Composable
 
 @OptIn(ExperimentalComposeUiApi::class)
 class PopupPortalTest {
@@ -83,6 +88,44 @@ class PopupPortalTest {
             list.requestScrollToItem(0)
             scene.sendPointerEvent(PointerEventType.Move, Offset(120f, 120f))
             scene.render()
+        } finally {
+            scene.close()
+        }
+    }
+
+    @Test
+    fun popupTextDoesNotJoinTheAnchorSelection() {
+        verifyPopupSelection(portal = true)
+    }
+
+    @Test
+    fun popupWithoutPortalDoesNotJoinTheAnchorSelection() {
+        verifyPopupSelection(portal = false)
+    }
+
+    private fun verifyPopupSelection(portal: Boolean) {
+        lateinit var selection: SelectionState
+        val scene = ImageComposeScene(width = 300, height = 300, density = Density(1f))
+        try {
+            val content: @Composable () -> Unit = {
+                selection = rememberSelectionState()
+                SelectionContainer(state = selection) {
+                    Box(Modifier.size(300.dp)) {
+                        BasicText("chat")
+                        PortalPopup(offset = IntOffset(0, 50)) {
+                            BasicText("popup")
+                        }
+                    }
+                }
+            }
+            scene.setContent {
+                if (portal) PopupPortalHost(content) else content()
+            }
+            scene.render()
+            scene.render()
+            selection.selectAll()
+            scene.render()
+            assertEquals(listOf("chat"), selection.selectedTexts.map { it.text })
         } finally {
             scene.close()
         }

@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.profile.editor
 
+import androidx.compose.foundation.layout.widthIn
 import org.jetbrains.compose.resources.getString
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.cancel
@@ -115,7 +116,7 @@ fun ProfileEditorDialog(channelLogin: String?, onDismiss: () -> Unit) {
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             shadowElevation = 18.dp,
-            modifier = Modifier.width(480.dp).heightIn(max = 760.dp)
+            modifier = Modifier.padding(horizontal = 12.dp).widthIn(max = 480.dp).fillMaxWidth().heightIn(max = 760.dp)
         ) {
             ProfileEditorPane(
                 channelLogin = channelLogin,
@@ -132,10 +133,16 @@ fun ProfileEditorDialog(channelLogin: String?, onDismiss: () -> Unit) {
 }
 
 @Composable
+internal fun ProfileEditorEmbedded(modifier: Modifier = Modifier) {
+    ProfileEditorPane(channelLogin = null, header = {}, bottomInset = false, embedded = true, modifier = modifier)
+}
+
+@Composable
 private fun ProfileEditorPane(
     channelLogin: String?,
     header: @Composable (String) -> Unit,
     bottomInset: Boolean,
+    embedded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val viewModel: ProfileEditorViewModel = koinViewModel(key = "profile_editor_${channelLogin.orEmpty()}") {
@@ -167,6 +174,11 @@ private fun ProfileEditorPane(
                 val twitch = state.twitch
                 val draft = state.draft
                 when {
+                    load == EditorLoad.READY && twitch != null && draft != null && embedded -> CompactProfileEditorContent(
+                        state = state,
+                        onEvent = viewModel::sendEvent,
+                        onOpenSettings = { runCatching { uriHandler.openUri(TWITCH_PROFILE_SETTINGS) } }
+                    )
                     load == EditorLoad.READY && twitch != null && draft != null -> Column(
                         Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)

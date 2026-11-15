@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalContext
 import androidx.compose.runtime.CompositionLocalProvider
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.round
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import io.rudione.chatone.presentation.nativecontext.SuspendNativeMessageMenus
 
 @Stable
 class PopupPortal internal constructor() {
@@ -53,9 +55,12 @@ fun PortalPopup(
     properties: PopupProperties = PopupProperties(),
     content: @Composable () -> Unit
 ) {
+    if (properties.focusable) SuspendNativeMessageMenus()
     val portal = LocalPopupPortal.current
     if (portal == null) {
-        Popup(popupPositionProvider, onDismissRequest, properties, content)
+        Popup(popupPositionProvider, onDismissRequest, properties) {
+            DisableSelection(content)
+        }
         return
     }
     val locals = currentCompositionLocalContext
@@ -117,7 +122,7 @@ internal class PortalEntry {
         val body = content ?: return
         val anchored = remember(portal, bounds, provider) { AnchoredPositionProvider(portal, bounds, provider) }
         Popup(anchored, onDismissRequest, properties) {
-            CompositionLocalProvider(context) { body() }
+            CompositionLocalProvider(context) { DisableSelection { body() } }
         }
     }
 }

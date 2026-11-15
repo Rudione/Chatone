@@ -40,6 +40,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import io.rudione.chatone.presentation.chat.ChatNickname
+import io.rudione.chatone.domain.model.ChatNoticeUser
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.icons.lucide.BadgeCheck
 import io.rudione.chatone.icons.lucide.Lucide
@@ -105,13 +107,10 @@ internal fun NotableChatterItem(
                     )
                 }
             }
-            Text(
-                message.displayName,
-                fontSize = (fontSize * 0.92f).sp,
-                fontWeight = FontWeight.Bold,
-                color = nameColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            ChatNickname(
+                ChatNoticeUser(message.userId, message.login, message.displayName, message.color),
+                fontSizeSp = fontSize * 0.92f,
+                colorOverride = nameColor
             )
             if (message.isPartner) {
                 Icon(

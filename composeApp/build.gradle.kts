@@ -1,3 +1,9 @@
+import java.io.File
+import java.nio.file.Files
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.services.BuildService
+import org.gradle.api.services.BuildServiceParameters
+import org.gradle.api.tasks.JavaExec
 import java.security.KeyFactory
 import java.security.MessageDigest
 import java.security.Signature
@@ -11,6 +17,7 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -19,6 +26,58 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.sqldelight)
+}
+
+abstract class DesktopRuntimeSnapshots : BuildService<DesktopRuntimeSnapshots.Parameters>, AutoCloseable {
+    interface Parameters : BuildServiceParameters {
+        val workspace: DirectoryProperty
+    }
+
+    private val snapshots = mutableListOf<File>()
+
+    @Synchronized
+    fun freeze(classpath: Set<File>): List<File> {
+        val workspace = parameters.workspace.get().asFile.canonicalFile.toPath()
+        val snapshot = Files.createTempDirectory("chatone-desktop-runtime-").toFile()
+        snapshots += snapshot
+        return classpath.mapIndexed { index, entry ->
+            if (!entry.canonicalFile.toPath().startsWith(workspace)) entry
+            else {
+                val target = snapshot.resolve("$index-${entry.name}")
+                when {
+                    !entry.exists() -> check(target.mkdirs()) { "Cannot create desktop runtime directory: $target" }
+                    entry.isDirectory -> check(entry.copyRecursively(target, overwrite = false)) { "Cannot copy desktop runtime entry: $entry" }
+                    else -> entry.copyTo(target, overwrite = false)
+                }
+                target
+            }
+        }
+    }
+
+    @Synchronized
+    override fun close() {
+        snapshots.forEach { it.deleteRecursively() }
+        snapshots.clear()
+    }
+}
+
+val desktopRuntimeSnapshots = gradle.sharedServices.registerIfAbsent(
+    "chatoneDesktopRuntimeSnapshots", DesktopRuntimeSnapshots::class
+) {
+    parameters.workspace.set(rootProject.layout.projectDirectory)
+}
+
+tasks.withType<JavaExec>().configureEach {
+    val launcher = this
+    val frozenClasspath = objects.fileCollection()
+    val snapshots = desktopRuntimeSnapshots
+    usesService(snapshots)
+    doFirst {
+        if (launcher.mainClass.orNull == "io.rudione.chatone.MainKt") {
+            frozenClasspath.setFrom(snapshots.get().freeze(launcher.classpath.files))
+            launcher.classpath = frozenClasspath
+        }
+    }
 }
 
 val appVersion: String = providers.gradleProperty("app.version").get()
@@ -146,6 +205,7 @@ kotlin {
         }
 
         androidMain.dependencies {
+            implementation(libs.play.app.update)
             implementation(libs.coil.gif)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.sqldelight.driver.android)
@@ -183,7 +243,7 @@ kotlin {
     }
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
+tasks.withType<KotlinCompilationTask<*>>().configureEach {
     dependsOn(generateBuildConfig)
 }
 

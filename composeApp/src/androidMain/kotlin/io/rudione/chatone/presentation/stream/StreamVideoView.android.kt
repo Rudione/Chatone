@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.view.PixelCopy
+import android.view.Surface
 import android.view.SurfaceView
 import android.view.TextureView
 import android.view.View
@@ -55,7 +56,9 @@ actual fun PlatformVideoView(
     }
 
     val surfaceView = view as? SurfaceView
-    if (surfaceView != null && frameSink != null) FrameSamplingEffect(surfaceView, frameSink)
+    if (androidEngine != null && surfaceView != null && frameSink != null) {
+        FrameSamplingEffect(androidEngine, surfaceView, frameSink)
+    }
 }
 
 private fun createVideoOutput(context: Context, kind: VideoSurfaceKind): View = when (kind) {
@@ -64,16 +67,16 @@ private fun createVideoOutput(context: Context, kind: VideoSurfaceKind): View = 
 }
 
 @Composable
-private fun FrameSamplingEffect(view: SurfaceView, sink: VideoFrameSink) {
+private fun FrameSamplingEffect(engine: AndroidStreamPlaybackEngine, view: SurfaceView, sink: VideoFrameSink) {
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(view, sink, lifecycle) {
+    LaunchedEffect(engine, view, sink, lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             val width = sink.sampleWidth
             val height = sink.sampleHeight
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             val pixels = IntArray(width * height)
             while (true) {
-                if (copyFrame(view, bitmap)) {
+                if (copyFrame(view, engine.videoFrameSource(view), bitmap)) {
                     bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
                     sink.accept(pixels)
                 }
@@ -83,13 +86,12 @@ private fun FrameSamplingEffect(view: SurfaceView, sink: VideoFrameSink) {
     }
 }
 
-private suspend fun copyFrame(view: SurfaceView, bitmap: Bitmap): Boolean {
-    val surface = view.holder.surface
-    if (!view.isAttachedToWindow || view.width == 0 || view.height == 0 || surface == null || !surface.isValid) return false
+private suspend fun copyFrame(view: SurfaceView, source: Surface?, bitmap: Bitmap): Boolean {
+    if (!view.isAttachedToWindow || view.width == 0 || view.height == 0 || source == null || !source.isValid) return false
     return suspendCancellableCoroutine { continuation ->
         runCatching {
             PixelCopy.request(
-                view,
+                source,
                 bitmap,
                 { result -> if (continuation.isActive) continuation.resume(result == PixelCopy.SUCCESS) },
                 FrameCopyHandler

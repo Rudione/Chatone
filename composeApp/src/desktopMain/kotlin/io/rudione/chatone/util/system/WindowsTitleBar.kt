@@ -13,6 +13,11 @@ import io.github.aakira.napier.Napier
 import java.awt.Window
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.awt.Component
+import java.awt.Rectangle
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import javax.swing.SwingUtilities
 
 internal fun windowsSystem32Path(name: String): String {
     val systemRoot = System.getenv("SystemRoot")?.takeIf { it.isNotBlank() } ?: "C:\\Windows"
@@ -101,7 +106,7 @@ object WindowsTitleBar {
             ?: getHwndViaPeer(window)
 
     private fun getHwndViaPeer(window: Window): Long? = runCatching {
-        val peerField = java.awt.Component::class.java.getDeclaredField("peer")
+        val peerField = Component::class.java.getDeclaredField("peer")
         peerField.isAccessible = true
         val peer = peerField.get(window) ?: return@runCatching null
         var cls: Class<*>? = peer.javaClass
@@ -192,9 +197,9 @@ object WindowsTitleBar {
 
     data class CaptionLayout(
         val captionHeightPx: Int,
-        val maximizeButtonPx: java.awt.Rectangle?,
-        val interactivePx: List<java.awt.Rectangle>,
-        val draggablePx: List<java.awt.Rectangle> = emptyList()
+        val maximizeButtonPx: Rectangle?,
+        val interactivePx: List<Rectangle>,
+        val draggablePx: List<Rectangle> = emptyList()
     )
 
     private val captionLayouts = ConcurrentHashMap<Long, CaptionLayout>()
@@ -361,7 +366,7 @@ object WindowsTitleBar {
                     if (wParam.toLong().toInt() == HTCAPTION) {
                         val toggle = maximizeCallbacks[hwndValue]
                         if (toggle != null) {
-                            javax.swing.SwingUtilities.invokeLater { runCatching { toggle() } }
+                            SwingUtilities.invokeLater { runCatching { toggle() } }
                             WinDef.LRESULT(0)
                         } else {
                             User32.INSTANCE.DefWindowProc(hwnd, uMsg, wParam, lParam)
@@ -374,7 +379,7 @@ object WindowsTitleBar {
                 WM_NCLBUTTONUP -> {
                     if (wParam.toLong().toInt() == HTMAXBUTTON) {
                         maximizeCallbacks[hwndValue]?.let { toggle ->
-                            javax.swing.SwingUtilities.invokeLater { runCatching { toggle() } }
+                            SwingUtilities.invokeLater { runCatching { toggle() } }
                         }
                         notifyMaxHover(false)
                         WinDef.LRESULT(0)
@@ -412,8 +417,8 @@ object WindowsTitleBar {
 
     fun setDraggableRegions(
         window: Window,
-        draggable: List<java.awt.Rectangle>,
-        interactive: List<java.awt.Rectangle>
+        draggable: List<Rectangle>,
+        interactive: List<Rectangle>
     ) {
         val hwnd = getHwnd(window) ?: return
         val existing = captionLayouts[hwnd]
@@ -502,7 +507,7 @@ object WindowsTitleBar {
         }
     }
 
-    fun applyHighQualityIcons(window: Window, source: java.awt.image.BufferedImage) {
+    fun applyHighQualityIcons(window: Window, source: BufferedImage) {
         runCatching {
             val sizes = intArrayOf(16, 20, 24, 32, 40, 48, 64, 128, 256)
             window.iconImages = sizes.map { size -> scaleIcon(source, size) }
@@ -511,7 +516,7 @@ object WindowsTitleBar {
         }
     }
 
-    private fun scaleIcon(source: java.awt.image.BufferedImage, size: Int): java.awt.image.BufferedImage {
+    private fun scaleIcon(source: BufferedImage, size: Int): BufferedImage {
         var current = source
         var currentSize = maxOf(source.width, source.height)
         while (currentSize / 2 > size) {
@@ -521,20 +526,20 @@ object WindowsTitleBar {
         return redraw(current, size)
     }
 
-    private fun redraw(source: java.awt.image.BufferedImage, size: Int): java.awt.image.BufferedImage {
-        val target = java.awt.image.BufferedImage(size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+    private fun redraw(source: BufferedImage, size: Int): BufferedImage {
+        val target = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
         val g = target.createGraphics()
         g.setRenderingHint(
-            java.awt.RenderingHints.KEY_INTERPOLATION,
-            java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR
+            RenderingHints.KEY_INTERPOLATION,
+            RenderingHints.VALUE_INTERPOLATION_BILINEAR
         )
         g.setRenderingHint(
-            java.awt.RenderingHints.KEY_RENDERING,
-            java.awt.RenderingHints.VALUE_RENDER_QUALITY
+            RenderingHints.KEY_RENDERING,
+            RenderingHints.VALUE_RENDER_QUALITY
         )
         g.setRenderingHint(
-            java.awt.RenderingHints.KEY_ANTIALIASING,
-            java.awt.RenderingHints.VALUE_ANTIALIAS_ON
+            RenderingHints.KEY_ANTIALIASING,
+            RenderingHints.VALUE_ANTIALIAS_ON
         )
         g.drawImage(source, 0, 0, size, size, null)
         g.dispose()

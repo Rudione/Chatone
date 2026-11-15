@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.components.LocalStreamerPrivacy
 import io.rudione.chatone.presentation.chat.threads.LocalReplyThreadOpener
 import io.rudione.chatone.presentation.text.asString
 import io.rudione.chatone.presentation.text.resolve
@@ -69,6 +70,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import io.rudione.chatone.presentation.chat.rendering.ChatFollowEffects
+import io.rudione.chatone.presentation.chat.rendering.holdChatFollowing
+import io.rudione.chatone.presentation.chat.rendering.rememberChatOverscrollEffect
 import io.rudione.chatone.presentation.chat.rendering.rememberChatFollowState
 import io.rudione.chatone.presentation.chat.rendering.SelectionCursorBox
 import io.rudione.chatone.presentation.chat.rendering.stickToBottomExact
@@ -113,15 +116,17 @@ import io.rudione.chatone.domain.mention.MentionInsertion
 import io.rudione.chatone.presentation.chat.components.ChatTopBar
 import io.rudione.chatone.presentation.chat.components.ChatJumpButtons
 import io.rudione.chatone.presentation.chat.components.TopBarPoints
-import io.rudione.chatone.presentation.chat.mentions.MentionSeenEffect
+import io.rudione.chatone.presentation.chat.mentions.MentionTrackingEffects
 import io.rudione.chatone.presentation.chat.mentions.centerIndex
+import io.rudione.chatone.presentation.chat.mentions.isFullyShown
 import io.rudione.chatone.presentation.chat.mentions.jumpFlash
 import io.rudione.chatone.presentation.chat.mentions.mentionRefsOf
 import io.rudione.chatone.presentation.chat.mentions.rememberChatAttention
 import io.rudione.chatone.presentation.chat.mentions.rememberMentionJumpState
 import io.rudione.chatone.presentation.chat.mentions.rememberMessageJumpFlash
 import io.rudione.chatone.presentation.chat.mentions.reportsActivity
-import io.rudione.chatone.presentation.chat.components.roomModeLabels
+import io.rudione.chatone.presentation.chat.components.inputRoomModeLabels
+import io.rudione.chatone.presentation.startup.LaunchReadiness
 import io.rudione.chatone.presentation.chat.components.ModActionConfirmDialog
 import io.rudione.chatone.presentation.chat.components.PendingModAction
 import io.rudione.chatone.presentation.chat.modslider.ModSliderBinding
@@ -153,6 +158,7 @@ import io.rudione.chatone.presentation.settings.SettingsNavigator
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.IntOffset
 import io.rudione.chatone.domain.model.ChatCommandKind
 import io.rudione.chatone.domain.model.HighlightRule
@@ -205,6 +211,9 @@ import io.rudione.chatone.icons.lucide.Info
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Reply
 import io.rudione.chatone.icons.lucide.X
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import io.rudione.chatone.domain.model.ChatNoticeUser
 
 
 private fun buildScrollbarTicks(
@@ -243,6 +252,8 @@ fun ChatScreen(
     viewModel: ChatViewModel = koinViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val launchReadiness: LaunchReadiness = koinInject()
+    val splashVisible by launchReadiness.splashVisible.collectAsState()
     val settingsViewModel: SettingsViewModel = koinViewModel()
     val settingsState by settingsViewModel.state.collectAsState()
     val liveModButtons by SettingsViewModel.modButtonsLive.collectAsState()
@@ -285,6 +296,7 @@ fun ChatScreen(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val listState = remember(channelLogin) { LazyListState() }
+    val listOverscroll = rememberChatOverscrollEffect()
     val chatScrollActivity =
         rememberScrollActivity(listState)
 
@@ -301,10 +313,17 @@ fun ChatScreen(
         )
     val renderedCount = dedupedMessages.size
 
+    val streamerPrivacy = LocalStreamerPrivacy.current
     var showModPanel by remember { mutableStateOf(false) }
     var isFileDragOver by remember { mutableStateOf(false) }
     var showAutomodWindow by remember { mutableStateOf(false) }
     val dockHost = LocalDockHost.current
+    LaunchedEffect(streamerPrivacy.modActionsHidden) {
+        if (streamerPrivacy.modActionsHidden) {
+            showModPanel = false
+            showAutomodWindow = false
+        }
+    }
     LaunchedEffect(showAutomodWindow, dockHost, channelLogin) {
         if (dockHost != null && showAutomodWindow) dockHost.open(
             DockPanel.Automod,
@@ -327,6 +346,14 @@ fun ChatScreen(
     )
     var messageInputFocused by remember { mutableStateOf(false) }
     val profileStack = rememberProfilePopupStack()
+    val openNoticeUser: (ChatNoticeUser) -> Unit = { user ->
+        val existing = state.messages.filterIsInstance<DisplayMessage.PrivMsg>().lastOrNull {
+            if (user.userId.isNotBlank()) it.userId == user.userId else it.username.equals(user.login, true)
+        }
+        if (existing != null) profileStack.open(existing)
+        else if (user.userId.isNotBlank()) profileStack.open(user.profileMessage(channelLogin, Clock.System.now().toEpochMilliseconds()))
+        else if (user.login.isNotBlank()) profileStack.openLogin(user.login, channelLogin, Clock.System.now().toEpochMilliseconds())
+    }
     val replyThreads = rememberReplyThreadHost()
     var detachedProfileMessage by remember { mutableStateOf<DisplayMessage.PrivMsg?>(null) }
     var pendingModAction by remember { mutableStateOf<PendingModAction?>(null) }
@@ -334,6 +361,7 @@ fun ChatScreen(
     var isHoveredOverChat by remember { mutableStateOf(false) }
     var chatErrorBanner by remember { mutableStateOf<String?>(null) }
     val inputFocusRequester = remember { FocusRequester() }
+    val keyboardController by rememberUpdatedState(LocalSoftwareKeyboardController.current)
     var emoteTabIndex by remember { mutableStateOf(-1) }
     var mentionTabIndex by remember { mutableStateOf(-1) }
     var isHoveredOverEmoteTooltip by remember { mutableStateOf(false) }
@@ -358,7 +386,7 @@ fun ChatScreen(
         newestTimestampMs = if (channelInSync) dedupedMessages.lastOrNull()?.timestamp else null
     )
     val jumpFlash = rememberMessageJumpFlash()
-    MentionSeenEffect(
+    MentionTrackingEffects(
         listState = listState,
         mentions = mentionJump,
         attention = attention,
@@ -438,10 +466,11 @@ fun ChatScreen(
             }
         }
     }
-    val effectivelyPausedLatest by rememberUpdatedState(effectivelyPaused)
+    val followLatest by rememberUpdatedState(follow)
 
     ChatFollowEffects(
         listState = listState,
+        follow = follow,
         newestItemKey = dedupedMessages.lastOrNull()?.id,
         paused = effectivelyPaused,
         onPinnedToBottom = {
@@ -480,15 +509,13 @@ fun ChatScreen(
                     chatErrorBanner = effect.message.resolve()
                 }
                 ChatEffect.ScrollToBottom -> {
-                    if (!effectivelyPausedLatest && renderedCountLatest > 0) {
-                        stickToBottom()
-                    }
+                    followLatest.requestBottom()
                 }
 
                 ChatEffect.HistoryMerged -> {
-                    if (!historyStickHeldByUser) {
+                    if (!historyStickHeldByUser && !followLatest.isTouchHeld) {
                         withFrameNanos { }
-                        if (renderedCountLatest > 0) stickToBottom()
+                        if (!followLatest.isTouchHeld && renderedCountLatest > 0) followLatest.requestBottom()
                     }
                 }
 
@@ -496,6 +523,7 @@ fun ChatScreen(
                     repeat(FOCUS_SETTLE_FRAMES) { withFrameNanos { } }
                     try {
                         inputFocusRequester.requestFocus()
+                        keyboardController?.show()
                     } catch (_: Throwable) {
                     }
                 }
@@ -565,7 +593,6 @@ fun ChatScreen(
     val currentIsPausedByHotkey by rememberUpdatedState(isPausedByHotkey)
     val currentRenderedCount by rememberUpdatedState(renderedCount)
     val stickToBottomLatest by rememberUpdatedState(stickToBottom)
-    val followLatest by rememberUpdatedState(follow)
 
     val pauseMouseButton = remember(settingsState.pauseHotkey) {
         hotkeyMouseButton(settingsState.pauseHotkey)
@@ -716,7 +743,7 @@ fun ChatScreen(
         }
     }
 
-    val modPanelDocked = dockHost != null && showModPanel && state.canModerate
+    val modPanelDocked = dockHost != null && showModPanel && state.canModerate && !streamerPrivacy.modActionsHidden
     val slashSuggestions = remember(state.messageInput, state.isMod, state.isBroadcaster, state.canManageRoles, settingsState.chatCommands) {
         val builtIn = SlashCommand.suggest(
             state.messageInput,
@@ -775,20 +802,22 @@ fun ChatScreen(
             val index = dedupedLatest.indexOfFirst { it.id == messageId }
             if (index < 0) return@reveal
             mentionJump.consume(messageId)
-            follow.pause()
-            val viewport = listState.layoutInfo.viewportSize.height
-            listState.animateScrollToItem(index, -(viewport * JUMP_TARGET_FROM_TOP).toInt())
+            if (!listState.layoutInfo.isFullyShown(messageId)) {
+                follow.pause()
+                val viewport = listState.layoutInfo.viewportSize.height
+                listState.animateScrollToItem(index, -(viewport * JUMP_TARGET_FROM_TOP).toInt())
+                follow.onUserScrolled()
+            }
             coroutineScope.launch { jumpFlash.flash(messageId) }
         }
     }
     val jumpToMention: () -> Unit = remember(listState, mentionJump, revealMessage) {
         jump@{
             val messages = dedupedLatest
-            val target = mentionJump.nearest(
+            val target = mentionJump.jump(
                 indexOf = { id -> messages.indexOfFirst { it.id == id } },
                 anchorIndex = listState.layoutInfo.centerIndex()
             ) ?: return@jump
-            mentionJump.consume(target.messageId)
             coroutineScope.launch { revealMessage(target.messageId) }
         }
     }
@@ -849,8 +878,8 @@ fun ChatScreen(
                             state.channelDisplayName else "",
                         liveStream = if (state.channelLogin.equals(channelLogin, ignoreCase = true))
                             state.liveStream else null,
-                        connectionStatus = state.connectionStatus,
-                        isConnected = state.isConnected,
+                        connectionState = state.connectionState,
+                        onReconnect = { viewModel.sendEvent(ChatEvent.OnReconnect) },
                         roomState = state.roomState,
                         isMod = state.canModerate,
                         modModeEnabled = state.modModeEnabled,
@@ -891,6 +920,7 @@ fun ChatScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .holdChatFollowing(follow)
                     .backdropSource(
                         state = chatInputGlass.backdrop,
                         blurRadius = chatInputGlass.style.blurRadius,
@@ -953,6 +983,7 @@ fun ChatScreen(
                                 SelectionCursorBox(modifier = Modifier.fillMaxSize(), cursorOverride = { sliderHost.cursor }) {
                                     LazyColumn(
                                         state = listState,
+                                        overscrollEffect = listOverscroll,
                                         modifier = Modifier.fillMaxSize()
                                             .nestedScroll(follow.nestedScrollConnection)
                                             .handleHover(
@@ -1134,7 +1165,7 @@ fun ChatScreen(
                                                         )
                                                     },
                                                     onUnban = {
-                                                        viewModel.sendEvent(ChatEvent.OnUnbanUser(message.userId))
+                                                        viewModel.sendEvent(ChatEvent.OnUnbanUser(message.userId, message.username))
                                                     },
                                                     isTargetBanned = message.userId in state.bannedUserIds,
                                                     modSlider = modSlider,
@@ -1169,7 +1200,7 @@ fun ChatScreen(
                                                         else profileStack.openLogin(
                                                             login = message.login,
                                                             channel = state.channelLogin,
-                                                            nowMs = kotlin.time.Clock.System.now().toEpochMilliseconds()
+                                                            nowMs = Clock.System.now().toEpochMilliseconds()
                                                         )
                                                     }
                                                 )
@@ -1205,9 +1236,18 @@ fun ChatScreen(
                                                         )
                                                     }
                                                 )
-                                                is DisplayMessage.UserNoticeMsg -> UserNoticeMsgItem(
-                                                    message
-                                                )
+                                                is DisplayMessage.UserNoticeMsg -> {
+                                                    UserNoticeMsgItem(
+                                                        message = message,
+                                                        chatFontSizeSp = when (settingsState.fontSize) {
+                                                            SettingsState.FontSize.SMALL -> 12f
+                                                            SettingsState.FontSize.MEDIUM -> 15f
+                                                            SettingsState.FontSize.LARGE -> 18f
+                                                        },
+                                                        onOpenUser = openNoticeUser,
+                                                        onUserVisible = { viewModel.sendEvent(ChatEvent.OnNoticeUserVisible(it)) }
+                                                    )
+                                                }
 
                                                 is DisplayMessage.ModerationMsg -> ModerationMsgItem(
                                                     message = message,
@@ -1231,21 +1271,12 @@ fun ChatScreen(
                                                             profileStack.openLogin(
                                                                 login = targetUser,
                                                                 channel = state.channelLogin,
-                                                                nowMs = kotlin.time.Clock.System.now().toEpochMilliseconds()
+                                                                nowMs = Clock.System.now().toEpochMilliseconds()
                                                             )
                                                         }
                                                     },
                                                     onUnbanByLogin = if (state.canModerate) { login ->
-                                                        val userId = state.messages
-                                                            .filterIsInstance<DisplayMessage.PrivMsg>()
-                                                            .lastOrNull {
-                                                                it.username.equals(
-                                                                    login,
-                                                                    ignoreCase = true
-                                                                )
-                                                            }
-                                                            ?.userId ?: login
-                                                        viewModel.sendEvent(ChatEvent.OnUnbanUser(userId))
+                                                        viewModel.sendEvent(ChatEvent.OnUnbanUser(message.targetUserId.orEmpty(), login))
                                                     } else null
                                                 )
 
@@ -1317,7 +1348,7 @@ fun ChatScreen(
                                                                 viewModel.sendEvent(ChatEvent.OnTimeoutUser(held.userId, seconds))
                                                             },
                                                             onBan = { requestBan(held.userId, held.displayName) },
-                                                            onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(held.userId)) },
+                                                            onUnban = { viewModel.sendEvent(ChatEvent.OnUnbanUser(held.userId, held.username)) },
                                                             isTargetBanned = held.userId in state.bannedUserIds,
                                                             highlightRules = settingsState.highlightRules,
                                                             userColorByLogin = rowDecorations.userColorByLogin,
@@ -1360,6 +1391,7 @@ fun ChatScreen(
                                         itemCount = renderedCount,
                                         ticks = scrollbarTicks,
                                         onUserScroll = follow::onUserScrolled,
+                                        autoHideDelayMillis = 1_000L,
                                         modifier = Modifier
                                             .align(Alignment.CenterEnd)
                                             .fillMaxHeight()
@@ -1370,8 +1402,8 @@ fun ChatScreen(
 
                                 androidx.compose.animation.AnimatedVisibility(
                                     visible = chatSearchVisible,
-                                    enter = fadeIn() + androidx.compose.animation.slideInVertically { -it / 2 },
-                                    exit = fadeOut() + androidx.compose.animation.slideOutVertically { -it / 2 },
+                                    enter = fadeIn() + slideInVertically { -it / 2 },
+                                    exit = fadeOut() + slideOutVertically { -it / 2 },
                                     modifier = Modifier.align(Alignment.TopEnd)
                                         .padding(top = 8.dp, end = 12.dp).zIndex(10f)
                                 ) {
@@ -1498,7 +1530,7 @@ fun ChatScreen(
                     )
             ) {
                 AnimatedVisibility(
-                    visible = showModPanel && state.canModerate && !modPanelDocked,
+                    visible = showModPanel && state.canModerate && !modPanelDocked && !streamerPrivacy.modActionsHidden,
                     enter = expandVertically(tween(250)) + fadeIn(tween(200)),
                     exit = shrinkVertically(tween(250)) + fadeOut(tween(200))
                 ) {
@@ -1564,6 +1596,7 @@ fun ChatScreen(
                         onFocusChanged = { messageInputFocused = it }
                     ),
                     chrome = MessageInputChrome(
+                        channelKey = "${state.currentUserId}:${state.channelLogin}",
                         isBanned = state.isBanned,
                         banReason = state.banReason,
                         hidePlaceholder = settingsState.hideChatInputPlaceholder,
@@ -1574,16 +1607,16 @@ fun ChatScreen(
 
                             state.channelLogin.isNotEmpty() -> {
                                 val name = state.channelDisplayName.ifBlank { state.channelLogin }
-                                val modes = roomModeLabels(state.roomState)
-                                stringResource(Res.string.chat_send_message_in, name) +
-                                    if (modes.isNotEmpty()) "  ·  ${modes.joinToString(" · ")}" else ""
+                                stringResource(Res.string.chat_send_message_in, name)
                             }
                             else -> null
                         },
+                        roomModes = inputRoomModeLabels(state),
+                        showRoomModesHint = !splashVisible && state.isConnected && !state.isLoading && !state.isBanned,
                         pauseHotkey = "",
                         glowIntensity = if (settingsState.chatInputEventGlow) state.inputGlowIntensity else 0f,
                         glowTriggerTs = state.inputGlowTriggerTs,
-                        slowModeSeconds = if (!state.isMod && !state.isBroadcaster && !state.isGrandMod) state.roomState.slowMode else 0,
+                        slowModeSeconds = if (!state.hasPrivilegedChatAccess) state.roomState.slowMode else 0,
                         lastMessageSentAtMs = state.lastMessageSentAtMs
                     ),
                     completions = InputCompletionState(
@@ -1621,15 +1654,6 @@ fun ChatScreen(
                             inputFocusRequester.requestFocus()
                         }
                     ),
-                    upload = MessageInputUploadState(
-                        progress = state.uploadProgress,
-                        link = state.uploadedLink,
-                        onCopyLink = {
-                            state.uploadedLink?.let { link ->
-                                scope.launch { clipboard.setText(link) }
-                            }
-                        }
-                    ),
                     translation = MessageInputTranslation(
                         targetLang = settingsState.outgoingTranslationLang,
                         autoEnabled = settingsState.autoTranslateInput,
@@ -1646,6 +1670,24 @@ fun ChatScreen(
                 state.messages.isNotEmpty() && !state.isLoading,
             unreadCount = unreadCount,
             mentions = mentionJump,
+            upload = MessageInputUploadState(
+                progress = state.uploadProgress,
+                link = state.uploadedLink,
+                expiresAtMs = state.uploadedLinkExpiresAtMs,
+                onInsertLink = {
+                    state.uploadedLink?.let { link ->
+                        val draft = state.messageInput
+                        val separator = if (draft.isEmpty() || draft.last().isWhitespace()) "" else " "
+                        viewModel.sendEvent(ChatEvent.OnMessageInputChanged(draft + separator + link + " "))
+                        inputFocusRequester.requestFocus()
+                    }
+                },
+                onCopyLink = {
+                    state.uploadedLink?.let { link ->
+                        scope.launch { clipboard.setText(link) }
+                    }
+                }
+            ),
             onScrollDown = {
                 follow.resume()
                 isPausedByHotkey = false

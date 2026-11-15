@@ -3,12 +3,14 @@ package io.rudione.chatone.presentation.chat.rendering
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
@@ -19,13 +21,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.test.StandardTestDispatcher
+import io.rudione.chatone.presentation.components.SwipeDirection
+import io.rudione.chatone.presentation.components.directionalSwipe
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.test.assertEquals
 
 @OptIn(ExperimentalComposeUiApi::class)
 class ChatFollowSceneTest {
@@ -36,6 +42,12 @@ class ChatFollowSceneTest {
     private lateinit var follow: ChatFollowState
     private var frameNanos = 0L
     private var clockMillis = 0L
+    private var taps = 0
+    private var holds = 0
+    private var swipes = 0
+    private var trackTouches by mutableStateOf(true)
+    private var hoverPaused by mutableStateOf(false)
+    private var lastRowHeight by mutableIntStateOf(ROW_HEIGHT)
     private val dispatcher = StandardTestDispatcher()
 
     private val scene = ImageComposeScene(
@@ -50,15 +62,25 @@ class ChatFollowSceneTest {
         follow = followState
         ChatFollowEffects(
             listState = state,
+            follow = followState,
             newestItemKey = rows.lastOrNull(),
-            paused = followState.isPausedByScroll,
+            paused = followState.isPausedByScroll || hoverPaused,
+            holdBottomWhilePaused = hoverPaused,
             onPinnedToBottom = {}
         )
-        LazyColumn(
+        Box(Modifier.directionalSwipe(SwipeDirection.Right) { swipes++ }) {
+          LazyColumn(
             state = state,
-            modifier = Modifier.fillMaxWidth().height(viewportHeight.dp).nestedScroll(followState.nestedScrollConnection)
+            modifier = Modifier.fillMaxWidth().height(viewportHeight.dp)
+                .then(if (trackTouches) Modifier.holdChatFollowing(followState) else Modifier)
+                .nestedScroll(followState.nestedScrollConnection)
         ) {
-            items(rows, key = { it }) { Box(Modifier.fillMaxWidth().height(ROW_HEIGHT.dp)) }
+            items(rows, key = { it }, contentType = { "row" }) { row ->
+                Box(Modifier.fillMaxWidth().height((if (row == rows.last()) lastRowHeight else ROW_HEIGHT).dp).pointerInput(Unit) {
+                    detectTapGestures(onTap = { taps++ }, onLongPress = { holds++ })
+                })
+            }
+          }
         }
     }
 
@@ -124,6 +146,94 @@ class ChatFollowSceneTest {
         frames()
         assertTrue(atBottom())
         assertFalse(follow.isPausedByScroll)
+    }
+
+    @Test
+    fun initialHoverPauseStillStartsAtTheNewestMessage() {
+        hoverPaused = true
+        frames()
+        assertTrue(atBottom())
+    }
+
+    @Test
+    fun imageGrowthWhileHoverPausedKeepsTheExistingBottomAnchor() {
+        frames()
+        hoverPaused = true
+        frames()
+        lastRowHeight = 80
+        frames()
+        assertTrue(atBottom())
+        append(4)
+        frames()
+        assertFalse(atBottom())
+    }
+
+    @Test
+    fun incomingMessagesDoNotMoveTheRowUnderATouch() {
+        frames()
+        val anchor = listState.firstVisibleItemIndex
+        scene.sendPointerEvent(PointerEventType.Press, CENTER, type = PointerType.Touch, timeMillis = clockMillis)
+        append(3)
+        follow.requestBottom()
+        frames(4)
+        assertEquals(anchor, listState.firstVisibleItemIndex)
+        scene.sendPointerEvent(PointerEventType.Release, CENTER, type = PointerType.Touch, timeMillis = clockMillis)
+        frames()
+        assertEquals(1, taps)
+        assertTrue(atBottom())
+    }
+
+    @Test
+    fun longPressSurvivesIncomingMessages() {
+        frames()
+        scene.sendPointerEvent(PointerEventType.Press, CENTER, type = PointerType.Touch, timeMillis = clockMillis)
+        repeat(8) {
+            append(1)
+            frames(6)
+        }
+        assertEquals(1, holds)
+        scene.sendPointerEvent(PointerEventType.Release, CENTER, type = PointerType.Touch, timeMillis = clockMillis)
+        frames()
+        assertEquals(0, taps)
+        assertTrue(atBottom())
+    }
+
+    @Test
+    fun drawerSwipeSurvivesIncomingMessagesAndDoesNotBlockTheNextTap() {
+        frames()
+        var position = Offset(70f, CENTER.y)
+        scene.sendPointerEvent(PointerEventType.Press, position, type = PointerType.Touch, timeMillis = clockMillis)
+        repeat(8) {
+            position += Offset(20f, 0f)
+            clockMillis += 25
+            scene.sendPointerEvent(PointerEventType.Move, position, type = PointerType.Touch, timeMillis = clockMillis)
+            append(1)
+            frames(2)
+        }
+        scene.sendPointerEvent(PointerEventType.Release, position, type = PointerType.Touch, timeMillis = clockMillis)
+        frames()
+        assertEquals(1, swipes)
+        assertFalse(follow.isTouchHeld)
+        scene.sendPointerEvent(PointerEventType.Press, CENTER, type = PointerType.Touch, timeMillis = clockMillis)
+        frames(2)
+        scene.sendPointerEvent(PointerEventType.Release, CENTER, type = PointerType.Touch, timeMillis = clockMillis)
+        frames()
+        assertEquals(1, taps)
+        assertTrue(atBottom())
+    }
+
+    @Test
+    fun detachingTouchTrackingCannotLeaveFollowingBlocked() {
+        frames()
+        scene.sendPointerEvent(PointerEventType.Press, CENTER, type = PointerType.Touch, timeMillis = clockMillis)
+        frames(2)
+        assertTrue(follow.isTouchHeld)
+        trackTouches = false
+        frames()
+        assertFalse(follow.isTouchHeld)
+        append(4)
+        frames()
+        assertTrue(atBottom())
     }
 
     @Test

@@ -76,3 +76,6 @@ expect fun PictureInPictureAutoEnterEffect(
     onTogglePlayback: () -> Unit,
     onToggleMute: () -> Unit
 )
+
+@Composable
+expect fun AirPlayRouteButton(modifier: Modifier = Modifier, onVisibilityChanged: (Boolean) -> Unit = {})

@@ -17,6 +17,7 @@ import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
 
 actual object NotificationAccess {
+    actual val keepsChatInBackground: Boolean = false
     private val state = MutableStateFlow(false)
     actual val granted: StateFlow<Boolean> = state.asStateFlow()
 

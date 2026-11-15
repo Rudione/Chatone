@@ -1,7 +1,6 @@
 package io.rudione.chatone.presentation.stream
 
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.player_live
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -79,7 +78,7 @@ class MobileStreamUi internal constructor(
 
     val showLandscapeLayout: Boolean get() = playerVisible && landscape
     val showPortraitPlayer: Boolean get() = playerVisible && !landscape
-    val inPictureInPicture: Boolean get() = playerVisible && controls.pictureInPicture.isActive
+    val inPictureInPicture: Boolean get() = controls.pictureInPicture.isActive
 }
 
 @Composable
@@ -87,7 +86,8 @@ fun rememberMobileStreamUi(
     host: StreamPlayerHost?,
     channelLogin: String?,
     landscapeWindow: Boolean,
-    onNavigateBack: (() -> Unit)? = null
+    onNavigateBack: (() -> Unit)? = null,
+    artworkForChannel: (String) -> String? = { null }
 ): MobileStreamUi? {
     if (host == null) return null
     val navigateBack by rememberUpdatedState(onNavigateBack)
@@ -147,7 +147,7 @@ fun rememberMobileStreamUi(
         }
     }
 
-    StreamMediaInfoEffect(host = host, channelLogin = openChannel)
+    StreamMediaInfoEffect(host = host, channelLogin = openChannel, avatarUrl = openChannel?.let(artworkForChannel))
     StreamWindowEffects(
         host = host,
         controls = controls,
@@ -230,22 +230,20 @@ private fun StreamWindowEffects(
 }
 
 @Composable
-fun StreamMediaInfoEffect(host: StreamPlayerHost, channelLogin: String?) {
-    val playerLiveText = stringResource(Res.string.player_live)
+fun StreamMediaInfoEffect(host: StreamPlayerHost, channelLogin: String?, avatarUrl: String? = null) {
     if (channelLogin == null) return
     val chatViewModel: ChatViewModel = koinViewModel()
     val streamerMode: StreamerModeController = koinInject()
-    LaunchedEffect(host, chatViewModel, streamerMode, channelLogin, playerLiveText) {
+    LaunchedEffect(host, chatViewModel, streamerMode, channelLogin, avatarUrl) {
         combine(chatViewModel.state, streamerMode.state) { chat, mode ->
             val live = chat.liveStream?.takeIf { chat.channelLogin.equals(channelLogin, ignoreCase = true) }
                 ?: return@combine null
-            val hideNames = mode.enabled && mode.options.hideChannelNames
             val hideThumbnail = mode.enabled && mode.options.hideThumbnails
             StreamMediaInfo(
                 channelLogin = channelLogin,
-                title = if (hideNames) playerLiveText else live.title,
-                channelName = if (hideNames) APP_NAME else chat.channelDisplayName.ifBlank { live.userName },
-                artworkUrl = live.thumbnailUrl
+                title = live.title,
+                channelName = chat.channelDisplayName.ifBlank { live.userName },
+                artworkUrl = (avatarUrl?.takeIf { it.isNotBlank() } ?: live.thumbnailUrl)
                     .takeUnless { hideThumbnail || it.isBlank() }
                     ?.replace("{width}", ARTWORK_WIDTH)
                     ?.replace("{height}", ARTWORK_HEIGHT)
@@ -257,7 +255,6 @@ fun StreamMediaInfoEffect(host: StreamPlayerHost, channelLogin: String?) {
     }
 }
 
-private const val APP_NAME = "Chatone"
 private const val ARTWORK_WIDTH = "640"
 private const val ARTWORK_HEIGHT = "360"
 

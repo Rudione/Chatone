@@ -74,6 +74,8 @@ import io.rudione.chatone.icons.lucide.ShieldCheck
 import io.rudione.chatone.icons.lucide.Star
 import io.rudione.chatone.icons.lucide.UserX
 import io.rudione.chatone.icons.lucide.X
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.vector.ImageVector
 
 internal val PROFILE_CARD_MIN_WIDTH = 250.dp
 internal val PROFILE_CARD_MIN_HEIGHT = 260.dp
@@ -157,7 +159,7 @@ internal fun ProfileCardSurface(
 @Composable
 private fun ResizeGrip(modifier: Modifier = Modifier) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
-    androidx.compose.foundation.Canvas(modifier = modifier.size(10.dp)) {
+    Canvas(modifier = modifier.size(10.dp)) {
         val step = size.width / 3f
         val stroke = 1.2f
         for (i in 1..2) {
@@ -394,7 +396,7 @@ private fun ModerationPill(
 
 @Composable
 private fun ModerationSquare(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     tint: Color,
     contentDescription: String,
     height: Dp,
@@ -510,7 +512,7 @@ internal fun ProfileQuickActions(
 
 @Composable
 private fun QuickActionChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     tint: Color,
     active: Boolean,
@@ -558,7 +560,7 @@ private fun QuickActionChip(
 
 @Composable
 internal fun ProfileIdentityLine(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     text: String,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {

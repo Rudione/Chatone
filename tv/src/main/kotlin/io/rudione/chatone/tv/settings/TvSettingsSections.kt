@@ -75,6 +75,7 @@ import io.rudione.chatone.presentation.stream.StreamPlayerEvent
 import io.rudione.chatone.presentation.stream.StreamPlayerHost
 import io.rudione.chatone.util.BuildConfig
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.abs
 
 private val QualityOptions =
     listOf(StreamPlayerPreferences.QUALITY_AUTO, StreamVariant.SOURCE_GROUP, "720p60", "480p")
@@ -169,7 +170,7 @@ internal fun TvAppearanceSettings(settings: SettingsState, send: (SettingsEvent)
             )
         }
         item(key = "uiScale") {
-            val current = UiScaleOptions.minBy { kotlin.math.abs(it - settings.uiScale) }
+            val current = UiScaleOptions.minBy { abs(it - settings.uiScale) }
             TvCycleRow(
                 title = stringResource(Res.string.settings_ui_scale),
                 value = "${(current * 100).toInt()}%",

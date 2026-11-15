@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -31,6 +32,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,6 +41,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -51,12 +54,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneTextField
-import io.rudione.chatone.presentation.components.chatoneGlassPanel
 import io.rudione.chatone.icons.lucide.ChartNoAxesColumn
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Plus
 import io.rudione.chatone.icons.lucide.Vote
 import io.rudione.chatone.icons.lucide.X
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import chatone.composeapp.generated.resources.close
+import androidx.compose.ui.graphics.vector.ImageVector
 
 private val DURATION_PRESETS_SECONDS = listOf(30, 60, 120, 300, 600)
 
@@ -66,7 +72,7 @@ private fun DurationChipsRow(
     accent: Color,
     onSelect: (Int) -> Unit
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         DURATION_PRESETS_SECONDS.forEach { secs ->
             val selected = secs == selectedSeconds
             val label = if (secs >= 60) "${secs / 60}m" else "${secs}s"
@@ -87,7 +93,7 @@ private fun DurationChipsRow(
                     label,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (selected) MaterialTheme.colorScheme.onPrimary
+                    color = if (selected) contentColorFor(accent)
                     else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -111,6 +117,7 @@ private fun ChoiceInputRow(
             value = value,
             onValueChange = onValueChange,
             placeholder = placeholder,
+            placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
         if (onRemove != null) {
@@ -141,7 +148,7 @@ private fun HistoryRepeatRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             titles.forEachIndexed { index, title ->
@@ -213,7 +220,7 @@ private fun SubmitButton(label: String, accent: Color, enabled: Boolean, onClick
             label,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
-            color = if (enabled) MaterialTheme.colorScheme.onPrimary
+            color = if (enabled) contentColorFor(accent)
             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
     }
@@ -221,7 +228,7 @@ private fun SubmitButton(label: String, accent: Color, enabled: Boolean, onClick
 
 @Composable
 private fun CreationPanelFrame(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     title: String,
     accent: Color,
     onClose: () -> Unit,
@@ -231,7 +238,11 @@ private fun CreationPanelFrame(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 8.dp, end = 18.dp, top = 4.dp, bottom = 4.dp)
-            .chatoneGlassPanel(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 5.dp, bottomEnd = 14.dp, bottomStart = 5.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 1f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(topStart = 14.dp, topEnd = 5.dp, bottomEnd = 14.dp, bottomStart = 5.dp))
+            .heightIn(max = 520.dp)
+            .verticalScroll(rememberScrollState())
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -254,10 +265,11 @@ private fun CreationPanelFrame(
                 title,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
             ChatoneIconButton(onClick = onClose, modifier = Modifier.size(24.dp)) {
-                Icon(Lucide.X, contentDescription = null, modifier = Modifier.size(14.dp))
+                Icon(Lucide.X, contentDescription = stringResource(Res.string.close), modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         content()
@@ -292,6 +304,7 @@ internal fun PollCreationPanel(
             value = title,
             onValueChange = { title = it.take(60) },
             placeholder = stringResource(Res.string.poll_create_question_hint),
+            placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -354,6 +367,7 @@ internal fun PredictionCreationPanel(
             value = title,
             onValueChange = { title = it.take(45) },
             placeholder = stringResource(Res.string.prediction_create_question_hint),
+            placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth()
         )
 

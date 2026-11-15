@@ -2,163 +2,254 @@ package io.rudione.chatone.data.remote
 
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
-import io.ktor.client.plugins.websocket.webSocket
-import io.ktor.websocket.Frame
-import io.ktor.websocket.WebSocketSession
-import io.ktor.websocket.close
-import io.ktor.websocket.readText
+import io.ktor.client.plugins.websocket.webSocketSession
 import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.IrcEvent
 import io.rudione.chatone.util.chat.IrcMessage
 import io.rudione.chatone.util.chat.IrcMessageParser
+import io.rudione.chatone.util.log.HotPathLog
+import io.rudione.chatone.util.network.NetworkMonitor
+import io.rudione.chatone.util.network.isNetworkFailure
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
-import io.rudione.chatone.util.log.HotPathLog
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.atomicfu.atomic
 import kotlin.random.Random
+import kotlin.time.Clock
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 
-class TwitchIrcClient(
-    private val httpClient: HttpClient,
-    private val scope: CoroutineScope
+class TwitchIrcClient internal constructor(
+    private val scope: CoroutineScope,
+    private val networkMonitor: NetworkMonitor,
+    private val openSocket: suspend () -> IrcSocket,
+    private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    private val jitter: () -> Long = { Random.nextLong(0, 500) },
+    private val joinRateLimiter: IrcJoinRateLimiter = IrcJoinRateLimiter(now)
 ) {
-    private val wssUrl = "wss://irc-ws.chat.twitch.tv:443"
+    constructor(httpClient: HttpClient, scope: CoroutineScope, networkMonitor: NetworkMonitor = NetworkMonitor(scope)) :
+        this(scope, networkMonitor, { KtorIrcSocket(httpClient.webSocketSession("wss://irc-ws.chat.twitch.tv:443")) }, joinRateLimiter = sharedJoinRateLimiter)
 
-    private var session: WebSocketSession? = null
-    private var pingJob: Job? = null
-    private var reconnectJob: Job? = null
+    private data class PendingPing(val token: String, val response: CompletableDeferred<Unit>)
+
+    private data class Credentials(val username: String, val token: String) {
+        val anonymous: Boolean get() = username.startsWith("justinfan") || token.isBlank()
+    }
+
+    private val lifecycleMutex = Mutex()
+    private val lifecycleVersion = atomic(0L)
+    private val channelLock = SynchronizedObject()
+    private val joinedChannels = mutableSetOf<String>()
+    private val reconnectRequests = Channel<Unit>(Channel.CONFLATED)
+    private val activeSocket = MutableStateFlow<IrcSocket?>(null)
+    private val confirmedChannels = mutableSetOf<String>()
+    private var priorityChannel: String? = null
+    private val joinRequests = Channel<Unit>(Channel.CONFLATED)
     private var connectionJob: Job? = null
+    private val credentials = MutableStateFlow<Credentials?>(null)
 
-    private val _messages = MutableSharedFlow<ChatMessage>(
-        extraBufferCapacity = 1024,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    private val _messages = MutableSharedFlow<ChatMessage>(extraBufferCapacity = 1024, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val messages: SharedFlow<ChatMessage> = _messages.asSharedFlow()
-
-    private val _events = MutableSharedFlow<IrcEvent>(
-        extraBufferCapacity = 512,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    private val _events = MutableSharedFlow<IrcEvent>(extraBufferCapacity = 512, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val events: SharedFlow<IrcEvent> = _events.asSharedFlow()
-
     private val _connectionState = MutableStateFlow<ConnectionState>(ConnectionState.Disconnected)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
-    private val joinedChannels = mutableSetOf<String>()
-    private var currentUsername: String = ""
-    private var currentToken: String = ""
-    private var isAnonymous: Boolean = false
-
-    private var reconnectAttempts = 0
-    private val maxReconnectAttempts = 5
-    private val baseReconnectDelay = 1000L
-    private val maxJitter = 250L
-
-    companion object {
-        private const val TAG = "TwitchIrcClient"
-        private const val JOIN_CHUNK_SIZE = 5
-        private const val JOIN_CHUNK_DELAY = 600L
-        private const val PING_INTERVAL = 300_000L
-    }
+    enum class FailureReason { NETWORK, TIMEOUT, AUTHENTICATION, SERVER }
 
     sealed class ConnectionState {
-        object Disconnected : ConnectionState()
-        object Connecting : ConnectionState()
-        object Connected : ConnectionState()
-        data class Error(val message: String) : ConnectionState()
+        data object Disconnected : ConnectionState()
+        data object Connecting : ConnectionState()
+        data object Connected : ConnectionState()
+        data object WaitingForNetwork : ConnectionState()
+        data class Reconnecting(val reason: FailureReason, val attempt: Int) : ConnectionState()
+        data class Error(val message: String, val reason: FailureReason = FailureReason.SERVER) : ConnectionState()
     }
 
     fun connect(username: String, oauthToken: String) {
-        if (_connectionState.value is ConnectionState.Connected) {
-            Napier.d("Already connected", tag = TAG)
-            return
-        }
-
-        currentUsername = username.lowercase()
-        currentToken = oauthToken
-        isAnonymous = username.startsWith("justinfan") || oauthToken.isBlank()
-
-        connectionJob?.cancel()
-        connectionJob = scope.launch {
-            connectInternal()
+        val requested = Credentials(username.lowercase(), oauthToken.removePrefix("oauth:"))
+        val version = lifecycleVersion.incrementAndGet()
+        scope.launch {
+            lifecycleMutex.withLock {
+                if (version != lifecycleVersion.value) return@withLock
+                if (credentials.value == requested && connectionJob?.isActive == true) return@withLock
+                connectionJob?.cancelAndJoin()
+                if (version != lifecycleVersion.value) return@withLock
+                credentials.value = requested
+                connectionJob = scope.launch { connectionLoop(requested) }
+            }
         }
     }
 
-    private suspend fun connectInternal() {
-        _connectionState.value = ConnectionState.Connecting
-
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun connectionLoop(account: Credentials) = coroutineScope {
+        val networkObserver = launch {
+            var previous = networkMonitor.status.value
+            networkMonitor.status.collect { current ->
+                if (current != previous && (previous.available != null || current.available == false || current.wakeVersion != previous.wakeVersion)) {
+                    reconnectRequests.trySend(Unit)
+                }
+                previous = current
+            }
+        }
+        var attempt = 0
         try {
-            httpClient.webSocket(wssUrl) {
-                session = this
-                Napier.d("WebSocket connected", tag = TAG)
-
-                send(Frame.Text("CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership"))
-
-                if (isAnonymous) {
-                    send(Frame.Text("PASS NaM"))
-                    send(Frame.Text("NICK justinfan${Random.nextInt(10000, 99999)}"))
-                } else {
-                    send(Frame.Text("PASS oauth:$currentToken"))
-                    send(Frame.Text("NICK $currentUsername"))
+            while (isActive) {
+                if (networkMonitor.status.value.available == false) {
+                    _connectionState.value = ConnectionState.WaitingForNetwork
+                    networkMonitor.status.first { it.available != false }
+                    attempt = 0
                 }
-
-                _connectionState.value = ConnectionState.Connected
-                reconnectAttempts = 0
-
-                startPingJob()
-
-                if (joinedChannels.isNotEmpty()) {
-                    val channels = joinedChannels.toList()
-                    rejoinChannels(channels)
+                while (reconnectRequests.tryReceive().isSuccess) { }
+                _connectionState.value = ConnectionState.Connecting
+                var connectedAt: Long? = null
+                try {
+                    supervisorScope {
+                        val sessionJob = async { runSession(account) { connectedAt = now() } }
+                        try {
+                            select<Unit> {
+                                sessionJob.onAwait { }
+                                reconnectRequests.onReceive { }
+                            }
+                        } finally {
+                            sessionJob.cancelAndJoin()
+                        }
+                    }
+                    attempt = 0
+                    continue
+                } catch (e: IrcAuthenticationException) {
+                    _connectionState.value = ConnectionState.Error("Authentication failed", FailureReason.AUTHENTICATION)
+                    reconnectRequests.receive()
+                    attempt = 0
+                    continue
+                } catch (e: TimeoutCancellationException) {
+                    _connectionState.value = ConnectionState.Reconnecting(FailureReason.TIMEOUT, attempt + 1)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    val reason = when {
+                        e is IrcResponseTimeoutException -> FailureReason.TIMEOUT
+                        isNetworkFailure(e) -> FailureReason.NETWORK
+                        else -> FailureReason.SERVER
+                    }
+                    _connectionState.value = ConnectionState.Reconnecting(reason, attempt + 1)
+                    Napier.w("IRC connection interrupted: ${e::class.simpleName}", tag = TAG)
                 }
+                if (connectedAt?.let { now() - it >= 30_000 } == true) attempt = 0
+                val waitMs = (1_000L shl attempt.coerceAtMost(5)).coerceAtMost(30_000) + jitter()
+                attempt = (attempt + 1).coerceAtMost(6)
+                if (networkMonitor.status.value.available != false) select<Unit> {
+                    onTimeout(waitMs) { }
+                    reconnectRequests.onReceive { attempt = 0 }
+                }
+            }
+        } finally {
+            networkObserver.cancel()
+            activeSocket.value = null
+            _connectionState.value = ConnectionState.Disconnected
+        }
+    }
 
-                for (frame in incoming) {
-                    if (frame is Frame.Text) {
-                        val text = frame.readText()
-                        handleIncomingMessage(text)
+    private suspend fun runSession(account: Credentials, onConnected: () -> Unit) {
+        val socket = withTimeout(15_000) { openSocket() }
+        synchronized(channelLock) { confirmedChannels.clear() }
+        try {
+            coroutineScope {
+                val authenticated = CompletableDeferred<Unit>()
+                val pendingPing = MutableStateFlow<PendingPing?>(null)
+                val verifiedAt = atomic(now())
+                val username = if (account.anonymous) "justinfan${Random.nextInt(10000, 99999)}" else account.username
+                launch {
+                    while (isActive) {
+                        val text = socket.receive() ?: throw IrcConnectionClosedException()
+                        handleIncomingMessage(text, socket, username, authenticated) { token ->
+                            pendingPing.value?.takeIf { it.token == token }?.let {
+                                verifiedAt.value = now()
+                                it.response.complete(Unit)
+                            }
+                        }
                     }
                 }
+                socket.send("CAP REQ :twitch.tv/tags twitch.tv/commands twitch.tv/membership")
+                socket.send(if (account.anonymous) "PASS NaM" else "PASS oauth:${account.token}")
+                socket.send("NICK $username")
+                withTimeout(15_000) { authenticated.await() }
+                verifiedAt.value = now()
+                activeSocket.value = socket
+                _connectionState.value = ConnectionState.Connected
+                onConnected()
+                launch { rejoinChannels(socket, account.username) }
+                launch {
+                    while (isActive) {
+                        delay(30_000)
+                        if (now() - verifiedAt.value > 60_000) throw IrcResponseTimeoutException()
+                        val ping = PendingPing("chatone-${now()}", CompletableDeferred())
+                        pendingPing.value = ping
+                        socket.send("PING :${ping.token}")
+                        withTimeoutOrNull(10_000) { ping.response.await(); true } ?: throw IrcResponseTimeoutException()
+                        pendingPing.value = null
+                    }
+                }
+                awaitCancellation()
             }
-        } catch (e: Exception) {
-            Napier.e("WebSocket error: ${e.message}", e, tag = TAG)
-            _connectionState.value = ConnectionState.Error(e.message ?: "Unknown error")
-            handleReconnect()
         } finally {
-            session = null
-            pingJob?.cancelAndJoin()
-            if (_connectionState.value !is ConnectionState.Error) {
-                _connectionState.value = ConnectionState.Disconnected
-            }
+            activeSocket.compareAndSet(socket, null)
+            synchronized(channelLock) { confirmedChannels.clear() }
+            socket.cancel()
         }
     }
 
-    private suspend fun handleIncomingMessage(text: String) {
+    private suspend fun handleIncomingMessage(text: String, socket: IrcSocket, username: String, authenticated: CompletableDeferred<Unit>, onPong: (String) -> Unit) {
         text.split("\r\n").filter { it.isNotBlank() }.forEach { line ->
             HotPathLog.verbose(TAG) { "IRC: $line" }
 
             if (line.startsWith("PING")) {
                 val server = line.substringAfter("PING ")
-                session?.send(Frame.Text("PONG $server"))
+                socket.send("PONG $server")
                 return@forEach
             }
 
             val ircMsg = IrcMessage.parse(line) ?: return@forEach
 
             when (ircMsg.command) {
+                "001" -> authenticated.complete(Unit)
+                "PONG" -> onPong(ircMsg.trailing)
+                "464" -> throw IrcAuthenticationException()
+
                 "PRIVMSG" -> {
                     try {
                         val message = IrcMessageParser.parsePrivMsg(ircMsg)
                         _messages.emit(message)
                         _events.emit(IrcEvent.PrivMsg(message))
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Napier.e("Failed to parse PRIVMSG: ${e.message}", e, tag = TAG)
                     }
@@ -168,6 +259,9 @@ class TwitchIrcClient(
                     val channel = ircMsg.channel
                     val msg = ircMsg.trailing
                     val msgId = ircMsg.tags["msg-id"]
+                    if (msg.contains("authentication failed", ignoreCase = true) ||
+                        msg.contains("improperly formatted auth", ignoreCase = true) ||
+                        msg.contains("login unsuccessful", ignoreCase = true)) throw IrcAuthenticationException()
                     _events.emit(IrcEvent.Notice(channel, msg, msgId))
                     Napier.d("NOTICE #$channel: $msg", tag = TAG)
                 }
@@ -214,6 +308,7 @@ class TwitchIrcClient(
 
                 "ROOMSTATE" -> {
                     val channel = ircMsg.channel
+                    synchronized(channelLock) { confirmedChannels.add(channel) }
                     val tags = ircMsg.tags
                     _events.emit(
                         IrcEvent.RoomState(
@@ -237,7 +332,7 @@ class TwitchIrcClient(
                             badgeInfo = tags["badge-info"] ?: "",
                             badges = tags["badges"] ?: "",
                             color = tags["color"]?.takeIf { it.isNotEmpty() },
-                            displayName = tags["display-name"] ?: currentUsername,
+                            displayName = tags["display-name"] ?: username,
                             emoteSets = tags["emote-sets"]?.split(",") ?: emptyList(),
                             isMod = tags["mod"] == "1"
                         )
@@ -251,7 +346,7 @@ class TwitchIrcClient(
                             badgeInfo = tags["badge-info"] ?: "",
                             badges = tags["badges"] ?: "",
                             color = tags["color"]?.takeIf { it.isNotEmpty() },
-                            displayName = tags["display-name"] ?: currentUsername,
+                            displayName = tags["display-name"] ?: username,
                             emoteSets = tags["emote-sets"]?.split(",") ?: emptyList(),
                             userId = tags["user-id"] ?: ""
                         )
@@ -275,16 +370,16 @@ class TwitchIrcClient(
                 "RECONNECT" -> {
                     Napier.d("Server requested RECONNECT", tag = TAG)
                     _events.emit(IrcEvent.Reconnect())
-                    session?.close()
-                    handleReconnect()
+                    throw IrcServerReconnectException()
                 }
 
                 "JOIN" -> {
                     val channel = ircMsg.channel
                     val who = ircMsg.nick
-                    if (who.isNotEmpty() && !who.equals(currentUsername, ignoreCase = true)) {
+                    if (who.isNotEmpty() && !who.equals(username, ignoreCase = true)) {
                         _events.emit(IrcEvent.UserJoin(channel, who))
                     } else {
+                        synchronized(channelLock) { confirmedChannels.add(channel) }
                         _events.emit(IrcEvent.Connected(channel))
                         Napier.d("Joined #$channel", tag = TAG)
                     }
@@ -292,7 +387,7 @@ class TwitchIrcClient(
 
                 "PART" -> {
                     val who = ircMsg.nick
-                    if (who.isNotEmpty() && !who.equals(currentUsername, ignoreCase = true)) {
+                    if (who.isNotEmpty() && !who.equals(username, ignoreCase = true)) {
                         _events.emit(IrcEvent.UserPart(ircMsg.channel, who))
                         HotPathLog.verbose(TAG) { "$who left #${ircMsg.channel}" }
                     } else {
@@ -300,7 +395,7 @@ class TwitchIrcClient(
                     }
                 }
 
-                "001", "002", "003", "004", "353", "366", "372", "375", "376", "CAP" -> {
+                "002", "003", "004", "353", "366", "372", "375", "376", "CAP" -> {
 
                 }
 
@@ -311,118 +406,107 @@ class TwitchIrcClient(
         }
     }
 
-    private suspend fun rejoinChannels(channels: List<String>) {
-        channels.chunked(JOIN_CHUNK_SIZE).forEachIndexed { index, chunk ->
-            if (index > 0) delay(JOIN_CHUNK_DELAY)
-            chunk.forEach { channel ->
-                session?.send(Frame.Text("JOIN #$channel"))
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun rejoinChannels(socket: IrcSocket, login: String) {
+        val attempts = mutableMapOf<String, Long>()
+        fun nextChannel(): String? = synchronized(channelLock) {
+            fun pending(channel: String) = channel in joinedChannels && channel !in confirmedChannels &&
+                (attempts[channel]?.let { now() - it >= 15_000L } != false)
+            priorityChannel?.takeIf(::pending)
+                ?: joinedChannels.firstOrNull { it !in confirmedChannels && it !in attempts }
+                ?: joinedChannels.firstOrNull(::pending)
+        }
+        while (currentCoroutineContext().isActive) {
+            if (nextChannel() == null) {
+                select<Unit> {
+                    joinRequests.onReceive { }
+                    onTimeout(1_000L) { }
+                }
+            } else {
+                joinRateLimiter.awaitTurn(login)
+                val channel = nextChannel() ?: continue
+                socket.send("JOIN #$channel")
+                attempts[channel] = now()
             }
         }
     }
 
     suspend fun joinChannel(channelName: String) {
         val channel = channelName.lowercase().removePrefix("#")
-        if (joinedChannels.contains(channel)) {
-            Napier.d("Already in channel: $channel", tag = TAG)
-            return
+        if (!CHANNEL_PATTERN.matches(channel)) return
+        synchronized(channelLock) {
+            joinedChannels.add(channel)
+            priorityChannel = channel
         }
-
-        session?.send(Frame.Text("JOIN #$channel"))
-        joinedChannels.add(channel)
-        Napier.d("Joining channel: $channel", tag = TAG)
+        joinRequests.trySend(Unit)
     }
 
     suspend fun partChannel(channelName: String) {
         val channel = channelName.lowercase().removePrefix("#")
-        session?.send(Frame.Text("PART #$channel"))
-        joinedChannels.remove(channel)
-        Napier.d("Leaving channel: $channel", tag = TAG)
+        if (!synchronized(channelLock) { confirmedChannels.remove(channel); joinedChannels.remove(channel) }) return
+        activeSocket.value?.let { send(it, "PART #$channel") }
     }
 
     suspend fun sendMessage(channelName: String, message: String) {
-        if (isAnonymous) {
+        if (credentials.value?.anonymous != false) {
             _events.emit(IrcEvent.Error("Cannot send messages as guest"))
             return
         }
         val channel = stripIrcFraming(channelName).lowercase().removePrefix("#")
-        if (channel.isEmpty()) return
         val body = stripIrcFraming(message)
-        if (body.isEmpty()) return
-        session?.send(Frame.Text("PRIVMSG #$channel :$body"))
-        Napier.d("Sent message to #$channel (${body.length} chars)", tag = TAG)
+        if (!CHANNEL_PATTERN.matches(channel) || body.isEmpty()) return
+        send(requireNotNull(activeSocket.value) { "Chat is disconnected" }, "PRIVMSG #$channel :$body")
     }
 
     suspend fun sendRawCommand(command: String) {
-        if (isAnonymous) return
+        if (credentials.value?.anonymous != false) return
         val safeCommand = stripIrcFraming(command)
         if (safeCommand.isEmpty()) return
-        session?.send(Frame.Text(safeCommand))
-        Napier.v("Sent raw IRC command: ${safeCommand.substringBefore(' ')}", tag = TAG)
+        send(requireNotNull(activeSocket.value) { "Chat is disconnected" }, safeCommand)
     }
 
-    private fun isIrcFramingChar(c: Char): Boolean =
-        c == '\r' || c == '\n' || c == '\u0000'
+    private suspend fun send(socket: IrcSocket, command: String) {
+        try {
+            socket.send(command)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            reconnectRequests.trySend(Unit)
+            throw e
+        }
+    }
 
-    private fun stripIrcFraming(value: String): String =
-        if (value.none(::isIrcFramingChar)) value else value.filterNot(::isIrcFramingChar)
+    private fun stripIrcFraming(value: String): String = value.filterNot { it == '\r' || it == '\n' || it == '\u0000' }
+
+    fun reconnect() {
+        reconnectRequests.trySend(Unit)
+    }
 
     fun reconnectIfFailed() {
-        if (_connectionState.value !is ConnectionState.Error || currentUsername.isEmpty()) return
-        reconnectAttempts = 0
-        reconnectJob?.cancel()
-        connectionJob?.cancel()
-        connectionJob = scope.launch { connectInternal() }
+        if (_connectionState.value !is ConnectionState.Connected) reconnect()
     }
 
     suspend fun disconnect() {
-        reconnectJob?.cancelAndJoin()
-        connectionJob?.cancelAndJoin()
-        pingJob?.cancelAndJoin()
-        session?.close()
-        session = null
-        joinedChannels.clear()
-        _connectionState.value = ConnectionState.Disconnected
-        Napier.d("Disconnected", tag = TAG)
-    }
-
-    private fun startPingJob() {
-        pingJob?.cancel()
-        pingJob = scope.launch {
-            while (isActive && session != null) {
-                delay(PING_INTERVAL - Random.nextLong(0, maxJitter))
-                try {
-                    session?.send(Frame.Text("PING :tmi.twitch.tv"))
-                } catch (e: Exception) {
-                    Napier.e("Failed to send ping: ${e.message}", e, tag = TAG)
-                    break
-                }
-            }
+        val version = lifecycleVersion.incrementAndGet()
+        lifecycleMutex.withLock {
+            if (version != lifecycleVersion.value) return@withLock
+            credentials.value = null
+            connectionJob?.cancelAndJoin()
+            connectionJob = null
+            synchronized(channelLock) { joinedChannels.clear(); confirmedChannels.clear(); priorityChannel = null }
+            _connectionState.value = ConnectionState.Disconnected
         }
     }
 
-    private fun handleReconnect() {
-        if (reconnectAttempts >= maxReconnectAttempts) {
-            Napier.e("Max reconnect attempts reached", tag = TAG)
-            _connectionState.value = ConnectionState.Error("Max reconnect attempts reached")
-            return
-        }
-
-        reconnectJob?.cancel()
-        reconnectJob = scope.launch {
-            reconnectAttempts++
-            val delay = baseReconnectDelay * (1L shl (reconnectAttempts - 1)) + Random.nextLong(
-                0,
-                maxJitter
-            )
-            Napier.d(
-                "Reconnecting in ${delay}ms (attempt $reconnectAttempts/$maxReconnectAttempts)",
-                tag = TAG
-            )
-            delay(delay)
-
-            if (currentUsername.isNotEmpty()) {
-                connectInternal()
-            }
-        }
+    private companion object {
+        const val TAG = "TwitchIrcClient"
+        val CHANNEL_PATTERN = Regex("^[a-z0-9_]{1,25}$")
+        val sharedJoinRateLimiter = IrcJoinRateLimiter()
     }
 }
+
+private class IrcAuthenticationException : Exception()
+private class IrcServerReconnectException : Exception()
+private class IrcConnectionClosedException : Exception()
+
+private class IrcResponseTimeoutException : Exception()

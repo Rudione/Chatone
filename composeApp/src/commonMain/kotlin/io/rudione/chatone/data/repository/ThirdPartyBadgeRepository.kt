@@ -6,9 +6,15 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.rudione.chatone.util.link.OutboundUrlPolicy
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlin.time.Clock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -37,9 +43,18 @@ class ThirdPartyBadgeRepository(private val httpClient: HttpClient) {
     private val _bttvByUserId = MutableStateFlow<Map<String, ThirdPartyBadge>>(emptyMap())
     val bttvByUserId: StateFlow<Map<String, ThirdPartyBadge>> = _bttvByUserId
 
+    private val loadLock = Mutex()
+    private var refreshAfterMs = 0L
+
     suspend fun loadAll() = withContext(Dispatchers.Default) {
-        loadFfz()
-        loadBttv()
+        loadLock.withLock {
+            if (Clock.System.now().toEpochMilliseconds() < refreshAfterMs) return@withLock
+            coroutineScope {
+                launch { loadFfz() }
+                launch { loadBttv() }
+            }
+            refreshAfterMs = Clock.System.now().toEpochMilliseconds() + 5 * 60_000L
+        }
     }
 
     private suspend fun loadFfz() {
@@ -69,6 +84,8 @@ class ThirdPartyBadgeRepository(private val httpClient: HttpClient) {
             }
             _ffzByLogin.value = byLogin
             Napier.d("FFZ badges loaded: ${badgesById.size} badges, ${byLogin.size} users", tag = TAG)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.w("FFZ badges load failed: ${e.message}", tag = TAG)
         }
@@ -92,6 +109,8 @@ class ThirdPartyBadgeRepository(private val httpClient: HttpClient) {
             }
             _bttvByUserId.value = byUserId
             Napier.d("BTTV badges loaded: ${byUserId.size} users", tag = TAG)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.w("BTTV badges load failed: ${e.message}", tag = TAG)
         }

@@ -80,6 +80,8 @@ import io.rudione.chatone.presentation.components.ChatoneSecretField
 import io.rudione.chatone.presentation.components.ChatoneSwitch
 import io.rudione.chatone.presentation.components.ChatoneTextField
 import org.koin.compose.koinInject
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
 fun AccountsSettingsSectionCompact(
@@ -291,10 +293,10 @@ private fun AccountRowCompact(
 
 @Composable
 private fun QuickRowButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
     onClick: () -> Unit,
-    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface
+    tint: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Row(
         modifier = Modifier

@@ -4,8 +4,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.net.ConnectivityManager
-import android.net.Network
 import android.os.Build
 import android.os.IBinder
 import io.github.aakira.napier.Napier
@@ -18,7 +16,6 @@ class ChatBackgroundService : Service() {
 
     private val chatRepository: ChatRepository by inject()
     private val preferences: NotificationPreferencesRepository by inject()
-    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -32,23 +29,8 @@ class ChatBackgroundService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        watchNetwork()
         chatRepository.reconnectIfFailed()
         return START_NOT_STICKY
-    }
-
-    override fun onDestroy() {
-        networkCallback?.let { callback ->
-            runCatching {
-                getSystemService(
-                    ConnectivityManager::class.java
-                )?.unregisterNetworkCallback(
-                    callback
-                )
-            }
-        }
-        networkCallback = null
-        super.onDestroy()
     }
 
     private fun enterForeground(): Boolean = runCatching {
@@ -68,19 +50,6 @@ class ChatBackgroundService : Service() {
             "Background connection could not start: ${it.message}", tag = TAG
         )
     }.isSuccess
-
-    private fun watchNetwork() {
-        if (networkCallback != null) return
-        val manager = getSystemService(ConnectivityManager::class.java) ?: return
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                chatRepository.reconnectIfFailed()
-            }
-        }
-        runCatching { manager.registerDefaultNetworkCallback(callback) }.onSuccess {
-            networkCallback = callback
-        }.onFailure { Napier.w("Network callback unavailable: ${it.message}", tag = TAG) }
-    }
 
     private fun turnOffIntent(): PendingIntent = PendingIntent.getService(
         this,

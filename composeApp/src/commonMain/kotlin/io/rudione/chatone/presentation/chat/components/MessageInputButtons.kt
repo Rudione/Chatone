@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.chat.components
 
+import chatone.composeapp.generated.resources.upload_link_actions
+import io.rudione.chatone.presentation.components.onSecondaryClick
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
@@ -195,7 +197,7 @@ internal fun MessageInputUploadButton(upload: MessageInputUploadState, size: Dp)
                     )
                 }
             }
-            UploadView.Link -> UploadedLinkButton(link = upload.link.orEmpty(), size = size, onCopy = upload.onCopyLink)
+            UploadView.Link -> UploadedLinkButton(link = upload.link.orEmpty(), size = size, onCopy = upload.onCopyLink, onInsert = upload.onInsertLink)
             UploadView.Idle -> Box(modifier = Modifier.size(size))
         }
     }
@@ -204,7 +206,7 @@ internal fun MessageInputUploadButton(upload: MessageInputUploadState, size: Dp)
 private enum class UploadView { Progress, Link, Idle }
 
 @Composable
-private fun UploadedLinkButton(link: String, size: Dp, onCopy: () -> Unit) {
+private fun UploadedLinkButton(link: String, size: Dp, onCopy: () -> Unit, onInsert: () -> Unit) {
     var justCopied by remember(link) { mutableStateOf(false) }
     LaunchedEffect(justCopied) {
         if (justCopied) {
@@ -213,13 +215,14 @@ private fun UploadedLinkButton(link: String, size: Dp, onCopy: () -> Unit) {
         }
     }
     val label = stringResource(if (justCopied) Res.string.uploader_link_copied else Res.string.uploader_copy_link)
-    LiquidGlassTooltipBox(tooltip = label) {
+    LiquidGlassTooltipBox(tooltip = if (justCopied) label else stringResource(Res.string.upload_link_actions)) {
         TactileIconButton(
             onClick = {
                 justCopied = true
                 onCopy()
             },
             size = size,
+            modifier = Modifier.onSecondaryClick(onInsert),
             colors = TactileIconButtonDefaults.colors(
                 content = MaterialTheme.colorScheme.primary,
                 hoveredContent = MaterialTheme.colorScheme.primary
@@ -250,11 +253,9 @@ internal fun MessageInputLimits(
     maxChars: Int,
     isNearLimit: Boolean,
     isOverLimit: Boolean,
-    slowmodeRemainingSeconds: Int,
-    slowmodeColor: Color,
     modifier: Modifier = Modifier
 ) {
-    if (!isNearLimit && !isOverLimit && slowmodeRemainingSeconds <= 0) return
+    if (!isNearLimit && !isOverLimit) return
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         if (isNearLimit || isOverLimit) {
             Text(
@@ -262,14 +263,6 @@ internal fun MessageInputLimits(
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                 color = if (isOverLimit) LimitErrorColor else LimitWarnColor,
                 fontWeight = if (isOverLimit) FontWeight.SemiBold else FontWeight.Medium
-            )
-        }
-        if (slowmodeRemainingSeconds > 0) {
-            Text(
-                text = formatSlowmodeRemaining(slowmodeRemainingSeconds),
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                color = slowmodeColor,
-                fontWeight = FontWeight.Medium
             )
         }
     }

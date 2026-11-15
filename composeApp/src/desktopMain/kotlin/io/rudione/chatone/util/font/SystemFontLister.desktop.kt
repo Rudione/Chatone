@@ -5,6 +5,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import java.awt.GraphicsEnvironment
 import java.io.File
+import androidx.compose.ui.text.platform.Font as ComposeFont
+import java.awt.Font
+import java.lang.reflect.Field
 
 data class AvailableFont(
     val name: String,
@@ -36,7 +39,7 @@ fun listAvailableFonts(customPaths: List<String> = emptyList()): List<AvailableF
         if (!seen.add(familyName)) return@forEach
 
         runCatching {
-            val awtFont = java.awt.Font(familyName, java.awt.Font.PLAIN, 12)
+            val awtFont = Font(familyName, Font.PLAIN, 12)
             val resolvedFamily = awtFont.family
             if (resolvedFamily.equals("Dialog", ignoreCase = true) ||
                 resolvedFamily.equals("DialogInput", ignoreCase = true) ||
@@ -46,14 +49,14 @@ fun listAvailableFonts(customPaths: List<String> = emptyList()): List<AvailableF
             ) return@runCatching
 
             val fontFile = runCatching {
-                val awtF = java.awt.Font(familyName, java.awt.Font.PLAIN, 12)
+                val awtF = Font(familyName, Font.PLAIN, 12)
                 val font2DMethod = awtF.javaClass.getMethod("getFont2D")
                 val font2D = font2DMethod.invoke(awtF)
                 val fileNameField = runCatching {
                     font2D.javaClass.getField("platName")
                 }.getOrNull() ?: run {
                     var cls: Class<*>? = font2D.javaClass
-                    var f: java.lang.reflect.Field? = null
+                    var f: Field? = null
                     while (cls != null && f == null) {
                         f = runCatching { cls!!.getDeclaredField("platName") }.getOrNull()
                         cls = cls.superclass
@@ -67,7 +70,7 @@ fun listAvailableFonts(customPaths: List<String> = emptyList()): List<AvailableF
 
             val ff = runCatching {
                 FontFamily(
-                    androidx.compose.ui.text.platform.Font(
+                    ComposeFont(
                         fontFile,
                         weight = FontWeight.Normal,
                         style = FontStyle.Normal
@@ -88,7 +91,7 @@ fun listAvailableFonts(customPaths: List<String> = emptyList()): List<AvailableF
                     result += AvailableFont(
                         name = fontName,
                         fontFamily = FontFamily(
-                            androidx.compose.ui.text.platform.Font(
+                            ComposeFont(
                                 file.absolutePath,
                                 weight = FontWeight.Normal,
                                 style = FontStyle.Normal

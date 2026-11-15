@@ -33,6 +33,9 @@ import java.security.PublicKey
 import java.security.Signature
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
+import java.awt.Desktop
+import java.net.URI
+import kotlin.system.exitProcess
 
 object AutoUpdater {
 
@@ -76,21 +79,27 @@ object AutoUpdater {
     private val _stage = MutableStateFlow<Stage>(Stage.Idle)
     val stage: StateFlow<Stage> = _stage.asStateFlow()
 
-    private val _available = MutableStateFlow<Available?>(null)
-    val available: StateFlow<Available?> = _available.asStateFlow()
+    private val prompt = UpdatePrompt()
+    val available: StateFlow<Available?> = prompt.available
+    val dialogVisible: StateFlow<Boolean> = prompt.visible
 
     data class Available(val release: GitHubRelease, val version: String, val notes: String)
 
     fun currentVersion(): String = CURRENT_VERSION
 
     fun dismiss() {
-        _available.value = null
-        _stage.value = Stage.Idle
+        prompt.dismiss()
+    }
+
+    fun showAvailable() {
+        prompt.reopen()
     }
 
     fun skipVersion(version: String) {
         settings.putString(KEY_SKIPPED_VERSION, version)
         dismiss()
+        prompt.clear()
+        _stage.value = Stage.Idle
     }
 
     suspend fun checkForUpdates(respectSkipped: Boolean = true): UpdateResult =
@@ -114,7 +123,7 @@ object AutoUpdater {
 
                 Napier.i("Update available: $CURRENT_VERSION -> $latestVersion", tag = "AutoUpdater")
                 val entry = Available(release, latestVersion, release.body.trim())
-                _available.value = entry
+                prompt.offer(entry)
                 UpdateResult.Available(release, latestVersion)
             } catch (e: Exception) {
                 Napier.e("Failed to check for updates: ${e.message}", e, tag = "AutoUpdater")
@@ -204,7 +213,7 @@ object AutoUpdater {
 
     internal fun isTrustedDownloadUrl(url: String): Boolean {
         if (!url.startsWith("https://", ignoreCase = true)) return false
-        val host = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase() ?: return false
+        val host = runCatching { URI(url).host }.getOrNull()?.lowercase() ?: return false
         return host in TRUSTED_DOWNLOAD_HOSTS
     }
 
@@ -348,12 +357,12 @@ object AutoUpdater {
         runCatching { ProcessBuilder(command).start() }
             .onFailure { e ->
                 Napier.e("Installer launch failed: ${e.message}", e, tag = "AutoUpdater")
-                runCatching { java.awt.Desktop.getDesktop().open(file) }
+                runCatching { Desktop.getDesktop().open(file) }
             }
         runCatching { writeBlock?.close() }
 
         Runtime.getRuntime().addShutdownHook(Thread { runCatching { file.parentFile?.deleteOnExit() } })
-        kotlin.system.exitProcess(0)
+        exitProcess(0)
     }
 }
 

@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 
 class AccountSwitchCoordinator(
     private val accountManager: AccountManager,
@@ -80,7 +81,7 @@ class AccountSwitchCoordinator(
 
                 ircClient.connect(username = account.login, oauthToken = account.accessToken)
 
-                _lastSwitchedAt.value = kotlin.time.Clock.System.now().toEpochMilliseconds()
+                _lastSwitchedAt.value = Clock.System.now().toEpochMilliseconds()
                 Napier.d("Switched to ${account.login}", tag = TAG)
                 onComplete(true)
             } catch (e: Exception) {

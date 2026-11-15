@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.browse_entry_subtitle
 import chatone.composeapp.generated.resources.browse_entry_title
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,23 +53,31 @@ import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.X
 
 @Composable
-internal fun BrowseEntryItem(onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun BrowseEntryItem(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
+) {
+    val iconSize by animateDpAsState(if (compact) 22.dp else 32.dp, tween(180), label = "browseIcon")
+    val verticalPadding by animateDpAsState(if (compact) 5.dp else 9.dp, tween(180), label = "browsePadding")
     val interaction = remember { MutableInteractionSource() }
     val primary = MaterialTheme.colorScheme.primary
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .padding(horizontal = 6.dp, vertical = 4.dp)
             .pressScale(interaction)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 5.dp, bottomEnd = 14.dp, bottomStart = 5.dp))
             .background(primary.copy(alpha = 0.10f))
-            .border(1.dp, primary.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+            .border(1.dp, primary.copy(alpha = 0.18f), RoundedCornerShape(topStart = 14.dp, topEnd = 5.dp, bottomEnd = 14.dp, bottomStart = 5.dp))
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 9.dp),
+            .animateContentSize(tween(180))
+            .padding(horizontal = 10.dp, vertical = verticalPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(32.dp).clip(CircleShape)
+            modifier = Modifier.size(iconSize).clip(CircleShape)
                 .background(primary.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center
         ) {
@@ -82,13 +96,15 @@ internal fun BrowseEntryItem(onClick: () -> Unit, modifier: Modifier = Modifier)
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                stringResource(Res.string.browse_entry_subtitle),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            AnimatedVisibility(visible = !compact) {
+                Text(
+                    stringResource(Res.string.browse_entry_subtitle),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         Icon(
             Lucide.ChevronRight,

@@ -3,6 +3,8 @@ package io.rudione.chatone.util.system
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import io.rudione.chatone.data.repository.StreamerModeController
+import io.rudione.chatone.di.GlobalDi
 
 enum class NotificationTopic { GENERAL, LIVE, MENTION }
 
@@ -50,7 +52,7 @@ fun notifySystem(
     target: NotificationTarget? = null
 ) {
     val streamerMode =
-        io.rudione.chatone.di.GlobalDi.tryGet<io.rudione.chatone.data.repository.StreamerModeController>()
+        GlobalDi.tryGet<StreamerModeController>()
     if (streamerMode != null && streamerMode.enabled && streamerMode.options.suppressNotifications) return
     showSystemNotification(title, body, topic, target)
 }

@@ -74,6 +74,7 @@ import io.rudione.chatone.presentation.components.expressive.PillButton
 import io.rudione.chatone.presentation.components.expressive.PillTone
 import io.rudione.chatone.util.platform.setText
 import kotlinx.coroutines.launch
+import io.rudione.chatone.domain.model.SevenTvCosmetics
 
 private val SevenTvColor = Color(0xFF29D8F6)
 private const val TOKEN_COMMAND = "(()=>{copy(localStorage.getItem('7tv-token'));return 'ok'})()"
@@ -266,8 +267,8 @@ private fun Inventory(
         if (vanity.paints.isNotEmpty()) {
             SubTitle(stringResource(Res.string.profile_editor_seven_tv_paint))
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 PaintChip(
                     null,
@@ -287,8 +288,8 @@ private fun Inventory(
         if (vanity.badges.isNotEmpty()) {
             SubTitle(stringResource(Res.string.profile_editor_seven_tv_badge))
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 NoneTile(draft.sevenTvBadgeId == null) { onBadge(null) }
                 vanity.badges.forEach { badge ->
@@ -296,7 +297,7 @@ private fun Inventory(
                         AsyncImage(
                             model = badge.url3x.ifEmpty { badge.url2x },
                             contentDescription = badge.name,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -307,7 +308,7 @@ private fun Inventory(
 
 @Composable
 private fun PaintChip(
-    paint: io.rudione.chatone.domain.model.SevenTvCosmetics.Paint?,
+    paint: SevenTvCosmetics.Paint?,
     displayName: String,
     label: String,
     selected: Boolean,

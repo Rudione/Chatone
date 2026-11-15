@@ -67,6 +67,7 @@ import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Megaphone
 import io.rudione.chatone.icons.lucide.Shield
 import io.rudione.chatone.icons.lucide.X
+import io.rudione.chatone.domain.model.ChatNoticeUser
 
 @Composable
 internal fun SystemMsgItem(message: DisplayMessage.SystemMsg) {
@@ -90,7 +91,18 @@ internal fun SystemMsgItem(message: DisplayMessage.SystemMsg) {
 }
 
 @Composable
-internal fun UserNoticeMsgItem(message: DisplayMessage.UserNoticeMsg) {
+internal fun UserNoticeMsgItem(
+    message: DisplayMessage.UserNoticeMsg,
+    chatFontSizeSp: Float = 15f,
+    onOpenUser: (ChatNoticeUser) -> Unit = {},
+    onUserVisible: (String) -> Unit = {}
+) {
+    val summary = message.compactNoticeData()
+    if (summary != null) {
+        CompactChatNotice(summary, chatFontSizeSp, onOpenUser, onUserVisible, message.details?.gifts?.recipients.orEmpty())
+        message.innerMessage?.let { PrivMsgItem(it, chatFontSizeSp = chatFontSizeSp) }
+        return
+    }
     val isAnnouncement = message.noticeType.equals("announcement", ignoreCase = true)
     val themePrimary = MaterialTheme.colorScheme.primary
     val accent = if (isAnnouncement) announceAccentColor(
@@ -115,12 +127,7 @@ internal fun UserNoticeMsgItem(message: DisplayMessage.UserNoticeMsg) {
             NoticeHeader(icon = Lucide.Megaphone, text = stringResource(Res.string.timeline_announcement), color = accent)
         }
         if (message.systemText.isNotBlank()) {
-            Text(
-                message.systemText,
-                style = MaterialTheme.typography.bodySmall,
-                color = accent,
-                fontWeight = FontWeight.SemiBold
-            )
+            ChatNoticeText(message.systemText, message.details?.author, accent, onOpenUser)
         }
         message.innerMessage?.let {
             if (isAnnouncement || message.systemText.isNotBlank()) Spacer(modifier = Modifier.height(2.dp))

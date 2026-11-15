@@ -28,6 +28,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import io.rudione.chatone.util.media.LinkImageResolver
 
 internal fun formatTimestamp(
     timestamp: Long,
@@ -85,7 +86,7 @@ internal fun computeEmoteDisplaySize(
 }
 
 internal fun isImageUrl(url: String): Boolean {
-    if (io.rudione.chatone.util.media.LinkImageResolver.hasResolver(url)) return true
+    if (LinkImageResolver.hasResolver(url)) return true
     val lower = url.lowercase()
     return lower.contains("imgur.com/") && !lower.contains("/a/") && !lower.contains("/gallery/")
 }

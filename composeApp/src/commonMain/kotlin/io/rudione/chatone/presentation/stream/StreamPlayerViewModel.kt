@@ -39,7 +39,8 @@ class StreamPlayerViewModel(
     private val preferencesRepository: StreamPlayerPreferencesRepository,
     private val engineFactory: StreamPlaybackEngineFactory,
     private val watchActivity: WatchActivitySink = WatchActivitySink.None,
-    private val nowMs: () -> Long = { Clock.System.now().toEpochMilliseconds() }
+    private val nowMs: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    private val localWatchActivity: WatchActivitySink = WatchActivitySink.None
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -81,9 +82,12 @@ class StreamPlayerViewModel(
 
     init {
         viewModelScope.launch {
-            _state.map { it.channelLogin to it.isPlaybackActive }
+            _state.map { Triple(it.channelLogin, it.isPlaybackActive, it.phase == StreamPhase.PLAYING) }
                 .distinctUntilChanged()
-                .collect { (login, playing) -> watchActivity.onPlayback(login, playing) }
+                .collect { (login, active, playing) ->
+                    watchActivity.onPlayback(login, active)
+                    localWatchActivity.onPlayback(login, playing)
+                }
         }
     }
 
@@ -712,6 +716,7 @@ class StreamPlayerViewModel(
 
     override fun onCleared() {
         watchActivity.onPlayback(null, playing = false)
+        localWatchActivity.onPlayback(null, playing = false)
         cancelSession()
         releaseEngine()
         super.onCleared()

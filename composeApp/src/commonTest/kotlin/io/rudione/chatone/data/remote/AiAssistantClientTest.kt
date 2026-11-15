@@ -13,9 +13,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import io.rudione.chatone.domain.ai.AiDataConsent
 
 class AiAssistantClientTest {
 
+    private val consent = object : AiDataConsent {
+        override fun isGranted(endpoint: String) = true
+        override suspend fun authorize(endpoint: String) = true
+    }
     private val json = headersOf(HttpHeaders.ContentType, "application/json")
     private val requestedModels = mutableListOf<String>()
     private val messages = listOf(AiChatMessage(AiChatMessage.USER, "hi"))
@@ -27,7 +32,7 @@ class AiAssistantClientTest {
             requestedModels += model
             val (status, text) = answer(model)
             respond(text, status, json)
-        }))
+        }), consent)
 
     private fun reply(text: String) = HttpStatusCode.OK to """{"choices":[{"message":{"content":"$text"}}]}"""
 
@@ -70,7 +75,7 @@ class AiAssistantClientTest {
 
     @Test
     fun unreachableServerIsANetworkFailure() = runTest {
-        val ai = AiAssistantClient(HttpClient(MockEngine { error("connection refused") }))
+        val ai = AiAssistantClient(HttpClient(MockEngine { error("connection refused") }), consent)
 
         val result = ai.complete(AiProviders.LOCAL_BASE_URL, "llama3.2", messages)
 

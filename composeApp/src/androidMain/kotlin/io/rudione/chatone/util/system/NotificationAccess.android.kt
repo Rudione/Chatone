@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.koin.mp.KoinPlatform
 
 actual object NotificationAccess {
+    actual val keepsChatInBackground: Boolean = true
 
     private val _granted = MutableStateFlow(true)
     actual val granted: StateFlow<Boolean> = _granted.asStateFlow()

@@ -50,6 +50,7 @@ import io.rudione.chatone.presentation.stream.StreamPlayerEvent
 import io.rudione.chatone.presentation.stream.StreamPlayerHost
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
+import kotlin.math.abs
 
 private val ChatScaleOptions = listOf(0.7f, 0.85f, 1f, 1.2f, 1.4f)
 private val ChatWidthOptions = listOf(0.22f, 0.26f, 0.3f, 0.36f, 0.42f)
@@ -69,7 +70,7 @@ internal fun TvChatSettings(
     TvSettingsList {
         if (host != null) {
             item(key = "scale") {
-                val current = ChatScaleOptions.minBy { kotlin.math.abs(it - scale) }
+                val current = ChatScaleOptions.minBy { abs(it - scale) }
                 TvCycleRow(
                     title = stringResource(Res.string.tv_settings_chat_size),
                     value = "${(current * 100).toInt()}%",
@@ -79,7 +80,7 @@ internal fun TvChatSettings(
                 )
             }
             item(key = "width") {
-                val current = ChatWidthOptions.minBy { kotlin.math.abs(it - width) }
+                val current = ChatWidthOptions.minBy { abs(it - width) }
                 TvCycleRow(
                     title = stringResource(Res.string.tv_settings_chat_width),
                     value = "${(current * 100).toInt()}%",
@@ -90,7 +91,7 @@ internal fun TvChatSettings(
             }
             item(key = "overlayBackground") {
                 val opacity = preferences?.overlayOpacity ?: StreamPlayerPreferences.DEFAULT_OVERLAY_OPACITY
-                val current = OverlayOpacityOptions.minBy { kotlin.math.abs(it - opacity) }
+                val current = OverlayOpacityOptions.minBy { abs(it - opacity) }
                 TvCycleRow(
                     title = stringResource(Res.string.player_chat_background),
                     value = percent(current),
@@ -101,7 +102,7 @@ internal fun TvChatSettings(
             }
             item(key = "overlayIdle") {
                 val opacity = preferences?.overlayIdleOpacity ?: StreamPlayerPreferences.DEFAULT_OVERLAY_IDLE_OPACITY
-                val current = OverlayIdleOptions.minBy { kotlin.math.abs(it - opacity) }
+                val current = OverlayIdleOptions.minBy { abs(it - opacity) }
                 TvCycleRow(
                     title = stringResource(Res.string.tv_settings_overlay_idle),
                     value = percent(current),
@@ -113,7 +114,7 @@ internal fun TvChatSettings(
             }
             item(key = "overlayDelay") {
                 val seconds = preferences?.overlayHideDelaySeconds ?: StreamPlayerPreferences.DEFAULT_OVERLAY_HIDE_DELAY_SECONDS
-                val current = OverlayDelayOptions.minBy { kotlin.math.abs(it - seconds) }
+                val current = OverlayDelayOptions.minBy { abs(it - seconds) }
                 TvCycleRow(
                     title = stringResource(Res.string.tv_settings_overlay_hide_delay),
                     value = stringResource(Res.string.player_overlay_seconds, current),

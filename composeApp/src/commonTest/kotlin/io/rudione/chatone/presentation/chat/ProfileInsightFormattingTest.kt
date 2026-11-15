@@ -1,17 +1,9 @@
 package io.rudione.chatone.presentation.chat
 
-import io.rudione.chatone.presentation.chat.roles.groupDigits
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ProfileInsightFormattingTest {
-
-    @Test
-    fun followerCountsAreGrouped() {
-        assertEquals("77,816", groupDigits(77_816, ","))
-        assertEquals("1 234 567", groupDigits(1_234_567, " "))
-        assertEquals("999", groupDigits(999, ","))
-    }
 
     @Test
     fun ageUsesTheLargestWholeUnit() {

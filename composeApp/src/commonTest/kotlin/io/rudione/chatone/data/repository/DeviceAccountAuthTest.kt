@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import io.rudione.chatone.data.remote.DeviceCodeResult
 
 class DeviceAccountAuthTest {
 
@@ -42,7 +43,7 @@ class DeviceAccountAuthTest {
 
         val issued = withContext(Dispatchers.Default) { auth.requestAccountCode() }
 
-        assertEquals("own-client", assertIs<io.rudione.chatone.data.remote.DeviceCodeResult.Issued>(issued).info.clientId)
+        assertEquals("own-client", assertIs<DeviceCodeResult.Issued>(issued).info.clientId)
         assertEquals("chat:read user:read:follows", seen.single()["scopes"])
     }
 

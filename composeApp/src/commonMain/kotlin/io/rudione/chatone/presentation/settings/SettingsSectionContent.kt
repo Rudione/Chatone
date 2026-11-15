@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.settings
 
+import io.rudione.chatone.util.platform.currentFormFactor
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,14 +58,14 @@ internal fun SettingsSectionContent(
             SettingsSection.MODERATION -> ModerationContent(state, onEvent)
             SettingsSection.AI -> SettingsPair(first = { AiAssistantConfigCard() }, second = { AiAutoModCard() })
             SettingsSection.ACCOUNT -> AccountContent(viewModel)
-            SettingsSection.ABOUT -> SettingsPair(first = { BackupCard(viewModel) }, second = { AboutCard() })
+            SettingsSection.ABOUT -> SettingsPair(first = { AboutCard() }, second = { BackupCard(viewModel) })
         }
     }
 }
 
 @Composable
 private fun NotificationContent(state: SettingsState, viewModel: SettingsViewModel) {
-    if (isPhoneFormFactor) MentionAlertsCard()
+    if (currentFormFactor().isHandheld) MentionAlertsCard()
     SettingsPair(
         first = { NotificationGroupCard(state, viewModel) },
         second = if (state.mentionSoundEnabled) {

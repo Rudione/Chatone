@@ -10,12 +10,15 @@ import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import java.util.Base64
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 actual fun buildSettingsXlsx(backup: SettingsBackup): String {
-    val baos = java.io.ByteArrayOutputStream()
-    java.util.zip.ZipOutputStream(baos).use { zip ->
+    val baos = ByteArrayOutputStream()
+    ZipOutputStream(baos).use { zip ->
         fun entry(name: String, content: String) {
-            zip.putNextEntry(java.util.zip.ZipEntry(name))
+            zip.putNextEntry(ZipEntry(name))
             zip.write(content.toByteArray(Charsets.UTF_8))
             zip.closeEntry()
         }

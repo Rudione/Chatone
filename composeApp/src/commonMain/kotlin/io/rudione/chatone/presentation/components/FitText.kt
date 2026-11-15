@@ -36,7 +36,8 @@ fun FitText(
     fontWeight: FontWeight? = null,
     textAlign: TextAlign = TextAlign.Unspecified,
     maxLines: Int = 1,
-    minFontSize: TextUnit = DefaultMinFitSize
+    minFontSize: TextUnit = DefaultMinFitSize,
+    marquee: Boolean = true
 ) {
     val resolved = style.merge(
         color = color.takeOrElse { style.color.takeOrElse { LocalContentColor.current } },
@@ -45,7 +46,7 @@ fun FitText(
     )
     val maxSize = resolved.fontSize.takeIf { it.isSpecified } ?: 14.sp
     val floor = if (minFontSize.isSpecified && minFontSize.value < maxSize.value) minFontSize else maxSize
-    var scrolls by remember(text, maxLines) { mutableStateOf(false) }
+    var scrolls by remember(text, maxLines, marquee) { mutableStateOf(false) }
     if (scrolls) {
         BasicText(
             text = text,
@@ -68,7 +69,7 @@ fun FitText(
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
             autoSize = TextAutoSize.StepBased(minFontSize = floor, maxFontSize = maxSize, stepSize = FitStep),
-            onTextLayout = { layout -> if (maxLines == 1 && layout.hasVisualOverflow) scrolls = true }
+            onTextLayout = { layout -> if (marquee && maxLines == 1 && layout.hasVisualOverflow) scrolls = true }
         )
     }
 }

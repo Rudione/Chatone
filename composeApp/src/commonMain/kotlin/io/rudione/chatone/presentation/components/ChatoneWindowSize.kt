@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.Composable
 
 enum class ChatoneWindowSize { Compact, Expanded, Large }
 
@@ -37,11 +38,11 @@ class DockHost {
         private set
     var channelLogin by mutableStateOf<String?>(null)
         private set
-    var content by mutableStateOf<(@androidx.compose.runtime.Composable () -> Unit)?>(null)
+    var content by mutableStateOf<(@Composable () -> Unit)?>(null)
         private set
     var torn by mutableStateOf(DockPanel.None)
         private set
-    var tornContent by mutableStateOf<(@androidx.compose.runtime.Composable () -> Unit)?>(null)
+    var tornContent by mutableStateOf<(@Composable () -> Unit)?>(null)
         private set
 
     fun tearOut() {
@@ -57,7 +58,7 @@ class DockHost {
         tornContent = null
     }
 
-    fun openWith(target: DockPanel, body: @androidx.compose.runtime.Composable () -> Unit) {
+    fun openWith(target: DockPanel, body: @Composable () -> Unit) {
         panel = target
         content = body
     }

@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.main
 
+import io.rudione.chatone.presentation.components.LocalSidebarExpanded
+import io.rudione.chatone.presentation.components.LocalStreamerPrivacy
 import io.rudione.chatone.presentation.text.resolve
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.main_expand_mini_rail
@@ -110,6 +112,13 @@ import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.presentation.components.DockState
 import io.rudione.chatone.icons.lucide.ChevronRight
 import io.rudione.chatone.icons.lucide.Lucide
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import io.rudione.chatone.presentation.legal.AiConsentHost
+import io.rudione.chatone.presentation.legal.ContentReportHost
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,6 +127,23 @@ fun MainScreen(
     onThemeChanged: (Boolean) -> Unit,
     viewModel: MainViewModel = koinViewModel()
 ) {
+    val state by viewModel.state.collectAsState()
+    CompositionLocalProvider(LocalSidebarExpanded provides state.sidebarExpanded) {
+        Box(Modifier.fillMaxSize()) {
+            MainScreenContent(onNavigateToAuth, onThemeChanged, viewModel)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainScreenContent(
+    onNavigateToAuth: () -> Unit,
+    onThemeChanged: (Boolean) -> Unit,
+    viewModel: MainViewModel
+) {
+    AiConsentHost()
+    ContentReportHost()
     val state by viewModel.state.collectAsState()
     val settingsViewModel: SettingsViewModel = koinViewModel()
     val settingsState by settingsViewModel.state.collectAsState()
@@ -141,7 +167,8 @@ fun MainScreen(
         host = streamHost,
         channelLogin = streamChannel,
         landscapeWindow = windowContainer.width > windowContainer.height,
-        onNavigateBack = returnToBrowse
+        onNavigateBack = returnToBrowse,
+        artworkForChannel = { login -> state.openChannels.firstOrNull { it.login.equals(login, true) }?.profileImageUrl }
     )
     val floatingPlayer = streamUi?.floating
     val streamChannelPanel: @Composable (String, Modifier) -> Unit = { login, panelModifier ->
@@ -183,9 +210,22 @@ fun MainScreen(
     var mentionToast by remember { mutableStateOf<MentionToastData?>(null) }
     var mentionToastVisible by remember { mutableStateOf(false) }
     var mentionToastSeq by remember { mutableLongStateOf(0L) }
+    val streamerPrivacy = LocalStreamerPrivacy.current
+    val currentStreamerPrivacy by rememberUpdatedState(streamerPrivacy)
+    LaunchedEffect(streamerPrivacy.notificationsSuppressed, streamerPrivacy.privateMessagesHidden) {
+        if (streamerPrivacy.notificationsSuppressed ||
+            (streamerPrivacy.privateMessagesHidden && mentionToast?.isWhisper == true)
+        ) {
+            mentionToastVisible = false
+            mentionToast = null
+        }
+    }
     val showMentionToast: (MentionToastData) -> Unit = { toast ->
-        mentionToast = toast
-        mentionToastVisible = true
+        val privacy = currentStreamerPrivacy
+        if (!privacy.notificationsSuppressed && !(toast.isWhisper && privacy.privateMessagesHidden)) {
+            mentionToast = toast
+            mentionToastVisible = true
+        }
     }
 
     val currentHotkeys by rememberUpdatedState(settingsState.hotkeys)
@@ -567,45 +607,45 @@ fun MainScreen(
                                         targetState = state.sidebarCollapsed,
                                         transitionSpec = {
                                             if (targetState) {
-                                                (androidx.compose.animation.slideInHorizontally(
-                                                    androidx.compose.animation.core.tween(
+                                                (slideInHorizontally(
+                                                    tween(
                                                         220
                                                     )
                                                 ) { -it } +
-                                                        androidx.compose.animation.fadeIn(
-                                                            androidx.compose.animation.core.tween(
+                                                        fadeIn(
+                                                            tween(
                                                                 180
                                                             )
                                                         )).togetherWith(
-                                                    androidx.compose.animation.slideOutHorizontally(
-                                                        androidx.compose.animation.core.tween(
+                                                    slideOutHorizontally(
+                                                        tween(
                                                             220
                                                         )
                                                     ) { -it } +
-                                                            androidx.compose.animation.fadeOut(
-                                                                androidx.compose.animation.core.tween(
+                                                            fadeOut(
+                                                                tween(
                                                                     140
                                                                 )
                                                             )
                                                 )
                                             } else {
-                                                (androidx.compose.animation.slideInHorizontally(
-                                                    androidx.compose.animation.core.tween(
+                                                (slideInHorizontally(
+                                                    tween(
                                                         220
                                                     )
                                                 ) { -it } +
-                                                        androidx.compose.animation.fadeIn(
-                                                            androidx.compose.animation.core.tween(
+                                                        fadeIn(
+                                                            tween(
                                                                 180
                                                             )
                                                         )).togetherWith(
-                                                    androidx.compose.animation.slideOutHorizontally(
-                                                        androidx.compose.animation.core.tween(
+                                                    slideOutHorizontally(
+                                                        tween(
                                                             220
                                                         )
                                                     ) { -it } +
-                                                            androidx.compose.animation.fadeOut(
-                                                                androidx.compose.animation.core.tween(
+                                                            fadeOut(
+                                                                tween(
                                                                     140
                                                                 )
                                                             )
@@ -1059,7 +1099,7 @@ fun MainScreen(
                                     modifier = Modifier
                                         .size(32.dp)
                                         .clickable(
-                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                            interactionSource = remember { MutableInteractionSource() },
                                             indication = null,
                                             onClick = {
                                                 viewModel.sendEvent(
@@ -1118,12 +1158,15 @@ fun MainScreen(
         contentAlignment = Alignment.TopCenter
     ) {
         AnimatedVisibility(
-            visible = mentionToastVisible,
+            visible = mentionToastVisible && !streamerPrivacy.notificationsSuppressed &&
+                !(streamerPrivacy.privateMessagesHidden && mentionToast?.isWhisper == true),
             enter = slideInVertically { -it } + fadeIn(tween(200)),
             exit = slideOutVertically { -it } + fadeOut(tween(150)),
             modifier = Modifier.padding(top = 56.dp)
         ) {
-            mentionToast?.let { toast ->
+            mentionToast?.takeUnless {
+                streamerPrivacy.notificationsSuppressed || (it.isWhisper && streamerPrivacy.privateMessagesHidden)
+            }?.let { toast ->
                 key(toast.id) {
                     MentionToast(
                         data = toast,
@@ -1156,7 +1199,7 @@ fun MainScreen(
                     .fillMaxSize()
                     .clickable(
                         indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
+                        interactionSource = remember { MutableInteractionSource() }) {
                         viewModel.sendEvent(
                             MainEvent.HideWhisperPanel
                         )
@@ -1177,7 +1220,7 @@ fun MainScreen(
                     .fillMaxSize()
                     .clickable(
                         indication = null,
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
+                        interactionSource = remember { MutableInteractionSource() }) {
                         viewModel.sendEvent(
                             MainEvent.HideMentionsFeed
                         )
@@ -1211,7 +1254,7 @@ fun MainScreen(
                         .fillMaxSize()
                         .clickable(
                             indication = null,
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) {
+                            interactionSource = remember { MutableInteractionSource() }) {
                             viewModel.sendEvent(MainEvent.HideChattersPanel)
                         }
                 )

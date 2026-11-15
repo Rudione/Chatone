@@ -2,6 +2,7 @@ package io.rudione.chatone.data.remote.dto
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 data class TokenResponse(
@@ -299,7 +300,8 @@ data class PollData(
     @SerialName("started_at") val startedAt: String? = null,
     @SerialName("ended_at") val endedAt: String? = null,
     val selfVoteChoiceId: String? = null,
-    val remainingMs: Long? = null
+    val remainingMs: Long? = null,
+    @Transient val receivedAtMs: Long? = null
 )
 
 @Serializable

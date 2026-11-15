@@ -964,7 +964,7 @@ private fun WordDetailContent(
             onClick = { onDelete(rule) },
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
             border = ButtonDefaults.outlinedButtonBorder.copy(
-                brush = androidx.compose.ui.graphics.SolidColor(
+                brush = SolidColor(
                     MaterialTheme.colorScheme.error
                 )
             )
@@ -1391,7 +1391,7 @@ private fun ChatRuleDetailContent(
             onClick = { onDelete(rule) },
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
             border = ButtonDefaults.outlinedButtonBorder.copy(
-                brush = androidx.compose.ui.graphics.SolidColor(
+                brush = SolidColor(
                     MaterialTheme.colorScheme.error
                 )
             )

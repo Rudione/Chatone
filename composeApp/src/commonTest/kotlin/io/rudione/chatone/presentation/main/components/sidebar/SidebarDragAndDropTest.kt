@@ -7,6 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import androidx.compose.ui.geometry.Rect
 
 class SidebarDragAndDropTest {
 
@@ -64,10 +65,10 @@ class SidebarDragAndDropTest {
     @Test
     fun dropIndexPrefersFoldersOverChannelsOverTheUnfolderedSection() {
         val index = SidebarDropIndex()
-        val channel = DropBounds { androidx.compose.ui.geometry.Rect(0f, 100f, 100f, 130f) }
-        index.putUnfoldered { androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 300f) }
+        val channel = DropBounds { Rect(0f, 100f, 100f, 130f) }
+        index.putUnfoldered { Rect(0f, 0f, 100f, 300f) }
         index.putChannel("a", null, channel)
-        index.putFolder("f") { androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 30f) }
+        index.putFolder("f") { Rect(0f, 0f, 100f, 30f) }
 
         assertEquals(SidebarDropTarget.Folder("f"), index.resolve(Offset(10f, 10f)))
         assertEquals(SidebarDropTarget.Channel("a", null), index.resolve(Offset(10f, 110f)))
@@ -80,8 +81,8 @@ class SidebarDragAndDropTest {
     @Test
     fun dropIndexKeepsTheNewerZoneWhenAnOldOneLeaves() {
         val index = SidebarDropIndex()
-        val old = DropBounds { androidx.compose.ui.geometry.Rect(0f, 0f, 100f, 30f) }
-        val moved = DropBounds { androidx.compose.ui.geometry.Rect(0f, 40f, 100f, 70f) }
+        val old = DropBounds { Rect(0f, 0f, 100f, 30f) }
+        val moved = DropBounds { Rect(0f, 40f, 100f, 70f) }
         index.putChannel("a", null, old)
         index.putChannel("a", "f", moved)
 

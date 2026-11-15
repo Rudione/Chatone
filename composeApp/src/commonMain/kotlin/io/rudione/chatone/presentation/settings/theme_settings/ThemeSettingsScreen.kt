@@ -175,6 +175,8 @@ import io.rudione.chatone.presentation.components.ChatoneActionRow
 import io.rudione.chatone.presentation.components.ChatoneButtonText
 import io.rudione.chatone.presentation.components.ChatoneLazyScrollbar
 import io.rudione.chatone.presentation.settings.SettingsState
+import androidx.compose.ui.graphics.vector.ImageVector
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -386,7 +388,7 @@ private fun BackgroundTab(
                         SuggestionChip(onClick = { onDimming(v) }, label = { Text(l, style = MaterialTheme.typography.labelSmall) },
                             modifier = Modifier.weight(1f),
                             colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = if (kotlin.math.abs(wallpaper.overlayDimming - v) < 0.06f)
+                                containerColor = if (abs(wallpaper.overlayDimming - v) < 0.06f)
                                     MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.surfaceContainerHigh
                             )
@@ -617,7 +619,7 @@ private fun ChatColorTab(
 @Composable
 private fun PanelSection(
     title: String, subtitle: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     useCustom: Boolean, onUseCustomChanged: (Boolean) -> Unit,
     colorArgb: Int?, onColorChanged: (Int) -> Unit,
     alpha: Float, onAlphaChanged: (Float) -> Unit,
@@ -1146,7 +1148,7 @@ private fun ChatColorPresets(onPick: (Int) -> Unit) {
 }
 
 @Composable
-private fun SectionCard(title: String, subtitle: String? = null, icon: androidx.compose.ui.graphics.vector.ImageVector, content: @Composable ColumnScope.() -> Unit) {
+private fun SectionCard(title: String, subtitle: String? = null, icon: ImageVector, content: @Composable ColumnScope.() -> Unit) {
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow), elevation = CardDefaults.cardElevation(1.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

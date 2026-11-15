@@ -25,6 +25,7 @@ import io.github.aakira.napier.Napier
 import io.rudione.chatone.presentation.settings.SettingsViewModel
 import io.rudione.chatone.shared.R
 import kotlin.random.Random
+import android.Manifest
 
 object AndroidNotifier {
 
@@ -72,7 +73,7 @@ object AndroidNotifier {
         if (Build.VERSION.SDK_INT < 33) return true
         return ContextCompat.checkSelfPermission(
             context,
-            android.Manifest.permission.POST_NOTIFICATIONS
+            Manifest.permission.POST_NOTIFICATIONS
         ) == PackageManager.PERMISSION_GRANTED
     }
 

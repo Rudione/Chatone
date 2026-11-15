@@ -3,6 +3,7 @@ package io.rudione.chatone.util.media
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
@@ -23,8 +24,18 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import io.ktor.http.Url
+import kotlin.math.abs
+import kotlin.math.round
+import kotlin.time.Clock
+import kotlinx.coroutines.delay
 
 private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+private sealed interface ProbedLink {
+    class Media(val preview: LinkPreview) : ProbedLink
+    class Page(val html: String) : ProbedLink
+}
 
 data class LinkPreview(
     val title: String? = null,
@@ -111,7 +122,7 @@ object LinkPreviewCache {
 
         if (!lockAcquired) {
             repeat(20) {
-                kotlinx.coroutines.delay(150)
+                delay(150)
                 cached(url)?.let { return it }
             }
         }
@@ -159,49 +170,57 @@ object LinkPreviewCache {
             }
 
             val preview = try {
-                val text = httpClient.get(url) {
+                val probed = httpClient.prepareGet(url) {
                     header(HttpHeaders.UserAgent, LinkImageResolver.BROWSER_USER_AGENT)
                     header(HttpHeaders.Accept, "text/html,*/*;q=0.8")
-                }.let { resp ->
-                    if (!resp.status.isSuccess()) return@let ""
+                }.execute { resp ->
+                    if (!resp.status.isSuccess()) return@execute ProbedLink.Page("")
                     val ct = resp.headers[HttpHeaders.ContentType] ?: ""
                     val cl = resp.headers[HttpHeaders.ContentLength]
                     val fileSizeStr = cl?.toLongOrNull()?.let { formatBytes(it) }
 
                     when {
-                        ct.startsWith("image/", ignoreCase = true) -> {
-                            val imgPreview = LinkPreview(imageUrl = url, isImage = true,
-                                mediaType = LinkPreview.MediaType.IMAGE, fileSize = fileSizeStr)
-                            withContext(NonCancellable) { put(url, imgPreview) }
-                            return imgPreview
-                        }
-                        ct.startsWith("audio/", ignoreCase = true) -> {
-                            val ext = ct.substringAfter("/").substringBefore(";").trim()
-                            val audioPreview = LinkPreview(
+                        ct.startsWith("image/", ignoreCase = true) -> ProbedLink.Media(
+                            LinkPreview(
+                                imageUrl = url,
+                                isImage = true,
+                                mediaType = LinkPreview.MediaType.IMAGE,
+                                fileSize = fileSizeStr
+                            )
+                        )
+
+                        ct.startsWith("audio/", ignoreCase = true) -> ProbedLink.Media(
+                            LinkPreview(
                                 mediaType = LinkPreview.MediaType.AUDIO,
-                                fileExtension = ext.ifBlank { null },
+                                fileExtension = ct.substringAfter("/").substringBefore(";").trim().ifBlank { null },
                                 fileSize = fileSizeStr,
                                 title = url.substringAfterLast("/").substringBefore("?")
                             )
-                            withContext(NonCancellable) { put(url, audioPreview) }
-                            return audioPreview
-                        }
-                        ct.startsWith("video/", ignoreCase = true) -> {
-                            val ext = ct.substringAfter("/").substringBefore(";").trim()
-                            val videoPreview = LinkPreview(
+                        )
+
+                        ct.startsWith("video/", ignoreCase = true) -> ProbedLink.Media(
+                            LinkPreview(
                                 mediaType = LinkPreview.MediaType.VIDEO,
-                                fileExtension = ext.ifBlank { null },
+                                fileExtension = ct.substringAfter("/").substringBefore(";").trim().ifBlank { null },
                                 fileSize = fileSizeStr,
                                 title = url.substringAfterLast("/").substringBefore("?")
                             )
-                            withContext(NonCancellable) { put(url, videoPreview) }
-                            return videoPreview
-                        }
+                        )
+
                         !ct.contains("html", ignoreCase = true) &&
                                 !ct.contains("xml", ignoreCase = true) &&
-                                ct.isNotEmpty() -> return@let ""
+                                ct.isNotEmpty() -> ProbedLink.Page("")
+
+                        else -> ProbedLink.Page(resp.bodyAsChannel().readRemaining(MAX_BODY_BYTES.toLong()).readText())
                     }
-                    resp.bodyAsChannel().readRemaining(MAX_BODY_BYTES.toLong()).readText()
+                }
+                val text = when (probed) {
+                    is ProbedLink.Media -> {
+                        withContext(NonCancellable) { put(url, probed.preview) }
+                        return probed.preview
+                    }
+
+                    is ProbedLink.Page -> probed.html
                 }
 
                 val isYouTube = url.contains("youtube.com", ignoreCase = true) || url.contains("youtu.be", ignoreCase = true)
@@ -246,7 +265,7 @@ object LinkPreviewCache {
         }
     }
 
-    private fun nowMs(): Long = kotlin.time.Clock.System.now().toEpochMilliseconds()
+    private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
     private fun isDirectImageUrl(url: String): Boolean {
         val l = url.lowercase().substringBefore("?")
@@ -276,8 +295,8 @@ object LinkPreviewCache {
     }
 
     private fun oneDecimal(value: Double): String {
-        val tenths = kotlin.math.round(value * 10).toLong()
-        return "${tenths / 10}.${kotlin.math.abs(tenths % 10)}"
+        val tenths = round(value * 10).toLong()
+        return "${tenths / 10}.${abs(tenths % 10)}"
     }
 
     private fun parseMetaTags(html: String, sourceUrl: String): LinkPreview {
@@ -378,7 +397,7 @@ object LinkPreviewCache {
     private fun resolveUrl(base: String, maybeRelative: String): String {
         if (maybeRelative.startsWith("http://") || maybeRelative.startsWith("https://")) return maybeRelative
         return try {
-            val uri = io.ktor.http.Url(base)
+            val uri = Url(base)
             if (maybeRelative.startsWith("//")) "${uri.protocol.name}:$maybeRelative"
             else if (maybeRelative.startsWith("/")) "${uri.protocol.name}://${uri.host}$maybeRelative"
             else maybeRelative

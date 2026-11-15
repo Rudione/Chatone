@@ -88,6 +88,7 @@ import io.rudione.chatone.data.repository.DeviceAuthState
 import io.rudione.chatone.data.repository.LoginFailure
 import io.rudione.chatone.data.repository.WebLoginController
 import io.rudione.chatone.presentation.components.ChatoneButtonText
+import io.rudione.chatone.presentation.components.ChatoneSecretField
 
 fun LoginFailure.messageRes(): StringResource = when (this) {
     LoginFailure.ClipboardEmpty -> Res.string.login_err_clipboard_empty
@@ -158,7 +159,9 @@ fun WebLoginPanel(
                 Icon(Icons.Filled.OpenInNew, null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (awaitingPaste) stringResource(Res.string.login_reopen_site) else stringResource(Res.string.login_open_site),
+                    text = if (awaitingPaste) stringResource(Res.string.login_reopen_site) else stringResource(
+                        Res.string.login_open_site
+                    ),
                     maxLines = 2
                 )
             }
@@ -179,11 +182,19 @@ fun WebLoginPanel(
         Text(
             text = when {
                 isPreparing && prepareAttempt > 1 ->
-                    stringResource(Res.string.login_retrying, prepareAttempt, WebLoginController.DEVICE_ATTEMPTS)
+                    stringResource(
+                        Res.string.login_retrying,
+                        prepareAttempt,
+                        WebLoginController.DEVICE_ATTEMPTS
+                    )
 
                 isPreparing -> stringResource(Res.string.login_preparing)
                 isVerifying && verifyAttempt > 1 ->
-                    stringResource(Res.string.login_retrying, verifyAttempt, WebLoginController.VERIFY_ATTEMPTS)
+                    stringResource(
+                        Res.string.login_retrying,
+                        verifyAttempt,
+                        WebLoginController.VERIFY_ATTEMPTS
+                    )
 
                 isVerifying -> stringResource(Res.string.login_verifying)
                 codeAccepted -> stringResource(Res.string.login_code_accepted)
@@ -210,7 +221,7 @@ fun WebLoginPanel(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(Modifier.height(12.dp))
-                io.rudione.chatone.presentation.components.ChatoneSecretField(
+                ChatoneSecretField(
                     value = paste.manualPayload,
                     onValueChange = paste::type,
                     modifier = Modifier.fillMaxWidth(),
@@ -248,7 +259,9 @@ fun WebLoginPanel(
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
                 Text(
-                    if (deviceState == DeviceAuthState.ConfirmingOnLoginPage) stringResource(Res.string.login_rights_on_site) else stringResource(Res.string.login_awaiting_rights),
+                    if (deviceState == DeviceAuthState.ConfirmingOnLoginPage) stringResource(Res.string.login_rights_on_site) else stringResource(
+                        Res.string.login_awaiting_rights
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -331,7 +344,11 @@ private fun LoginStepRow(currentStep: Int) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.Top
     ) {
-        listOf(stringResource(Res.string.login_step_open), stringResource(Res.string.login_step_paste), stringResource(Res.string.login_step_confirm)).forEachIndexed { index, label ->
+        listOf(
+            stringResource(Res.string.login_step_open),
+            stringResource(Res.string.login_step_paste),
+            stringResource(Res.string.login_step_confirm)
+        ).forEachIndexed { index, label ->
             val step = index + 1
             LoginStepChip(
                 index = step,
@@ -345,7 +362,13 @@ private fun LoginStepRow(currentStep: Int) {
 }
 
 @Composable
-private fun LoginStepChip(index: Int, label: String, active: Boolean, done: Boolean, modifier: Modifier = Modifier) {
+private fun LoginStepChip(
+    index: Int,
+    label: String,
+    active: Boolean,
+    done: Boolean,
+    modifier: Modifier = Modifier
+) {
     val container by animateColorAsState(
         if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
         else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
@@ -413,7 +436,10 @@ private fun DeviceAuthStatus(deviceState: DeviceAuthState) {
             stringResource(Res.string.login_verifying) to MaterialTheme.colorScheme.tertiary
 
         is DeviceAuthState.Success ->
-            stringResource(Res.string.login_mod_linked, deviceState.displayName) to MaterialTheme.colorScheme.primary
+            stringResource(
+                Res.string.login_mod_linked,
+                deviceState.displayName
+            ) to MaterialTheme.colorScheme.primary
 
         is DeviceAuthState.Error ->
             stringResource(Res.string.login_mod_failed) to MaterialTheme.colorScheme.onSurfaceVariant

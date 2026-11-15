@@ -1,6 +1,7 @@
 package io.rudione.chatone.domain.media
 
 import androidx.compose.runtime.Immutable
+import kotlin.math.abs
 
 @Immutable
 data class MediaPerson(val id: String, val login: String, val displayName: String, val avatarUrl: String)
@@ -178,7 +179,7 @@ object ClipTrim {
         positionSeconds.coerceIn(range.start, range.endInclusive)
 
     fun needsWindowUpdate(windowSeconds: Float, mediaSeconds: Float): Boolean =
-        mediaSeconds >= MIN_SECONDS && kotlin.math.abs(windowSeconds - mediaSeconds) > DURATION_TOLERANCE_SECONDS
+        mediaSeconds >= MIN_SECONDS && abs(windowSeconds - mediaSeconds) > DURATION_TOLERANCE_SECONDS
 }
 
 interface MediaModeration {

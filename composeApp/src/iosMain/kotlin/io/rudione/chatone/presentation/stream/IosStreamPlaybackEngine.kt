@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.stream
 
+import platform.AVFoundation.allowsExternalPlayback
+import platform.AVFoundation.usesExternalPlaybackWhileExternalScreenIsActive
 import platform.AVFoundation.resourceLoader
 import platform.AVFoundation.preferredForwardBufferDuration
 import platform.AVFoundation.configuredTimeOffsetFromLive
@@ -27,6 +29,9 @@ import io.rudione.chatone.domain.stream.StreamPlaybackEngine
 import io.rudione.chatone.domain.stream.StreamPlaybackEngineFactory
 import io.rudione.chatone.domain.stream.StreamQualitySelection
 import io.rudione.chatone.domain.stream.StreamVariant
+import io.rudione.chatone.presentation.stream.lowlatency.LowLatencyPlayerProvider
+import io.rudione.chatone.presentation.stream.lowlatency.LowLatencyStreamPlaybackEngine
+import io.rudione.chatone.presentation.stream.lowlatency.StreamPlaylistGateway
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +73,7 @@ import platform.CoreMedia.CMTimeMakeWithSeconds
 import platform.CoreMedia.CMTimeRangeGetEnd
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
+import platform.Foundation.NSURL
 import platform.Foundation.NSURLErrorDomain
 import platform.Foundation.NSValue
 import platform.Foundation.timeIntervalSince1970
@@ -79,13 +85,25 @@ import kotlin.time.Clock
 
 internal class IosStreamPlaybackEngineFactory(
     private val adBreakSource: StreamAdBreakSource,
-    private val audioSession: IosPlaybackAudioSession
+    private val audioSession: IosPlaybackAudioSession,
+    private val lowLatencyPlayers: LowLatencyPlayerProvider?,
+    private val playlistGateway: StreamPlaylistGateway
 ) : StreamPlaybackEngineFactory {
     override val isSupported: Boolean = true
 
     override val supportedCodecs: String = SUPPORTED_CODECS
 
-    override fun create(): StreamPlaybackEngine = IosStreamPlaybackEngine(adBreakSource, SUPPORTED_CODECS, audioSession)
+    override fun create(): StreamPlaybackEngine = IosRoutingPlaybackEngine(
+        localFactory = {
+            lowLatencyPlayers?.let { players ->
+                LowLatencyStreamPlaybackEngine(
+                    player = players.createPlayer(), gateway = playlistGateway, adBreakSource = adBreakSource,
+                    supportedCodecs = SUPPORTED_CODECS, audioSession = audioSession
+                )
+            } ?: IosStreamPlaybackEngine(adBreakSource, SUPPORTED_CODECS, audioSession)
+        },
+        externalFactory = { IosStreamPlaybackEngine(adBreakSource, SUPPORTED_CODECS, audioSession, externalPlayback = true) }
+    )
 
     private companion object {
         const val SUPPORTED_CODECS = "h264"
@@ -96,7 +114,8 @@ internal class IosStreamPlaybackEngineFactory(
 internal class IosStreamPlaybackEngine(
     private val adBreakSource: StreamAdBreakSource,
     private val supportedCodecs: String,
-    private val audioSession: IosPlaybackAudioSession
+    private val audioSession: IosPlaybackAudioSession,
+    private val externalPlayback: Boolean = false
 ) : StreamPlaybackEngine {
 
     val player: AVPlayer = AVPlayer()
@@ -116,6 +135,7 @@ internal class IosStreamPlaybackEngine(
     private var released = false
     private var endObserver: NSObjectProtocol? = null
     private var remoteControls: IosRemoteControls? = null
+    private var audioSessionHeld = false
     private val frameSampler = VideoFrameSampler()
     private val rateControl = IosLiveRateControl()
     private var wasPlaying = false
@@ -131,8 +151,20 @@ internal class IosStreamPlaybackEngine(
         this.lowLatency = lowLatency
         ended = false
         mediaHttpStatus = 0
-        audioSession.activate()
+        if (!audioSessionHeld) { audioSession.activate(); audioSessionHeld = true }
         loader?.close()
+        if (externalPlayback) {
+            val direct = sourceVariant()?.url ?: manifest.videoVariants.firstOrNull()?.url ?: return
+            val url = NSURL.URLWithString(direct) ?: return
+            player.allowsExternalPlayback = true
+            player.usesExternalPlaybackWhileExternalScreenIsActive = true
+            player.replaceCurrentItemWithPlayerItem(AVPlayerItem.playerItemWithURL(url))
+            wantsPlay = true
+            player.play()
+            ensurePolling()
+            publish()
+            return
+        }
         val filter = TwitchAdBreakFilter(manifest, supportedCodecs, adBreakSource)
         val startLatencyMs = targetLatencyMs()
         if (lowLatency) rateControl.enable(CATCH_UP_TARGET_MS) else rateControl.disable()
@@ -186,6 +218,7 @@ internal class IosStreamPlaybackEngine(
             pausedAtMs = pausedAtMs ?: nowMs()
             player.pause()
         }
+        remoteControls?.setPlaying(playing)
         publish()
     }
 
@@ -219,6 +252,7 @@ internal class IosStreamPlaybackEngine(
             onPause = { setPlaying(false) }
         ).also { remoteControls = it }
         controls.show(info)
+        controls.setPlaying(wantsPlay)
     }
 
     override fun metrics(): PlaybackMetrics? {
@@ -258,7 +292,8 @@ internal class IosStreamPlaybackEngine(
         loader?.close()
         loader = null
         manifest = null
-        audioSession.deactivate()
+        if (audioSessionHeld) audioSession.deactivate()
+        audioSessionHeld = false
         _status.value = PlaybackStatus()
     }
 

@@ -2,6 +2,7 @@ package io.rudione.chatone.presentation.settings.search
 
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.abs
 
 class SearchField(raw: String, val weight: Float) {
     val normalized: String = SearchText.normalize(raw)
@@ -220,7 +221,7 @@ object SearchText {
 
     fun distance(a: String, b: String, limit: Int): Int {
         if (a == b) return 0
-        if (kotlin.math.abs(a.length - b.length) > limit) return limit + 1
+        if (abs(a.length - b.length) > limit) return limit + 1
         val rows = a.length + 1
         val cols = b.length + 1
         val grid = Array(rows) { IntArray(cols) }

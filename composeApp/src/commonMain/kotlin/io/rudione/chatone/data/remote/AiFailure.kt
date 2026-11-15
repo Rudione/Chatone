@@ -6,8 +6,10 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import io.rudione.chatone.domain.ai.AiDataRedactor
 
 enum class AiFailureKind(val retryable: Boolean) {
+    CONSENT_REQUIRED(false),
     OVERLOADED(true),
     RATE_LIMITED(true),
     SERVER(true),
@@ -62,7 +64,7 @@ internal object AiErrorParser {
             is JsonPrimitive -> error.contentOrNull
             else -> null
         }
-        return message?.trim()?.takeIf { it.isNotEmpty() }?.take(MAX_DETAIL_LENGTH)
+        return message?.trim()?.takeIf { it.isNotEmpty() }?.let(AiDataRedactor::redact)?.take(MAX_DETAIL_LENGTH)
     }
 
     private fun JsonElement?.text(): String? = (this as? JsonPrimitive)?.contentOrNull

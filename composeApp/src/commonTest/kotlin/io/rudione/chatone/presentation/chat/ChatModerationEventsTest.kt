@@ -96,4 +96,23 @@ class ChatModerationEventsTest {
         assertEquals(live.text, merged.text)
         assertEquals(merged, ChatModerationEvents.enrich(merged, timeout))
     }
+    @Test
+    fun localAndServerUnbansMatchByIdOrCanonicalLogin() {
+        val local = timeout.copy(action = ModerationAction.UNBAN, duration = null, serverTimestamp = null, targetUserId = "42")
+        val server = local.copy(id = "server", timestamp = local.timestamp + 400, targetUser = "Alice", moderatorLogin = "mod")
+        assertTrue(ChatModerationEvents.isSameEvent(local, server))
+        assertEquals("mod", ChatModerationEvents.enrich(local, server).moderatorLogin)
+        assertFalse(ChatModerationEvents.isSameEvent(local, server.copy(targetUserId = "43")))
+        assertFalse(ChatModerationEvents.isSameEvent(local, server.copy(timestamp = local.timestamp + 20_000)))
+    }
+
+    @Test
+    fun canonicalLoginReplacesAnIdRegardlessOfWhichConfirmationArrivesFirst() {
+        val numeric = timeout.copy(action = ModerationAction.UNBAN, targetUser = "444785648", targetUserId = "444785648")
+        val named = numeric.copy(id = "named", targetUser = "alienlovepeople")
+        assertTrue(ChatModerationEvents.isSameEvent(numeric, named))
+        assertEquals("alienlovepeople", ChatModerationEvents.enrich(numeric, named).targetUser)
+        assertEquals("alienlovepeople", ChatModerationEvents.enrich(named, numeric).targetUser)
+    }
+
 }

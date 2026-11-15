@@ -3,8 +3,11 @@ package io.rudione.chatone.data.remote
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.webSocket
+import io.rudione.chatone.util.network.NetworkMonitor
+import io.rudione.chatone.util.network.recoverSocket
+import kotlinx.atomicfu.atomic
+import kotlin.time.Clock
 import io.ktor.websocket.Frame
-import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.rudione.chatone.domain.model.IrcEvent
 import io.rudione.chatone.util.Result
@@ -27,12 +30,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
-import kotlin.time.TimeSource
 
 class TwitchAutoModSocket(
     private val httpClient: HttpClient,
     private val apiClient: TwitchApiClient,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val networkMonitor: NetworkMonitor = NetworkMonitor(scope)
 ) {
     private val json = Json { ignoreUnknownKeys = true }
     private val _events = MutableSharedFlow<IrcEvent>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -62,31 +65,24 @@ class TwitchAutoModSocket(
 
     fun disconnect() {
         job?.cancel()
-        job = null
         token = ""
         moderatorId = ""
         wanted.value = emptySet()
     }
 
     private fun start() {
-        job?.cancel()
+        val previous = job
+        previous?.cancel()
         job = scope.launch {
+            previous?.join()
             forgetSubscriptions()
             var url = DEFAULT_URL
-            var backoffMs = INITIAL_BACKOFF_MS
-            while (isActive && token.isNotEmpty()) {
+            networkMonitor.recoverSocket(onFailure = { Napier.w("AutoMod connection interrupted: ${it::class.simpleName}", tag = TAG) }) {
                 if (url == DEFAULT_URL) wanted.first { it.isNotEmpty() }
-                val resumed = url != DEFAULT_URL
-                val next = runSession(url, resumed)
-                if (next != null) {
-                    url = next
-                    backoffMs = INITIAL_BACKOFF_MS
-                } else {
-                    url = DEFAULT_URL
-                    forgetSubscriptions()
-                    delay(backoffMs)
-                    backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
-                }
+                val connectingUrl = url
+                url = DEFAULT_URL
+                val next = runSession(connectingUrl, connectingUrl != DEFAULT_URL)
+                if (next != null) url = next else forgetSubscriptions()
             }
         }
     }
@@ -97,29 +93,28 @@ class TwitchAutoModSocket(
         var reconnectUrl: String? = null
         try {
             httpClient.webSocket(url) {
-                var lastFrame = TimeSource.Monotonic.markNow()
-                var keepaliveSeconds = DEFAULT_KEEPALIVE_SECONDS
+                val lastFrame = atomic(Clock.System.now().toEpochMilliseconds())
+                val keepaliveSeconds = atomic(DEFAULT_KEEPALIVE_SECONDS)
                 val watchdog = launch {
                     while (isActive) {
                         delay(WATCHDOG_TICK_MS)
-                        if (lastFrame.elapsedNow().inWholeSeconds > keepaliveSeconds + KEEPALIVE_GRACE_SECONDS) {
+                        if (Clock.System.now().toEpochMilliseconds() - lastFrame.value > (keepaliveSeconds.value + KEEPALIVE_GRACE_SECONDS) * 1_000) {
                             Napier.w("AutoMod EventSub went silent, reconnecting", tag = TAG)
-                            close()
-                            return@launch
+                            throw AutoModHeartbeatTimeout()
                         }
                     }
                 }
                 var subscriber: Job? = null
                 for (frame in incoming) {
                     if (frame !is Frame.Text) continue
-                    lastFrame = TimeSource.Monotonic.markNow()
+                    lastFrame.value = Clock.System.now().toEpochMilliseconds()
                     val root = runCatching { json.parseToJsonElement(frame.readText()).jsonObject }.getOrNull() ?: continue
                     val metadata = root["metadata"] as? JsonObject ?: continue
                     val payload = root["payload"] as? JsonObject
                     when (metadata.text("message_type")) {
                         "session_welcome" -> {
                             val session = payload?.get("session") as? JsonObject
-                            keepaliveSeconds = (session?.get("keepalive_timeout_seconds") as? JsonPrimitive)
+                            keepaliveSeconds.value = (session?.get("keepalive_timeout_seconds") as? JsonPrimitive)
                                 ?.contentOrNull?.toLongOrNull() ?: DEFAULT_KEEPALIVE_SECONDS
                             val sessionId = session?.text("id") ?: continue
                             if (!resumed) forgetSubscriptions()
@@ -177,7 +172,7 @@ class TwitchAutoModSocket(
         const val DEFAULT_KEEPALIVE_SECONDS = 30L
         const val KEEPALIVE_GRACE_SECONDS = 10L
         const val WATCHDOG_TICK_MS = 5_000L
-        const val INITIAL_BACKOFF_MS = 2_000L
-        const val MAX_BACKOFF_MS = 60_000L
     }
 }
+
+private class AutoModHeartbeatTimeout : Exception()

@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.chat
 
+import chatone.composeapp.generated.resources.report_content
+import io.rudione.chatone.presentation.legal.ContentReport
+import io.rudione.chatone.presentation.legal.ContentReports
+import io.rudione.chatone.presentation.legal.ReportTarget
+import io.rudione.chatone.icons.material.outlined.Flag
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.block_user
 import chatone.composeapp.generated.resources.cancel
@@ -111,6 +116,8 @@ import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.icons.lucide.TriangleAlert
 import io.rudione.chatone.icons.lucide.UserPen
 import io.rudione.chatone.icons.lucide.UserX
+import io.rudione.chatone.icons.material.Icons
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -232,7 +239,7 @@ internal fun UsercardTab(
             Spacer(Modifier.height(6.dp))
 
             val nicknameRepository: NicknameRepository =
-                org.koin.compose.koinInject()
+                koinInject()
             var nicknameText by remember(userId) {
                 mutableStateOf(nicknameRepository.getNickname(userId) ?: "")
             }
@@ -506,6 +513,12 @@ internal fun UsercardTab(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            ModIconChip(
+                icon = Icons.Outlined.Flag,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                contentDescription = stringResource(Res.string.report_content),
+                onClick = { ContentReports.open(ContentReport(ReportTarget.USER, username, channelLogin)) }
+            )
             ModIconChip(
                 icon = Lucide.MessageCircle,
                 tint = MaterialTheme.colorScheme.primary,
@@ -782,7 +795,7 @@ internal fun MiniActionButton(
                 color = color,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

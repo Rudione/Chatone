@@ -26,9 +26,15 @@ internal object ChatHistoryEvents {
         }
 
         is DisplayMessage.UserNoticeMsg -> existing.any {
-            it is DisplayMessage.UserNoticeMsg && it.systemText == candidate.systemText &&
+            if (it !is DisplayMessage.UserNoticeMsg) false
+            else {
+                val firstIds = candidate.details?.gifts?.eventIds.orEmpty()
+                val otherIds = it.details?.gifts?.eventIds.orEmpty()
+                if (firstIds.isNotEmpty() && otherIds.isNotEmpty()) firstIds.any(otherIds::contains)
+                else it.systemText == candidate.systemText &&
                     it.innerMessage?.rawMessage?.message == candidate.innerMessage?.rawMessage?.message &&
                     abs(it.timestamp - candidate.timestamp) <= DUPLICATE_WINDOW_MS
+            }
         }
 
         else -> false
@@ -80,6 +86,7 @@ internal object ChatHistoryEvents {
             action = if (isTimeout) DisplayMessage.ModerationMsg.ModerationAction.TIMEOUT
             else DisplayMessage.ModerationMsg.ModerationAction.BAN,
             targetUser = target,
+            targetUserId = event.tags["target-user-id"],
             duration = event.banDuration,
             serverTimestamp = event.tags["tmi-sent-ts"]?.toLongOrNull()
         )
@@ -122,7 +129,8 @@ internal object ChatHistoryEvents {
             systemText = event.systemMsg,
             innerMessage = inner,
             noticeType = event.msgId ?: "",
-            announceColor = event.tags["msg-param-color"]?.takeIf { it.isNotBlank() }
+            announceColor = event.tags["msg-param-color"]?.takeIf { it.isNotBlank() },
+            details = ChatNoticeParser.parse(event, timestamp)
         )
     }
 }

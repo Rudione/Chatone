@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings
 
+import io.rudione.chatone.icons.lucide.Activity
 import androidx.compose.runtime.Composable
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.StringResource
@@ -93,7 +94,10 @@ internal fun SettingsDestination.moderationTab(): ModerationTab? = when (this) {
     is SettingsDestination.EditMacro -> ModerationTab.MACROS
 }
 
-internal fun SettingsSection.isAvailable(input: InputCapabilities, desktop: Boolean = isDesktopPlatform): Boolean = when (this) {
+internal fun SettingsSection.isAvailable(
+    input: InputCapabilities,
+    desktop: Boolean = isDesktopPlatform
+): Boolean = when (this) {
     SettingsSection.HOTKEYS -> input.hardwareKeyboard
     SettingsSection.SCREEN_CHAT -> desktop
     else -> true
@@ -107,9 +111,10 @@ internal suspend fun settingsSectionsMatching(
         phone = false
     )
 ): List<SettingsSection> {
-    if (query.isBlank()) return SettingsSection.entries.toList()
+    val available = SettingsSection.entries.filter { it.isAvailable(context.input, context.desktop) }
+    if (query.isBlank()) return available
     val hits = searchSettings(query, buildSettingsCatalog(context)).map { it.entry.section }.toSet()
-    return SettingsSection.entries.filter { section ->
+    return available.filter { section ->
         section in hits || section.labelMatches(query, getString(section.labelRes()))
     }
 }

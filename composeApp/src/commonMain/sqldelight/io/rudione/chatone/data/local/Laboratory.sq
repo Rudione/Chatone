@@ -1,0 +1,66 @@
+CREATE TABLE WatchDayEntity (
+    date TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    durationMs INTEGER NOT NULL,
+    sessions INTEGER NOT NULL,
+    lastWatchedAtMs INTEGER NOT NULL,
+    PRIMARY KEY (date, channel)
+);
+
+CREATE TABLE UploadHistoryEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    payload TEXT NOT NULL,
+    uploadedAtMs INTEGER NOT NULL
+);
+
+CREATE INDEX upload_history_time ON UploadHistoryEntity(uploadedAtMs);
+
+CREATE TABLE UploaderPresetEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    payload TEXT NOT NULL
+);
+
+selectWatchDays:
+SELECT * FROM WatchDayEntity ORDER BY date DESC, channel;
+
+saveWatchDay:
+INSERT OR REPLACE INTO WatchDayEntity(date, channel, durationMs, sessions, lastWatchedAtMs)
+VALUES (?, ?, ?, ?, ?);
+
+pruneWatchDays:
+DELETE FROM WatchDayEntity WHERE date < ?;
+
+limitWatchDays:
+DELETE FROM WatchDayEntity WHERE rowid NOT IN (
+    SELECT rowid FROM WatchDayEntity ORDER BY date DESC, lastWatchedAtMs DESC LIMIT ?
+);
+
+clearWatchDays:
+DELETE FROM WatchDayEntity;
+
+selectUploads:
+SELECT * FROM UploadHistoryEntity ORDER BY uploadedAtMs DESC LIMIT ?;
+
+saveUpload:
+INSERT INTO UploadHistoryEntity(id, payload, uploadedAtMs) VALUES (?, ?, ?);
+
+pruneUploads:
+DELETE FROM UploadHistoryEntity WHERE uploadedAtMs <= ? OR uploadedAtMs > ?;
+
+limitUploads:
+DELETE FROM UploadHistoryEntity WHERE id NOT IN (
+    SELECT id FROM UploadHistoryEntity ORDER BY uploadedAtMs DESC LIMIT ?
+);
+
+clearUploads:
+DELETE FROM UploadHistoryEntity;
+
+selectUploaderPresets:
+SELECT * FROM UploaderPresetEntity ORDER BY name;
+
+saveUploaderPreset:
+INSERT OR REPLACE INTO UploaderPresetEntity(id, name, payload) VALUES (?, ?, ?);
+
+removeUploaderPreset:
+DELETE FROM UploaderPresetEntity WHERE id = ?;

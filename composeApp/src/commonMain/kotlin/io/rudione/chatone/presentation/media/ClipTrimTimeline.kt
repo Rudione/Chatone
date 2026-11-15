@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import io.rudione.chatone.domain.media.ClipTrim
 import io.rudione.chatone.domain.media.ClipTrimGrip
 import kotlin.math.abs
+import androidx.compose.ui.input.key.KeyEvent
 
 private const val KEY_STEP_SECONDS = 1f
 private const val HANDLE_REACH = 1.4f
@@ -238,7 +239,7 @@ private fun ClipTrimGrip.next(): ClipTrimGrip = when (this) {
     ClipTrimGrip.BODY -> ClipTrimGrip.START
 }
 
-private fun androidx.compose.ui.input.key.KeyEvent.isConfirmKey(): Boolean =
+private fun KeyEvent.isConfirmKey(): Boolean =
     key == Key.DirectionCenter || key == Key.Enter || key == Key.NumPadEnter
 
 private fun DrawScope.drawTicks(color: Color, step: Float) {

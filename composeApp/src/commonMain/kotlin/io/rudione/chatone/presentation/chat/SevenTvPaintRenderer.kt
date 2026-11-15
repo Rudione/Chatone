@@ -4,6 +4,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.InlineTextContent
@@ -36,6 +37,8 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.input.pointer.isSecondaryPressed
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -63,6 +66,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import io.rudione.chatone.util.concurrent.SingleFlightCache
 
 fun sevenTvColor(rgba: Int): Color {
     val a = rgba and 0xFF
@@ -160,7 +164,8 @@ fun registerPaintedNick(
     isAction: Boolean,
     userColor: Color = Color.Unspecified,
     onClick: () -> Unit,
-    onRightClick: () -> Unit
+    onRightClick: () -> Unit,
+    onTouchLongPress: (() -> Unit)? = null
 ) {
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
@@ -193,9 +198,12 @@ fun registerPaintedNick(
         val fallback = remember(userColor) { SolidColor(userColor.takeOrElse { Color.White }) }
         val click by rememberUpdatedState(onClick)
         val rightClick by rememberUpdatedState(onRightClick)
+        val touchLongPress by rememberUpdatedState(onTouchLongPress)
+        val nickMention = rememberNicknameMentionFeedback { rightClick() }
         Spacer(
             Modifier
                 .fillMaxSize()
+                .then(nickMention.decoration)
                 .drawBehind {
                     drawText(
                         textLayoutResult = nickLayout,
@@ -211,7 +219,17 @@ fun registerPaintedNick(
                             rightClick()
                             return@awaitEachGesture
                         }
-                        val up = waitForUpOrCancellation() ?: return@awaitEachGesture
+                        val up = if (down.type != PointerType.Mouse) {
+                            val held = awaitLongPressOrCancellation(down.id)
+                            if (held != null) {
+                                held.consume()
+                                val heldAction = touchLongPress
+                                if (heldAction != null) heldAction() else nickMention.mention(name, held.position)
+                                return@awaitEachGesture
+                            }
+                            currentEvent.changes.firstOrNull { it.id == down.id && it.changedToUp() }
+                        } else waitForUpOrCancellation()
+                        if (up == null) return@awaitEachGesture
                         up.consume()
                         click()
                     }
@@ -273,24 +291,16 @@ private fun SevenTvCosmetics.Paint.renderableImageUrl(): String {
     return if (isImagePaint || (stops.size < 2 && color == null)) imageUrl else ""
 }
 
-private val paintImageCache = mutableMapOf<String, ImageBitmap?>()
+private val paintImages = SingleFlightCache<ImageBitmap>(PAINT_IMAGE_CACHE_LIMIT)
 
 @Composable
 private fun rememberPaintImage(url: String): ImageBitmap? {
     if (url.isBlank()) return null
     val httpClient: HttpClient = koinInject()
-    var bitmap by remember(url) { mutableStateOf(paintImageCache[url]) }
+    var bitmap by remember(url) { mutableStateOf(paintImages.peek(url)) }
     LaunchedEffect(url) {
-        if (paintImageCache.containsKey(url)) {
-            bitmap = paintImageCache[url]
-            return@LaunchedEffect
-        }
-        val decoded = runCatching {
-            decodeImageBitmap(httpClient.get(url).readRawBytes())
-        }.getOrNull()
-        paintImageCache[url] = decoded
-        if (paintImageCache.size > PAINT_IMAGE_CACHE_LIMIT) paintImageCache.remove(paintImageCache.keys.first())
-        bitmap = decoded
+        if (bitmap != null) return@LaunchedEffect
+        bitmap = paintImages.load(url) { decodeImageBitmap(httpClient.get(url).readRawBytes()) }
     }
     return bitmap
 }

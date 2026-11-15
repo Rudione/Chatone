@@ -28,7 +28,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.DisableSelection
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -60,6 +60,7 @@ import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.data.remote.ArchivedChatLine
 import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.presentation.theme.ChatoneTheme
+import io.rudione.chatone.util.system.isDesktopPlatform
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
@@ -74,7 +75,8 @@ internal fun PastMessageLine(
     text: String,
     timeText: String,
     isDeleted: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val separatorColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
@@ -93,6 +95,13 @@ internal fun PastMessageLine(
     }
     Row(
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
+            .then(
+                if (onLongPress != null) Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongPress,
+                    hapticFeedbackEnabled = false
+                ) else Modifier
+            )
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f))
             .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.Top
@@ -185,7 +194,7 @@ private fun ArchiveLineList(archive: UserLogArchiveState, displayName: String, n
             .collect { first -> if (first <= 1) archive.loadOlder() }
     }
 
-    SelectionContainer {
+    ProfileHistorySelection {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -245,13 +254,16 @@ private fun ArchiveDayHeader(label: String) {
 internal fun ArchiveLineRow(line: ArchivedChatLine, displayName: String, nameColor: Color) {
     val time = remember(line.timestampMs) { formatMessageTime(line.timestampMs) }
     when (line.kind) {
-        ArchivedChatLine.Kind.MESSAGE -> PastMessageLine(
-            displayName = displayName,
-            nameColor = nameColor,
-            text = line.text,
-            timeText = time,
-            isDeleted = line.isDeleted
-        )
+        ArchivedChatLine.Kind.MESSAGE -> ProfileMessageCopy(line.text) { copy ->
+            PastMessageLine(
+                displayName = displayName,
+                nameColor = nameColor,
+                text = line.text,
+                timeText = time,
+                isDeleted = line.isDeleted,
+                onLongPress = copy.takeUnless { isDesktopPlatform }
+            )
+        }
 
         ArchivedChatLine.Kind.TIMEOUT, ArchivedChatLine.Kind.BAN -> {
             val isBan = line.kind == ArchivedChatLine.Kind.BAN

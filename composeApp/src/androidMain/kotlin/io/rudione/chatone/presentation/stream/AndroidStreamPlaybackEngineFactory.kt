@@ -1,6 +1,7 @@
 package io.rudione.chatone.presentation.stream
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Build
@@ -28,6 +29,7 @@ internal class AndroidStreamPlaybackEngineFactory(
 
     private var cachedClient: Pair<AccountProxyConfig?, OkHttpClient>? = null
     private val capacityMemory = NetworkCapacityMemory()
+    private val detachedVideoLayer by lazy(::needsDetachedVideoLayer)
 
     @UnstableApi
     override fun create(): StreamPlaybackEngine =
@@ -37,13 +39,22 @@ internal class AndroidStreamPlaybackEngineFactory(
             adBreakSource = adBreakSource,
             supportedCodecs = supportedCodecs,
             capacityMemory = capacityMemory,
-            sessions = sessions
+            sessions = sessions,
+            detachedVideoLayer = detachedVideoLayer
         )
 
     private fun clientFor(proxy: AccountProxyConfig?): OkHttpClient {
         cachedClient?.takeIf { it.first == proxy }?.let { return it.second }
         return buildMediaOkHttpClient(proxy).also { cachedClient = proxy to it }
     }
+
+    private fun needsDetachedVideoLayer(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK) &&
+            runCatching { VideoCodecQuirks.anyReopensOnSurfaceChange(decoderNames()) }.getOrDefault(false)
+
+    private fun decoderNames(): List<String> =
+        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filterNot { it.isEncoder }.map { it.name }
 
     private fun detectCodecs(): String {
         val hardwareHevc = runCatching { hasHardwareDecoder(MimeTypes.VIDEO_H265) }.getOrDefault(false)

@@ -39,6 +39,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onLayoutRectChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,6 +49,9 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import io.rudione.chatone.util.system.WindowsTitleBar
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import java.awt.Rectangle
 
 private val TITLE_BAR_HEIGHT = 24.dp
 
@@ -68,8 +73,10 @@ fun FrameWindowScope.ChatoneTitleBar(
 
     val nativeCaption = isWindowsOs
     var captionHeightPx by remember { mutableStateOf(0) }
-    var maximizeRect by remember { mutableStateOf<java.awt.Rectangle?>(null) }
-    var buttonsRect by remember { mutableStateOf<java.awt.Rectangle?>(null) }
+    var maximizeRect by remember { mutableStateOf<Rectangle?>(null) }
+    var buttonsRect by remember { mutableStateOf<Rectangle?>(null) }
+    var buttonsWidthPx by remember { mutableStateOf(0) }
+    val buttonsWidth = with(LocalDensity.current) { buttonsWidthPx.toDp() }
     var nativeMaximizeHovered by remember { mutableStateOf(false) }
 
     val toggleMaximizeLatest by rememberUpdatedState(onToggleMaximize)
@@ -105,7 +112,7 @@ fun FrameWindowScope.ChatoneTitleBar(
     ) {
         val titleRow: @Composable () -> Unit = {
             Row(
-                modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(start = 8.dp),
+                modifier = Modifier.fillMaxWidth().fillMaxHeight().padding(start = 8.dp, end = buttonsWidth),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (icon != null) {
@@ -121,7 +128,8 @@ fun FrameWindowScope.ChatoneTitleBar(
                     color = fg,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (centerContent != null) {
                     Spacer(Modifier.width(12.dp))
@@ -160,6 +168,7 @@ fun FrameWindowScope.ChatoneTitleBar(
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
                 .padding(end = 4.dp)
+                .onSizeChanged { buttonsWidthPx = it.width }
                 .onLayoutRectChanged { bounds -> buttonsRect = bounds.boundsInWindow.toAwtRectangle() },
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -242,7 +251,7 @@ private fun CaptionButton(
                         color = glyphColor,
                         topLeft = Offset(0f, 0f),
                         size = s,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+                        style = Stroke(width = stroke)
                     )
                 }
                 CaptionKind.Restore -> {
@@ -250,14 +259,14 @@ private fun CaptionButton(
                     drawRect(
                         color = glyphColor,
                         topLeft = Offset(0f, inset),
-                        size = androidx.compose.ui.geometry.Size(s.width - inset, s.height - inset),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+                        size = Size(s.width - inset, s.height - inset),
+                        style = Stroke(width = stroke)
                     )
                     drawRect(
                         color = glyphColor,
                         topLeft = Offset(inset, 0f),
-                        size = androidx.compose.ui.geometry.Size(s.width - inset, s.height - inset),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke)
+                        size = Size(s.width - inset, s.height - inset),
+                        style = Stroke(width = stroke)
                     )
                 }
                 CaptionKind.Close -> {
@@ -281,4 +290,4 @@ private fun CaptionButton(
     }
 }
 
-private fun IntRect.toAwtRectangle(): java.awt.Rectangle = java.awt.Rectangle(left, top, width, height)
+private fun IntRect.toAwtRectangle(): Rectangle = Rectangle(left, top, width, height)

@@ -1,5 +1,6 @@
 package io.rudione.chatone.data.remote
 
+import io.rudione.chatone.domain.model.Badge
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
@@ -40,6 +41,11 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import kotlin.time.Instant
 import kotlin.random.Random
+import io.rudione.chatone.domain.model.ChatViewerRelationship
+import kotlin.time.Clock
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObjectBuilder
 
 data class PinnedChatInfo(
     val pinId: String,
@@ -52,7 +58,10 @@ data class PinnedChatInfo(
     val endsAtEpochMs: Long?,
     val pinnedAtEpochMs: Long?,
     val pinnerName: String,
-    val pinnerLogin: String
+    val pinnerLogin: String,
+    val pinnerUserId: String = "",
+    val pinnerBadges: List<Badge> = emptyList(),
+    val pinnerColor: String? = null
 )
 
 data class ModLogMessage(val id: String, val text: String, val sentAtEpochMs: Long?)
@@ -218,7 +227,7 @@ class TwitchGqlClient(
         operationName: String,
         sha256Hash: String,
         token: String,
-        buildVariables: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit
+        buildVariables: JsonObjectBuilder.() -> Unit
     ): Result<JsonArray> {
         return try {
             val body = buildJsonArray {
@@ -252,7 +261,7 @@ class TwitchGqlClient(
     }
 
     private suspend fun persistedTvBatch(
-        entries: List<Triple<String, String, kotlinx.serialization.json.JsonObject>>,
+        entries: List<Triple<String, String, JsonObject>>,
         token: String
     ): Result<JsonArray> {
         return try {
@@ -287,7 +296,7 @@ class TwitchGqlClient(
         }
     }
 
-    private fun JsonArray.dataNodeForOperation(operationName: String): kotlinx.serialization.json.JsonObject? {
+    private fun JsonArray.dataNodeForOperation(operationName: String): JsonObject? {
         forEach { el ->
             val obj = el.jsonObject
             val opName =
@@ -383,7 +392,10 @@ class TwitchGqlClient(
             endsAtEpochMs = parseIsoInstantOrNull(node["endsAt"]?.jsonPrimitive?.contentOrNull),
             pinnedAtEpochMs = parseIsoInstantOrNull(node["updatedAt"]?.jsonPrimitive?.contentOrNull),
             pinnerName = pinnerName,
-            pinnerLogin = pinnerLogin
+            pinnerLogin = pinnerLogin,
+            pinnerUserId = pinnedBy?.get("id")?.jsonPrimitive?.contentOrNull.orEmpty(),
+            pinnerBadges = pinnedChatBadges(pinnedBy),
+            pinnerColor = pinnedBy?.get("chatColor")?.jsonPrimitive?.contentOrNull
         )
     }
 
@@ -416,8 +428,8 @@ class TwitchGqlClient(
         node?.get("errors")?.let { return Result.Error(Exception(it.toString())) }
         val payload = node?.get("data")?.jsonObject?.get("createRaid")?.jsonObject
         val payloadError = payload?.get("error")
-        if (payloadError != null && payloadError !is kotlinx.serialization.json.JsonNull) {
-            val message = (payloadError as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull
+        if (payloadError != null && payloadError !is JsonNull) {
+            val message = (payloadError as? JsonPrimitive)?.contentOrNull
                 ?: payloadError.jsonObject.let { obj ->
                     obj["message"]?.jsonPrimitive?.contentOrNull
                         ?: obj["reason"]?.jsonPrimitive?.contentOrNull
@@ -453,7 +465,7 @@ class TwitchGqlClient(
         val payload = node["data"]?.jsonObject?.get(mutation.payload) as? JsonObject
             ?: return Result.Error(Exception("No ${mutation.payload} payload"))
         val error = payload["error"]
-        if (error != null && error !is kotlinx.serialization.json.JsonNull) {
+        if (error != null && error !is JsonNull) {
             val code = (error as? JsonObject)?.let { obj ->
                 obj["code"]?.jsonPrimitive?.contentOrNull ?: obj["message"]?.jsonPrimitive?.contentOrNull
             } ?: error.toString()
@@ -624,7 +636,7 @@ class TwitchGqlClient(
                     ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 id to title
             }.toMap()
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Napier.w("Reward titles request failed: ${e.message}", tag = TAG)
@@ -760,7 +772,7 @@ class TwitchGqlClient(
             ?.get("unlockRandomSubscriberEmote")?.jsonObject
             ?: return Result.Error(Exception("Failed to redeem reward"))
         val error = payload["error"]
-        if (error != null && error !is kotlinx.serialization.json.JsonNull) {
+        if (error != null && error !is JsonNull) {
             val message = error.jsonObject["code"]?.jsonPrimitive?.contentOrNull
                 ?: error.jsonObject["message"]?.jsonPrimitive?.contentOrNull
             return Result.Error(Exception(message ?: "Failed to redeem reward"))
@@ -796,7 +808,7 @@ class TwitchGqlClient(
         val payload =
             node?.get("data")?.jsonObject?.get("redeemCommunityPointsCustomReward")?.jsonObject
         val err = payload?.get("error")
-        if (err != null && err !is kotlinx.serialization.json.JsonNull) {
+        if (err != null && err !is JsonNull) {
             val msg = err.jsonObject["message"]?.jsonPrimitive?.contentOrNull
                 ?: err.jsonObject["code"]?.jsonPrimitive?.contentOrNull
             return Result.Error(Exception(msg ?: "Failed to redeem reward"))
@@ -809,7 +821,7 @@ class TwitchGqlClient(
     private suspend fun inlineQuery(
         query: String,
         token: String,
-        variables: kotlinx.serialization.json.JsonObject = buildJsonObject { }
+        variables: JsonObject = buildJsonObject { }
     ): Result<JsonArray> {
         return try {
             val body = buildJsonArray {
@@ -866,7 +878,7 @@ class TwitchGqlClient(
     private suspend fun inlineProfileQuery(
         query: String,
         token: String,
-        variables: kotlinx.serialization.json.JsonObject,
+        variables: JsonObject,
         profile: GqlClientProfile,
         integrityToken: String? = null
     ): Result<JsonArray> {
@@ -896,7 +908,7 @@ class TwitchGqlClient(
                 return Result.Error(failure)
             }
             Result.Success(json.parseToJsonElement(text).jsonArray)
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Napier.w("GQL ${profile.label} query failed: ${e.message}", tag = TAG)
@@ -971,11 +983,29 @@ class TwitchGqlClient(
             return if (r.exception is GqlIntegrityRejectedException) Result.Error(SendGifException(INTEGRITY_FAILED_CODE)) else r
         }
         val error = (r as Result.Success).data["error"]
-        if (error != null && error !is kotlinx.serialization.json.JsonNull) {
+        if (error != null && error !is JsonNull) {
             val code = error.jsonPrimitive.contentOrNull ?: "SEND_FAILED"
             return Result.Error(SendGifException(code))
         }
         return Result.Success(Unit)
+    }
+
+    suspend fun getViewerChatRelationship(channelId: String, token: String): Result<ChatViewerRelationship> {
+        if (channelId.isBlank() || token.isBlank()) return Result.Error(Exception("Missing channel or token"))
+        val query = "query ChatoneViewerChatAccess(\$channelID: ID!) { currentUser { relationship(targetUserID: \$channelID) { followedAt subscriptionBenefit { tier } } } }"
+        val result = inlineQuery(query, token, buildJsonObject { put("channelID", channelId) })
+        if (result !is Result.Success) return Result.Error(result.exceptionOrNull() ?: Exception("Viewer relationship unavailable"))
+        val node = result.data.firstDataNode()
+        node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
+        val relationship = node?.get("data")?.asObjectOrNull()
+            ?.get("currentUser")?.asObjectOrNull()?.get("relationship")?.asObjectOrNull()
+            ?: return Result.Error(Exception("No viewer relationship"))
+        val tier = relationship["subscriptionBenefit"]?.asObjectOrNull()
+            ?.get("tier")?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+        return Result.Success(ChatViewerRelationship(
+            followedAtEpochMs = parseIsoInstantOrNull(relationship["followedAt"]?.jsonPrimitive?.contentOrNull),
+            subscriptionTier = if (tier >= 1000) tier / 1000 else tier
+        ))
     }
 
     suspend fun isFollowing(channelId: String, token: String): Result<Boolean> {
@@ -1059,7 +1089,7 @@ class TwitchGqlClient(
         return lastError ?: Result.Error(GqlIntegrityRejectedException())
     }
 
-    private fun kotlinx.serialization.json.JsonObject?.isIntegrityRejection(): Boolean {
+    private fun JsonObject?.isIntegrityRejection(): Boolean {
         val errors = this?.get("errors")?.jsonArray ?: return false
         return errors.any { entry ->
             val obj = entry as? JsonObject ?: return@any false
@@ -1070,7 +1100,7 @@ class TwitchGqlClient(
     }
 
     private fun JsonArray.firstDataNode() = firstOrNull()?.jsonObject
-    private fun kotlinx.serialization.json.JsonObject.gqlErrorOrNull(): String? =
+    private fun JsonObject.gqlErrorOrNull(): String? =
         get("errors")?.let { it.toString() }
 
     private fun JsonElement.asObjectOrNull(): JsonObject? = this as? JsonObject
@@ -1301,7 +1331,8 @@ class TwitchGqlClient(
             status = poll["status"]?.jsonPrimitive?.contentOrNull.orEmpty(),
             duration = ((remainingMs ?: 0L) / 1000L).toInt(),
             selfVoteChoiceId = selfChoiceId,
-            remainingMs = remainingMs
+            remainingMs = remainingMs,
+            receivedAtMs = Clock.System.now().toEpochMilliseconds()
         )
     }
 
@@ -1377,7 +1408,7 @@ class TwitchGqlClient(
         node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
         val payload = node?.get("data")?.jsonObject?.get("voteInPoll")?.jsonObject
         val err = payload?.get("error")
-        if (err != null && err !is kotlinx.serialization.json.JsonNull) {
+        if (err != null && err !is JsonNull) {
             val code = err.jsonObject["code"]?.jsonPrimitive?.contentOrNull
             return Result.Error(Exception(code ?: "Failed to vote"))
         }
@@ -1394,7 +1425,7 @@ class TwitchGqlClient(
         node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
         val payload = node?.get("data")?.jsonObject?.get(field)?.jsonObject
         val err = payload?.get("error")
-        if (err != null && err !is kotlinx.serialization.json.JsonNull) {
+        if (err != null && err !is JsonNull) {
             val msg = err.jsonObject["message"]?.jsonPrimitive?.contentOrNull
                 ?: err.jsonObject["code"]?.jsonPrimitive?.contentOrNull
             return Result.Error(Exception(msg ?: failMsg))
@@ -1429,7 +1460,7 @@ class TwitchGqlClient(
         node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
         val payload = node?.get("data")?.jsonObject?.get("createPredictionEvent")?.jsonObject
         val err = payload?.get("error")
-        if (err != null && err !is kotlinx.serialization.json.JsonNull) {
+        if (err != null && err !is JsonNull) {
             val msg = err.jsonObject["message"]?.jsonPrimitive?.contentOrNull
                 ?: err.jsonObject["code"]?.jsonPrimitive?.contentOrNull
             return Result.Error(Exception(msg ?: "Failed to create prediction"))
@@ -1541,7 +1572,7 @@ class TwitchGqlClient(
         node?.gqlErrorOrNull()?.let { return Result.Error(Exception(it)) }
         val payload = node?.get("data")?.jsonObject?.get("makePrediction")?.jsonObject
         val err = payload?.get("error")
-        if (err != null && err !is kotlinx.serialization.json.JsonNull) {
+        if (err != null && err !is JsonNull) {
             val code = err.jsonObject["code"]?.jsonPrimitive?.contentOrNull
             return Result.Error(Exception(code ?: "Failed to place prediction"))
         }

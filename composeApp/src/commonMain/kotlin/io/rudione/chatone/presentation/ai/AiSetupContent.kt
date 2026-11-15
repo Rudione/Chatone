@@ -106,6 +106,8 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.components.ChatoneSlider
 import io.rudione.chatone.presentation.components.ChatoneIconButton
+import androidx.compose.ui.unit.Dp
+import io.rudione.chatone.presentation.components.ChatoneSecretField
 
 @Composable
 fun AiSetupContent(
@@ -381,7 +383,7 @@ private fun providerMonogram(name: String): String =
     name.substringBefore(" (").take(2).uppercase()
 
 @Composable
-private fun ProviderAvatar(name: String, size: androidx.compose.ui.unit.Dp = 32.dp) {
+private fun ProviderAvatar(name: String, size: Dp = 32.dp) {
     val accent = cloudProviderAccent(name)
     val textColor = if (accent.luminance() < 0.5f) Color.White else Color.Black
     Box(
@@ -398,7 +400,7 @@ private fun ProviderAvatar(name: String, size: androidx.compose.ui.unit.Dp = 32.
 }
 
 @Composable
-private fun LocalModelAvatar(size: androidx.compose.ui.unit.Dp = 32.dp) {
+private fun LocalModelAvatar(size: Dp = 32.dp) {
     Box(
         modifier = Modifier
             .size(size)
@@ -452,7 +454,7 @@ private fun CloudProviderRow(
         }
         if (expanded) {
             if (provider.needsKey) {
-                io.rudione.chatone.presentation.components.ChatoneSecretField(
+                ChatoneSecretField(
                     value = apiKey,
                     onValueChange = onApiKeyChange,
                     modifier = Modifier.fillMaxWidth(),

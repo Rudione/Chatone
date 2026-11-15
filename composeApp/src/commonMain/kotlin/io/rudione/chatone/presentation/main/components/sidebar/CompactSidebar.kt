@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import io.rudione.chatone.util.system.isDesktopPlatform
+import org.koin.compose.koinInject
+import io.rudione.chatone.presentation.profile.PageNavigator
+import chatone.composeapp.generated.resources.lab_title
+import io.rudione.chatone.icons.lucide.Activity
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chat_mentions_tab
 import chatone.composeapp.generated.resources.chat_whisper_tab
@@ -43,6 +48,7 @@ import io.rudione.chatone.icons.lucide.Radio
 import io.rudione.chatone.icons.lucide.Settings
 import io.rudione.chatone.icons.lucide.Shield
 import io.rudione.chatone.icons.lucide.X
+import androidx.compose.ui.text.style.TextAlign
 
 @Composable
 internal fun MonitorTabSidebarItem(
@@ -98,6 +104,7 @@ internal fun CompactSidebar(
     state: MainState,
     onEvent: (MainEvent) -> Unit
 ) {
+    val pages = koinInject<PageNavigator>()
     val extra = ChatoneTheme.extraColors
     val glowEnabled = LocalWallpaperController.current.state.glowEffectsEnabled
     val compactShape = RoundedCornerShape(ChatoneTileDefaults.radius)
@@ -215,7 +222,7 @@ internal fun CompactSidebar(
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)
                     )
                 }
@@ -327,6 +334,14 @@ internal fun CompactSidebar(
                 count = state.totalUnreadWhispers,
                 modifier = Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
             )
+        }
+        if (!isDesktopPlatform) {
+            ChatoneIconButton(
+                onClick = { onEvent(MainEvent.CloseSidebar); pages.openLaboratory() },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(Lucide.Activity, stringResource(Res.string.lab_title), Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         ChatoneIconButton(
             onClick = { onEvent(MainEvent.ShowSettings) },

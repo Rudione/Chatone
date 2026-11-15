@@ -67,6 +67,7 @@ import org.koin.compose.koinInject
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Minus
 import io.rudione.chatone.icons.lucide.Plus
+import androidx.compose.ui.graphics.TransformOrigin
 
 enum class ChatZoomCommand { ENLARGE, SHRINK, RESET }
 
@@ -140,12 +141,12 @@ fun ChatZoomIndicator(
         enter = fadeIn(tween(140)) + scaleIn(
             spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
             initialScale = 0.86f,
-            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)
+            transformOrigin = TransformOrigin(1f, 0f)
         ),
         exit = fadeOut(tween(180)) + scaleOut(
             tween(180),
             targetScale = 0.92f,
-            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(1f, 0f)
+            transformOrigin = TransformOrigin(1f, 0f)
         ),
         modifier = modifier
     ) {

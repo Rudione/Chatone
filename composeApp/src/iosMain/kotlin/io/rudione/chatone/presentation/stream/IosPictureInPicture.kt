@@ -2,14 +2,13 @@ package io.rudione.chatone.presentation.stream
 
 import platform.AVKit.AVPictureInPictureController
 import platform.AVKit.AVPictureInPictureControllerDelegateProtocol
-import platform.AVFoundation.AVPlayerLayer
 import platform.UIKit.UIApplication
 import platform.UIKit.UIApplicationState
 import platform.darwin.NSObject
 
 internal object IosPictureInPicture {
     private var controller: AVPictureInPictureController? = null
-    private var layer: AVPlayerLayer? = null
+    private var owner: Any? = null
     private var autoEnter = false
     private val delegate = DismissTracker()
 
@@ -21,20 +20,29 @@ internal object IosPictureInPicture {
 
     val isSupported: Boolean by lazy { AVPictureInPictureController.isPictureInPictureSupported() }
 
-    fun bind(target: AVPlayerLayer) {
-        if (!isSupported || layer === target) return
-        layer = target
-        controller = AVPictureInPictureController(playerLayer = target).apply {
+    val isActive: Boolean get() = controller?.isPictureInPictureActive() == true
+
+    val startsAutomatically: Boolean
+        get() = autoEnter && controller?.isPictureInPicturePossible() == true
+
+    fun bind(owner: Any, createController: () -> AVPictureInPictureController?) {
+        if (!isSupported || this.owner === owner) return
+        this.owner = owner
+        controller = createController()?.apply {
             canStartPictureInPictureAutomaticallyFromInline = autoEnter
             delegate = this@IosPictureInPicture.delegate
         }
     }
 
-    fun unbind(target: AVPlayerLayer) {
-        if (layer !== target) return
-        controller?.stopPictureInPicture()
+    fun unbind(owner: Any) {
+        if (this.owner !== owner) return
+        controller?.apply {
+            stopPictureInPicture()
+            canStartPictureInPictureAutomaticallyFromInline = false
+            delegate = null
+        }
         controller = null
-        layer = null
+        this.owner = null
     }
 
     fun start(): Boolean {
@@ -49,8 +57,8 @@ internal object IosPictureInPicture {
         controller?.canStartPictureInPictureAutomaticallyFromInline = enabled
     }
 
-    fun keepsLayer(target: AVPlayerLayer): Boolean =
-        layer === target && (autoEnter || controller?.isPictureInPictureActive() == true)
+    fun keepsLayer(owner: Any): Boolean =
+        this.owner === owner && (autoEnter || controller?.isPictureInPictureActive() == true)
 }
 
 private class DismissTracker : NSObject(), AVPictureInPictureControllerDelegateProtocol {

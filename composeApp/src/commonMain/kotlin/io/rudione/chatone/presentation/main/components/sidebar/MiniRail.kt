@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import io.rudione.chatone.presentation.components.LocalSidebarExpanded
+import io.rudione.chatone.presentation.components.AnimatedMenuIcon
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.add_channel
 import chatone.composeapp.generated.resources.chat_mentions_tab
@@ -58,10 +60,12 @@ import io.rudione.chatone.icons.lucide.AtSign
 import io.rudione.chatone.icons.lucide.ChevronLeft
 import io.rudione.chatone.icons.lucide.Folder
 import io.rudione.chatone.icons.lucide.Lucide
-import io.rudione.chatone.icons.lucide.Menu
 import io.rudione.chatone.icons.lucide.MessageCircle
 import io.rudione.chatone.icons.lucide.Plus
 import io.rudione.chatone.presentation.components.PortalPopup
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.window.PopupProperties
+import kotlin.math.abs
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -120,8 +124,8 @@ internal fun MiniRail(
                 onClick = { onEvent(MainEvent.ToggleSidebar) },
                 modifier = Modifier.size(34.dp)
             ) {
-                Icon(
-                    Lucide.Menu,
+                AnimatedMenuIcon(
+                    expanded = LocalSidebarExpanded.current,
                     contentDescription = stringResource(Res.string.main_open_sidebar),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(18.dp)
@@ -255,7 +259,7 @@ internal fun MiniRail(
                                     drawRect(
                                         color = folderTint,
                                         topLeft = Offset(0f, size.height - lineHeight),
-                                        size = androidx.compose.ui.geometry.Size(
+                                        size = Size(
                                             size.width,
                                             lineHeight
                                         )
@@ -411,7 +415,7 @@ internal fun MiniRail(
                             PortalPopup(
                                 alignment = Alignment.TopStart,
                                 offset = tooltipOffset,
-                                properties = androidx.compose.ui.window.PopupProperties(
+                                properties = PopupProperties(
                                     focusable = false,
                                     dismissOnBackPress = false,
                                     dismissOnClickOutside = false
@@ -526,7 +530,7 @@ private fun MutableMap<String, LayoutCoordinates>.nearestRailItem(
             continue
         }
         if (login == exclude) continue
-        val distance = kotlin.math.abs(itemCenter - centerX)
+        val distance = abs(itemCenter - centerX)
         if (distance < nearestDistance) {
             nearest = login
             nearestDistance = distance

@@ -1,8 +1,40 @@
 package io.rudione.chatone.presentation.settings.components
 
-import chatone.composeapp.generated.resources.icon
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.app_name
 import chatone.composeapp.generated.resources.automod_export
+import chatone.composeapp.generated.resources.icon
+import chatone.composeapp.generated.resources.legal_privacy
+import chatone.composeapp.generated.resources.legal_support
+import chatone.composeapp.generated.resources.legal_terms
 import chatone.composeapp.generated.resources.settings_app_info
 import chatone.composeapp.generated.resources.settings_backup_desc
 import chatone.composeapp.generated.resources.settings_backup_export_csv
@@ -12,98 +44,22 @@ import chatone.composeapp.generated.resources.settings_backup_import
 import chatone.composeapp.generated.resources.settings_backup_title
 import chatone.composeapp.generated.resources.settings_telegram
 import chatone.composeapp.generated.resources.settings_version
-import org.jetbrains.compose.resources.stringResource
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import io.rudione.chatone.icons.material.Icons
-import io.rudione.chatone.icons.material.filled.*
-import io.rudione.chatone.icons.material.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.*
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import chatone.composeapp.generated.resources.Res
-import coil3.compose.AsyncImage
-import io.rudione.chatone.domain.model.HighlightRule
-import io.rudione.chatone.presentation.components.LiquidGlassSurface
-import io.rudione.chatone.presentation.components.rows.HighlightedSettingsText
-import io.rudione.chatone.presentation.components.rows.LocalSettingsSearch
-import io.rudione.chatone.presentation.components.rows.RowDivider
-import io.rudione.chatone.presentation.components.rows.SwitchRow
-import io.rudione.chatone.presentation.components.rows.ListRow
-import io.rudione.chatone.presentation.components.rows.DropdownRow
-import io.rudione.chatone.presentation.components.rows.SliderRow
-import io.rudione.chatone.presentation.components.rows.HotkeyRow
-import io.rudione.chatone.presentation.settings.theme_settings.ThemeSettingsScreen
-import io.rudione.chatone.presentation.settings.theme_settings.ThinSlider
-import io.rudione.chatone.presentation.theme.ChatoneTheme
-import io.rudione.chatone.presentation.theme.CustomThemeManager
-import io.rudione.chatone.presentation.theme.ExpressivePalettes
-import io.rudione.chatone.presentation.theme.LocalCustomThemeManager
-import io.rudione.chatone.presentation.theme.LocalWallpaperController
-import androidx.compose.runtime.CompositionLocalProvider
-import io.rudione.chatone.util.BuildConfig
-import io.rudione.chatone.util.system.HotkeyAction
-import io.rudione.chatone.util.system.comboFor
-import io.rudione.chatone.util.media.NotificationSoundPlayer
-import io.rudione.chatone.util.media.WallpaperLoader
-import io.rudione.chatone.presentation.settings.TitleBarMode
-import io.rudione.chatone.presentation.settings.SettingsState
+import io.rudione.chatone.presentation.components.ChatoneActionRow
+import io.rudione.chatone.presentation.components.ChatoneButton
+import io.rudione.chatone.presentation.components.ChatoneButtonText
+import io.rudione.chatone.presentation.components.ChatoneButtonTone
+import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import io.rudione.chatone.presentation.legal.AppLinks
 import io.rudione.chatone.presentation.settings.SettingsEvent
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.media.pickAudioFile
-import io.rudione.chatone.util.media.pickImageFile
-import io.rudione.chatone.util.font.pickFontFile
-import io.rudione.chatone.util.font.resolveFontFamily
-import io.rudione.chatone.util.font.listAvailableFontNames
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.style.TextDecoration
-import io.rudione.chatone.presentation.components.ChatoneActionRow
-import io.rudione.chatone.presentation.components.ChatoneButtonText
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.painterResource
-import org.koin.compose.koinInject
-import org.koin.compose.viewmodel.koinViewModel
-import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import io.rudione.chatone.presentation.settings.settingsAnchor
+import io.rudione.chatone.util.BuildConfig
 import io.rudione.chatone.util.automod.readAutomodText
 import io.rudione.chatone.util.automod.saveAutomodText
 import io.rudione.chatone.util.settings.SettingsImportExport
+import kotlinx.coroutines.launch
+import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun AboutCard() {
@@ -144,6 +100,21 @@ internal fun AboutCard() {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            listOf(
+                Res.string.legal_privacy to AppLinks.Privacy,
+                Res.string.legal_terms to AppLinks.Terms,
+                Res.string.legal_support to AppLinks.Issues
+            ).forEach { (label, url) ->
+                ChatoneButton(
+                    text = stringResource(label),
+                    onClick = { uriHandler.openUri(url) },
+                    tone = ChatoneButtonTone.Neutral,
+                    modifier = Modifier.fillMaxWidth().settingsAnchor(stringResource(label)).padding(top = 6.dp)
+                )
             }
 
             Spacer(Modifier.height(16.dp))

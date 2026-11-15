@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+
 import androidx.compose.ui.unit.sp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -56,6 +58,7 @@ fun ChatoneChip(
     height: Dp = ChatoneChipDefaults.Height
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val click = controlClick(onClick, HapticFeedbackType.SegmentTick)
     val hovered by interaction.collectIsHoveredAsState()
     val pressed by interaction.collectIsPressedAsState()
     val target = chipColors(selected, hovered && enabled, pressed && enabled, accent)
@@ -68,6 +71,7 @@ fun ChatoneChip(
 
     Row(
         modifier = modifier
+            .nativeControlPress(interaction)
             .height(height)
             .clip(ChatoneChipDefaults.Shape)
             .background(container.copy(alpha = container.alpha * enabledAlpha))
@@ -77,7 +81,7 @@ fun ChatoneChip(
                 indication = null,
                 enabled = enabled,
                 role = Role.Button,
-                onClick = onClick
+                onClick = click
             )
             .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
             .padding(horizontal = if (compact) 7.dp else 10.dp),

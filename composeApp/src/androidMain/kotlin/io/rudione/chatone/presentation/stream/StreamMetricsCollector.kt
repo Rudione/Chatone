@@ -9,6 +9,7 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.source.LoadEventInfo
 import androidx.media3.exoplayer.source.MediaLoadData
 import kotlin.math.roundToInt
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 
 @UnstableApi
 internal class StreamMetricsCollector(
@@ -77,7 +78,7 @@ internal class StreamMetricsCollector(
     override fun onVideoInputFormatChanged(
         eventTime: AnalyticsListener.EventTime,
         format: Format,
-        decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
+        decoderReuseEvaluation: DecoderReuseEvaluation?
     ) {
         onVideoFormatChanged()
     }

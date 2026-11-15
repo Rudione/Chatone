@@ -6,13 +6,14 @@ import androidx.compose.foundation.lazy.LazyListState
 suspend fun LazyListState.stickToBottomExact(maxPasses: Int = 3) {
     val lastIndex = layoutInfo.totalItemsCount - 1
     if (lastIndex < 0) return
+    if (bottomOverflow()?.let { it <= 0f } == true) return
 
     scrollToItem(lastIndex)
 
     repeat(maxPasses) {
         val overflow = bottomOverflow() ?: return
         if (overflow <= 0f) return
-        scrollBy(overflow)
+        if (scrollBy(overflow) <= 0f) return
     }
 }
 

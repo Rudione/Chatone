@@ -16,9 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.clickable
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -47,185 +44,23 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.GenericEmote
 import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.presentation.chat.AnimatedEmoteImage
-import io.rudione.chatone.presentation.chat.rememberNickColors
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.components.chatoneGlassPanel
 import io.rudione.chatone.util.chat.plainText
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
 import io.rudione.chatone.presentation.components.ChatoneIconButton
-import io.rudione.chatone.presentation.components.ChatoneWindowSize
-import io.rudione.chatone.presentation.components.LocalWindowSize
 import io.rudione.chatone.util.media.ChannelAvatarCache
 import org.koin.compose.koinInject
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Pin
 import io.rudione.chatone.icons.lucide.User
 import io.rudione.chatone.icons.lucide.X
-
-private fun formatRemaining(totalSeconds: Long): String {
-    val m = totalSeconds / 60
-    val s = totalSeconds % 60
-    return "$m:${s.toString().padStart(2, '0')}"
-}
-
-@Composable
-internal fun PinnedMessageBar(
-    message: DisplayMessage.PrivMsg,
-    canUnpin: Boolean,
-    endsAtMs: Long? = null,
-    pinnedByName: String? = null,
-    pinnedByBadges: List<Badge> = emptyList(),
-    onUnpin: () -> Unit,
-    onHide: () -> Unit = {}
-) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val compact = LocalWindowSize.current == ChatoneWindowSize.Compact
-    val narrow = LocalEventBannerCompact.current
-    var expanded by remember(message.id) { mutableStateOf(false) }
-    ChatSpillRequest(key = "pinned", active = expanded)
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-    val sidePadding = when {
-        narrow -> 2.dp
-        compact -> 18.dp
-        else -> pinSidePadding(maxWidth)
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = sidePadding, vertical = if (narrow) 3.dp else 4.dp)
-            .chatoneGlassPanel(RoundedCornerShape(12.dp))
-            .clickable(role = Role.Button) { expanded = !expanded }
-            .animateContentSize()
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        color = primaryColor.copy(alpha = 0.9f),
-                        size = Size(3.dp.toPx(), size.height)
-                    )
-                }
-                .padding(
-                    start = if (narrow) 10.dp else 16.dp,
-                    end = if (narrow) 6.dp else 16.dp,
-                    top = if (narrow) 8.dp else 10.dp,
-                    bottom = if (narrow) 8.dp else 10.dp
-                )
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(if (narrow) 4.dp else 8.dp)
-            ) {
-                if (canUnpin) {
-                    LiquidGlassTooltipBox(tooltip = stringResource(Res.string.chat_unpin_message)) {
-                        ChatoneIconButton(onClick = onUnpin, modifier = Modifier.size(24.dp)) {
-                            Icon(
-                                Lucide.Pin,
-                                contentDescription = stringResource(Res.string.chat_unpin_message),
-                                modifier = Modifier.size(16.dp),
-                                tint = primaryColor
-                            )
-                        }
-                    }
-                } else {
-                    Icon(
-                        Lucide.Pin,
-                        contentDescription = stringResource(Res.string.event_label_pinned),
-                        modifier = Modifier.size(16.dp),
-                        tint = primaryColor
-                    )
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            message.displayName,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = rememberNickColors().of(message.color, message.username),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        if (!narrow && !pinnedByName.isNullOrBlank()) {
-                            Spacer(Modifier.width(8.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(3.dp)
-                            ) {
-                                pinnedByBadges.forEach { badge ->
-                                    if (badge.imageUrl.isNotEmpty()) {
-                                        AsyncImage(
-                                            model = badge.imageUrl,
-                                            contentDescription = badge.tooltip.ifBlank { badge.id },
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                    }
-                                }
-                                Text(
-                                    pinnedByName,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                    Text(
-                        message.tokens.joinToString("") { token ->
-                            token.plainText()
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                        maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (endsAtMs != null) {
-                    var remainingSec by remember(endsAtMs) {
-                        mutableStateOf((endsAtMs - Clock.System.now().toEpochMilliseconds()) / 1000)
-                    }
-                    LaunchedEffect(endsAtMs) {
-                        while (remainingSec > 0) {
-                            delay(1000)
-                            remainingSec = (endsAtMs - Clock.System.now().toEpochMilliseconds()) / 1000
-                        }
-                    }
-                    Text(
-                        if (remainingSec > 0) formatRemaining(remainingSec) else "0:00",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                }
-                EventHideButton(tooltip = stringResource(Res.string.chat_hide_pin), onHide = onHide)
-            }
-        }
-    }
-    }
-}
-
-private fun pinSidePadding(width: Dp): Dp = when {
-    width >= 1800.dp -> 148.dp
-    width >= 1550.dp -> 128.dp
-    width >= 1300.dp -> 92.dp
-    width >= 1050.dp -> 72.dp
-    width >= 850.dp -> 24.dp
-    else -> 16.dp
-}
 
 @Composable
 internal fun ReplyBar(

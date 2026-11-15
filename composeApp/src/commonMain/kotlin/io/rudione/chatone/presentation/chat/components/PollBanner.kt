@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat.components
 
+import io.rudione.chatone.presentation.liveactivity.liveChatEvent
+import io.rudione.chatone.presentation.liveactivity.FollowLiveEventButton
+
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chat_hide_event_banner
 import chatone.composeapp.generated.resources.event_poll_votes
@@ -12,6 +15,7 @@ import io.rudione.chatone.presentation.components.layoutWidthFraction
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -22,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -33,8 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.rudione.chatone.data.remote.dto.PollData
-import io.rudione.chatone.presentation.components.chatoneGlassPanel
-import kotlinx.coroutines.delay
 import kotlin.time.Clock
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Vote
@@ -47,8 +48,14 @@ fun PollBanner(
     poll: PollData,
     onVote: (choiceId: String) -> Unit = {},
     onHide: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    channelLogin: String = poll.broadcasterLogin
 ) {
+    val observedAt = remember(poll.id, poll.remainingMs, poll.receivedAtMs) {
+        poll.receivedAtMs ?: Clock.System.now().toEpochMilliseconds()
+    }
+    val deadline = pollDeadline(poll, observedAt)
+    var windowExpired by remember(poll.id, deadline) { mutableStateOf(deadline != null && deadline <= Clock.System.now().toEpochMilliseconds()) }
     val totalVotes = poll.choices.sumOf { it.votes + it.channelPointsVotes }
     val isEnded = !poll.status.equals("ACTIVE", ignoreCase = true)
     val hasVoted = poll.selfVoteChoiceId != null
@@ -62,9 +69,12 @@ fun PollBanner(
         modifier = modifier
             .fillMaxWidth()
             .padding(eventBannerPadding(compact))
-            .chatoneGlassPanel(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 1f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
     ) {
         Column {
+            FollowLiveEventButton(poll.liveChatEvent(channelLogin, observedAt))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -87,9 +97,7 @@ fun PollBanner(
                     } else {
                         PollTitle(poll.title, maxLines = 1, modifier = Modifier.weight(1f))
                     }
-                    if (!isEnded) {
-                        PollCountdownChip(poll = poll)
-                    } else {
+                    if (isEnded) {
                         Text(
                             pluralStringResource(Res.plurals.event_poll_votes, totalVotes, totalVotes),
                             style = MaterialTheme.typography.labelSmall,
@@ -120,10 +128,16 @@ fun PollBanner(
                         fraction = pct,
                         isWinner = isWinnerRow,
                         isMine = isMine,
-                        clickable = !isEnded && !hasVoted,
+                        clickable = !isEnded && !windowExpired && !hasVoted,
                         compact = compact,
                         onClick = { onVote(choice.id) }
                     )
+                }
+            }
+
+            if (!isEnded && deadline != null) {
+                EventCountdown(deadline, poll.duration * 1000L, Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), wavy = true) {
+                    windowExpired = true
                 }
             }
 
@@ -160,38 +174,6 @@ private fun PollTitle(title: String, maxLines: Int, modifier: Modifier = Modifie
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
     )
-}
-
-@Composable
-private fun PollCountdownChip(poll: PollData) {
-    val endsAtMs = remember(poll.id) {
-        val now = Clock.System.now().toEpochMilliseconds()
-        val remaining = poll.remainingMs ?: (poll.duration * 1000L)
-        now + remaining
-    }
-    var now by remember(poll.id) { mutableStateOf(Clock.System.now().toEpochMilliseconds()) }
-    LaunchedEffect(poll.id) {
-        while (true) {
-            now = Clock.System.now().toEpochMilliseconds()
-            delay(1000)
-        }
-    }
-    val remainingSec = ((endsAtMs - now) / 1000L).coerceAtLeast(0L)
-    val m = remainingSec / 60
-    val s = remainingSec % 60
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(5.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-    ) {
-        Text(
-            "$m:${s.toString().padStart(2, '0')}",
-            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-            fontWeight = FontWeight.Bold,
-            color = if (remainingSec <= 10) MaterialTheme.colorScheme.error else PollAccent
-        )
-    }
 }
 
 @Composable

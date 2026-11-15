@@ -13,11 +13,19 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 const val MENTION_SEEN_DWELL_MS = 350L
+private const val HALF_SHOWN = 0.5f
+private const val FULLY_SHOWN = 1f
 
 @Immutable
 internal data class RowSpan(val key: Any, val top: Int, val bottom: Int)
 
-internal fun shownKeys(rows: List<RowSpan>, viewportTop: Int, viewportBottom: Int, wanted: Set<String>): Set<String> {
+internal fun shownKeys(
+    rows: List<RowSpan>,
+    viewportTop: Int,
+    viewportBottom: Int,
+    wanted: Set<String>,
+    minShare: Float = HALF_SHOWN
+): Set<String> {
     if (wanted.isEmpty() || viewportBottom <= viewportTop) return emptySet()
     val shown = HashSet<String>()
     for (row in rows) {
@@ -26,17 +34,21 @@ internal fun shownKeys(rows: List<RowSpan>, viewportTop: Int, viewportBottom: In
         val height = row.bottom - row.top
         if (height <= 0) continue
         val overlap = minOf(row.bottom, viewportBottom) - maxOf(row.top, viewportTop)
-        if (overlap * 2 >= height) shown += key
+        if (overlap >= height * minShare) shown += key
     }
     return shown
 }
 
-internal fun LazyListLayoutInfo.shownKeys(wanted: Set<String>): Set<String> = shownKeys(
+internal fun LazyListLayoutInfo.shownKeys(wanted: Set<String>, minShare: Float = HALF_SHOWN): Set<String> = shownKeys(
     rows = visibleItemsInfo.map { RowSpan(it.key, it.offset, it.offset + it.size) },
     viewportTop = viewportStartOffset,
     viewportBottom = viewportEndOffset - afterContentPadding,
-    wanted = wanted
+    wanted = wanted,
+    minShare = minShare
 )
+
+internal fun LazyListLayoutInfo.isFullyShown(key: String): Boolean =
+    shownKeys(setOf(key), minShare = FULLY_SHOWN).isNotEmpty()
 
 internal fun LazyListLayoutInfo.centerIndex(): Int {
     val items = visibleItemsInfo
@@ -45,18 +57,23 @@ internal fun LazyListLayoutInfo.centerIndex(): Int {
 }
 
 @Composable
-fun MentionSeenEffect(
+fun MentionTrackingEffects(
     listState: LazyListState,
     mentions: MentionJumpState,
     attention: ChatAttention,
     followingLive: Boolean
 ) {
     val live by rememberUpdatedState(followingLive)
-    LaunchedEffect(listState, mentions, attention) {
-        snapshotFlow {
-            if (!attention.isAttentive) emptySet()
-            else listState.layoutInfo.shownKeys(mentions.pendingIds)
-        }
+    LaunchedEffect(mentions, attention) {
+        snapshotFlow { attention.isAttentive }.collect { mentions.updateAttention(it) }
+    }
+    LaunchedEffect(listState, mentions) {
+        snapshotFlow { listState.layoutInfo.shownKeys(mentions.targetIds) }
+            .distinctUntilChanged()
+            .collect { mentions.updateOnScreen(it) }
+    }
+    LaunchedEffect(mentions, attention) {
+        snapshotFlow { if (attention.isAttentive) mentions.pendingOnScreen else emptySet() }
             .distinctUntilChanged()
             .collectLatest { shown ->
                 if (shown.isEmpty()) return@collectLatest

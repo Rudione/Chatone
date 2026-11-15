@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.abs
 
 fun Modifier.touchHaze(tint: Color, strength: Float = 1f): Modifier =
     this then TouchHazeElement(tint, strength)
@@ -156,7 +157,7 @@ private class TouchHazeNode(var tint: Color, var strength: Float) :
 
     private fun settled(): Boolean {
         if (puffs.isNotEmpty()) return false
-        if (kotlin.math.abs(glow - glowGoal) > SETTLE_EPSILON) return false
+        if (abs(glow - glowGoal) > SETTLE_EPSILON) return false
         if (glowGoal == 0f) return true
         return !target.isSpecified() || (target - glowAt).getDistance() < SETTLE_DISTANCE_PX
     }

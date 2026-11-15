@@ -45,7 +45,11 @@ private val ButtonMargin = 16.dp
 internal fun BoxScope.ScrollToTopButton(gridState: LazyGridState, bottomInset: Dp) {
     val visible by remember(gridState) { derivedStateOf { gridState.firstVisibleItemIndex > SHOW_AFTER_INDEX } }
     val floating = LocalFloatingStreamPlayer.current
-    val clearance = animateDpAsState(floating?.bottomEndClearance ?: 0.dp, tween(260), label = "scrollTopClearance")
+    val clearance = animateDpAsState(
+        floating?.bottomEndClearance ?: 0.dp,
+        tween(260),
+        label = "scrollTopClearance"
+    )
     val scope = rememberCoroutineScope()
     AnimatedVisibility(
         visible = visible,
@@ -59,14 +63,19 @@ internal fun BoxScope.ScrollToTopButton(gridState: LazyGridState, bottomInset: D
         SmallFloatingActionButton(
             onClick = {
                 scope.launch {
-                    if (gridState.firstVisibleItemIndex > JUMP_BEFORE_ANIMATION_INDEX) gridState.scrollToItem(LANDING_INDEX)
+                    if (gridState.firstVisibleItemIndex > JUMP_BEFORE_ANIMATION_INDEX) gridState.scrollToItem(
+                        LANDING_INDEX
+                    )
                     gridState.animateScrollToItem(0)
                 }
             },
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         ) {
-            Icon(Lucide.ChevronUp, contentDescription = stringResource(Res.string.browse_scroll_to_top))
+            Icon(
+                Lucide.ChevronUp,
+                contentDescription = stringResource(Res.string.browse_scroll_to_top)
+            )
         }
     }
 }

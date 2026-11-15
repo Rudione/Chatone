@@ -3,7 +3,6 @@ package io.rudione.chatone
 import chatone.composeapp.generated.resources.icon
 import io.rudione.chatone.presentation.components.PopupPortalHost
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -19,6 +18,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.update_available_title
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.di.appModules
 import io.rudione.chatone.presentation.settings.SettingsViewModel
@@ -26,6 +26,7 @@ import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.window.AppWindowLayer
 import io.rudione.chatone.presentation.window.AppWindowLayerEffect
 import io.rudione.chatone.presentation.window.ChatoneTitleBar
+import io.rudione.chatone.presentation.window.DesktopTitleBarActions
 import io.rudione.chatone.presentation.window.ChatoneWindowExceptionHandlerFactory
 import io.rudione.chatone.presentation.window.RegisterAppWindow
 import io.rudione.chatone.presentation.window.UpdateAvailableOverlay
@@ -52,9 +53,16 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import io.rudione.chatone.presentation.notifications.startNotificationServices
 import org.koin.core.context.startKoin
 import kotlin.time.Duration.Companion.milliseconds
+import io.rudione.chatone.util.system.DesktopTrayHolder
+import java.awt.Frame
+import java.awt.event.WindowAdapter
+import java.awt.event.WindowEvent
+import java.awt.image.BufferedImage
+import javax.imageio.ImageIO
 
 private const val WIN_X = "win_x"
 private const val WIN_Y = "win_y"
@@ -143,9 +151,11 @@ fun main() {
         val appIcon = painterResource(Res.drawable.icon)
 
         val trayState = rememberTrayState()
+        val availableUpdate by AutoUpdater.available.collectAsState()
+        val updateLabel = stringResource(Res.string.update_available_title)
         DisposableEffect(trayState) {
-            io.rudione.chatone.util.system.DesktopTrayHolder.trayState = trayState
-            onDispose { io.rudione.chatone.util.system.DesktopTrayHolder.trayState = null }
+            DesktopTrayHolder.trayState = trayState
+            onDispose { DesktopTrayHolder.trayState = null }
         }
         Tray(
             state = trayState,
@@ -153,6 +163,12 @@ fun main() {
             tooltip = "Chatone",
             menu = {
                 Item("Открыть Chatone") { DesktopMainWindow.bringToFront() }
+                availableUpdate?.let { update ->
+                    Item("$updateLabel · v${update.version}") {
+                        DesktopMainWindow.bringToFront()
+                        AutoUpdater.showAvailable()
+                    }
+                }
                 Item("Выход") { exitApplication() }
             }
         )
@@ -196,8 +212,8 @@ fun main() {
                         }
                     }
                     if (window.isDisplayable) applyChrome()
-                    val listener = object : java.awt.event.WindowAdapter() {
-                        override fun windowOpened(e: java.awt.event.WindowEvent) {
+                    val listener = object : WindowAdapter() {
+                        override fun windowOpened(e: WindowEvent) {
                             applyChrome()
                         }
                     }
@@ -225,43 +241,36 @@ fun main() {
 
                 PopupPortalHost {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        if (useCustomTitleBar) {
-                            val captionColor = TitleBarState.captionColor
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                ChatoneTitleBar(
-                                    title = "Chatone",
-                                    icon = appIcon,
-                                    background = captionColor,
-                                    windowState = windowState,
-                                    onMinimize = {
-                                        window.extendedState = java.awt.Frame.ICONIFIED
-                                    },
-                                    onToggleMaximize = {
-                                        windowState.placement =
-                                            if (windowState.placement == WindowPlacement.Maximized)
-                                                WindowPlacement.Floating
-                                            else
-                                                WindowPlacement.Maximized
-                                    },
-                                    onClose = { exitApplication() }
-                                )
-                                App(
-                                    onAlwaysOnTopChanged = { AppWindowLayer.alwaysOnTop = it },
-                                    onAlwaysOnTopModeChanged = { AppWindowLayer.mode = it },
-                                    onThemeChanged = { isDarkTheme = it },
-                                    onThemeTopBarColorChanged = { themeTopBarColor = it },
-                                    onTitleBarModeChanged = { titleBarMode = it }
-                                )
+                        App(
+                            onAlwaysOnTopChanged = { AppWindowLayer.alwaysOnTop = it },
+                            onAlwaysOnTopModeChanged = { AppWindowLayer.mode = it },
+                            onThemeChanged = { isDarkTheme = it },
+                            onThemeTopBarColorChanged = { themeTopBarColor = it },
+                            onTitleBarModeChanged = { titleBarMode = it },
+                            windowTitleBar = { currentSettings, onSettingsEvent ->
+                                if (useCustomTitleBar) {
+                                    val captionColor = TitleBarState.captionColor
+                                    ChatoneTitleBar(
+                                        title = "Chatone",
+                                        icon = appIcon,
+                                        background = captionColor,
+                                        windowState = windowState,
+                                        onMinimize = { window.extendedState = Frame.ICONIFIED },
+                                        onToggleMaximize = {
+                                            windowState.placement =
+                                                if (windowState.placement == WindowPlacement.Maximized)
+                                                    WindowPlacement.Floating
+                                                else
+                                                    WindowPlacement.Maximized
+                                        },
+                                        onClose = { exitApplication() },
+                                        trailingContent = {
+                                            DesktopTitleBarActions(currentSettings, onSettingsEvent, captionColor)
+                                        }
+                                    )
+                                }
                             }
-                        } else {
-                            App(
-                                onAlwaysOnTopChanged = { AppWindowLayer.alwaysOnTop = it },
-                                onAlwaysOnTopModeChanged = { AppWindowLayer.mode = it },
-                                onThemeChanged = { isDarkTheme = it },
-                                onThemeTopBarColorChanged = { themeTopBarColor = it },
-                                onTitleBarModeChanged = { titleBarMode = it }
-                            )
-                        }
+                        )
                         ChatoneTheme(darkTheme = isDarkTheme) { UpdateAvailableOverlay() }
                     }
                 }
@@ -277,7 +286,7 @@ private data class WindowSnapshot(
     val placement: WindowPlacement
 )
 
-private val appIconImage: java.awt.image.BufferedImage? by lazy {
+private val appIconImage: BufferedImage? by lazy {
     runCatching {
         val loader = Thread.currentThread().contextClassLoader
             ?: WindowSnapshot::class.java.classLoader
@@ -285,8 +294,8 @@ private val appIconImage: java.awt.image.BufferedImage? by lazy {
             ?: loader.getResourceAsStream(
                 "composeResources/chatone.composeapp.generated.resources/drawable/icon.png"
             )
-        stream?.use { javax.imageio.ImageIO.read(it) }
+        stream?.use { ImageIO.read(it) }
     }.getOrNull()
 }
 
-internal fun loadAppIconImage(): java.awt.image.BufferedImage? = appIconImage
+internal fun loadAppIconImage(): BufferedImage? = appIconImage

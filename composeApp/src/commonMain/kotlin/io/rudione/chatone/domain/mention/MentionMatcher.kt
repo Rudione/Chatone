@@ -32,7 +32,8 @@ object MentionMatcher {
         val loginMatch = selfLogin.isNotEmpty() && containsUserMention(text, selfLogin)
         val displayMatch = selfDisplay.isNotEmpty() && selfDisplay != selfLogin &&
             containsUserMention(text, selfDisplay)
-        if (repliedToMe || loginMatch || displayMatch) return Match.OwnName
+        val ownRule = rules.firstOrNull { it.id == HighlightRule.USERNAME_RULE.id }
+        if (ownRule?.enabled != false && (repliedToMe || loginMatch || displayMatch)) return Match.OwnName
 
         for (rule in rules) {
             if (!rule.enabled || rule.id in NON_TEXT_RULES) continue

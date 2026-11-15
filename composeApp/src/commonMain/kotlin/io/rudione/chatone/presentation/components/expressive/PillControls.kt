@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.components.expressive
 
+import io.rudione.chatone.presentation.components.controlClick
+import io.rudione.chatone.presentation.components.nativeControlPress
+import io.rudione.chatone.presentation.components.ControlMotion
+import io.rudione.chatone.presentation.components.LocalControlMotion
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -217,16 +222,19 @@ fun GlassIconButton(
     size: Dp = 44.dp
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val click = controlClick(onClick)
+    val press = if (LocalControlMotion.current == ControlMotion.Default) Modifier.pressSquish(interaction)
+        else Modifier.nativeControlPress(interaction)
     Box(
         modifier = modifier
             .size(size)
-            .pressSquish(interaction)
+            .then(press)
             .clip(CircleShape)
             .clickable(
                 interactionSource = interaction,
                 indication = null,
                 role = Role.Button,
-                onClick = onClick
+                onClick = click
             ),
         contentAlignment = Alignment.Center
     ) {

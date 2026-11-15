@@ -3,6 +3,7 @@ package io.rudione.chatone.data.local
 import app.cash.sqldelight.db.SqlDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import java.io.File
+import app.cash.sqldelight.db.QueryResult
 
 actual class DatabaseDriverFactory {
     actual fun createDriver(): SqlDriver {
@@ -20,7 +21,7 @@ actual class DatabaseDriverFactory {
                 sql = "PRAGMA user_version;",
                 mapper = { cursor ->
                     cursor.next()
-                    app.cash.sqldelight.db.QueryResult.Value(cursor.getLong(0) ?: 0L)
+                    QueryResult.Value(cursor.getLong(0) ?: 0L)
                 },
                 parameters = 0
             ).value

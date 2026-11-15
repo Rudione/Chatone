@@ -26,6 +26,7 @@ interface ChatRepository {
     suspend fun connect(account: TwitchAccount)
     suspend fun connectAnonymous()
     suspend fun disconnect()
+    fun reconnect()
     fun reconnectIfFailed()
     suspend fun joinChannel(channelName: String)
     suspend fun partChannel(channelName: String)
@@ -71,6 +72,8 @@ class ChatRepositoryImpl(
         Napier.d("Disconnecting IRC", tag = TAG)
         ircClient.disconnect()
     }
+
+    override fun reconnect() = ircClient.reconnect()
 
     override fun reconnectIfFailed() {
         ircClient.reconnectIfFailed()

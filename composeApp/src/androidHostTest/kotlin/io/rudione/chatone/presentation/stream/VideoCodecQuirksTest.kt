@@ -13,6 +13,13 @@ class VideoCodecQuirksTest {
     }
 
     @Test
+    fun aDeviceIsAffectedWhenAnyOfItsDecodersReopens() {
+        assertTrue(VideoCodecQuirks.anyReopensOnSurfaceChange(listOf("c2.android.avc.decoder", "OMX.Exynos.avc.dec")))
+        assertFalse(VideoCodecQuirks.anyReopensOnSurfaceChange(listOf("c2.android.avc.decoder", "c2.exynos.h264.decoder")))
+        assertFalse(VideoCodecQuirks.anyReopensOnSurfaceChange(emptyList()))
+    }
+
+    @Test
     fun otherDecodersKeepSeamlessSurfaceSwitching() {
         assertFalse(VideoCodecQuirks.reopensOnSurfaceChange("c2.exynos.h264.decoder"))
         assertFalse(VideoCodecQuirks.reopensOnSurfaceChange("OMX.qcom.video.decoder.avc"))

@@ -50,6 +50,7 @@ fun ChatoneButton(
     height: Dp = 32.dp
 ) {
     val interaction = remember { MutableInteractionSource() }
+    val click = controlClick(onClick)
     val hovered by interaction.collectIsHoveredAsState()
     val pressed by interaction.collectIsPressedAsState()
     val palette = buttonPalette(tone)
@@ -67,6 +68,7 @@ fun ChatoneButton(
 
     Row(
         modifier = modifier
+            .nativeControlPress(interaction)
             .height(height)
             .clip(ButtonShape)
             .drawBehind { drawRect(container.value) }
@@ -79,7 +81,7 @@ fun ChatoneButton(
                 indication = null,
                 enabled = enabled,
                 role = Role.Button,
-                onClick = onClick
+                onClick = click
             )
             .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default)
             .padding(horizontal = 14.dp),

@@ -97,6 +97,7 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
+import androidx.compose.foundation.BorderStroke
 
 @Composable
 fun FontSettingsCard(
@@ -145,7 +146,7 @@ fun FontSettingsCard(
                         modifier = Modifier.fillMaxWidth().height(36.dp),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                         shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(
+                        border = BorderStroke(
                             1.dp,
                             MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
                         )

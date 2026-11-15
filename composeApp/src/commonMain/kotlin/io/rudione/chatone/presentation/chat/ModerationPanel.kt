@@ -102,6 +102,7 @@ import androidx.compose.ui.unit.sp
 import io.rudione.chatone.domain.model.Macro
 import io.rudione.chatone.presentation.components.ChatoneWindowSize
 import io.rudione.chatone.presentation.components.LocalWindowSize
+import io.rudione.chatone.presentation.components.ChatPanelSurface
 import io.rudione.chatone.presentation.components.LiquidGlassSurface
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.components.ChatoneIconButton
@@ -123,6 +124,11 @@ import io.rudione.chatone.icons.lucide.Star
 import io.rudione.chatone.icons.lucide.TrendingUp
 import io.rudione.chatone.icons.lucide.Vote
 import io.rudione.chatone.icons.lucide.X
+import io.rudione.chatone.data.remote.TwitchApiClient
+import io.rudione.chatone.data.remote.dto.CustomRewardData
+import io.rudione.chatone.presentation.settings.components.MacroIcon
+import io.rudione.chatone.util.Result
+import org.koin.compose.koinInject
 
 @Composable
 fun ModerationPanel(
@@ -169,17 +175,12 @@ fun ModerationPanel(
 
     val wrapChips = LocalWindowSize.current == ChatoneWindowSize.Large
 
-    LiquidGlassSurface(
+    ChatPanelSurface(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (wrapChips) Modifier.fillMaxHeight() else Modifier.heightIn(max = 460.dp))
-            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+            .then(if (wrapChips) Modifier.fillMaxHeight() else Modifier.heightIn(max = 460.dp)),
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        contentPadding = PaddingValues(0.dp),
-        backgroundAlphaHigh = 0.94f,
-        backgroundAlphaLow = 0.86f,
-        borderAlphaHigh = 0.18f,
-        borderAlphaLow = 0.06f
+        contentPadding = PaddingValues(0.dp)
     ) {
         Column(
             modifier = Modifier
@@ -665,10 +666,10 @@ private fun ChannelPointsSection(
     channelId: String,
     isBroadcaster: Boolean
 ) {
-    val apiClient: io.rudione.chatone.data.remote.TwitchApiClient = org.koin.compose.koinInject()
+    val apiClient: TwitchApiClient = koinInject()
     val scope = rememberCoroutineScope()
     var rewards by remember {
-        mutableStateOf<List<io.rudione.chatone.data.remote.dto.CustomRewardData>>(
+        mutableStateOf<List<CustomRewardData>>(
             emptyList()
         )
     }
@@ -684,8 +685,8 @@ private fun ChannelPointsSection(
         loading = true; error = null
         scope.launch {
             when (val r = apiClient.getCustomRewards(accessToken, channelId)) {
-                is io.rudione.chatone.util.Result.Success -> rewards = r.data.data
-                is io.rudione.chatone.util.Result.Error ->
+                is Result.Success -> rewards = r.data.data
+                is Result.Error ->
                     error = r.exception.message ?: getString(Res.string.mod_panel_rewards_failed)
 
                 else -> {}
@@ -693,7 +694,7 @@ private fun ChannelPointsSection(
 
             when (val m =
                 apiClient.getCustomRewards(accessToken, channelId, onlyManageable = true)) {
-                is io.rudione.chatone.util.Result.Success ->
+                is Result.Success ->
                     manageableIds = m.data.data.map { it.id }.toSet()
 
                 else -> {}
@@ -778,7 +779,7 @@ private fun ChannelPointsSection(
                                         accessToken, channelId, reward.id,
                                         isPaused = !reward.isPaused
                                     )
-                                    if (r is io.rudione.chatone.util.Result.Error)
+                                    if (r is Result.Error)
                                         error = "Update failed: ${r.exception.message}"
                                     reload()
                                 }
@@ -800,7 +801,7 @@ private fun ChannelPointsSection(
                                         channelId,
                                         reward.id
                                     )
-                                    if (r is io.rudione.chatone.util.Result.Error)
+                                    if (r is Result.Error)
                                         error = "Delete failed: ${r.exception.message}"
                                     reload()
                                 }
@@ -849,12 +850,12 @@ private fun ChannelPointsSection(
                             newTitle.trim(),
                             cost
                         )) {
-                            is io.rudione.chatone.util.Result.Success -> {
+                            is Result.Success -> {
                                 newTitle = ""; newCost = ""
                                 reload()
                             }
 
-                            is io.rudione.chatone.util.Result.Error ->
+                            is Result.Error ->
                                 error = r.exception.message ?: getString(Res.string.mod_panel_reward_create_failed)
 
                             else -> {}
@@ -1092,7 +1093,7 @@ private fun ModPanelButton(
         ) {
             when {
                 icon != null -> Icon(icon, null, modifier = Modifier.size(14.dp), tint = tint)
-                iconText != null -> io.rudione.chatone.presentation.settings.components.MacroIcon(
+                iconText != null -> MacroIcon(
                     iconText, size = 14.dp, fontSize = 13.sp, tint = tint
                 )
             }

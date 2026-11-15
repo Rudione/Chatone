@@ -7,6 +7,8 @@ import io.rudione.chatone.presentation.startup.launchStageLabel
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.runtime.remember
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -49,8 +51,13 @@ fun LaunchSplashOverlay(maxHold: Duration = MAX_HOLD) {
         delay(maxHold)
         readiness.finish()
     }
+    val visibility = remember { MutableTransitionState(stage != LaunchStage.Ready) }
+    LaunchedEffect(stage) { visibility.targetState = stage != LaunchStage.Ready }
+    LaunchedEffect(visibility.currentState, visibility.isIdle) {
+        readiness.setSplashVisible(visibility.currentState || !visibility.isIdle)
+    }
     AnimatedVisibility(
-        visible = stage != LaunchStage.Ready,
+        visibleState = visibility,
         enter = EnterTransition.None,
         exit = fadeOut(tween(EXIT_MILLIS)) + scaleOut(tween(EXIT_MILLIS), targetScale = EXIT_SCALE)
     ) {

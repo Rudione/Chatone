@@ -9,6 +9,8 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 
 data class SubAgeInfo(
     val cumulativeMonths: Int,
@@ -30,15 +32,15 @@ class IvrApiClient(private val httpClient: HttpClient) {
             val hidden =
                 root["statusHidden"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false
             val cumulative = root["cumulative"]?.let { el ->
-                (el as? kotlinx.serialization.json.JsonObject
-                    ?: el.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonObject)
+                (el as? JsonObject
+                    ?: el.takeIf { it !is JsonNull }?.jsonObject)
                     ?.get("months")?.jsonPrimitive?.intOrNull
             } ?: 0
             val streak = root["streak"]?.let { el ->
-                (el as? kotlinx.serialization.json.JsonObject)?.get("months")?.jsonPrimitive?.intOrNull
+                (el as? JsonObject)?.get("months")?.jsonPrimitive?.intOrNull
             } ?: 0
             val tier = root["meta"]?.let { el ->
-                (el as? kotlinx.serialization.json.JsonObject)?.get("tier")?.jsonPrimitive?.contentOrNull
+                (el as? JsonObject)?.get("tier")?.jsonPrimitive?.contentOrNull
             }
             SubAgeInfo(
                 cumulativeMonths = cumulative,
