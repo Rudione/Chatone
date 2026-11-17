@@ -1,26 +1,26 @@
 package io.rudione.chatone.presentation.chat.components
 
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import chatone.composeapp.generated.resources.Res
-import chatone.composeapp.generated.resources.cancel
 import chatone.composeapp.generated.resources.mod_panel_cancel_prediction
 import chatone.composeapp.generated.resources.prediction_cancel_confirmation
-import chatone.composeapp.generated.resources.prediction_resolve_complete
-import chatone.composeapp.generated.resources.prediction_resolve_lock
-import io.rudione.chatone.presentation.components.ChatoneActionRow
+import chatone.composeapp.generated.resources.prediction_action_complete_short
+import chatone.composeapp.generated.resources.prediction_action_lock_short
 import io.rudione.chatone.presentation.components.ChatoneButton
 import io.rudione.chatone.presentation.components.ChatoneButtonTone
+import io.rudione.chatone.presentation.components.ConfirmActionDialog
 import org.jetbrains.compose.resources.stringResource
+
+private val ActionHeight = 28.dp
 
 @Composable
 internal fun PredictionModerationActions(
@@ -31,36 +31,40 @@ internal fun PredictionModerationActions(
     onResolve: () -> Unit
 ) {
     var confirmCancel by remember { mutableStateOf(false) }
-    ChatoneActionRow(horizontalSpacing = 5.dp, verticalSpacing = 5.dp) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         if (status == "ACTIVE") ChatoneButton(
-            text = stringResource(Res.string.prediction_resolve_lock),
+            text = stringResource(Res.string.prediction_action_lock_short),
             tone = ChatoneButtonTone.Neutral,
             enabled = enabled,
+            height = ActionHeight,
+            modifier = Modifier.weight(1f),
             onClick = onLock
         )
         ChatoneButton(
             text = stringResource(Res.string.mod_panel_cancel_prediction),
             tone = ChatoneButtonTone.Danger,
             enabled = enabled,
+            height = ActionHeight,
+            modifier = Modifier.weight(1f),
             onClick = { confirmCancel = true }
         )
         ChatoneButton(
-            text = stringResource(Res.string.prediction_resolve_complete),
+            text = stringResource(Res.string.prediction_action_complete_short),
             tone = ChatoneButtonTone.Neutral,
             enabled = enabled,
+            height = ActionHeight,
+            modifier = Modifier.weight(1f),
             onClick = onResolve
         )
     }
-    if (confirmCancel) AlertDialog(
-        onDismissRequest = { confirmCancel = false },
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 8.dp, bottomEnd = 24.dp, bottomStart = 8.dp),
-        title = { Text(stringResource(Res.string.mod_panel_cancel_prediction), color = MaterialTheme.colorScheme.onSurface) },
-        text = { Text(stringResource(Res.string.prediction_cancel_confirmation), color = MaterialTheme.colorScheme.onSurfaceVariant) },
-        confirmButton = {
-            TextButton(enabled = enabled, onClick = { confirmCancel = false; onCancel() }) {
-                Text(stringResource(Res.string.mod_panel_cancel_prediction), color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = { TextButton(onClick = { confirmCancel = false }) { Text(stringResource(Res.string.cancel)) } }
-    )
+    if (confirmCancel) {
+        ConfirmActionDialog(
+            title = stringResource(Res.string.mod_panel_cancel_prediction),
+            text = stringResource(Res.string.prediction_cancel_confirmation),
+            confirmLabel = stringResource(Res.string.mod_panel_cancel_prediction),
+            enabled = enabled,
+            onConfirm = onCancel,
+            onDismiss = { confirmCancel = false }
+        )
+    }
 }

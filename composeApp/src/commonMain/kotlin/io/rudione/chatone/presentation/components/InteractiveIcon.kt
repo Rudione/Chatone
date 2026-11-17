@@ -12,11 +12,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import io.rudione.chatone.presentation.components.motion.IconInteraction
+import io.rudione.chatone.presentation.components.motion.LocalIconInteraction
 
 const val ICON_HOVER_ROTATION = -7f
 const val ICON_PRESS_ROTATION = 4f
@@ -69,11 +72,14 @@ fun ChatoneIconButton(
         colors = colors,
         interactionSource = source
     ) {
+        val iconInteraction = remember(source) { IconInteraction(source) }
         Box(
-            modifier = Modifier.interactiveIcon(source, enabled = enabled),
+            modifier = Modifier.interactiveIcon(source, enabled = enabled && !iconInteraction.animatesItself),
             contentAlignment = Alignment.Center
         ) {
-            content()
+            CompositionLocalProvider(LocalIconInteraction provides iconInteraction) {
+                content()
+            }
         }
     }
 }

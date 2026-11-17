@@ -1,11 +1,7 @@
 package io.rudione.chatone.presentation.stream.channel
 
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewModelScope
 import io.rudione.chatone.base.BaseViewModel
-import io.rudione.chatone.base.UIEffect
-import io.rudione.chatone.base.UiEvent
-import io.rudione.chatone.base.UiState
 import io.rudione.chatone.domain.channel.ChannelSnapshot
 import io.rudione.chatone.domain.channel.ChannelSnapshotSource
 import io.rudione.chatone.domain.follow.ChannelFollowGateway
@@ -14,27 +10,6 @@ import io.rudione.chatone.domain.follow.FollowResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-enum class FollowStatus { UNKNOWN, FOLLOWING, NOT_FOLLOWING, SIGNED_OUT }
-
-@Immutable
-data class StreamChannelState(
-    val channel: ChannelSnapshot = ChannelSnapshot(login = ""),
-    val follow: FollowStatus = FollowStatus.UNKNOWN,
-    val followBusy: Boolean = false,
-    val failure: FollowFailure? = null
-) : UiState {
-    val canToggleFollow: Boolean
-        get() = channel.channelId.isNotBlank() && follow != FollowStatus.SIGNED_OUT
-}
-
-sealed interface StreamChannelEvent : UiEvent {
-    data class Bind(val login: String, val hint: ChannelSnapshot? = null) : StreamChannelEvent
-    data object ToggleFollow : StreamChannelEvent
-    data object DismissFailure : StreamChannelEvent
-}
-
-sealed interface StreamChannelEffect : UIEffect
 
 class StreamChannelViewModel(
     private val follows: ChannelFollowGateway,

@@ -259,7 +259,20 @@ internal class LowLatencyStreamPlaybackEngine(
         if (released) return
         if (error.status in ENDED_STATUSES) ended = true else failure = errorKind(error)
         Napier.w("Playback error ${error.reason}/${error.source} ${error.status} -> ${failure ?: StreamPhase.ENDED}", tag = TAG)
+        if (failure == StreamErrorKind.UNSUPPORTED_CODEC && reloadOnDecodableQuality()) return
         publish()
+    }
+
+    private fun reloadOnDecodableQuality(): Boolean {
+        val current = manifest ?: return false
+        if (selection == StreamQualitySelection.AudioOnly) return false
+        val quality = player.stats().qualityName ?: return false
+        decodeGuard.reject(quality)
+        val replacement = decodeGuard.replacement(null, videoQualityNames()) ?: return false
+        Napier.w("Decoder cannot play $quality, reloading on $replacement", tag = TAG)
+        failure = null
+        scope.launch { if (!released) load(current, selection, lowLatency) }
+        return true
     }
 
     private fun pausedOutsideEngine(): Boolean =
@@ -349,6 +362,7 @@ internal class LowLatencyStreamPlaybackEngine(
             return
         }
         applyQuality(seamless = false)
+        decodeGuard.switched(now)
     }
 
     private fun steerTowardsLive(stats: LowLatencyPlayerStats, now: Long) {

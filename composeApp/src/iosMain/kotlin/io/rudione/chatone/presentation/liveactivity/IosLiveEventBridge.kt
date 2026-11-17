@@ -28,6 +28,7 @@ object IosLiveEventBridge {
     fun setAvailable(available: Boolean) { LiveEventActivities.available.value = available }
     fun reportFailure() { LiveEventActivities.failed(); settings?.remove(KEY); polling?.cancel() }
     fun dismissed(eventKey: String) {
+        LiveEventActivities.dismissedByUser(eventKey)
         if (LiveEventActivities.followed.value?.key != eventKey) return
         LiveEventActivities.clearSelection(); settings?.remove(KEY); polling?.cancel()
     }

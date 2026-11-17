@@ -1,38 +1,10 @@
 package io.rudione.chatone.presentation.auth
 
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewModelScope
 import io.rudione.chatone.base.BaseViewModel
-import io.rudione.chatone.base.UIEffect
-import io.rudione.chatone.base.UiEvent
-import io.rudione.chatone.base.UiState
-import io.rudione.chatone.data.repository.DeviceActivation
 import io.rudione.chatone.data.repository.DeviceLoginController
-import io.rudione.chatone.data.repository.DeviceLoginFailure
 import io.rudione.chatone.data.repository.DeviceLoginStage
 import kotlinx.coroutines.launch
-
-enum class DeviceLoginStep { ACCOUNT, RIGHTS }
-
-@Immutable
-data class DeviceLoginState(
-    val step: DeviceLoginStep = DeviceLoginStep.ACCOUNT,
-    val activation: DeviceActivation? = null,
-    val loading: Boolean = true,
-    val failure: DeviceLoginFailure? = null
-) : UiState
-
-sealed interface DeviceLoginEvent : UiEvent {
-    data object Start : DeviceLoginEvent
-    data object StartRights : DeviceLoginEvent
-    data object Retry : DeviceLoginEvent
-    data object SkipRights : DeviceLoginEvent
-    data object Cancel : DeviceLoginEvent
-}
-
-sealed interface DeviceLoginEffect : UIEffect {
-    data object SignedIn : DeviceLoginEffect
-}
 
 class DeviceLoginViewModel(
     private val controller: DeviceLoginController

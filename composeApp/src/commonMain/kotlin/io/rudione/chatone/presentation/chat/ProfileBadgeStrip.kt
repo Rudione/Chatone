@@ -116,7 +116,8 @@ internal fun ProfileBadgeStrip(
     badges: List<ProfileBadgeItem>,
     modifier: Modifier = Modifier,
     badgeSize: Dp = 18.dp,
-    spacing: Dp = 3.dp
+    spacing: Dp = 3.dp,
+    expandable: Boolean = true
 ) {
     if (badges.isEmpty()) return
     var expanded by remember { mutableStateOf(false) }
@@ -129,7 +130,7 @@ internal fun ProfileBadgeStrip(
             badges.size <= perRow -> Row(horizontalArrangement = arrangement) {
                 badges.forEach { ProfileBadge(it, badgeSize) }
             }
-            expanded -> FlowRow(
+            expanded && expandable -> FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = (badgeSize + spacing) * EXPANDED_MAX_ROWS)
@@ -151,7 +152,7 @@ internal fun ProfileBadgeStrip(
                 val visible = perRow - 1
                 Row(horizontalArrangement = arrangement) {
                     badges.take(visible).forEach { ProfileBadge(it, badgeSize) }
-                    BadgeOverflowTile(size = badgeSize, onClick = { expanded = true }) {
+                    BadgeOverflowTile(size = badgeSize, onClick = { expanded = true }.takeIf { expandable }) {
                         val hidden = badges.size - visible
                         val label = if (hidden > MAX_COUNTER) "$MAX_COUNTER+" else hidden.toString()
                         val fontSize = (badgeSize.value * if (label.length > 2) 0.38f else 0.5f).sp
@@ -183,7 +184,7 @@ private fun ProfileBadge(badge: ProfileBadgeItem, size: Dp) {
 @Composable
 private fun BadgeOverflowTile(
     size: Dp,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     content: @Composable () -> Unit
 ) {
     Box(
@@ -191,7 +192,7 @@ private fun BadgeOverflowTile(
             .size(size)
             .clip(RoundedCornerShape(4.dp))
             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.16f))
-            .clickable(onClick = onClick),
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         contentAlignment = Alignment.Center
     ) { content() }
 }

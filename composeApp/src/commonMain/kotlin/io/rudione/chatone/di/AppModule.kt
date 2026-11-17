@@ -78,6 +78,7 @@ import io.rudione.chatone.data.remote.emote.PersonalSetExtractor
 import io.rudione.chatone.data.remote.emote.SevenTvApiClient
 import io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient
 import io.rudione.chatone.data.remote.emote.SevenTvEventApi
+import io.rudione.chatone.data.repository.SevenTvLiveEmotes
 import io.rudione.chatone.data.remote.gif.GiphyApiClient
 import io.rudione.chatone.data.repository.AuthRepository
 import io.rudione.chatone.data.repository.AuthRepositoryImpl
@@ -168,6 +169,8 @@ import io.rudione.chatone.presentation.theme.CustomThemeManager
 import io.rudione.chatone.util.media.AppImageLoaderInstaller
 import io.rudione.chatone.util.settings.AppConfig
 import kotlinx.coroutines.CoroutineScope
+import chatone.composeapp.generated.resources.Res
+import io.rudione.chatone.data.repository.ForbiddenWordsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
@@ -177,6 +180,20 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
+import io.rudione.chatone.data.sound.AudioDecoder
+import io.rudione.chatone.data.sound.BuiltInSounds
+import io.rudione.chatone.data.sound.LocalSoundFileStore
+import io.rudione.chatone.data.sound.MentionSoundRepository
+import io.rudione.chatone.data.sound.SettingsMentionPrefs
+import io.rudione.chatone.data.sound.SoundFileStore
+import io.rudione.chatone.data.sound.SoundImporter
+import io.rudione.chatone.data.sound.soundsRootDirectory
+import io.rudione.chatone.domain.sound.MentionSoundService
+import io.rudione.chatone.presentation.settings.sound.MentionSoundViewModel
+import io.rudione.chatone.util.media.NotificationSoundPlayer
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlin.time.Clock
 import io.rudione.chatone.domain.ai.AiConsentStore
 
 val IoScopeQualifier = named("io-scope")
@@ -229,6 +246,7 @@ val networkModule = module {
     }
 
     single { NetworkMonitor(get(IoScopeQualifier)) }
+    single { ForbiddenWordsRepository(scope = get()) { Res.readBytes(ForbiddenWordsRepository.DICTIONARY_FILE) } }
 
     single {
         TwitchIrcClient(
@@ -259,6 +277,31 @@ val networkModule = module {
     single { AutoModHub(socket = get(), apiClient = get(), sessions = get(), scope = get(IoScopeQualifier)) }
     single { ImageUploaderClient(httpClient = get()) }
     single { MentionMuteRepository() }
+    single<SoundFileStore> { LocalSoundFileStore(soundsRootDirectory(), IoDispatcher) }
+    single { AudioDecoder(files = get()) }
+    single { BuiltInSounds(files = get()) { Res.readBytes(MENTION_TAG_SOUND_FILE) } }
+    single { SoundImporter(files = get(), decoder = get()) }
+    single {
+        MentionSoundRepository(
+            settings = get(),
+            files = get(),
+            builtIns = get(),
+            importer = get(),
+            decoder = get(),
+            scope = get(IoScopeQualifier),
+            now = { Clock.System.now().toEpochMilliseconds() },
+            reloads = SettingsViewModel.changeBroadcast.filter { it < 0 }.map { }
+        )
+    }
+    single {
+        MentionSoundService(
+            source = get<MentionSoundRepository>(),
+            output = NotificationSoundPlayer,
+            prefs = SettingsMentionPrefs(get()),
+            scope = get(IoScopeQualifier),
+            now = { Clock.System.now().toEpochMilliseconds() }
+        )
+    }
 
     single { RecentMessagesClient(httpClient = get()) }
     single { BestLogsClient(httpClient = get()) }
@@ -276,6 +319,7 @@ val networkModule = module {
 
     single { SevenTvCosmeticsClient(httpClient = get(), scope = get(IoScopeQualifier)) }
     single { SevenTvEventApi(httpClient = get(), scope = get(IoScopeQualifier), networkMonitor = get()) }
+    single { SevenTvLiveEmotes(source = get<SevenTvEventApi>(), emotes = get(), scope = get(IoScopeQualifier)) }
 
     single { TranslationClient(httpClient = get()) }
     single { TranslationStore(client = get()) }
@@ -632,8 +676,7 @@ val viewModelModule = module {
             joinChannelUseCase = get(),
             apiClient = get(),
             sevenTvCosmeticsClient = get(),
-            sevenTvEventApi = get(),
-            sevenTvApi = get(),
+            sevenTvLiveEmotes = get(),
             automodRepository = get(),
             pubSubClient = get(),
             eventSubClient = get(),
@@ -656,6 +699,7 @@ val viewModelModule = module {
         )
     }
     viewModel { SettingsViewModel(get(), get(), get()) }
+    viewModel { MentionSoundViewModel(repository = get(), service = get(), now = { Clock.System.now().toEpochMilliseconds() }) }
     viewModelOf(::MainViewModel)
     viewModel { params -> ProfileEditorViewModel(channelLogin = params.getOrNull(), gateway = get()) }
     viewModel { params ->
@@ -739,3 +783,5 @@ fun appModules(): List<Module> = listOf(
     platformBrowseModule,
     platformLoginReturnModule
 )
+
+private const val MENTION_TAG_SOUND_FILE = "files/sounds/mention_tag.wav"

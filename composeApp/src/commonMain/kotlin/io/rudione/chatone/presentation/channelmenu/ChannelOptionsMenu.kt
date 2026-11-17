@@ -1,11 +1,11 @@
 package io.rudione.chatone.presentation.channelmenu
 
-import chatone.composeapp.generated.resources.report_content
-import io.rudione.chatone.presentation.legal.ContentReport
-import io.rudione.chatone.presentation.legal.ContentReports
-import io.rudione.chatone.presentation.legal.ReportTarget
-import io.rudione.chatone.icons.material.outlined.Flag
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.report_on_twitch
+import io.rudione.chatone.icons.material.Icons
+import io.rudione.chatone.icons.material.outlined.Flag
+import io.rudione.chatone.util.link.TwitchLinks
+import androidx.compose.ui.platform.LocalUriHandler
 import chatone.composeapp.generated.resources.channel_page_menu_profile
 import chatone.composeapp.generated.resources.main_channel_badges_bits
 import chatone.composeapp.generated.resources.main_toggle_pinned_message
@@ -45,7 +45,6 @@ import io.rudione.chatone.presentation.profile.PageNavigator
 import io.rudione.chatone.presentation.screenchat.ScreenChatController
 import io.rudione.chatone.util.system.ChannelPanelRequestBus
 import org.koin.compose.koinInject
-import io.rudione.chatone.icons.material.Icons
 
 @Immutable
 class ChannelMenuActions(
@@ -89,6 +88,7 @@ fun ChannelOptionsMenu(
     val openScreenChats by screenChats.open.collectAsState()
     val muted = remember(login, expanded) { mutes.isChannelMuted(login) }
     val profiles: PageNavigator = koinInject()
+    val uriHandler = LocalUriHandler.current
     ChatoneDropdownMenu(expanded = expanded, onDismissRequest = onDismissRequest, offset = offset) {
         if (profiles.isSupported && login.isNotBlank()) {
             ChannelMenuItem(
@@ -134,13 +134,16 @@ fun ChannelOptionsMenu(
             onDismissRequest()
             ChannelPanelRequestBus.requestOpenPointsBitsPanel(login)
         }
-        ChannelMenuItem(stringResource(Res.string.report_content), Icons.Outlined.Flag) {
-            onDismissRequest()
-            ContentReports.open(ContentReport(ReportTarget.STREAM, login, login))
-        }
         ChannelMenuItem(stringResource(Res.string.main_toggle_pinned_message), Lucide.Pin) {
             onDismissRequest()
             ChannelPanelRequestBus.requestToggleHiddenEvents(login)
+        }
+        TwitchLinks.channelUrl(login)?.let { url ->
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            ChannelMenuItem(stringResource(Res.string.report_on_twitch), Icons.Outlined.Flag) {
+                onDismissRequest()
+                uriHandler.openUri(url)
+            }
         }
     }
 }

@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings
 
+import io.rudione.chatone.data.sound.mediaStreamChoiceSupported
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.clear
 import chatone.composeapp.generated.resources.close
@@ -249,7 +250,8 @@ private fun SettingsDialogContent(
             input,
             desktop = isDesktopPlatform,
             phone = currentFormFactor() == DeviceFormFactor.PHONE,
-            macOs = screenChatFloatsOverFullScreen
+            macOs = screenChatFloatsOverFullScreen,
+            android = mediaStreamChoiceSupported
         )
     }
     val catalog = rememberSettingsCatalog(context)

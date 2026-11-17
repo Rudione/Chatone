@@ -16,7 +16,6 @@ data class StableChatStyle(
     val smoothChatEnabled: Boolean,
     val mentionSoundEnabled: Boolean,
     val mentionSoundVolume: Float,
-    val customMentionSoundPath: String?,
     val disableScrollOnAlt: Boolean,
     val showInlineImages: InlineImageMode,
     val closeEmotePickerOnMouseLeave: Boolean,
@@ -28,7 +27,7 @@ fun rememberStableChatStyle(s: SettingsState): StableChatStyle {
     return remember(
         s.showBadges, s.timestampFormat, s.pauseOnHover, s.alternateRowBackground,
         s.showChatHeader, s.smoothChatEnabled, s.mentionSoundEnabled, s.mentionSoundVolume,
-        s.customMentionSoundPath, s.disableScrollOnAlt, s.showInlineImages,
+        s.disableScrollOnAlt, s.showInlineImages,
         s.closeEmotePickerOnMouseLeave, s.scrollbackLimit
     ) {
         StableChatStyle(
@@ -40,7 +39,6 @@ fun rememberStableChatStyle(s: SettingsState): StableChatStyle {
             smoothChatEnabled = s.smoothChatEnabled,
             mentionSoundEnabled = s.mentionSoundEnabled,
             mentionSoundVolume = s.mentionSoundVolume,
-            customMentionSoundPath = s.customMentionSoundPath,
             disableScrollOnAlt = s.disableScrollOnAlt,
             showInlineImages = s.showInlineImages,
             closeEmotePickerOnMouseLeave = s.closeEmotePickerOnMouseLeave,

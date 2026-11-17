@@ -5,7 +5,6 @@ import io.rudione.chatone.domain.model.ChatAutomation
 import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.normalizeAutomationChannel
 import io.rudione.chatone.presentation.settings.SettingsState
-import io.rudione.chatone.util.media.NotificationSoundPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -19,9 +18,7 @@ internal class ChatAutomationController(
     private val getChatState: () -> ChatState,
     private val getSettings: () -> SettingsState,
     private val sendAsUser: suspend (channelLogin: String, text: String, replyTo: ChatMessage?) -> Boolean,
-    private val playSound: (SettingsState) -> Unit = {
-        NotificationSoundPlayer.playMentionSound(it.mentionSoundVolume, it.customMentionSoundPath)
-    },
+    private val playSound: (channel: String) -> Unit = {},
     private val gate: AutomationGate = AutomationGate.shared,
     private val random: Random = Random.Default,
     private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() }
@@ -103,7 +100,7 @@ internal class ChatAutomationController(
         if (!AutomationGate.stripInvisible(message.message).contains(auto.keyword.trim(), ignoreCase = true)) return
         val cooldownMs = auto.effectiveCooldownSeconds * 1000L
         if (!gate.tryReserveCooldown("sound|${auto.id}|$channel", cooldownMs, now())) return
-        playSound(getSettings())
+        playSound(channel)
     }
 
     private fun canSpeak(s: ChatState): Boolean =

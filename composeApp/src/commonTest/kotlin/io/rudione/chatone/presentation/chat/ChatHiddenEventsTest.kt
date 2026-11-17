@@ -61,4 +61,27 @@ class ChatHiddenEventsTest {
         assertEquals(50, hidden.hiddenEventIds.size)
         assertTrue("poll-1" in hidden.hiddenEventIds)
     }
+
+    @Test
+    fun collapseTogglesOnlyTheLivePrediction() {
+        val collapsed = live.withEventCollapseToggled("prediction", memory = 50)
+        assertEquals(setOf("pred-1"), collapsed.collapsedEventIds)
+        assertEquals(emptySet(), collapsed.withEventCollapseToggled("prediction", memory = 50).collapsedEventIds)
+        assertEquals(live, ChatState().withEventCollapseToggled("prediction", memory = 50).copy(
+            pinnedMessage = pinned, livePoll = poll, livePrediction = prediction
+        ))
+    }
+
+    @Test
+    fun showingAHiddenPredictionExpandsItAndClosesThePointsPanel() {
+        val hidden = live.copy(
+            hiddenEventIds = setOf("pred-1", "poll-1"),
+            collapsedEventIds = setOf("pred-1"),
+            showPointsBitsPanel = true
+        )
+        val shown = hidden.withEventShown("prediction")
+        assertEquals(setOf("poll-1"), shown.hiddenEventIds)
+        assertTrue(shown.collapsedEventIds.isEmpty())
+        assertFalse(shown.showPointsBitsPanel)
+    }
 }

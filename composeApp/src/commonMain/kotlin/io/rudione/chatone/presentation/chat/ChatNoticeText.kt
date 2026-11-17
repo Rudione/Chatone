@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withLink
@@ -15,6 +16,8 @@ import androidx.compose.ui.text.withStyle
 import io.rudione.chatone.domain.model.ChatNoticeUser
 import io.rudione.chatone.presentation.chat.rendering.appendInlineGlyph
 import io.rudione.chatone.presentation.chat.rendering.inlineTextSemantics
+
+private val PlainLinkStyles = TextLinkStyles()
 
 internal fun noticeAuthorRange(text: String, user: ChatNoticeUser): IntRange? =
     listOf(user.displayName, user.login).filter(String::isNotBlank).mapNotNull { name ->
@@ -47,7 +50,7 @@ internal fun ChatNoticeText(text: String, author: ChatNoticeUser?, color: Color,
     }
     val annotated = buildAnnotatedString {
         append(text.substring(0, range.first))
-        withLink(LinkAnnotation.Clickable("notice_author") { onOpenUser(author) }) {
+        withLink(LinkAnnotation.Clickable("notice_author", PlainLinkStyles) { onOpenUser(author) }) {
             if (nickname.paint != null) appendInlineGlyph("author", nickname.name)
             else withStyle(SpanStyle(color = nickname.color, fontWeight = FontWeight.Bold)) { append(nickname.name) }
         }

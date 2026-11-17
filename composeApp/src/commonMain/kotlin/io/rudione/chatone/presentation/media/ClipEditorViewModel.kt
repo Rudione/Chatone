@@ -1,11 +1,7 @@
 package io.rudione.chatone.presentation.media
 
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewModelScope
 import io.rudione.chatone.base.BaseViewModel
-import io.rudione.chatone.base.UIEffect
-import io.rudione.chatone.base.UiEvent
-import io.rudione.chatone.base.UiState
 import io.rudione.chatone.domain.media.ClipDraft
 import io.rudione.chatone.domain.media.ClipFailure
 import io.rudione.chatone.domain.media.ClipOrigin
@@ -25,46 +21,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
-
-enum class ClipEditorPhase { PREPARING, EDITING, PUBLISHING, DONE, FAILED }
-
-@Immutable
-data class ClipEditorState(
-    val login: String,
-    val channelName: String = "",
-    val phase: ClipEditorPhase = ClipEditorPhase.PREPARING,
-    val failure: ClipFailure? = null,
-    val draft: ClipDraft? = null,
-    val totalSeconds: Float = FALLBACK_WINDOW,
-    val start: Float = FALLBACK_WINDOW - ClipTrim.DEFAULT_SECONDS,
-    val end: Float = FALLBACK_WINDOW,
-    val rangeEdited: Boolean = false,
-    val trimming: Boolean = false,
-    val title: String = "",
-    val slug: String? = null,
-    val publishedSlug: String? = null
-) : UiState {
-    val length: Float get() = end - start
-    val range: ClosedFloatingPointRange<Float> get() = start..end
-    val canPublish: Boolean get() = phase == ClipEditorPhase.EDITING && title.isNotBlank() && slug != null
-
-    companion object {
-        const val FALLBACK_WINDOW = 60f
-    }
-}
-
-sealed interface ClipEditorEvent : UiEvent {
-    data object Retry : ClipEditorEvent
-    data object BeginTrim : ClipEditorEvent
-    data class SetRange(val start: Float, val end: Float, val previewAt: Float) : ClipEditorEvent
-    data object EndTrim : ClipEditorEvent
-    data class Seek(val seconds: Float) : ClipEditorEvent
-    data class Preset(val seconds: Float) : ClipEditorEvent
-    data class EditTitle(val value: String) : ClipEditorEvent
-    data object Publish : ClipEditorEvent
-}
-
-sealed interface ClipEditorEffect : UIEffect
 
 class ClipEditorViewModel(
     private val login: String,

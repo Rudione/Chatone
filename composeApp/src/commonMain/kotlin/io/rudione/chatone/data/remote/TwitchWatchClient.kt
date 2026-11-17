@@ -9,6 +9,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
 import io.ktor.http.parameters
 import io.rudione.chatone.domain.points.WatchStreak
+import io.rudione.chatone.domain.points.WatchStreakCounting
 import io.rudione.chatone.domain.points.WatchStreakReward
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -44,7 +45,8 @@ class TwitchWatchClient(
     suspend fun streak(channelLogin: String, token: String): WatchStreak? {
         val variables = buildJsonObject { put("login", channelLogin.lowercase()) }
         val reply = transport.signedIn(token, STREAK_QUERY, variables) as? GqlReply.Data ?: return null
-        val channel = reply.data.obj("user")?.obj("channel") ?: return null
+        val user = reply.data.obj("user")
+        val channel = user?.obj("channel") ?: return null
         val rewards = channel.obj("communityPointsSettings")?.obj("earning")?.arr("watchStreakPoints").orEmpty()
             .mapNotNull { element ->
                 val reward = element as? JsonObject ?: return@mapNotNull null
@@ -56,7 +58,13 @@ class TwitchWatchClient(
             .mapNotNull { it as? JsonObject }
             .firstOrNull { it.str("category")?.contains(STREAK_CATEGORY, ignoreCase = true) == true }
             ?.int("value") ?: 0
-        return WatchStreak(current = current, rewards = rewards)
+        val channelId = user.str("id")
+        val achievedAt = reply.data.arr("batchGetWatchStreaks")
+            .mapNotNull { it as? JsonObject }
+            .firstOrNull { channelId != null && it.obj("channel")?.str("id") == channelId }
+            ?.str("achievedAt")
+        val counted = WatchStreakCounting.countedThisStream(achievedAt, user.obj("stream")?.str("createdAt"))
+        return WatchStreak(current = current, rewards = rewards, countedThisStream = counted)
     }
 
     suspend fun broadcast(channelLogin: String): WatchBroadcast? {
@@ -133,9 +141,10 @@ class TwitchWatchClient(
         val SETTINGS_SCRIPT = Regex("https://(?:static\\.twitchcdn\\.net|assets\\.twitch\\.tv)/config/settings\\.[a-f0-9]+\\.js")
         val SPADE_URL = Regex("\"spade_url\":\"([^\"]+)\"")
         const val STREAK_QUERY =
-            "query ChatoneWatchStreak(\$login: String!) { user(login: \$login) { id channel { " +
+            "query ChatoneWatchStreak(\$login: String!) { user(login: \$login) { id stream { createdAt } channel { " +
                     "self { viewerMilestones { category value } } " +
-                    "communityPointsSettings { earning { watchStreakPoints { streakLength points } } } } } }"
+                    "communityPointsSettings { earning { watchStreakPoints { streakLength points } } } } } " +
+                    "batchGetWatchStreaks(filter: ALL) { channel { id } achievedAt } }"
         const val BROADCAST_QUERY =
             "query ChatoneWatchBroadcast(\$login: String!) { user(login: \$login) { id stream { id game { id displayName } } } }"
     }

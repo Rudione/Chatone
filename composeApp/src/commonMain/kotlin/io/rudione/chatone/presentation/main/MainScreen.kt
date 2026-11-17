@@ -118,7 +118,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import io.rudione.chatone.presentation.legal.AiConsentHost
-import io.rudione.chatone.presentation.legal.ContentReportHost
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -143,7 +142,6 @@ private fun MainScreenContent(
     viewModel: MainViewModel
 ) {
     AiConsentHost()
-    ContentReportHost()
     val state by viewModel.state.collectAsState()
     val settingsViewModel: SettingsViewModel = koinViewModel()
     val settingsState by settingsViewModel.state.collectAsState()

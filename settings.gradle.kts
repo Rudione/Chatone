@@ -173,6 +173,7 @@ dependencyResolutionManagement {
 
             library("jna", "net.java.dev.jna", "jna").versionRef("jna")
             library("jna-platform", "net.java.dev.jna", "jna-platform").versionRef("jna")
+            library("jlayer", "javazoom", "jlayer").version("1.0.1")
 
 
             library("navigation3-ui", "org.jetbrains.androidx.navigation3", "navigation3-ui").versionRef("nav3")

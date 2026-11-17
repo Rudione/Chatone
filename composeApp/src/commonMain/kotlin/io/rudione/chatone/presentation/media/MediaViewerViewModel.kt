@@ -1,11 +1,7 @@
 package io.rudione.chatone.presentation.media
 
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewModelScope
 import io.rudione.chatone.base.BaseViewModel
-import io.rudione.chatone.base.UIEffect
-import io.rudione.chatone.base.UiEvent
-import io.rudione.chatone.base.UiState
 import io.rudione.chatone.data.repository.StreamPlayerPreferencesRepository
 import io.rudione.chatone.domain.media.ClipOutcome
 import io.rudione.chatone.domain.media.ClipStudio
@@ -27,47 +23,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-
-enum class ViewerLoad { LOADING, READY, MISSING, FAILED }
-
-@Immutable
-data class ReplayEntry(val revealAtMs: Long, val message: DisplayMessage.PrivMsg)
-
-@Immutable
-data class MediaViewerState(
-    val load: ViewerLoad = ViewerLoad.LOADING,
-    val details: MediaDetails? = null,
-    val sourceIndex: Int = 0,
-    val muted: Boolean = false,
-    val volume: Float = 1f,
-    val speed: Float = 1f,
-    val looping: Boolean = true,
-    val replayMessages: List<ReplayEntry> = emptyList(),
-    val replayPrimed: Boolean = false,
-    val replayHasClock: Boolean = false,
-    val ambientLight: Boolean = true,
-    val canModerate: Boolean = false,
-    val busy: Boolean = false,
-    val deleted: Boolean = false
-) : UiState
-
-sealed interface MediaViewerEvent : UiEvent {
-    data object Retry : MediaViewerEvent
-    data class SelectSource(val index: Int) : MediaViewerEvent
-    data object ToggleMute : MediaViewerEvent
-    data class SetVolume(val volume: Float) : MediaViewerEvent
-    data class SetSpeed(val speed: Float) : MediaViewerEvent
-    data object ToggleLooping : MediaViewerEvent
-    data class Progress(val positionSeconds: Int) : MediaViewerEvent
-    data object DeleteClip : MediaViewerEvent
-    data object BanCurator : MediaViewerEvent
-}
-
-sealed interface MediaViewerEffect : UIEffect {
-    data object Deleted : MediaViewerEffect
-    data object Banned : MediaViewerEffect
-    data object ActionFailed : MediaViewerEffect
-}
 
 class MediaViewerViewModel(
     private val kind: MediaKind,

@@ -1,7 +1,5 @@
 package io.rudione.chatone.presentation.chat.components
 
-import io.rudione.chatone.presentation.liveactivity.liveChatEvent
-import io.rudione.chatone.presentation.liveactivity.FollowLiveEventButton
 
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.chat_hide_event_banner
@@ -48,8 +46,7 @@ fun PollBanner(
     poll: PollData,
     onVote: (choiceId: String) -> Unit = {},
     onHide: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
-    channelLogin: String = poll.broadcasterLogin
+    modifier: Modifier = Modifier
 ) {
     val observedAt = remember(poll.id, poll.remainingMs, poll.receivedAtMs) {
         poll.receivedAtMs ?: Clock.System.now().toEpochMilliseconds()
@@ -74,7 +71,6 @@ fun PollBanner(
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
     ) {
         Column {
-            FollowLiveEventButton(poll.liveChatEvent(channelLogin, observedAt))
             Column(
                 modifier = Modifier
                     .fillMaxWidth()

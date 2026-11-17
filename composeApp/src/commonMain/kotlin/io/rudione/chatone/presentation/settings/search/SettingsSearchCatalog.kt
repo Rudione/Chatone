@@ -56,11 +56,18 @@ import chatone.composeapp.generated.resources.settings_hub_uploader_fields_title
 import chatone.composeapp.generated.resources.settings_hub_uploader_link_help
 import chatone.composeapp.generated.resources.settings_hub_uploader_service_group
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.hotkeys_commands_title
+import chatone.composeapp.generated.resources.hotkeys_macros_title
+import chatone.composeapp.generated.resources.hotkeys_commands_desc
+import chatone.composeapp.generated.resources.hotkeys_macros_desc
 import chatone.composeapp.generated.resources.accounts_add
 import chatone.composeapp.generated.resources.accounts_proxy_desc
 import chatone.composeapp.generated.resources.accounts_proxy_title
 import chatone.composeapp.generated.resources.accounts_title
+import chatone.composeapp.generated.resources.actions_auto_claim
+import chatone.composeapp.generated.resources.actions_auto_claim_hint
 import chatone.composeapp.generated.resources.actions_automations
+import chatone.composeapp.generated.resources.settings_points_group
 import chatone.composeapp.generated.resources.actions_automations_hint
 import chatone.composeapp.generated.resources.actions_hint
 import chatone.composeapp.generated.resources.actions_kind_reply
@@ -145,9 +152,7 @@ import chatone.composeapp.generated.resources.settings_close_on_mouse_leave_desc
 import chatone.composeapp.generated.resources.settings_commands_add
 import chatone.composeapp.generated.resources.settings_commands_desc
 import chatone.composeapp.generated.resources.settings_commands_title
-import chatone.composeapp.generated.resources.settings_custom_sound
 import chatone.composeapp.generated.resources.settings_emote_size
-import chatone.composeapp.generated.resources.settings_enable_mention_sound
 import chatone.composeapp.generated.resources.settings_enable_mention_sound_desc
 import chatone.composeapp.generated.resources.settings_font_family
 import chatone.composeapp.generated.resources.settings_font_italic
@@ -207,7 +212,6 @@ import chatone.composeapp.generated.resources.settings_show_viewer_join_leave
 import chatone.composeapp.generated.resources.settings_show_viewer_join_leave_desc
 import chatone.composeapp.generated.resources.settings_smooth_chat
 import chatone.composeapp.generated.resources.settings_smooth_chat_desc
-import chatone.composeapp.generated.resources.settings_sound_supported
 import chatone.composeapp.generated.resources.settings_telegram
 import chatone.composeapp.generated.resources.settings_theme
 import chatone.composeapp.generated.resources.settings_timestamp_format
@@ -220,6 +224,14 @@ import chatone.composeapp.generated.resources.settings_typography
 import chatone.composeapp.generated.resources.settings_ui_scale
 import chatone.composeapp.generated.resources.settings_version
 import chatone.composeapp.generated.resources.settings_volume
+import chatone.composeapp.generated.resources.sound_channels_help
+import chatone.composeapp.generated.resources.sound_channels_title
+import chatone.composeapp.generated.resources.sound_cooldown
+import chatone.composeapp.generated.resources.sound_cooldown_help
+import chatone.composeapp.generated.resources.sound_library_help
+import chatone.composeapp.generated.resources.sound_library_title
+import chatone.composeapp.generated.resources.sound_media_stream
+import chatone.composeapp.generated.resources.sound_media_stream_desc
 import chatone.composeapp.generated.resources.settings_window
 import chatone.composeapp.generated.resources.streamer_hide_mod
 import chatone.composeapp.generated.resources.streamer_hide_thumbs
@@ -329,7 +341,8 @@ data class SettingsCatalogContext(
     val input: InputCapabilities,
     val desktop: Boolean,
     val phone: Boolean,
-    val macOs: Boolean = false
+    val macOs: Boolean = false,
+    val android: Boolean = false
 )
 
 internal suspend fun buildSettingsCatalog(context: SettingsCatalogContext): List<SettingsSearchEntry> =
@@ -432,6 +445,9 @@ private suspend fun collectCatalog(context: SettingsCatalogContext): List<Catalo
                 entry(text(Res.string.settings_auto_translate_input), text(Res.string.settings_auto_translate_input_desc), "автоперевод перевод исходящих auto translate")
                 entry(text(Res.string.settings_outgoing_translation_lang), text(Res.string.settings_outgoing_translation_lang_desc), "язык исходящих outgoing")
             }
+            group(text(Res.string.settings_points_group)) {
+                entry(text(Res.string.actions_auto_claim), text(Res.string.actions_auto_claim_hint), "баллы сундук бонус автосбор собирать награда channel points bonus chest claim auto")
+            }
         }
         section(SettingsSection.SCREEN_CHAT) {
             group(null) {
@@ -492,12 +508,15 @@ private suspend fun collectCatalog(context: SettingsCatalogContext): List<Catalo
                     entry(text(Res.string.settings_mention_alerts), text(Res.string.settings_mention_alerts_desc), "пуш уведомления телефон push")
                 }
             }
-            group(text(Res.string.settings_mention_sound)) {
-                entry(text(Res.string.settings_enable_mention_sound), text(Res.string.settings_enable_mention_sound_desc), "звук упоминания пинг mention sound ping")
+            group(null) {
+                entry(text(Res.string.settings_mention_sound), text(Res.string.settings_enable_mention_sound_desc), "включить звук упоминания пинг mention sound ping enable")
                 entry(text(Res.string.settings_volume), keywords = "громкость volume")
-            }
-            group(text(Res.string.settings_custom_sound)) {
-                entry(text(Res.string.settings_custom_sound), text(Res.string.settings_sound_supported), "свой звук wav ogg custom sound")
+                entry(text(Res.string.sound_library_title), text(Res.string.sound_library_help), "свой звук добавить файл wav mp3 m4a ogg перетащить обрезать custom sound add file drop trim")
+                entry(text(Res.string.sound_channels_title), text(Res.string.sound_channels_help), "звук для канала без звука канал channel sound mute")
+                entry(text(Res.string.sound_cooldown), text(Res.string.sound_cooldown_help), "пауза спам задержка cooldown spam")
+                if (context.android) {
+                    entry(text(Res.string.sound_media_stream), text(Res.string.sound_media_stream_desc), "громкость медиа уведомления media volume")
+                }
             }
         }
         section(SettingsSection.HIGHLIGHTS) {
@@ -530,6 +549,12 @@ private suspend fun collectCatalog(context: SettingsCatalogContext): List<Catalo
                     entry(text(Res.string.settings_pause_auto_scroll), text(Res.string.settings_pause_auto_scroll_desc), "пауза клавиша мышь pause hotkey")
                     entry(text(Res.string.settings_pause_mode), keywords = "удерживать переключать hold toggle")
                     entry(text(Res.string.settings_block_scroll), text(Res.string.settings_block_scroll_desc), "прокрутка колесико alt scroll")
+                }
+                group(text(Res.string.hotkeys_macros_title)) {
+                    entry(text(Res.string.hotkeys_macros_title), text(Res.string.hotkeys_macros_desc), "макрос горячая клавиша запуск сочетание macro hotkey shortcut run key")
+                }
+                group(text(Res.string.hotkeys_commands_title)) {
+                    entry(text(Res.string.hotkeys_commands_title), text(Res.string.hotkeys_commands_desc), "команда горячая клавиша сочетание command hotkey shortcut key")
                 }
             }
         }

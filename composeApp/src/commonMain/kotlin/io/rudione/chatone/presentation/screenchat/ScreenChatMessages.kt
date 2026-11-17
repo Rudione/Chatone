@@ -26,6 +26,7 @@ import io.rudione.chatone.presentation.chat.PrivMsgItem
 import io.rudione.chatone.presentation.chat.UserNoticeMsgItem
 import io.rudione.chatone.presentation.chat.components.RewardRedemptionItem
 import io.rudione.chatone.presentation.chat.rendering.ChatFollowEffects
+import io.rudione.chatone.presentation.chat.rendering.PreserveScrollAnchor
 import io.rudione.chatone.presentation.chat.rendering.rememberChatFollowState
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.util.chat.MessageToken
@@ -48,6 +49,7 @@ internal fun ScreenChatMessages(
         paused = follow.isPausedByScroll,
         onPinnedToBottom = {}
     )
+    PreserveScrollAnchor(listState, shown) { it.id }
     val backdrop = Modifier.background(Color.Black.copy(alpha = settings.backdropAlpha), RowShape)
     val rowModifier = if (settings.backdrop) Modifier.fillMaxWidth().then(backdrop) else Modifier.fillMaxWidth()
     val fontSize = settings.fontSize.toFloat()

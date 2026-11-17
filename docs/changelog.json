@@ -13,14 +13,26 @@
         { "type": "new", "ru": "Лаборатория: статистика просмотра на устройстве и новые функции на пробу", "en": "Laboratory: viewing stats kept on your device, plus features to try out" },
         { "type": "new", "ru": "На ПК в шапке окна появились кнопки обновления, режима стримера и «поверх всех окон»", "en": "Desktop title bar buttons for updates, streamer mode and staying on top" },
         { "type": "new", "ru": "Значки Chatterino и Homies в мини-профиле", "en": "Chatterino and Homies badges in the mini-profile" },
+        { "type": "new", "ru": "Сундук с бонусными баллами появляется в шапке чата", "en": "The bonus points chest shows up in the chat header" },
+        { "type": "new", "ru": "Смайлики 7TV обновляются без перезахода, а в чате видно, кто добавил или удалил смайлик", "en": "7TV emotes update without rejoining, and chat shows who added or removed one" },
+        { "type": "new", "ru": "На ПК макросы и команды запускаются сочетанием клавиш", "en": "On desktop, macros and commands run from a hotkey" },
         { "type": "improved", "ru": "ИИ-ассистент спрашивает разрешение перед отправкой данных и ищет вопросы без ответа", "en": "The AI assistant asks before sending data and can find unanswered questions" },
         { "type": "improved", "ru": "Режим стримера скрывает личные сообщения и уведомления", "en": "Streamer mode hides whispers and notifications" },
         { "type": "improved", "ru": "Закреп показывает, кто его закрепил, и сворачивается в строку", "en": "Pinned messages show who pinned them and collapse to one line" },
         { "type": "improved", "ru": "Полоса прокрутки чата и кнопка упоминаний прячутся, когда не нужны", "en": "The chat scrollbar and mentions button hide when you don't need them" },
+        { "type": "improved", "ru": "Баннер прогноза можно свернуть в одну строку", "en": "The prediction banner folds into one line" },
+        { "type": "improved", "ru": "Завершение прогноза и опроса теперь нужно подтвердить", "en": "Ending a prediction or poll now asks for confirmation" },
+        { "type": "improved", "ru": "Окно баллов показывает, засчитан ли этот эфир в стрик", "en": "The channel points window shows if this stream already counts toward your streak" },
+        { "type": "improved", "ru": "Мини-профиль на телефоне: лента с новых сообщений, шапка сворачивается при прокрутке", "en": "Phone mini-profile: the feed starts at the newest messages, the header folds as you scroll" },
+        { "type": "improved", "ru": "Жалоба на зрителя или канал открывает форму Twitch", "en": "Reporting a user or a channel opens Twitch's own report form" },
+        { "type": "improved", "ru": "Иконки кнопок анимируются при нажатии и при новых упоминаниях или личных сообщениях", "en": "Button icons animate when pressed and when a new mention or whisper comes in" },
         { "type": "fixed", "ru": "Чат на телефоне больше не залипает у нижнего края и не уезжает из-под пальца", "en": "Chat on phones no longer gets stuck at the bottom or slides from under your finger" },
         { "type": "fixed", "ru": "Видео больше не мигает чёрным при повороте и переходе в «картинку в картинке»", "en": "Video no longer flashes black when you rotate or switch to picture-in-picture" },
         { "type": "fixed", "ru": "Анимированные смайлики 7TV снова появляются сразу и не замирают на ПК и iPhone", "en": "Animated 7TV emotes show up right away again and keep moving on desktop and iPhone" },
-        { "type": "fixed", "ru": "На iPhone редактор правил автомода больше не закрывает приложение", "en": "The automod rules editor no longer closes the app on iPhone" }
+        { "type": "fixed", "ru": "На iPhone редактор правил автомода больше не закрывает приложение", "en": "The automod rules editor no longer closes the app on iPhone" },
+        { "type": "fixed", "ru": "Чат больше не прыгает в начало истории, пока подгружаются старые сообщения", "en": "Chat no longer jumps to the top of the history while older messages load" },
+        { "type": "fixed", "ru": "Автосбор баллов снова сохраняется после перезапуска", "en": "The channel points auto-claim setting sticks after a restart again" },
+        { "type": "fixed", "ru": "На iPhone кнопки модерации прогноза помещаются при крупном шрифте", "en": "Prediction mod buttons on iPhone fit with larger text sizes" }
       ]
     },
     {

@@ -3,6 +3,8 @@ package io.rudione.chatone.presentation.chat
 import io.rudione.chatone.domain.model.ChatGiftBundle
 import io.rudione.chatone.domain.model.ChatNoticeDetails
 import io.rudione.chatone.domain.model.ChatNoticeUser
+import io.rudione.chatone.domain.model.ChatSubTier
+import io.rudione.chatone.domain.model.ChatSubscription
 import io.rudione.chatone.domain.model.IrcEvent
 
 internal object ChatNoticeParser {
@@ -10,6 +12,7 @@ internal object ChatNoticeParser {
         val tags = event.tags
         val type = event.msgId.orEmpty().lowercase()
         val raid = type == "raid"
+        val streak = type == "viewermilestone" && tags["msg-param-category"] == "watch-streak"
         val login = (if (raid) tags["msg-param-login"] else null)
             ?.takeIf(String::isNotBlank) ?: tags["login"].orEmpty()
         val displayName = (if (raid) tags["msg-param-displayName"] else null)
@@ -34,9 +37,8 @@ internal object ChatNoticeParser {
         return ChatNoticeDetails(
             author = author,
             raidViewers = tags["msg-param-viewerCount"]?.toIntOrNull()?.coerceAtLeast(0).takeIf { raid },
-            watchStreak = tags["msg-param-value"]?.toIntOrNull()?.takeIf {
-                type == "viewermilestone" && tags["msg-param-category"] == "watch-streak" && it > 0
-            },
+            watchStreak = tags["msg-param-value"]?.toIntOrNull()?.takeIf { streak && it > 0 },
+            watchStreakReward = tags["msg-param-copoReward"]?.toIntOrNull()?.takeIf { streak && it > 0 },
             gifts = if (gift) ChatGiftBundle(
                 total = if (summary) tags["msg-param-mass-gift-count"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1 else 1,
                 recipients = recipients,
@@ -46,7 +48,18 @@ internal object ChatNoticeParser {
                 hasSummary = summary,
                 eventIds = setOfNotNull(tags["id"]?.takeIf(String::isNotBlank)),
                 lastTimestamp = timestamp
+            ) else null,
+            subscription = if (type == "sub" || type == "resub") ChatSubscription(
+                tier = subTier(tags["msg-param-sub-plan"]),
+                months = tags["msg-param-cumulative-months"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
             ) else null
         )
+    }
+
+    private fun subTier(plan: String?): ChatSubTier = when (plan?.trim()?.lowercase()) {
+        "prime" -> ChatSubTier.Prime
+        "2000" -> ChatSubTier.Tier2
+        "3000" -> ChatSubTier.Tier3
+        else -> ChatSubTier.Tier1
     }
 }

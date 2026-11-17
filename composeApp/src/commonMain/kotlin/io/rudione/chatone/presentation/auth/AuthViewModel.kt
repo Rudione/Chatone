@@ -3,54 +3,12 @@ package io.rudione.chatone.presentation.auth
 import androidx.lifecycle.viewModelScope
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.base.BaseViewModel
-import io.rudione.chatone.base.UIEffect
-import io.rudione.chatone.base.UiEvent
-import io.rudione.chatone.base.UiState
-import io.rudione.chatone.data.repository.DeviceAuthState
 import io.rudione.chatone.data.repository.LoginFailure
 import io.rudione.chatone.data.repository.RightsHandoff
 import io.rudione.chatone.data.repository.WebLoginController
 import io.rudione.chatone.data.repository.WebLoginStage
-import io.rudione.chatone.domain.model.TwitchAccount
 import io.rudione.chatone.domain.usecase.GetFirstValidAccountUseCase
 import kotlinx.coroutines.launch
-
-data class AuthState(
-    val isCheckingToken: Boolean = true,
-    val isPreparing: Boolean = false,
-    val isVerifying: Boolean = false,
-    val prepareAttempt: Int = 1,
-    val verifyAttempt: Int = 1,
-    val awaitingPaste: Boolean = false,
-    val awaitingRights: Boolean = false,
-    val activationUrl: String? = null,
-    val rightsHandoff: RightsHandoff = RightsHandoff.Manual,
-    val automaticReturn: Boolean = false,
-    val loginUrl: String? = null,
-    val deviceState: DeviceAuthState = DeviceAuthState.Idle,
-    val failure: LoginFailure? = null,
-    val failureDetail: String? = null
-) : UiState
-
-sealed class AuthEvent : UiEvent {
-    data object OnStartLogin : AuthEvent()
-    data object OnReopenBrowser : AuthEvent()
-    data object OnOpenMirror : AuthEvent()
-    data class OnPastePayload(val payload: String, val auto: Boolean = false) : AuthEvent()
-    data object OnRetryPayload : AuthEvent()
-    data object OnGuestClicked : AuthEvent()
-    data object OnCancel : AuthEvent()
-    data object OnDismissFailure : AuthEvent()
-    data object OnContinueWithoutRights : AuthEvent()
-    data object OnRetryRights : AuthEvent()
-    data object OnOpenActivation : AuthEvent()
-}
-
-sealed class AuthEffect : UIEffect {
-    data class NavigateToHome(val account: TwitchAccount?) : AuthEffect()
-    data class OpenAuthUrl(val url: String) : AuthEffect()
-    data class OpenAuthTab(val url: String) : AuthEffect()
-}
 
 class AuthViewModel(
     private val getFirstValidAccountUseCase: GetFirstValidAccountUseCase,

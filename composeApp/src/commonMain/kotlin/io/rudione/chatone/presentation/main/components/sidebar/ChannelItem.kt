@@ -23,7 +23,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -37,12 +36,10 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,8 +49,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import io.rudione.chatone.domain.model.Channel
-import io.rudione.chatone.presentation.stream.StreamOpenQuality
-import io.rudione.chatone.presentation.stream.rememberStreamLauncher
 import io.rudione.chatone.presentation.chat.ChatScreen
 import io.rudione.chatone.presentation.components.CountChipTone
 import io.rudione.chatone.presentation.components.ChatoneCountChip
@@ -106,16 +101,22 @@ import io.rudione.chatone.icons.lucide.Folder
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.X
 import io.rudione.chatone.presentation.components.PortalPopup
+import io.rudione.chatone.presentation.components.onUnclaimedSecondaryClick
+import androidx.compose.ui.unit.round
 import androidx.compose.ui.window.PopupProperties
 
 @Composable
 internal fun CompactChannelAvatar(
     channel: ChannelTab,
     isActive: Boolean,
-    onClick: () -> Unit,
+    folders: List<ChannelFolder>,
+    currentFolderId: String?,
+    liveNotifyEnabled: Boolean,
+    actions: ChannelMenuActions,
     indented: Boolean = false
 ) {
     var showTooltip by remember { mutableStateOf(false) }
+    var menuAt by remember { mutableStateOf<IntOffset?>(null) }
     var tooltipOffset by remember { mutableStateOf(IntOffset.Zero) }
     val density = LocalDensity.current
     val tooltipGapPx = with(density) { 14.dp.roundToPx() }
@@ -141,7 +142,8 @@ internal fun CompactChannelAvatar(
                         )
                         else Modifier
                     )
-                    .clickable { onClick() }
+                    .clickable(onClick = actions.onSelect)
+                    .onUnclaimedSecondaryClick { at -> menuAt = at.round() }
                     .pointerInput(channel.login) {
                         awaitPointerEventScope {
                             while (true) {
@@ -189,7 +191,7 @@ internal fun CompactChannelAvatar(
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (showTooltip) {
+                if (showTooltip && menuAt == null) {
                     PortalPopup(
                         alignment = Alignment.TopStart,
                         offset = tooltipOffset,
@@ -214,6 +216,17 @@ internal fun CompactChannelAvatar(
                         }
                     }
                 }
+                menuAt?.let { at ->
+                    ChannelContextMenu(
+                        channel = channel,
+                        folders = folders,
+                        currentFolderId = currentFolderId,
+                        liveNotifyEnabled = liveNotifyEnabled,
+                        anchor = ChannelMenuAnchor.Pointer(at),
+                        actions = actions,
+                        onDismiss = { menuAt = null }
+                    )
+                }
             }
             if (channel.isLive) {
                 Box(
@@ -233,32 +246,38 @@ internal fun CompactChannelAvatar(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 internal fun ChannelItemWithDrag(
     modifier: Modifier,
     channel: ChannelTab,
     isActive: Boolean,
-    folders: List<ChannelFolder> = emptyList(),
-    currentFolderId: String? = null,
-    onClick: () -> Unit,
-    onClose: () -> Unit,
-    onMoveToFolder: (String?) -> Unit = {},
-    onCreateFolder: () -> Unit = {},
-    liveNotifyEnabled: Boolean = false,
-    onToggleLiveNotify: () -> Unit = {},
+    folders: List<ChannelFolder>,
+    currentFolderId: String?,
+    liveNotifyEnabled: Boolean,
+    actions: ChannelMenuActions,
     dragState: SidebarDragState
 ) {
-    val uriHandler = LocalUriHandler.current
-    val streamLauncher = rememberStreamLauncher()
-    var showContextMenu by remember { mutableStateOf(false) }
+    var menuAnchor by remember { mutableStateOf<ChannelMenuAnchor?>(null) }
+    val menu: @Composable (ChannelMenuAnchor) -> Unit = { anchor ->
+        ChannelContextMenu(
+            channel = channel,
+            folders = folders,
+            currentFolderId = currentFolderId,
+            liveNotifyEnabled = liveNotifyEnabled,
+            anchor = anchor,
+            actions = actions,
+            onDismiss = { menuAnchor = null }
+        )
+    }
 
     Box(
-        modifier = modifier.sidebarDragSource(
-            state = dragState,
-            source = SidebarDragSource(channel.login, currentFolderId),
-            onHold = { showContextMenu = true }
-        )
+        modifier = modifier
+            .sidebarDragSource(
+                state = dragState,
+                source = SidebarDragSource(channel.login, currentFolderId),
+                onHold = { menuAnchor = ChannelMenuAnchor.Button }
+            )
+            .onUnclaimedSecondaryClick { at -> menuAnchor = ChannelMenuAnchor.Pointer(at.round()) }
     ) {
         Row(
             modifier = Modifier
@@ -268,20 +287,7 @@ internal fun ChannelItemWithDrag(
                 .background(
                     if (isActive) ChatoneTheme.extraColors.sidebarSelected else Color.Transparent
                 )
-                .clickable(onClick = onClick)
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Press && event.buttons.isSecondaryPressed) {
-                                try {
-                                    uriHandler.openUri("https://www.twitch.tv/${channel.login}")
-                                } catch (_: Exception) {
-                                }
-                            }
-                        }
-                    }
-                }
+                .clickable(onClick = actions.onSelect)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -324,7 +330,7 @@ internal fun ChannelItemWithDrag(
             )
             Box {
                 ChatoneIconButton(
-                    onClick = { showContextMenu = true },
+                    onClick = { menuAnchor = ChannelMenuAnchor.Button },
                     modifier = Modifier.size(20.dp)
                 ) {
                     Icon(
@@ -334,29 +340,11 @@ internal fun ChannelItemWithDrag(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
-                if (showContextMenu) {
-                    ChannelContextMenu(
-                        folders = folders,
-                        currentFolderId = currentFolderId,
-                        liveNotifyEnabled = liveNotifyEnabled,
-                        opensStreamInApp = streamLauncher.opensInApp,
-                        actions = ChannelMenuActions(
-                            onMoveToFolder = onMoveToFolder,
-                            onCreateFolder = onCreateFolder,
-                            onToggleLiveNotify = onToggleLiveNotify,
-                            onOpenStream = { quality ->
-                                if (streamLauncher.opensInApp) onClick()
-                                streamLauncher.open(channel.login, quality)
-                            },
-                            onClose = onClose
-                        ),
-                        onDismiss = { showContextMenu = false }
-                    )
-                }
+                if (menuAnchor == ChannelMenuAnchor.Button) menu(ChannelMenuAnchor.Button)
             }
             Spacer(Modifier.width(2.dp))
             if (isActive) {
-                ChatoneIconButton(onClick = onClose, modifier = Modifier.size(20.dp)) {
+                ChatoneIconButton(onClick = actions.onClose, modifier = Modifier.size(20.dp)) {
                     Icon(
                         Lucide.X,
                         contentDescription = stringResource(Res.string.ui_close),
@@ -366,5 +354,6 @@ internal fun ChannelItemWithDrag(
                 }
             }
         }
+        (menuAnchor as? ChannelMenuAnchor.Pointer)?.let { menu(it) }
     }
 }

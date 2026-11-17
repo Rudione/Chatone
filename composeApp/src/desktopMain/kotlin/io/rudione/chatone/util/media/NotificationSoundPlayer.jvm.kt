@@ -1,116 +1,95 @@
-
 package io.rudione.chatone.util.media
 
+import io.rudione.chatone.data.sound.decodePlatformAudio
+import io.rudione.chatone.domain.sound.SoundLimits
+import io.rudione.chatone.domain.sound.SoundOutput
+import io.rudione.chatone.domain.sound.SoundSynth
+import io.rudione.chatone.domain.sound.WavCodec
+import kotlinx.coroutines.runBlocking
+import java.io.ByteArrayInputStream
 import java.io.File
-import javax.sound.sampled.*
-import kotlin.math.PI
+import java.util.Collections
+import java.util.concurrent.Executors
+import javax.sound.sampled.AudioSystem
+import javax.sound.sampled.Clip
+import javax.sound.sampled.FloatControl
+import javax.sound.sampled.LineEvent
 import kotlin.math.log10
-import kotlin.math.sin
 
-actual object NotificationSoundPlayer {
+actual object NotificationSoundPlayer : SoundOutput {
+    private const val MAX_CACHED = 12
+    private const val MAX_CACHED_BYTES = 4_000_000L
+    private val executor = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "mention-sound").apply { isDaemon = true }
+    }
+    private val cache = Collections.synchronizedMap(object : LinkedHashMap<String, ByteArray>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean = size > MAX_CACHED
+    })
+    private val clips = Collections.synchronizedSet(LinkedHashSet<Clip>())
+    private val javaSoundFormats = setOf("wav", "aif", "aiff", "au")
 
-    actual fun playMentionSound() {
-        playMentionSound(volume = 0.8f, customSoundPath = "")
+    actual override fun preload(paths: Collection<String>, mediaStream: Boolean) {
+        val files = paths.map(::File).filter { it.isFile }
+        if (files.isEmpty()) return
+        executor.execute { files.forEach { runCatching { bytesFor(it) } } }
     }
 
-    actual fun playMentionSound(volume: Float, customSoundPath: String) {
-        Thread {
-            try {
-                val effectiveVolume = volume.coerceIn(0.0f, 1.0f)
-
-                if (customSoundPath.isNotBlank()) {
-                    val file = File(customSoundPath)
-                    if (file.exists() && file.canRead()) {
-                        val played = tryPlayFile(file, effectiveVolume)
-                        if (!played) {
-                            println("Failed to play custom sound, falling back to default")
-                            playDefaultTone(effectiveVolume)
-                        }
-                    } else {
-                        println("Custom sound file not found: $customSoundPath")
-                        playDefaultTone(effectiveVolume)
-                    }
-                } else {
-                    playDefaultTone(effectiveVolume)
-                }
-            } catch (e: Exception) {
-                println("Error playing mention sound: ${e.message}")
-                try { playDefaultTone(volume.coerceIn(0.0f, 1.0f)) } catch (_: Exception) {}
-            }
-        }.also { it.isDaemon = true }.start()
-    }
-
-    private fun tryPlayFile(file: File, volume: Float): Boolean {
-        var audioInputStream: AudioInputStream? = null
-        var clip: Clip? = null
-        return try {
-            audioInputStream = AudioSystem.getAudioInputStream(file)
-            clip = AudioSystem.getClip()
-            clip.open(audioInputStream)
-
-            try {
-                val gainControl = clip.getControl(FloatControl.Type.MASTER_GAIN) as FloatControl
-                val dB = (20.0 * log10(volume.toDouble())).toFloat()
-                gainControl.value = dB.coerceIn(gainControl.minimum, gainControl.maximum)
-            } catch (e: IllegalArgumentException) {
-                try {
-                    val volumeControl = clip.getControl(FloatControl.Type.VOLUME) as FloatControl
-                    volumeControl.value = volume.coerceIn(volumeControl.minimum, volumeControl.maximum)
-                } catch (_: Exception) {}
-            }
-
-            clip.addLineListener { event ->
-                if (event.type == LineEvent.Type.STOP) {
-                    clip.close()
-                    try { audioInputStream?.close() } catch (_: Exception) {}
-                }
-            }
-            clip.start()
-            true
-        } catch (e: UnsupportedAudioFileException) {
-            println("Unsupported audio format: ${e.message}")
-            false
-        } catch (e: Exception) {
-            println("Failed to play audio file: ${e.message}")
-            false
-        } finally {
-            if (clip?.isOpen == false) {
-                try { audioInputStream?.close() } catch (_: Exception) {}
-            }
+    actual override fun play(path: String, volume: Float, mediaStream: Boolean) {
+        val file = File(path)
+        if (!file.isFile) return
+        val level = volume.coerceIn(0f, 1f)
+        executor.execute {
+            val bytes = runCatching { bytesFor(file) }.getOrNull()
+            if (bytes == null || !playBytes(bytes, level)) playTone(level)
         }
     }
 
-    private fun playDefaultTone(volume: Float) {
-        try {
-            val sampleRate = 44100f
-            val durationMs = 150
-            val frequency = 880.0
-            val numSamples = (sampleRate * durationMs / 1000).toInt()
-            val buffer = ByteArray(numSamples * 2)
-            val vol = volume.toDouble().coerceIn(0.0, 1.0)
+    actual override fun stop() {
+        val active = synchronized(clips) { clips.toList().also { clips.clear() } }
+        active.forEach { runCatching { it.stop() }; runCatching { it.close() } }
+    }
 
-            for (i in 0 until numSamples) {
-                val t = i / sampleRate.toDouble()
-                val fade = if (i < numSamples / 10) {
-                    i.toDouble() / (numSamples / 10)
-                } else {
-                    (numSamples - i).toDouble() / (numSamples * 0.8)
-                }.coerceIn(0.0, 1.0)
-                val sample = (sin(2.0 * PI * frequency * t) * 0.5 * vol * fade * Short.MAX_VALUE)
-                    .toInt().toShort()
-                buffer[i * 2] = (sample.toInt() and 0xFF).toByte()
-                buffer[i * 2 + 1] = (sample.toInt() shr 8 and 0xFF).toByte()
-            }
+    private fun bytesFor(file: File): ByteArray? {
+        val key = "${file.absolutePath}#${file.lastModified()}#${file.length()}"
+        cache[key]?.let { return it }
+        val bytes = if (file.extension.lowercase() in javaSoundFormats && file.length() <= MAX_CACHED_BYTES) {
+            file.readBytes()
+        } else {
+            runBlocking { decodePlatformAudio(file.absolutePath, SoundLimits.MAX_CLIP_MS * 2) }?.let(WavCodec::encode)
+        } ?: return null
+        if (bytes.size <= MAX_CACHED_BYTES) cache[key] = bytes
+        return bytes
+    }
 
-            val format = AudioFormat(sampleRate, 16, 1, true, false)
-            val clip = AudioSystem.getClip()
-            clip.open(format, buffer, 0, buffer.size)
-            clip.addLineListener { event ->
-                if (event.type == LineEvent.Type.STOP) clip.close()
+    private fun playBytes(bytes: ByteArray, volume: Float): Boolean = runCatching {
+        val stream = AudioSystem.getAudioInputStream(ByteArrayInputStream(bytes))
+        val clip = AudioSystem.getClip()
+        clip.open(stream)
+        stream.close()
+        applyVolume(clip, volume)
+        clip.addLineListener { event ->
+            if (event.type == LineEvent.Type.STOP) {
+                clips.remove(clip)
+                clip.close()
             }
-            clip.start()
-        } catch (e: Exception) {
-            println("Failed to play default tone: ${e.message}")
         }
+        clips.add(clip)
+        clip.start()
+        true
+    }.getOrDefault(false)
+
+    private fun applyVolume(clip: Clip, volume: Float) {
+        runCatching {
+            val gain = clip.getControl(FloatControl.Type.MASTER_GAIN) as FloatControl
+            val db = (20.0 * log10(volume.coerceAtLeast(0.0001f).toDouble())).toFloat()
+            gain.value = db.coerceIn(gain.minimum, gain.maximum)
+        }.recoverCatching {
+            val control = clip.getControl(FloatControl.Type.VOLUME) as FloatControl
+            control.value = volume.coerceIn(control.minimum, control.maximum)
+        }
+    }
+
+    private fun playTone(volume: Float) {
+        runCatching { playBytes(WavCodec.encode(SoundSynth.beep()), volume) }
     }
 }

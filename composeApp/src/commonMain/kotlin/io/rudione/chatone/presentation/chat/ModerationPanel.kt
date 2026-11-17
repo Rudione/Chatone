@@ -1,5 +1,8 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.components.ConfirmGateHost
+import io.rudione.chatone.presentation.components.ConfirmRequest
+import io.rudione.chatone.presentation.components.rememberConfirmGate
 import chatone.composeapp.generated.resources.ui_announcement_message
 import chatone.composeapp.generated.resources.ui_channel_to_shoutout
 import chatone.composeapp.generated.resources.ui_close
@@ -50,6 +53,12 @@ import chatone.composeapp.generated.resources.poll_cancel
 import chatone.composeapp.generated.resources.poll_choices_label
 import chatone.composeapp.generated.resources.poll_duration_label
 import chatone.composeapp.generated.resources.poll_end
+import chatone.composeapp.generated.resources.prediction_cancel_confirmation
+import chatone.composeapp.generated.resources.prediction_complete_confirm_outcome
+import chatone.composeapp.generated.resources.prediction_complete_confirm
+import chatone.composeapp.generated.resources.prediction_resolve_complete
+import chatone.composeapp.generated.resources.poll_cancel_confirm
+import chatone.composeapp.generated.resources.poll_end_confirm
 import chatone.composeapp.generated.resources.poll_option_placeholder
 import chatone.composeapp.generated.resources.poll_start
 import chatone.composeapp.generated.resources.prediction_lock
@@ -153,6 +162,19 @@ fun ModerationPanel(
     modifier: Modifier = Modifier
 ) {
     val extra = ChatoneTheme.extraColors
+    val confirmGate = rememberConfirmGate()
+    val pollEndLabel = stringResource(Res.string.poll_end)
+    val pollEndText = stringResource(Res.string.poll_end_confirm)
+    val pollCancelLabel = stringResource(Res.string.poll_cancel)
+    val pollCancelText = stringResource(Res.string.poll_cancel_confirm)
+    val completeLabel = stringResource(Res.string.prediction_resolve_complete)
+    val winnerOneLabel = stringResource(Res.string.prediction_winner, "1")
+    val winnerTwoLabel = stringResource(Res.string.prediction_winner, "2")
+    val winnerOneText = stringResource(Res.string.prediction_complete_confirm, stringResource(Res.string.prediction_complete_confirm_outcome, "1"))
+    val winnerTwoText = stringResource(Res.string.prediction_complete_confirm, stringResource(Res.string.prediction_complete_confirm_outcome, "2"))
+    val predictionCancelLabel = stringResource(Res.string.mod_panel_cancel_prediction)
+    val predictionCancelText = stringResource(Res.string.prediction_cancel_confirmation)
+    ConfirmGateHost(confirmGate)
 
     var showAnnouncement by remember { mutableStateOf(false) }
     var announcementText by remember { mutableStateOf("") }
@@ -555,13 +577,17 @@ fun ModerationPanel(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        TextButton(onClick = { onSendRawCommand("/endpoll") }) {
+                        TextButton(onClick = {
+                            confirmGate.ask(ConfirmRequest(pollEndLabel, pollEndText, pollEndLabel, destructive = false) { onSendRawCommand("/endpoll") })
+                        }) {
                             Text(
                                 stringResource(Res.string.poll_end),
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
-                        TextButton(onClick = { onSendRawCommand("/cancelpoll") }) {
+                        TextButton(onClick = {
+                            confirmGate.ask(ConfirmRequest(pollCancelLabel, pollCancelText, pollCancelLabel) { onSendRawCommand("/cancelpoll") })
+                        }) {
                             Text(
                                 stringResource(Res.string.poll_cancel),
                                 style = MaterialTheme.typography.labelSmall,
@@ -620,19 +646,25 @@ fun ModerationPanel(
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
-                        TextButton(onClick = { onSendRawCommand("/completeprediction 1") }) {
+                        TextButton(onClick = {
+                            confirmGate.ask(ConfirmRequest(winnerOneLabel, winnerOneText, completeLabel, destructive = false) { onSendRawCommand("/completeprediction 1") })
+                        }) {
                             Text(
                                 stringResource(Res.string.prediction_winner, "1"),
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
-                        TextButton(onClick = { onSendRawCommand("/completeprediction 2") }) {
+                        TextButton(onClick = {
+                            confirmGate.ask(ConfirmRequest(winnerTwoLabel, winnerTwoText, completeLabel, destructive = false) { onSendRawCommand("/completeprediction 2") })
+                        }) {
                             Text(
                                 stringResource(Res.string.prediction_winner, "2"),
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
-                        TextButton(onClick = { onSendRawCommand("/cancelprediction") }) {
+                        TextButton(onClick = {
+                            confirmGate.ask(ConfirmRequest(predictionCancelLabel, predictionCancelText, predictionCancelLabel) { onSendRawCommand("/cancelprediction") })
+                        }) {
                             Text(
                                 stringResource(Res.string.mod_panel_cancel_prediction),
                                 style = MaterialTheme.typography.labelSmall,

@@ -2,6 +2,7 @@ package io.rudione.chatone.data.remote.dto
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class SevenTvPaint(
@@ -137,21 +138,27 @@ data class SevenTvEventData(
     val body: SevenTvEventBody? = null,
     @SerialName("condition") val condition: Map<String, String> = emptyMap(),
     @SerialName("heartbeat_interval") val heartbeatInterval: Long? = null,
-    @SerialName("session_id") val sessionId: String? = null
+    @SerialName("session_id") val sessionId: String? = null,
+    @SerialName("subscription_limit") val subscriptionLimit: Int? = null,
+    val code: Int? = null,
+    val message: String? = null
 )
 
 @Serializable
 data class SevenTvEventBody(
     val id: String = "",
-    val kind: Int = 0,
-    val key: String = "",
     val actor: SevenTvEventActor? = null,
-    val old: SevenTvEventValue? = null,
-    @SerialName("new") val new_: SevenTvEventValue? = null,
-    val pushed: List<SevenTvEventPushedItem> = emptyList(),
-    val pulled: List<SevenTvEventPulledItem> = emptyList(),
-    val updated: List<SevenTvEventUpdatedItem> = emptyList(),
+    val pushed: List<SevenTvChangeField> = emptyList(),
+    val pulled: List<SevenTvChangeField> = emptyList(),
+    val updated: List<SevenTvChangeField> = emptyList(),
     @SerialName("object") val obj: SevenTvEventObject? = null
+)
+
+@Serializable
+data class SevenTvChangeField(
+    val key: String = "",
+    val value: JsonElement? = null,
+    @SerialName("old_value") val oldValue: JsonElement? = null
 )
 
 @Serializable
@@ -184,31 +191,6 @@ data class SevenTvEventActor(
     val username: String = "",
     @SerialName("display_name") val displayName: String = "",
     @SerialName("avatar_url") val avatarUrl: String = ""
-)
-
-@Serializable
-data class SevenTvEventValue(
-    val name: String = "",
-    val value: String = ""
-)
-
-@Serializable
-data class SevenTvEventPushedItem(
-    val key: String = "",
-    val value: SevenTvEventEmoteValue? = null
-)
-
-@Serializable
-data class SevenTvEventPulledItem(
-    val key: String = "",
-    val old_value: SevenTvEventEmoteValue? = null
-)
-
-@Serializable
-data class SevenTvEventUpdatedItem(
-    val key: String = "",
-    val old_value: SevenTvEventEmoteValue? = null,
-    val value: SevenTvEventEmoteValue? = null
 )
 
 @Serializable

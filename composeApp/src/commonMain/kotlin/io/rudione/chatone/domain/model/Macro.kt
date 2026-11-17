@@ -55,7 +55,8 @@ data class Macro(
     val name: String,
     val icon: String = "⚡",
     val steps: List<MacroStep> = emptyList(),
-    val pinnedIndex: Int = -1
+    val pinnedIndex: Int = -1,
+    val hotkey: String = ""
 ) {
     companion object {
         const val MAX_MACRO_SLOTS = 7

@@ -25,7 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.combinedClickable
@@ -36,12 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +54,11 @@ import io.rudione.chatone.icons.lucide.Ban
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.Timer
 import io.rudione.chatone.data.remote.ArchivedChatLine
+import io.rudione.chatone.data.remote.LogMonth
+import io.rudione.chatone.presentation.chat.rendering.PreserveScrollAnchor
+import io.rudione.chatone.presentation.chat.timeline.LoadOlderNearTop
+import io.rudione.chatone.presentation.chat.timeline.ProfileFeedViewport
+import io.rudione.chatone.presentation.chat.timeline.TrackFeedViewport
 import io.rudione.chatone.domain.model.ModActionButton
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.util.system.isDesktopPlatform
@@ -123,7 +124,8 @@ internal fun ProfileArchiveFeed(
     archive: UserLogArchiveState,
     displayName: String,
     nameColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewport: ProfileFeedViewport? = null
 ) {
     Box(modifier = modifier) {
         when {
@@ -136,7 +138,7 @@ internal fun ProfileArchiveFeed(
 
             archive.lines.isEmpty() -> ArchiveEmptyState(archive)
 
-            else -> ArchiveLineList(archive, displayName, nameColor)
+            else -> ArchiveLineList(archive, displayName, nameColor, viewport)
         }
     }
 }
@@ -172,35 +174,43 @@ private fun ArchiveEmptyState(archive: UserLogArchiveState) {
 
 private sealed interface ArchiveRow {
     val key: String
+    val month: LogMonth
 
-    data class Day(override val key: String, val label: String) : ArchiveRow
-    data class Line(override val key: String, val line: ArchivedChatLine) : ArchiveRow
+    data class Day(override val key: String, val label: String, override val month: LogMonth) : ArchiveRow
+    data class Line(override val key: String, val line: ArchivedChatLine, override val month: LogMonth) : ArchiveRow
 }
 
 @Composable
-private fun ArchiveLineList(archive: UserLogArchiveState, displayName: String, nameColor: Color) {
-    val listState = rememberLazyListState()
-    val rows = remember(archive.lines) { archiveRows(archive.lines) }
-    var armed by remember(archive.anchorMonth, archive.query) { mutableStateOf(false) }
-
-    LaunchedEffect(archive.anchorMonth, archive.query, rows.isNotEmpty()) {
-        if (rows.isEmpty() || armed) return@LaunchedEffect
-        listState.scrollToItem(rows.size)
-        armed = true
-    }
-    LaunchedEffect(listState, armed) {
-        if (!armed) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex }
-            .collect { first -> if (first <= 1) archive.loadOlder() }
-    }
+private fun ArchiveLineList(
+    archive: UserLogArchiveState,
+    displayName: String,
+    nameColor: Color,
+    viewport: ProfileFeedViewport?
+) {
+    val listState = remember(archive.anchorMonth, archive.query) { LazyListState() }
+    val zone = remember { TimeZone.currentSystemDefault() }
+    val rows = remember(archive.lines) { archiveRows(archive.lines, zone) }
+    val newestFirst = remember(rows) { rows.asReversed() }
+    PreserveScrollAnchor(listState, newestFirst) { it.key }
+    LoadOlderNearTop(listState, archive.canLoadOlder, archive.isLoading, archive::loadOlder)
+    TrackFeedViewport(viewport, listState, newestFirst) { it.month }
 
     ProfileHistorySelection {
         LazyColumn(
             state = listState,
+            reverseLayout = true,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.Bottom)
         ) {
+            items(newestFirst, key = { it.key }, contentType = { "archive-row" }) { row ->
+                Box(Modifier.animateItem(fadeInSpec = tween(ARCHIVE_ROW_FADE_MS), placementSpec = null, fadeOutSpec = null)) {
+                    when (row) {
+                        is ArchiveRow.Day -> DisableSelection { ArchiveDayHeader(row.label) }
+                        is ArchiveRow.Line -> ArchiveLineRow(row.line, displayName, nameColor)
+                    }
+                }
+            }
             item(key = "archive-older", contentType = "archive-older") {
                 DisableSelection {
                     when {
@@ -220,12 +230,6 @@ private fun ArchiveLineList(archive: UserLogArchiveState, displayName: String, n
 
                         else -> Spacer(Modifier.height(1.dp))
                     }
-                }
-            }
-            items(rows, key = { it.key }, contentType = { "archive-row" }) { row ->
-                when (row) {
-                    is ArchiveRow.Day -> DisableSelection { ArchiveDayHeader(row.label) }
-                    is ArchiveRow.Line -> ArchiveLineRow(row.line, displayName, nameColor)
                 }
             }
         }
@@ -312,18 +316,20 @@ private fun ArchiveEventRow(icon: ImageVector, tint: Color, text: String, time: 
     }
 }
 
-private fun archiveRows(lines: List<ArchivedChatLine>): List<ArchiveRow> {
-    val zone = TimeZone.currentSystemDefault()
+private fun archiveRows(lines: List<ArchivedChatLine>, zone: TimeZone): List<ArchiveRow> {
     val out = ArrayList<ArchiveRow>(lines.size + 16)
     var lastDay: String? = null
     lines.forEach { line ->
         val date = Instant.fromEpochMilliseconds(line.timestampMs).toLocalDateTime(zone).date
         val day = date.toString()
+        val month = LogMonth(date.year, date.month.ordinal + 1)
         if (day != lastDay) {
             lastDay = day
-            out += ArchiveRow.Day("day_$day", formatDate(line.timestampMs))
+            out += ArchiveRow.Day("day_$day", formatDate(line.timestampMs), month)
         }
-        out += ArchiveRow.Line("line_${line.id}", line)
+        out += ArchiveRow.Line("line_${line.id}", line, month)
     }
     return out
 }
+
+private const val ARCHIVE_ROW_FADE_MS = 200

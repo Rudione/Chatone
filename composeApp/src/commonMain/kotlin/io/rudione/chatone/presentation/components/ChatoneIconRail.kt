@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.rudione.chatone.presentation.chat.components.LiquidGlassTooltipBox
 import io.rudione.chatone.presentation.theme.ChatoneIndication
+import io.rudione.chatone.presentation.components.motion.IconMotion
+import io.rudione.chatone.presentation.components.motion.MotionIcon
 
 @Immutable
 data class RailAction(
@@ -37,6 +39,8 @@ data class RailAction(
     val badge: Int = 0,
     val selected: Boolean = false,
     val enabled: Boolean = true,
+    val motion: IconMotion? = null,
+    val pulse: Int = 0,
     val onClick: () -> Unit
 )
 
@@ -81,6 +85,7 @@ fun ChatoneRailButton(
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
+    val source = remember { MutableInteractionSource() }
     LiquidGlassTooltipBox(tooltip = action.label) {
         Box(modifier = modifier.size(itemSize)) {
             Box(
@@ -95,18 +100,31 @@ fun ChatoneRailButton(
                     )
                     .clickable(
                         enabled = action.enabled,
-                        interactionSource = remember { MutableInteractionSource() },
+                        interactionSource = source,
                         indication = ChatoneIndication,
                         onClick = action.onClick
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    action.icon,
-                    contentDescription = action.label,
-                    tint = tint,
-                    modifier = Modifier.size(iconSize)
-                )
+                val motion = action.motion
+                if (motion != null) {
+                    MotionIcon(
+                        imageVector = action.icon,
+                        motion = motion,
+                        contentDescription = action.label,
+                        tint = tint,
+                        pulse = action.pulse,
+                        interactionSource = source,
+                        modifier = Modifier.size(iconSize)
+                    )
+                } else {
+                    Icon(
+                        action.icon,
+                        contentDescription = action.label,
+                        tint = tint,
+                        modifier = Modifier.size(iconSize)
+                    )
+                }
             }
             if (action.badge > 0) {
                 Box(

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -119,7 +120,15 @@ class TwitchAutoModSocket(
                             val sessionId = session?.text("id") ?: continue
                             if (!resumed) forgetSubscriptions()
                             subscriber?.cancel()
-                            subscriber = launch { wanted.collect { channels -> subscribeMissing(sessionId, channels) } }
+                            subscriber = launch {
+                                wanted.collectLatest { channels ->
+                                    var backoff = LIMIT_RETRY_START_MS
+                                    while (!subscribeMissing(sessionId, channels)) {
+                                        delay(backoff)
+                                        backoff = (backoff * 2).coerceAtMost(LIMIT_RETRY_MAX_MS)
+                                    }
+                                }
+                            }
                         }
                         "session_reconnect" -> {
                             reconnectUrl = ((payload?.get("session") as? JsonObject)?.text("reconnect_url"))
@@ -143,16 +152,24 @@ class TwitchAutoModSocket(
         return reconnectUrl
     }
 
-    private suspend fun subscribeMissing(sessionId: String, channels: Set<String>) {
+    private suspend fun subscribeMissing(sessionId: String, channels: Set<String>): Boolean {
         for (channelId in channels) {
             if (subscribedLock.withLock { channelId in subscribed }) continue
             val condition = mapOf("broadcaster_user_id" to channelId, "moderator_user_id" to moderatorId)
             val held = apiClient.createEventSubSubscription(token, AutoModEventParser.HOLD, AutoModEventParser.VERSION, condition, sessionId)
+            if (held.isTransportLimit()) {
+                Napier.w("AutoMod EventSub: websocket transport limit reached for this account, retrying later", tag = TAG)
+                return false
+            }
             val updated = apiClient.createEventSubSubscription(token, AutoModEventParser.UPDATE, AutoModEventParser.VERSION, condition, sessionId)
             if (held is Result.Success && updated is Result.Success) subscribedLock.withLock { subscribed += channelId }
             else Napier.w("AutoMod subscription failed for $channelId", tag = TAG)
         }
+        return true
     }
+
+    private fun Result<Unit>.isTransportLimit(): Boolean =
+        ((this as? Result.Error)?.exception as? HelixApiException)?.status == HTTP_TOO_MANY
 
     private suspend fun handleNotification(type: String?, payload: JsonObject?) {
         val event = payload?.get("event") as? JsonObject ?: return
@@ -167,6 +184,9 @@ class TwitchAutoModSocket(
     private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
 
     private companion object {
+        const val LIMIT_RETRY_START_MS = 60_000L
+        const val LIMIT_RETRY_MAX_MS = 600_000L
+        const val HTTP_TOO_MANY = 429
         const val TAG = "AutoModSocket"
         const val DEFAULT_URL = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
         const val DEFAULT_KEEPALIVE_SECONDS = 30L

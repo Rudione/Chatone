@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "placeholders": {
+    "cyrillic": {
+      "tail": "[а-я]*",
+      "noun": "а|у|ом|е|ы|и|ов|ей|ам|ами|ах|ой|ою"
+    },
+    "latin": {
+      "tail": "[a-z]*"
+    }
+  },
+  "terms": [
+    { "category": "homophobic", "script": "cyrillic", "pattern": "п[иый]д[оаеиыэ]?р{tail}" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "педик(?:{noun}|ушк{tail}|еныш{tail})?" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "педераст{tail}" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "педрил{tail}" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "гомик(?:{noun})?" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "гомосек(?:{noun})?" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "гомосеч{tail}" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "гомосят{tail}" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "гомодрил{tail}" },
+    { "category": "homophobic", "script": "cyrillic", "pattern": "фар?гот(?:{noun}|ина|ины)?" },
+    { "category": "homophobic", "script": "latin", "pattern": "fag(?:s|y)?" },
+    { "category": "homophobic", "script": "latin", "pattern": "far?g(?:ot|ots|it|its|ota)" },
+    { "category": "homophobic", "script": "latin", "pattern": "phag(?:ot|ots|it|its)" },
+    { "category": "homophobic", "script": "latin", "pattern": "fgts?" },
+    { "category": "homophobic", "script": "latin", "pattern": "dykes?" },
+    { "category": "homophobic", "script": "latin", "pattern": "pofters?" },
+    { "category": "homophobic", "script": "latin", "pattern": "maric(?:on|ones|a|as)" },
+    { "category": "homophobic", "script": "latin", "pattern": "schwuchteln?" },
+    { "category": "homophobic", "script": "latin", "pattern": "viados?" },
+
+    { "category": "transphobic", "script": "cyrillic", "pattern": "трансух{tail}" },
+    { "category": "transphobic", "script": "cyrillic", "pattern": "членодев{tail}" },
+    { "category": "transphobic", "script": "latin", "pattern": "tran(?:y|ie|ies|ys)" },
+    { "category": "transphobic", "script": "latin", "pattern": "shemales?" },
+
+    { "category": "racial", "script": "cyrillic", "pattern": "н+[иый]+г{2,}[еэаиы]*р+{tail}", "collapse": false },
+    { "category": "racial", "script": "cyrillic", "pattern": "н+[иый]+г+[еэаи]+р+(?:ы+|ов|ам|ами|ах|ок|ка|ки|ке|ку|ята|ятина|ша|ня)", "collapse": false },
+    { "category": "racial", "script": "cyrillic", "pattern": "н[иый]гр(?!и){tail}" },
+    { "category": "racial", "script": "cyrillic", "pattern": "н[иый]г(?:а|и|у|ой|ам|ами|ах|ос|осы)" },
+    { "category": "racial", "script": "cyrillic", "pattern": "негр(?:{noun}|ила|ило|ята|ятина|ятины|итос{tail}|итян{tail}|ен[оа]к{tail}|енк{tail}|ух{tail})?" },
+    { "category": "racial", "script": "cyrillic", "pattern": "черножоп{tail}" },
+    { "category": "racial", "script": "cyrillic", "pattern": "черномаз{tail}" },
+    { "category": "racial", "script": "cyrillic", "pattern": "узкоглаз{tail}" },
+    { "category": "racial", "script": "cyrillic", "pattern": "китаез{tail}" },
+    { "category": "racial", "script": "cyrillic", "pattern": "чинчонг{tail}" },
+    { "category": "racial", "script": "latin", "pattern": "n+[iyl]+g{2,}(?:e+r+[sz]?|e+r+y|a+[hsz]?|u+h|let+s?)", "collapse": false },
+    { "category": "racial", "script": "latin", "pattern": "n+[iyl]+g+e+r+[sz]", "collapse": false },
+    { "category": "racial", "script": "latin", "pattern": "n[iyl]g(?:a|ah|as|az|uh)" },
+    { "category": "racial", "script": "latin", "pattern": "n[iyl]q(?:er|ers|a|ah|as|az|uh)" },
+    { "category": "racial", "script": "latin", "pattern": "n[iyl]bas?" },
+    { "category": "racial", "script": "latin", "pattern": "sandnig(?:er|ers|a|as)" },
+    { "category": "racial", "script": "latin", "pattern": "negers?" },
+    { "category": "racial", "script": "latin", "pattern": "negres?" },
+    { "category": "racial", "script": "latin", "pattern": "jigabos?" },
+    { "category": "racial", "script": "latin", "pattern": "chinks?" },
+    { "category": "racial", "script": "latin", "pattern": "chingchong" },
+    { "category": "racial", "script": "latin", "pattern": "spics?" },
+    { "category": "racial", "script": "latin", "pattern": "goks?" },
+    { "category": "racial", "script": "latin", "pattern": "wetbacks?" },
+    { "category": "racial", "script": "latin", "pattern": "beaners?" },
+    { "category": "racial", "script": "latin", "pattern": "towelheads?" },
+    { "category": "racial", "script": "latin", "pattern": "ragheads?" },
+    { "category": "racial", "script": "latin", "pattern": "sudacas?" },
+
+    { "category": "ethnic", "script": "cyrillic", "pattern": "чурк(?:{noun}|обес{tail})" },
+    { "category": "ethnic", "script": "cyrillic", "pattern": "чучмек{tail}" },
+    { "category": "ethnic", "script": "cyrillic", "pattern": "хач(?:а|и|ом|е|ей|ам|ами|ах|ик|ика|ики|ику|иком|ике|иков|ина|ины|ня)?" },
+    { "category": "ethnic", "script": "cyrillic", "pattern": "жид(?:{noun}|овк{tail}|овск{tail}|омасон{tail}|яр{tail}|ят{tail}|енок|енка|еныш{tail})?" },
+    { "category": "ethnic", "script": "cyrillic", "pattern": "хох(?:ол|ла|лу|лом|ле|лы|лов|лам|лами|лах|луш{tail}|лот{tail}|лянд{tail}|лятск{tail}|ляцк{tail}|лостан{tail}|лядск{tail})" },
+    { "category": "ethnic", "script": "cyrillic", "pattern": "москал(?:ь|я|ю|ем|е|и|ей|ям|ями|ях|ик{tail}|ьск{tail})" },
+    { "category": "ethnic", "script": "cyrillic", "pattern": "кацап{tail}" },
+    { "category": "ethnic", "script": "cyrillic", "pattern": "русн(?:я|и|ю|ей|е)" },
+    { "category": "ethnic", "script": "latin", "pattern": "kikes?" },
+    { "category": "ethnic", "script": "latin", "pattern": "youpins?" },
+
+    { "category": "ableist", "script": "cyrillic", "pattern": "ретард(?:{noun}|ик|ики|ище|ина|ины)?" },
+    { "category": "ableist", "script": "cyrillic", "pattern": "даун(?:{noun}|ич|ича|ичи|ичу|енок|ята|яра|ица|ище|иха)?" },
+    { "category": "ableist", "script": "latin", "pattern": "retard(?:s|ed)?" }
+  ]
+}

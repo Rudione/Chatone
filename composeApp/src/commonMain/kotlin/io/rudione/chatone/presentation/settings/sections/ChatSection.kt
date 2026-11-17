@@ -8,6 +8,9 @@ import chatone.composeapp.generated.resources.settings_spacing_low
 import chatone.composeapp.generated.resources.settings_spacing_medium
 import chatone.composeapp.generated.resources.settings_spacing_none
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.actions_auto_claim
+import chatone.composeapp.generated.resources.actions_auto_claim_hint
+import chatone.composeapp.generated.resources.settings_points_group
 import chatone.composeapp.generated.resources.chat_show_badges
 import chatone.composeapp.generated.resources.chat_show_badges_desc
 import chatone.composeapp.generated.resources.settings_alternate_row_bg
@@ -105,7 +108,21 @@ internal fun ChatContent(state: SettingsState, vm: SettingsViewModel) {
         first = { HistoryGroup(state, vm) },
         second = { MentionTabsGroup(state, vm) }
     )
-    TranslationGroup(state, vm)
+    SettingsPair(
+        first = { TranslationGroup(state, vm) },
+        second = { PointsGroup(state, vm) }
+    )
+}
+
+@Composable
+private fun PointsGroup(state: SettingsState, vm: SettingsViewModel) {
+    SettingsGroup(stringResource(Res.string.settings_points_group)) {
+        SwitchRow(
+            stringResource(Res.string.actions_auto_claim),
+            stringResource(Res.string.actions_auto_claim_hint),
+            state.autoClaimPoints
+        ) { vm.sendEvent(SettingsEvent.OnAutoClaimPointsChanged(it)) }
+    }
 }
 
 @Composable

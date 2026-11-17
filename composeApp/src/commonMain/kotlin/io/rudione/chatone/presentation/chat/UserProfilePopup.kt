@@ -5,12 +5,13 @@ import io.rudione.chatone.presentation.chat.timeline.profileAuthor
 import io.rudione.chatone.presentation.chat.timeline.isBrowsingSeparately
 import io.rudione.chatone.presentation.chat.timeline.RemoteHistoryPager
 import io.rudione.chatone.presentation.chat.timeline.ProfileTimelineFeed
-import chatone.composeapp.generated.resources.ui_copy_username
-import chatone.composeapp.generated.resources.close
-import chatone.composeapp.generated.resources.profile_detach_card
-import androidx.compose.ui.text.style.TextOverflow
-import chatone.composeapp.generated.resources.ui_open_twitch_profile
-import chatone.composeapp.generated.resources.ic_twitch
+import io.rudione.chatone.presentation.chat.timeline.rememberProfileFeedViewport
+import io.rudione.chatone.util.link.TwitchLinks
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import chatone.composeapp.generated.resources.cancel
 import chatone.composeapp.generated.resources.chat_ban_reason_hint
 import chatone.composeapp.generated.resources.chat_ban_reason_placeholder
@@ -18,26 +19,18 @@ import chatone.composeapp.generated.resources.delete
 import chatone.composeapp.generated.resources.profile_ban
 import chatone.composeapp.generated.resources.profile_delete_note
 import chatone.composeapp.generated.resources.profile_delete_note_confirm
-import chatone.composeapp.generated.resources.profile_editor_edit
 import org.jetbrains.compose.resources.stringResource
-import io.rudione.chatone.icons.lucide.Pencil
 import io.rudione.chatone.data.repository.AccountManager
 import io.rudione.chatone.presentation.profile.PageNavigator
 import io.rudione.chatone.presentation.chat.roles.rememberUserRoles
 import io.rudione.chatone.presentation.chat.roles.UserRolesTab
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -47,11 +40,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalUriHandler
-import io.rudione.chatone.util.platform.setText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import chatone.composeapp.generated.resources.Res
-import coil3.compose.AsyncImage
 import io.rudione.chatone.data.remote.AccountBadge
 import io.rudione.chatone.data.repository.ProfileBadgeRepository
 import io.rudione.chatone.data.remote.GqlDisplayBadge
@@ -70,24 +61,18 @@ import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.util.Result
 import io.rudione.chatone.domain.model.SevenTvCosmetics
-import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
-import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneTextField
 import io.rudione.chatone.presentation.window.FloatingPanel
 import io.rudione.chatone.presentation.window.FloatingPanelGrip
 import io.rudione.chatone.presentation.window.rememberFloatingPlacement
 import io.rudione.chatone.presentation.window.rememberFloatingPopupPositionProvider
 import io.rudione.chatone.util.system.isDesktopPlatform
-import io.rudione.chatone.icons.lucide.Copy
-import io.rudione.chatone.icons.lucide.CopyCheck
-import io.rudione.chatone.icons.lucide.ExternalLink
-import io.rudione.chatone.icons.lucide.Lucide
-import io.rudione.chatone.icons.lucide.X
 import io.rudione.chatone.presentation.components.PortalPopup
-import kotlinx.coroutines.delay
 
 private const val MOBILE_PROFILE_POSITION_KEY = "mobile.profile_popup"
+private val PHONE_MESSAGES_CARD_HEIGHT = 540.dp
+private const val PHONE_MESSAGES_CARD_WINDOW_SHARE = 0.8f
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -343,6 +328,10 @@ fun UserProfilePopup(
 
 
     val placement = rememberFloatingPlacement(MOBILE_PROFILE_POSITION_KEY)
+    val stats = rememberProfileStats(fetchedCreatedAt, followedAt, subAge)
+    val feedViewport = rememberProfileFeedViewport(userId)
+    val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
+    val messagesCardHeight = minOf(PHONE_MESSAGES_CARD_HEIGHT, windowHeight * PHONE_MESSAGES_CARD_WINDOW_SHARE)
     val card: @Composable (dragHandle: Modifier?) -> Unit = { dragHandle ->
         Card(
             modifier = Modifier.widthIn(max = 340.dp).fillMaxWidth().padding(8.dp)
@@ -387,8 +376,17 @@ fun UserProfilePopup(
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
             if (dragHandle != null) FloatingPanelGrip(dragHandle)
-            Column {
-                UserProfileHeader(
+            val showHistoryTab = showModActions &&
+                    (isModerationHistoryLoading || moderationHistory.totalActions > 0)
+            val activeTab = if (selectedTab == PROFILE_HISTORY_TAB && !showHistoryTab) PROFILE_MESSAGES_TAB else selectedTab
+            val onMessagesTab = activeTab == PROFILE_MESSAGES_TAB
+            val collapse by animateFloatAsState(
+                targetValue = if (onMessagesTab && feedViewport.isAwayFromNewest) 1f else 0f,
+                animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+                label = "profileHeaderCollapse"
+            )
+            Column(if (onMessagesTab) Modifier.height(messagesCardHeight) else Modifier) {
+                PhoneProfileHeader(
                     modifier = dragHandle ?: Modifier,
                     avatarUrl = fetchedAvatarUrl,
                     displayName = displayName,
@@ -399,20 +397,22 @@ fun UserProfilePopup(
                     gqlBadges = gqlBadges,
                     accountBadges = accountBadges,
                     sevenTvBadge = sevenTvBadge,
-                    onDetach = onDetach,
-                    onDismiss = onDismiss,
-                    onOpenProfile = {
-                        onDismiss()
-                        profiles.openChannel(username)
-                    }.takeIf { profiles.isSupported && username.isNotBlank() },
-                    onEdit = {
-                        onDismiss()
-                        profiles.openEditor(channelLogin.ifBlank { null })
-                    }.takeIf { profiles.isSupported && userId.isNotBlank() && userId == activeAccountId }
+                    stats = stats,
+                    collapse = { collapse },
+                    actions = PhoneProfileActions(
+                        onOpenProfile = {
+                            onDismiss()
+                            profiles.openChannel(username)
+                        }.takeIf { profiles.isSupported && username.isNotBlank() },
+                        onEdit = {
+                            onDismiss()
+                            profiles.openEditor(channelLogin.ifBlank { null })
+                        }.takeIf { profiles.isSupported && userId.isNotBlank() && userId == activeAccountId },
+                        onDetach = onDetach,
+                        reportUrl = TwitchLinks.viewerCardUrl(channelLogin, username),
+                        onDismiss = onDismiss
+                    )
                 )
-                val showHistoryTab = showModActions &&
-                        (isModerationHistoryLoading || moderationHistory.totalActions > 0)
-                val activeTab = if (selectedTab == 2 && !showHistoryTab) 1 else selectedTab
                 CompactProfileTabs(
                     selectedTab = activeTab,
                     onSelect = { selectedTab = it },
@@ -421,32 +421,28 @@ fun UserProfilePopup(
                     historyCount = moderationHistory.totalActions,
                     showRolesTab = roles.isSupported,
                     trailing = {
-                        if (activeTab == 1) {
+                        if (onMessagesTab) {
                             ProfileArchiveControls(
                                 archive = archive,
                                 inlineSearch = false,
                                 searchExpanded = archiveSearchOpen,
                                 onToggleSearch = {
-                                    if (archiveSearchOpen && archive.isSearching) archive.updateQuery(
-                                        ""
-                                    )
+                                    if (archiveSearchOpen && archive.isSearching) archive.updateQuery("")
                                     archiveSearchOpen = !archiveSearchOpen
-                                }
+                                },
+                                visibleMonth = feedViewport.visibleMonth
                             )
                         }
                     }
                 )
                 ProfileArchiveSearchBar(
                     archive = archive,
-                    visible = activeTab == 1 && (archiveSearchOpen || archive.isSearching)
+                    visible = onMessagesTab && (archiveSearchOpen || archive.isSearching)
                 )
 
                 when (activeTab) {
-                    0 -> UsercardTab(
+                    PROFILE_USERCARD_TAB -> UsercardTab(
                         userId = userId,
-                        fetchedCreatedAt = fetchedCreatedAt,
-                        subAge = subAge,
-                        followedAt = followedAt,
                         noteText = noteText,
                         isNoteLoaded = isNoteLoaded,
                         noteRepository = noteRepository,
@@ -455,7 +451,6 @@ fun UserProfilePopup(
                         isBroadcaster = isBroadcaster,
                         isModerator = isModerator,
                         isVip = isVip,
-                        isSubscriber = isSubscriber,
                         canManageRoles = canManageRoles,
                         isBlocked = isBlocked,
                         onBlock = onBlock,
@@ -476,14 +471,15 @@ fun UserProfilePopup(
                         username = username
                     )
 
-                    1 -> if (archive.isBrowsingSeparately) {
+                    PROFILE_MESSAGES_TAB -> if (archive.isBrowsingSeparately) {
                         ProfileArchiveFeed(
                             archive = archive,
                             displayName = displayName,
                             nameColor = rememberNickColors().of(
                                 color,
                                 username.ifBlank { displayName }),
-                            modifier = Modifier.fillMaxWidth().height(380.dp)
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            viewport = feedViewport
                         )
                     } else ProfileTimelineFeed(
                         source = rememberTimelineSource(
@@ -511,10 +507,11 @@ fun UserProfilePopup(
                         nameColor = rememberNickColors().of(
                             color,
                             username.ifBlank { displayName }),
-                        modifier = Modifier.fillMaxWidth().height(380.dp)
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        viewport = feedViewport
                     )
 
-                    2 -> ModerationHistoryTab(
+                    PROFILE_HISTORY_TAB -> ModerationHistoryTab(
                         history = moderationHistory,
                         isLoading = isModerationHistoryLoading
                     )
@@ -579,172 +576,3 @@ fun UserProfilePopup(
         )
     }
 }
-
-@Composable
-fun UserProfileHeader(
-    avatarUrl: String,
-    displayName: String,
-    username: String,
-    color: String?,
-    badges: List<Badge>,
-    sevenTvBadge: SevenTvCosmetics.Badge?,
-    modifier: Modifier = Modifier,
-    userId: String = "",
-    gqlBadges: List<GqlDisplayBadge> = emptyList(),
-    accountBadges: List<AccountBadge> = emptyList(),
-    onDetach: (() -> Unit)? = null,
-    onDismiss: (() -> Unit)? = null,
-    showIconDetached: Boolean = true,
-    onOpenProfile: (() -> Unit)? = null,
-    onEdit: (() -> Unit)? = null
-) {
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-    var showCopied by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
-    val sevenTv = rememberSevenTvCosmetic(userId)
-    val thirdPartyMaps = LocalThirdPartyBadges.current
-    val chatoneBadge = rememberEquippedChatoneBadge(userId)
-    val activeSevenTvBadge = if (sevenTv != null) sevenTv.badge else sevenTvBadge
-    val badgeItems =
-        remember(userId, badges, gqlBadges, activeSevenTvBadge, thirdPartyMaps, accountBadges, chatoneBadge) {
-            buildProfileBadges(
-                chatBadges = badges,
-                gqlBadges = gqlBadges,
-                sevenTvBadge = activeSevenTvBadge,
-                thirdPartyBadges = buildList {
-                    thirdPartyMaps.ffzByLogin[username.lowercase()]?.let { addAll(it) }
-                    thirdPartyMaps.bttvByUserId[userId]?.let { add(it) }
-                },
-                accountBadges = accountBadges,
-                chatoneBadge = chatoneBadge
-            )
-        }
-
-    LaunchedEffect(showCopied) {
-        if (showCopied) {
-            delay(1500)
-            showCopied = false
-        }
-    }
-
-    Column(modifier = modifier.padding(start = 14.dp, end = 6.dp, top = 12.dp, bottom = 10.dp)) {
-        Row(verticalAlignment = Alignment.Top) {
-            val avatarModifier = Modifier.size(48.dp).clip(CircleShape)
-                .then(if (onOpenProfile != null) Modifier.clickable(onClick = onOpenProfile) else Modifier)
-            if (avatarUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = avatarUrl,
-                    contentDescription = displayName,
-                    modifier = avatarModifier
-                )
-            } else {
-                Box(
-                    modifier = avatarModifier
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        displayName.take(2).uppercase(),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                ProfileDisplayName(
-                    displayName = displayName,
-                    color = color,
-                    fallbackLogin = username,
-                    paint = sevenTv?.paint,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                if (username.lowercase() != displayName.lowercase()) {
-                    Text(
-                        "@$username",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    ProfileHeaderAction(
-                        onClick = {
-                            scope.launch { clipboard.setText(username) }
-                            showCopied = true
-                        }
-                    ) {
-                        Icon(
-                            if (showCopied) Lucide.CopyCheck else Lucide.Copy,
-                            contentDescription = stringResource(Res.string.ui_copy_username),
-                            modifier = Modifier.size(16.dp),
-                            tint = if (showCopied) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    ProfileHeaderAction(
-                        onClick = { uriHandler.openUri("https://www.twitch.tv/${username.lowercase()}") }
-                    ) {
-                        Icon(
-                            painter = painterResource(Res.drawable.ic_twitch),
-                            contentDescription = stringResource(Res.string.ui_open_twitch_profile),
-                            modifier = Modifier.size(16.dp),
-                            tint = TwitchPurple
-                        )
-                    }
-                    sevenTv?.profile?.let { profile ->
-                        Box(Modifier.padding(horizontal = 4.dp)) { SevenTvLinkButton(profile = profile) }
-                    }
-                    if (onEdit != null) {
-                        ProfileHeaderAction(onClick = onEdit) {
-                            Icon(
-                                Lucide.Pencil,
-                                contentDescription = stringResource(Res.string.profile_editor_edit),
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
-            if (onDetach != null) {
-                ChatoneIconButton(onClick = onDetach, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        Lucide.ExternalLink,
-                        contentDescription = stringResource(Res.string.profile_detach_card),
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            if (onDismiss != null && showIconDetached) {
-                ChatoneIconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        Lucide.X,
-                        contentDescription = stringResource(Res.string.close),
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        if (badgeItems.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            ProfileBadgeStrip(badges = badgeItems, badgeSize = 20.dp, spacing = 4.dp)
-        }
-    }
-}
-
-@Composable
-private fun ProfileHeaderAction(onClick: () -> Unit, content: @Composable () -> Unit) {
-    ChatoneIconButton(onClick = onClick, modifier = Modifier.size(30.dp), content = content)
-}
-
-private val TwitchPurple = Color(0xFF9146FF)

@@ -20,6 +20,17 @@ object TwitchLinks {
         "login", "signup", "broadcast", "messages", "following", "user", "embed", "collections"
     )
 
+    fun channelUrl(login: String): String? = loginOrNull(login)?.let { "https://www.twitch.tv/$it" }
+
+    fun viewerCardUrl(channel: String, login: String): String? {
+        val room = loginOrNull(channel) ?: return channelUrl(login)
+        val user = loginOrNull(login) ?: return null
+        return "https://www.twitch.tv/popout/$room/viewercard/$user"
+    }
+
+    private fun loginOrNull(value: String): String? =
+        value.trim().removePrefix("#").removePrefix("@").lowercase().takeIf { LOGIN.matches(it) }
+
     fun parse(url: String): TwitchLink? {
         val trimmed = url.trim()
         val withoutScheme = trimmed.substringAfter("://", missingDelimiterValue = "")

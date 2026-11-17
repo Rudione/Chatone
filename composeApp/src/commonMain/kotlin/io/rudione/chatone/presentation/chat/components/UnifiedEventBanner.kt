@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.event_next
 import io.rudione.chatone.icons.lucide.EyeOff
+import io.rudione.chatone.icons.lucide.ChevronUp
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.FitText
@@ -151,6 +152,15 @@ internal fun EventHideButton(tooltip: String, onHide: () -> Unit) {
     LiquidGlassTooltipBox(tooltip = tooltip) {
         ChatoneIconButton(onClick = onHide, modifier = Modifier.size(if (isDesktopPlatform) 24.dp else 28.dp)) {
             Icon(Lucide.EyeOff, tooltip, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+internal fun EventCollapseButton(tooltip: String, onClick: () -> Unit) {
+    LiquidGlassTooltipBox(tooltip = tooltip) {
+        ChatoneIconButton(onClick = onClick, modifier = Modifier.size(if (isDesktopPlatform) 24.dp else 28.dp)) {
+            Icon(Lucide.ChevronUp, tooltip, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

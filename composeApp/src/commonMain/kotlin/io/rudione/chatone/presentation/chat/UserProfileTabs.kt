@@ -1,10 +1,5 @@
 package io.rudione.chatone.presentation.chat
 
-import chatone.composeapp.generated.resources.report_content
-import io.rudione.chatone.presentation.legal.ContentReport
-import io.rudione.chatone.presentation.legal.ContentReports
-import io.rudione.chatone.presentation.legal.ReportTarget
-import io.rudione.chatone.icons.material.outlined.Flag
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.block_user
 import chatone.composeapp.generated.resources.cancel
@@ -14,7 +9,6 @@ import chatone.composeapp.generated.resources.insights_tab_roles
 import chatone.composeapp.generated.resources.profile_ban
 import chatone.composeapp.generated.resources.profile_block
 import chatone.composeapp.generated.resources.profile_block_confirm_title
-import chatone.composeapp.generated.resources.profile_following_since
 import chatone.composeapp.generated.resources.profile_history_ban_entry
 import chatone.composeapp.generated.resources.profile_history_bans
 import chatone.composeapp.generated.resources.profile_history_by_moderator
@@ -25,7 +19,6 @@ import chatone.composeapp.generated.resources.profile_history_unban_entry
 import chatone.composeapp.generated.resources.profile_history_untimeout_entry
 import chatone.composeapp.generated.resources.profile_history_warn_entry
 import chatone.composeapp.generated.resources.profile_history_warnings
-import chatone.composeapp.generated.resources.profile_joined
 import chatone.composeapp.generated.resources.profile_mute_chip_channel
 import chatone.composeapp.generated.resources.profile_mute_chip_global
 import chatone.composeapp.generated.resources.profile_nickname
@@ -33,9 +26,6 @@ import chatone.composeapp.generated.resources.profile_nickname_placeholder
 import chatone.composeapp.generated.resources.profile_note
 import chatone.composeapp.generated.resources.profile_note_placeholder
 import chatone.composeapp.generated.resources.profile_send_whisper
-import chatone.composeapp.generated.resources.profile_sub_age_hidden
-import chatone.composeapp.generated.resources.profile_sub_age_months
-import chatone.composeapp.generated.resources.profile_sub_age_streak
 import chatone.composeapp.generated.resources.profile_tab_history
 import chatone.composeapp.generated.resources.profile_tab_messages
 import chatone.composeapp.generated.resources.profile_tab_usercard
@@ -83,7 +73,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import io.rudione.chatone.data.remote.SubAgeInfo
 import io.rudione.chatone.data.repository.MentionMuteRepository
 import io.rudione.chatone.data.remote.ModLogActionType
 import io.rudione.chatone.data.repository.ModerationHistory
@@ -116,16 +105,12 @@ import io.rudione.chatone.icons.lucide.Trash2
 import io.rudione.chatone.icons.lucide.TriangleAlert
 import io.rudione.chatone.icons.lucide.UserPen
 import io.rudione.chatone.icons.lucide.UserX
-import io.rudione.chatone.icons.material.Icons
 import org.koin.compose.koinInject
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun UsercardTab(
     userId: String,
-    fetchedCreatedAt: String,
-    followedAt: String?,
-    subAge: SubAgeInfo? = null,
     noteText: String,
     isNoteLoaded: Boolean,
     noteRepository: UserNoteRepository,
@@ -134,7 +119,6 @@ internal fun UsercardTab(
     isBroadcaster: Boolean,
     isModerator: Boolean,
     isVip: Boolean,
-    isSubscriber: Boolean,
     canManageRoles: Boolean,
     isBlocked: Boolean = false,
     onBlock: () -> Unit = {},
@@ -170,74 +154,7 @@ internal fun UsercardTab(
         }
     }
     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-        if (fetchedCreatedAt.isNotEmpty()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    ProfileIconJoined, null, modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    stringResource(Res.string.profile_joined, fetchedCreatedAt),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        followedAt?.let { date ->
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    ProfileIconFollow, null, modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    stringResource(Res.string.profile_following_since, date),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        subAge?.let { sa ->
-            val subLine = when {
-                sa.hidden -> stringResource(Res.string.profile_sub_age_hidden)
-                sa.cumulativeMonths > 0 -> buildString {
-                    append(
-                        stringResource(Res.string.profile_sub_age_months, sa.cumulativeMonths)
-                    )
-                    sa.tier?.let { append(" · Tier $it") }
-                    if (sa.streakMonths > 1) {
-                        append(" · ")
-                        append(
-                            stringResource(Res.string.profile_sub_age_streak, sa.streakMonths)
-                        )
-                    }
-                }
-
-                else -> null
-            }
-            if (subLine != null) {
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        ProfileIconSub, null, modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.8f)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        subLine, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
         if (isNoteLoaded) {
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(Modifier.height(6.dp))
-
             val nicknameRepository: NicknameRepository =
                 koinInject()
             var nicknameText by remember(userId) {
@@ -513,12 +430,6 @@ internal fun UsercardTab(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            ModIconChip(
-                icon = Icons.Outlined.Flag,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                contentDescription = stringResource(Res.string.report_content),
-                onClick = { ContentReports.open(ContentReport(ReportTarget.USER, username, channelLogin)) }
-            )
             ModIconChip(
                 icon = Lucide.MessageCircle,
                 tint = MaterialTheme.colorScheme.primary,

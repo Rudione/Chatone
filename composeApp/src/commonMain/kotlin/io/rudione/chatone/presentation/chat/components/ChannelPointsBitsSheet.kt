@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.chat.components
 
+import io.rudione.chatone.presentation.chat.points.PointsSheetExtras
+import io.rudione.chatone.presentation.chat.points.PointsSheetExtrasBlock
 import chatone.composeapp.generated.resources.apply
 import chatone.composeapp.generated.resources.cancel
 import chatone.composeapp.generated.resources.points_bits_no_rewards
@@ -86,6 +88,7 @@ import io.rudione.chatone.util.format.groupedNumber
 import io.rudione.chatone.util.icons.TwitchBitsIcon
 import io.rudione.chatone.util.icons.TwitchPointsIcon
 import io.rudione.chatone.util.link.openUrl
+import io.rudione.chatone.util.system.allowsExternalPurchaseLinks
 import org.jetbrains.compose.resources.stringResource
 
 private val TileMinWidth = 100.dp
@@ -269,11 +272,12 @@ internal fun ChannelPointsBitsSheet(
     onRedeem: (GqlChannelPointReward, String) -> Unit,
     onClose: () -> Unit,
     streak: WatchStreak? = null,
-    docked: Boolean = false
+    docked: Boolean = false,
+    extras: PointsSheetExtras = PointsSheetExtras()
 ) {
     if (docked) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
-            PointsSheetBody(balance, pointsIconUrl, bitsCount, rewards, isLoading, error, onRedeem, onClose, streak, docked = true)
+            PointsSheetBody(balance, pointsIconUrl, bitsCount, rewards, isLoading, error, onRedeem, onClose, streak, extras, docked = true)
         }
         return
     }
@@ -285,7 +289,7 @@ internal fun ChannelPointsBitsSheet(
         scrimAlpha = 0.35f,
         handleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
     ) { sheet ->
-        PointsSheetBody(balance, pointsIconUrl, bitsCount, rewards, isLoading, error, onRedeem, { sheet.close() }, streak, docked = false)
+        PointsSheetBody(balance, pointsIconUrl, bitsCount, rewards, isLoading, error, onRedeem, { sheet.close() }, streak, extras, docked = false)
     }
 }
 
@@ -300,11 +304,13 @@ private fun ColumnScope.PointsSheetBody(
     onRedeem: (GqlChannelPointReward, String) -> Unit,
     onClose: () -> Unit,
     streak: WatchStreak?,
+    extras: PointsSheetExtras,
     docked: Boolean
 ) {
     val pointsBitsTwitchOnlyRewardsText = stringResource(Res.string.points_bits_twitch_only_rewards)
     val pointsBitsUnavailableRewardsText = stringResource(Res.string.points_bits_unavailable_rewards)
     SheetHeader(balance, pointsIconUrl, bitsCount, onClose)
+    PointsSheetExtrasBlock(extras)
     if (streak != null) {
         WatchStreakCard(streak, Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
     }
@@ -370,10 +376,14 @@ private fun SheetHeader(balance: Long, pointsIconUrl: String?, bitsCount: Long, 
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier
                 .clip(CircleShape)
-                .clickable(role = Role.Button) {
-                    runCatching { openUrl("https://www.twitch.tv/bits", SettingsState.LinkOpenMode.DEFAULT) }
-                }
-                .semantics { contentDescription = bitsLabel }
+                .then(
+                    if (allowsExternalPurchaseLinks) Modifier
+                        .clickable(role = Role.Button) {
+                            runCatching { openUrl("https://www.twitch.tv/bits", SettingsState.LinkOpenMode.DEFAULT) }
+                        }
+                        .semantics { contentDescription = bitsLabel }
+                    else Modifier
+                )
                 .padding(horizontal = 6.dp, vertical = 4.dp)
         ) {
             Icon(TwitchBitsIcon, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(20.dp))

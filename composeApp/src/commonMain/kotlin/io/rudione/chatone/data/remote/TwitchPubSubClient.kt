@@ -97,17 +97,17 @@ class TwitchPubSubClient(
                         send(Frame.Text(pinListen))
                         Napier.d("Subscribed to PubSub topic: $pinTopic", tag = TAG)
 
+                        val userToken = channelEventsToken(currentToken).ifEmpty { currentToken }
                         val pointsTopic = "community-points-user-v1.$currentUserId"
                         val pointsListen =
-                            """{"type":"LISTEN","nonce":"points","data":{"topics":["$pointsTopic"],"auth_token":"$currentToken"}}"""
+                            """{"type":"LISTEN","nonce":"points","data":{"topics":["$pointsTopic"],"auth_token":"$userToken"}}"""
                         send(Frame.Text(pointsListen))
                         Napier.d("Subscribed to PubSub topic: $pointsTopic", tag = TAG)
 
                         val rewardsTopic = "community-points-channel-v1.$currentChannelId"
-                        val rewardsToken = channelEventsToken(currentToken).ifEmpty { currentToken }
                         send(
                             Frame.Text(
-                                """{"type":"LISTEN","nonce":"rewards","data":{"topics":["$rewardsTopic"],"auth_token":"$rewardsToken"}}"""
+                                """{"type":"LISTEN","nonce":"rewards","data":{"topics":["$rewardsTopic"],"auth_token":"$userToken"}}"""
                             )
                         )
                         Napier.d("Subscribed to PubSub topic: $rewardsTopic", tag = TAG)
@@ -134,12 +134,12 @@ class TwitchPubSubClient(
                                 "chat_moderator_actions.$currentUserId.$currentChannelId"
 
                             val automodListen =
-                                """{"type":"LISTEN","nonce":"automod","data":{"topics":["$automodTopic"],"auth_token":"$currentToken"}}"""
+                                """{"type":"LISTEN","nonce":"automod","data":{"topics":["$automodTopic"],"auth_token":"$userToken"}}"""
                             send(Frame.Text(automodListen))
                             Napier.d("Subscribed to PubSub topic: $automodTopic", tag = TAG)
 
                             val modActionsListen =
-                                """{"type":"LISTEN","nonce":"modactions","data":{"topics":["$modActionsTopic"],"auth_token":"$currentToken"}}"""
+                                """{"type":"LISTEN","nonce":"modactions","data":{"topics":["$modActionsTopic"],"auth_token":"$userToken"}}"""
                             send(Frame.Text(modActionsListen))
                             Napier.d("Subscribed to PubSub topic: $modActionsTopic", tag = TAG)
                         }
@@ -231,16 +231,8 @@ class TwitchPubSubClient(
     }
 
     private fun handleCommunityPoints(messageStr: String) {
-        try {
-            val root = json.parseToJsonElement(messageStr).jsonObject
-            if (root["type"]?.jsonPrimitive?.contentOrNull != "claim-available") return
-            val claim = root["data"]?.jsonObject?.get("claim")?.jsonObject ?: return
-            val claimId = claim["id"]?.jsonPrimitive?.contentOrNull ?: return
-            val channelId = claim["channel_id"]?.jsonPrimitive?.contentOrNull ?: return
-            scope.launch { _events.emit(IrcEvent.PointsClaimAvailable(channelId, claimId)) }
-        } catch (e: Exception) {
-            Napier.w("community-points parse failed: ${e.message}", tag = TAG)
-        }
+        val event = CommunityPointsParser.parse(messageStr) ?: return
+        scope.launch { _events.emit(event) }
     }
 
     private fun handleChannelPoints(messageStr: String) {

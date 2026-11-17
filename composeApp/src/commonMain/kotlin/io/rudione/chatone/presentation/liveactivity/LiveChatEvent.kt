@@ -44,20 +44,19 @@ object LiveEventActivities {
     val available = MutableStateFlow(false)
     private val _followed = MutableStateFlow<LiveChatEvent?>(null)
     val followed = _followed.asStateFlow()
-    val error = MutableStateFlow(false)
     var onFollow: ((LiveChatEvent?) -> Unit)? = null
     var onObserved: ((LiveChatEvent) -> Unit)? = null
+    private val skipped = LinkedHashSet<String>()
+    private const val SKIPPED_MEMORY = 50
 
-    fun follow(event: LiveChatEvent) {
-        if (!available.value || event.channel.isBlank() || event.deadlineMs == null || event.terminal) return
-        error.value = false
+    private fun follow(event: LiveChatEvent) {
+        if (event.channel.isBlank() || event.deadlineMs == null || event.terminal) return
         _followed.value = event
         onFollow?.invoke(event)
     }
 
     fun clearSelection() {
         _followed.value = null
-        error.value = false
     }
 
     fun stop() {
@@ -71,8 +70,26 @@ object LiveEventActivities {
         onObserved?.invoke(event)
     }
 
+    fun autoFollow(event: LiveChatEvent) {
+        if (!available.value || event.key in skipped) return
+        val current = _followed.value
+        if (current != null && !current.terminal) return
+        follow(event)
+    }
+
+    fun dismissedByUser(eventKey: String) = skip(eventKey)
+
     fun restored(event: LiveChatEvent) { _followed.value = event }
-    fun failed() { _followed.value = null; error.value = true }
+
+    fun failed() {
+        _followed.value?.key?.let(::skip)
+        _followed.value = null
+    }
+
+    private fun skip(eventKey: String) {
+        skipped += eventKey
+        if (skipped.size > SKIPPED_MEMORY) skipped.remove(skipped.first())
+    }
 }
 
 private fun String.bounded(limit: Int): String {

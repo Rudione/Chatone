@@ -156,7 +156,8 @@ data class GqlChannelPointRewardsInfo(
     val channelId: String,
     val balance: Long,
     val rewards: List<GqlChannelPointReward>,
-    val currencyIconUrl: String? = null
+    val currencyIconUrl: String? = null,
+    val availableClaimId: String? = null
 )
 
 data class GqlChannelPointRedeemResult(val balance: Long)
@@ -664,8 +665,10 @@ class TwitchGqlClient(
         val channel = community["channel"]?.asObjectOrNull() ?: return null
         val settings = channel["communityPointsSettings"]?.asObjectOrNull() ?: return null
         val self = channel["self"]?.asObjectOrNull()
-        val balance = self?.get("communityPoints")?.asObjectOrNull()
-            ?.get("balance")?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
+        val communityPoints = self?.get("communityPoints")?.asObjectOrNull()
+        val balance = communityPoints?.get("balance")?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L
+        val availableClaimId = communityPoints?.get("availableClaim")?.asObjectOrNull()
+            ?.get("id")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
 
         val customRewards = settings["customRewards"]?.asArrayOrNull().orEmpty()
             .mapNotNull { it.asObjectOrNull()?.let(::customRewardFromJson) }
@@ -680,7 +683,8 @@ class TwitchGqlClient(
             channelId = community["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
             balance = balance,
             currencyIconUrl = currencyIconUrl,
-            rewards = rewards
+            rewards = rewards,
+            availableClaimId = availableClaimId
         )
     }
 

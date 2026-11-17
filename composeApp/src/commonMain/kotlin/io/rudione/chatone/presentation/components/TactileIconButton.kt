@@ -14,6 +14,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -27,6 +28,8 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
+import io.rudione.chatone.presentation.components.motion.IconInteraction
+import io.rudione.chatone.presentation.components.motion.LocalIconInteraction
 
 private const val HOVER_FILL = 0.08f
 private const val PRESS_FILL = 0.14f
@@ -136,8 +139,14 @@ fun TactileIconButton(
             .pointerHoverIcon(if (enabled) PointerIcon.Hand else PointerIcon.Default),
         contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.interactiveIcon(source, enabled = enabled), contentAlignment = Alignment.Center) {
-            content(tint)
+        val iconInteraction = remember(source) { IconInteraction(source) }
+        Box(
+            modifier = Modifier.interactiveIcon(source, enabled = enabled && !iconInteraction.animatesItself),
+            contentAlignment = Alignment.Center
+        ) {
+            CompositionLocalProvider(LocalIconInteraction provides iconInteraction) {
+                content(tint)
+            }
         }
     }
 }

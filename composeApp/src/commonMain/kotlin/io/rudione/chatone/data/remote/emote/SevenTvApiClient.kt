@@ -4,15 +4,15 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
-import io.rudione.chatone.data.remote.dto.SevenTvEmote
 import io.rudione.chatone.data.remote.dto.SevenTvEmoteSet
 import io.rudione.chatone.data.remote.dto.SevenTvUserResponse
-import io.rudione.chatone.domain.model.EmoteProvider
 import io.rudione.chatone.domain.model.GenericEmote
 
 data class SevenTvChannelResult(
     val emotes: List<GenericEmote>,
-    val emoteSetId: String?
+    val emoteSetId: String?,
+    val emoteSetName: String? = null,
+    val sevenTvUserId: String? = null
 )
 
 class SevenTvApiClient(private val httpClient: HttpClient) {
@@ -20,9 +20,6 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
 
     companion object {
         private const val TAG = "7TV"
-        private const val ZERO_WIDTH_FLAG = 1 shl 8
-
-        private val EMOTE_FORMAT_PREFERENCE = listOf("WEBP", "AVIF", "GIF", "PNG")
     }
 
     suspend fun getChannelEmotes(userId: String): List<GenericEmote> {
@@ -33,14 +30,19 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
         return try {
             val response = httpClient.get("$baseUrl/users/twitch/$userId").body<SevenTvUserResponse>()
             val setId = response.emoteSet?.id ?: response.emoteSetId
-            val inlineEmotes = response.emoteSet?.emotes?.mapNotNull { it.toGenericEmote() } ?: emptyList()
+            val inlineEmotes = response.emoteSet?.emotes?.mapNotNull { SevenTvEmoteMapper.fromSetEntry(it) } ?: emptyList()
 
             val emotes = if (inlineEmotes.isNotEmpty() || setId.isNullOrBlank()) {
                 inlineEmotes
             } else {
                 getEmoteSet(setId)
             }
-            SevenTvChannelResult(emotes = emotes, emoteSetId = setId)
+            SevenTvChannelResult(
+                emotes = emotes,
+                emoteSetId = setId,
+                emoteSetName = response.emoteSet?.name?.takeIf { it.isNotBlank() },
+                sevenTvUserId = response.user?.id?.takeIf { it.isNotBlank() }
+            )
         } catch (e: Exception) {
             Napier.e("Failed to get 7TV channel emotes: ${e.message}", tag = TAG)
             SevenTvChannelResult(emotes = emptyList(), emoteSetId = null)
@@ -50,7 +52,7 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
     suspend fun getGlobalEmotes(): List<GenericEmote> {
         return try {
             val response = httpClient.get("$baseUrl/emote-sets/global").body<SevenTvEmoteSet>()
-            response.emotes.mapNotNull { it.toGenericEmote() }
+            response.emotes.mapNotNull { SevenTvEmoteMapper.fromSetEntry(it) }
         } catch (e: Exception) {
             Napier.e("Failed to get 7TV global emotes: ${e.message}", tag = TAG)
             emptyList()
@@ -61,55 +63,10 @@ class SevenTvApiClient(private val httpClient: HttpClient) {
         return try {
             httpClient.get("$baseUrl/emote-sets/$emoteSetId")
                 .body<SevenTvEmoteSet>()
-                .emotes.mapNotNull { it.toGenericEmote() }
+                .emotes.mapNotNull { SevenTvEmoteMapper.fromSetEntry(it) }
         } catch (e: Exception) {
             Napier.w("Failed to fetch 7TV emote set $emoteSetId: ${e.message}", tag = TAG)
             emptyList()
         }
-    }
-
-    suspend fun getEmoteById(emoteId: String): GenericEmote? {
-        return try {
-            val emote = httpClient.get("$baseUrl/emotes/$emoteId").body<SevenTvEmote>()
-            emote.toGenericEmote()
-        } catch (e: Exception) {
-            Napier.w("Failed to fetch 7TV emote $emoteId: ${e.message}", tag = TAG)
-            null
-        }
-    }
-
-    private fun SevenTvEmote.toGenericEmote(): GenericEmote? {
-        val emoteData = data ?: return null
-        val host = emoteData.host
-        val baseUrl = "https:${host.url}"
-
-        val files = EMOTE_FORMAT_PREFERENCE
-            .firstNotNullOfOrNull { fmt -> host.files.filter { it.format == fmt }.takeIf { it.isNotEmpty() } }
-            ?: return null
-
-        val file1x = files.find { it.name.contains("1x") }
-        val file2x = files.find { it.name.contains("2x") }
-        val file3x = files.find { it.name.contains("4x") }
-            ?: files.find { it.name.contains("3x") }
-
-        val url1x = file1x?.let { "$baseUrl/${it.name}" }
-        val url2x = file2x?.let { "$baseUrl/${it.name}" }
-        val url3x = file3x?.let { "$baseUrl/${it.name}" }
-
-        val sizeFile = file2x ?: file1x ?: files.first()
-
-        return GenericEmote(
-            id = id,
-            code = name,
-            url1x = url1x ?: "$baseUrl/${files.first().name}",
-            url2x = url2x ?: url1x ?: "$baseUrl/${files.first().name}",
-            url3x = url3x ?: url2x ?: url1x ?: "$baseUrl/${files.first().name}",
-            provider = EmoteProvider.SEVEN_TV,
-            isZeroWidth = (flags and ZERO_WIDTH_FLAG) != 0 || (emoteData.flags and ZERO_WIDTH_FLAG) != 0,
-            width = sizeFile.width,
-            height = sizeFile.height,
-            originalName = emoteData.name,
-            authorName = emoteData.owner?.displayName?.ifEmpty { emoteData.owner.username } ?: ""
-        )
     }
 }

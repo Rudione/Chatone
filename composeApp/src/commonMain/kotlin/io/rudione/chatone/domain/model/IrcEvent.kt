@@ -147,7 +147,18 @@ sealed class IrcEvent {
         val unpinnedBy: String? = null
     ) : IrcEvent()
 
-    data class PointsClaimAvailable(val channelId: String, val claimId: String) : IrcEvent()
+    data class PointsClaimAvailable(val channelId: String, val claimId: String, val points: Int = 0) : IrcEvent()
+
+    data class PointsClaimed(val channelId: String, val claimId: String) : IrcEvent()
+
+    data class PointsEarned(
+        val channelId: String,
+        val amount: Int,
+        val reason: String,
+        val balance: Long?
+    ) : IrcEvent()
+
+    data class PointsBalanceChanged(val channelId: String, val balance: Long) : IrcEvent()
 
     data class RewardRedeemed(val redemption: RewardRedemption) : IrcEvent()
 

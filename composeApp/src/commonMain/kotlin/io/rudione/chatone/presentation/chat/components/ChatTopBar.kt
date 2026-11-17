@@ -1,6 +1,11 @@
 package io.rudione.chatone.presentation.chat.components
 
 
+import io.rudione.chatone.presentation.chat.points.PointsButton
+import io.rudione.chatone.presentation.chat.points.claimLabel
+import io.rudione.chatone.presentation.chat.points.PointsClaim
+import io.rudione.chatone.presentation.chat.points.PointsGain
+import io.rudione.chatone.presentation.chat.points.pointsGainBurst
 import io.rudione.chatone.presentation.components.LocalStreamerPrivacy
 import io.rudione.chatone.presentation.components.LocalSidebarExpanded
 import io.rudione.chatone.presentation.components.AnimatedMenuIcon
@@ -32,6 +37,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +64,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -88,7 +95,6 @@ import io.rudione.chatone.presentation.theme.panelBlur
 import io.rudione.chatone.presentation.theme.topBarBackgroundColor
 import io.rudione.chatone.presentation.stream.StreamWatchButton
 import io.rudione.chatone.util.format.groupedNumber
-import io.rudione.chatone.util.icons.TwitchPointsIcon
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.RefreshCw
 import io.rudione.chatone.icons.lucide.Swords
@@ -271,7 +277,11 @@ private class TopBarActionCallbacks(
 data class TopBarPoints(
     val balance: Long? = null,
     val iconUrl: String? = null,
-    val onWanted: () -> Unit = {}
+    val claim: PointsClaim? = null,
+    val claiming: Boolean = false,
+    val gain: PointsGain? = null,
+    val onWanted: () -> Unit = {},
+    val onClaim: () -> Unit = {}
 )
 
 @Composable
@@ -320,12 +330,27 @@ private fun TopBarActions(
             )
         }
         PointsBalanceTooltipBox(points = points, onWanted = callbacks.onPointsWanted) {
-            TactileIconButton(onClick = callbacks.onOpenPointsBits, size = metrics.button) { tint ->
-                Icon(
-                    TwitchPointsIcon,
+            Box(
+                modifier = Modifier
+                    .zIndex(1f)
+                    .pointsGainBurst(
+                        gain = points.gain,
+                        color = MaterialTheme.colorScheme.primary,
+                        textStyle = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFeatureSettings = "tnum"
+                        )
+                    )
+            ) {
+                PointsButton(
+                    claim = points.claim,
+                    claiming = points.claiming,
+                    gainSeq = points.gain?.seq?.toInt() ?: 0,
+                    size = metrics.button,
+                    iconSize = metrics.icon,
                     contentDescription = stringResource(Res.string.main_channel_badges_bits),
-                    tint = tint,
-                    modifier = Modifier.size(metrics.icon)
+                    onOpen = callbacks.onOpenPointsBits,
+                    onClaim = points.onClaim
                 )
             }
         }
@@ -404,27 +429,40 @@ private fun PointsBalanceTooltipBox(
         tooltipContent = {
             LaunchedEffect(Unit) { onWanted() }
             val balance = points.balance
-            if (balance == null) {
-                Text(
-                    text = fallback,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            } else {
-                val formatted = groupedNumber(balance)
-                val description = stringResource(Res.string.points_balance_description, formatted)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description }
-                ) {
-                    CurrencyIcon("POINTS", points.iconUrl, size = 14, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(5.dp))
+            val claim = points.claim
+            Column {
+                if (claim != null) {
                     Text(
-                        text = formatted,
-                        style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                        text = claimLabel(claim),
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                }
+                if (balance == null) {
+                    if (claim == null) {
+                        Text(
+                            text = fallback,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                } else {
+                    val formatted = groupedNumber(balance)
+                    val description = stringResource(Res.string.points_balance_description, formatted)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description }
+                    ) {
+                        CurrencyIcon("POINTS", points.iconUrl, size = 14, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            text = formatted,
+                            style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         },

@@ -45,4 +45,17 @@ class WatchStreakTest {
         assertTrue(WatchMinutePlan.shouldRefreshStreak(5))
         assertFalse(WatchMinutePlan.shouldRefreshStreak(6))
     }
+
+    @Test
+    fun streakCountsForTheStreamOnlyAfterItStarted() {
+        assertTrue(WatchStreakCounting.countedThisStream("2026-11-15T18:30:00Z", "2026-11-15T17:00:00Z"))
+        assertFalse(WatchStreakCounting.countedThisStream("2026-11-14T21:00:00Z", "2026-11-15T17:00:00Z"))
+    }
+
+    @Test
+    fun unknownTimesNeverCountAsCollected() {
+        assertFalse(WatchStreakCounting.countedThisStream(null, "2026-11-15T17:00:00Z"))
+        assertFalse(WatchStreakCounting.countedThisStream("2026-11-15T18:30:00Z", null))
+        assertFalse(WatchStreakCounting.countedThisStream("garbage", "2026-11-15T17:00:00Z"))
+    }
 }

@@ -4,95 +4,54 @@ import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.websocket.Frame
-import io.rudione.chatone.util.network.NetworkMonitor
-import io.rudione.chatone.util.network.recoverSocket
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.flow.MutableStateFlow
 import io.ktor.websocket.WebSocketSession
 import io.ktor.websocket.readText
-import io.rudione.chatone.data.remote.dto.SevenTvEventBody
-import io.rudione.chatone.data.remote.dto.SevenTvEventMessage
-import kotlinx.coroutines.*
+import io.rudione.chatone.util.network.NetworkMonitor
+import io.rudione.chatone.util.network.recoverSocket
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import kotlin.time.Duration.Companion.milliseconds
-import kotlinx.coroutines.CancellationException
 
 class SevenTvEventApi(
     private val httpClient: HttpClient,
     private val scope: CoroutineScope,
     private val networkMonitor: NetworkMonitor = NetworkMonitor(scope)
-) {
-    companion object {
-        private const val TAG = "7TV-EventAPI"
-        private const val EVENT_API_URL = "wss://events.7tv.io/v3"
-        private const val OP_DISPATCH = 0
-        private const val OP_HELLO = 1
-        private const val OP_HEARTBEAT = 2
-        private const val OP_SUBSCRIBE = 35
-    }
+) : SevenTvEventSource {
 
-    private val json = Json {
-        ignoreUnknownKeys = true
-        isLenient = true
-    }
-
+    private val parser = SevenTvEventParser()
     private var session: WebSocketSession? = null
-    private var heartbeatJob: Job? = null
     private var connectionJob: Job? = null
     private val lifecycleMutex = Mutex()
-    private val heartbeatInterval = MutableStateFlow(30_000L)
-    private val subscribedSets = SevenTvSubscriptions()
-    private val subscribedTwitchChannels = SevenTvSubscriptions()
+    private val subscriptions = SevenTvSubscriptionBook()
 
-    private val _emoteSetUpdates = MutableSharedFlow<EmoteSetUpdateEvent>(
+    private val _dispatches = MutableSharedFlow<List<SevenTvLiveEvent>>(
         extraBufferCapacity = 256,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val emoteSetUpdates: SharedFlow<EmoteSetUpdateEvent> = _emoteSetUpdates
-
-    sealed class EmoteSetUpdateEvent {
-        data class EmoteAdded(
-            val emoteSetId: String,
-            val emoteId: String,
-            val emoteName: String,
-            val actorName: String
-        ) : EmoteSetUpdateEvent()
-
-        data class EmoteRemoved(
-            val emoteSetId: String,
-            val emoteId: String,
-            val emoteName: String,
-            val actorName: String
-        ) : EmoteSetUpdateEvent()
-
-        data class EmoteRenamed(
-            val emoteSetId: String,
-            val emoteId: String,
-            val oldName: String,
-            val newName: String,
-            val actorName: String
-        ) : EmoteSetUpdateEvent()
-
-        data class PersonalEmoteSetGranted(
-            val twitchUserId: String,
-            val twitchUsername: String,
-            val emoteSetId: String
-        ) : EmoteSetUpdateEvent()
-
-        data class PersonalEmoteSetRevoked(
-            val twitchUserId: String,
-            val emoteSetId: String
-        ) : EmoteSetUpdateEvent()
-    }
+    override val dispatches: SharedFlow<List<SevenTvLiveEvent>> = _dispatches.asSharedFlow()
 
     suspend fun connect() = lifecycleMutex.withLock {
         if (connectionJob?.isActive == true) return@withLock
         var initialSession = if (networkMonitor.status.value.available == false) null else try {
-            withTimeout(15_000.milliseconds) { httpClient.webSocketSession(EVENT_API_URL) }
+            withTimeout(CONNECT_TIMEOUT_MS.milliseconds) { httpClient.webSocketSession(EVENT_API_URL) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -101,220 +60,73 @@ class SevenTvEventApi(
         }
         connectionJob = scope.launch {
             networkMonitor.recoverSocket(onFailure = {
-                Napier.w(
-                    "7TV connection interrupted: ${it::class.simpleName}",
-                    tag = TAG
-                )
+                Napier.w("7TV connection interrupted: ${it.message ?: it::class.simpleName}", tag = TAG)
             }) {
                 val ws = initialSession
-                    ?: withTimeout(15_000.milliseconds) { httpClient.webSocketSession(EVENT_API_URL) }
+                    ?: withTimeout(CONNECT_TIMEOUT_MS.milliseconds) { httpClient.webSocketSession(EVENT_API_URL) }
                 initialSession = null
                 session = ws
-                heartbeatInterval.value = 30_000
                 try {
-                    var silenceLimit = 15_000L
-                    while (isActive) {
-                        val frame = withTimeoutOrNull(silenceLimit.milliseconds) {
-                            ws.incoming.receiveCatching().getOrNull()
-                        }
-                            ?: throw SevenTvHeartbeatTimeout()
-                        if (frame is Frame.Text) {
-                            handleMessage(frame.readText())
-                            silenceLimit = heartbeatInterval.value * 2 + 10_000
-                        }
-                    }
+                    runSession(ws)
                 } finally {
-                    heartbeatJob?.cancelAndJoin()
+                    subscriptions.endSession()
+                    if (session === ws) session = null
                     ws.cancel()
-                    session = null
                 }
             }
         }.also { job -> job.invokeOnCompletion { initialSession?.cancel() } }
     }
 
-    fun subscribeToEmoteSet(emoteSetId: String) {
-        if (emoteSetId.isBlank() || !subscribedSets.add(emoteSetId)) return
-        sendEmoteSetSubscription(emoteSetId)
+    private suspend fun runSession(ws: WebSocketSession) {
+        var silenceLimitMs = HELLO_TIMEOUT_MS
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val received = withTimeoutOrNull(silenceLimitMs.milliseconds) { ws.incoming.receiveCatching() }
+                ?: throw SevenTvSilenceTimeout(silenceLimitMs)
+            val frame = received.getOrNull() ?: throw SevenTvSocketClosed()
+            if (frame !is Frame.Text) continue
+            when (val parsed = parser.parse(frame.readText())) {
+                is SevenTvFrame.Hello -> {
+                    silenceLimitMs = parsed.heartbeatIntervalMs * MISSED_HEARTBEATS
+                    val commands = subscriptions.startSession(parsed.subscriptionLimit)
+                    Napier.d("7TV EventAPI hello, heartbeat ${parsed.heartbeatIntervalMs}ms, ${commands.size} subscriptions", tag = TAG)
+                    commands.forEach { ws.send(Frame.Text(it)) }
+                }
+                is SevenTvFrame.Dispatch -> if (parsed.events.isNotEmpty()) _dispatches.tryEmit(parsed.events)
+                SevenTvFrame.Reconnect -> {
+                    Napier.d("7TV asked to reconnect", tag = TAG)
+                    return
+                }
+                is SevenTvFrame.EndOfStream -> throw SevenTvEndOfStream(parsed.code, parsed.reason)
+                is SevenTvFrame.Failure -> Napier.w("7TV error: ${parsed.reason}", tag = TAG)
+                SevenTvFrame.Heartbeat, SevenTvFrame.Ignored -> Unit
+                null -> Napier.w("Unreadable 7TV event", tag = TAG)
+            }
+        }
     }
 
-    private fun sendEmoteSetSubscription(emoteSetId: String) {
+    override fun subscribeToEmoteSet(emoteSetId: String) =
+        send(subscriptions.add(SevenTvSubscriptionBook.Kind.CHANNEL_SET, emoteSetId))
+
+    override fun subscribeToPersonalSet(emoteSetId: String) =
+        send(subscriptions.add(SevenTvSubscriptionBook.Kind.PERSONAL_SET, emoteSetId))
+
+    override fun subscribeToUser(sevenTvUserId: String) =
+        send(subscriptions.add(SevenTvSubscriptionBook.Kind.USER, sevenTvUserId))
+
+    override fun subscribeToTwitchChannel(twitchChannelId: String) =
+        send(subscriptions.add(SevenTvSubscriptionBook.Kind.TWITCH_CHANNEL, twitchChannelId))
+
+    private fun send(commands: List<String>) {
+        if (commands.isEmpty()) return
+        val ws = session ?: return
         scope.launch {
-            val subscribeMsg = """
-                {"op":$OP_SUBSCRIBE,"d":{"type":"emote_set.update","condition":{"object_id":"$emoteSetId"}}}
-            """.trimIndent()
             try {
-                session?.send(Frame.Text(subscribeMsg))
-                Napier.d("Subscribed to emote set: $emoteSetId", tag = TAG)
+                commands.forEach { ws.send(Frame.Text(it)) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Napier.e("Failed to subscribe to emote set: ${e.message}", tag = TAG)
-            }
-        }
-    }
-
-
-    fun subscribeToTwitchChannel(twitchChannelId: String) {
-        if (twitchChannelId.isBlank() || !subscribedTwitchChannels.add(twitchChannelId)) return
-        sendTwitchChannelSubscriptions(twitchChannelId)
-    }
-
-    private fun sendTwitchChannelSubscriptions(twitchChannelId: String) {
-        scope.launch {
-            val types = listOf("entitlement.create", "entitlement.delete", "cosmetic.create")
-            for (type in types) {
-                val msg = """
-                    {"op":$OP_SUBSCRIBE,"d":{"type":"$type","condition":{"ctx":"channel","platform":"TWITCH","id":"$twitchChannelId"}}}
-                """.trimIndent()
-                try {
-                    session?.send(Frame.Text(msg))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Napier.e(
-                        "Failed to subscribe $type for channel $twitchChannelId: ${e.message}",
-                        tag = TAG
-                    )
-                }
-            }
-            Napier.d("Subscribed to channel entitlements: $twitchChannelId", tag = TAG)
-        }
-    }
-
-    private fun handleMessage(text: String) {
-        try {
-            val message = json.decodeFromString<SevenTvEventMessage>(text)
-            when (message.op) {
-                OP_HELLO -> {
-                    val interval = (message.d?.heartbeatInterval ?: 30000).coerceIn(1_000, 300_000)
-                    heartbeatInterval.value = interval
-                    startHeartbeat(interval)
-                    Napier.d("7TV EventAPI hello, heartbeat interval: ${interval}ms", tag = TAG)
-
-                    subscribedSets.snapshot().forEach(::sendEmoteSetSubscription)
-                    subscribedTwitchChannels.snapshot().forEach(::sendTwitchChannelSubscriptions)
-                }
-
-                OP_DISPATCH -> handleDispatch(message)
-                OP_HEARTBEAT -> {}
-            }
-        } catch (e: Exception) {
-            Napier.w("Failed to parse 7TV event: ${e.message}", tag = TAG)
-        }
-    }
-
-    private fun handleDispatch(message: SevenTvEventMessage) {
-        val data = message.d ?: return
-        val body = data.body ?: return
-
-        when (data.type) {
-            "entitlement.create" -> {
-                handleEntitlement(body, granted = true)
-                return
-            }
-
-            "entitlement.delete" -> {
-                handleEntitlement(body, granted = false)
-                return
-            }
-
-            "cosmetic.create" -> {
-                return
-            }
-        }
-
-        val emoteSetId = data.condition["object_id"] ?: body.id
-        val actorName = body.actor?.displayName ?: body.actor?.username ?: "Unknown"
-
-        body.pushed.forEach { pushed ->
-            val emote = pushed.value ?: return@forEach
-            scope.launch {
-                _emoteSetUpdates.emit(
-                    EmoteSetUpdateEvent.EmoteAdded(
-                        emoteSetId = emoteSetId,
-                        emoteId = emote.id,
-                        emoteName = emote.name,
-                        actorName = actorName
-                    )
-                )
-            }
-        }
-
-        body.pulled.forEach { pulled ->
-            val emote = pulled.old_value ?: return@forEach
-            scope.launch {
-                _emoteSetUpdates.emit(
-                    EmoteSetUpdateEvent.EmoteRemoved(
-                        emoteSetId = emoteSetId,
-                        emoteId = emote.id,
-                        emoteName = emote.name,
-                        actorName = actorName
-                    )
-                )
-            }
-        }
-
-        body.updated.forEach { updated ->
-            val oldEmote = updated.old_value
-            val newEmote = updated.value
-            if (oldEmote != null && newEmote != null && oldEmote.name != newEmote.name) {
-                scope.launch {
-                    _emoteSetUpdates.emit(
-                        EmoteSetUpdateEvent.EmoteRenamed(
-                            emoteSetId = emoteSetId,
-                            emoteId = newEmote.id,
-                            oldName = oldEmote.name,
-                            newName = newEmote.name,
-                            actorName = actorName
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-    private fun handleEntitlement(body: SevenTvEventBody, granted: Boolean) {
-        val obj = body.obj ?: return
-        if (!obj.kind.equals("EMOTE_SET", ignoreCase = true)) return
-        val emoteSetId = obj.refId.ifBlank { return }
-        val twitchConnections = obj.user?.connections.orEmpty()
-            .filter { it.platform.equals("TWITCH", ignoreCase = true) }
-        if (twitchConnections.isEmpty()) return
-
-        for (conn in twitchConnections) {
-            val twitchId = conn.id.ifBlank { continue }
-            scope.launch {
-                _emoteSetUpdates.emit(
-                    if (granted)
-                        EmoteSetUpdateEvent.PersonalEmoteSetGranted(
-                            twitchUserId = twitchId,
-                            twitchUsername = conn.username,
-                            emoteSetId = emoteSetId
-                        )
-                    else
-                        EmoteSetUpdateEvent.PersonalEmoteSetRevoked(
-                            twitchUserId = twitchId,
-                            emoteSetId = emoteSetId
-                        )
-                )
-            }
-        }
-    }
-
-    private fun startHeartbeat(intervalMs: Long) {
-        heartbeatJob?.cancel()
-        heartbeatJob = scope.launch {
-            while (isActive) {
-                delay(intervalMs)
-                try {
-                    session?.send(Frame.Text("""{"op":$OP_HEARTBEAT}"""))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Napier.w("7TV heartbeat failed: ${e::class.simpleName}", tag = TAG)
-                    session?.cancel()
-                    break
-                }
+                Napier.w("7TV subscribe will be retried after reconnect: ${e::class.simpleName}", tag = TAG)
             }
         }
     }
@@ -322,12 +134,55 @@ class SevenTvEventApi(
     suspend fun disconnect() = lifecycleMutex.withLock {
         connectionJob?.cancelAndJoin()
         connectionJob = null
-        heartbeatJob?.cancelAndJoin()
         session?.cancel()
         session = null
-        subscribedSets.clear()
-        subscribedTwitchChannels.clear()
+        subscriptions.clear()
+    }
+
+    private companion object {
+        const val TAG = "7TV-EventAPI"
+        const val EVENT_API_URL = "wss://events.7tv.io/v3"
+        const val CONNECT_TIMEOUT_MS = 15_000L
+        const val HELLO_TIMEOUT_MS = 15_000L
+        const val MISSED_HEARTBEATS = 3
     }
 }
 
-private class SevenTvHeartbeatTimeout : Exception()
+internal object SevenTvCommands {
+    private const val OP_SUBSCRIBE = 35
+    private val CHANNEL_EVENTS = listOf("entitlement.create", "entitlement.delete", "cosmetic.create")
+    private val ID = Regex("^[A-Za-z0-9]{1,64}$")
+
+    fun isValidId(id: String): Boolean = ID.matches(id)
+
+    fun emoteSet(emoteSetId: String): String = byObjectId("emote_set.update", emoteSetId)
+
+    fun user(sevenTvUserId: String): String = byObjectId("user.update", sevenTvUserId)
+
+    fun twitchChannel(twitchChannelId: String): List<String> = CHANNEL_EVENTS.map { type ->
+        subscribe(type) {
+            put("ctx", "channel")
+            put("platform", "TWITCH")
+            put("id", twitchChannelId)
+        }
+    }
+
+    private fun byObjectId(type: String, objectId: String): String = subscribe(type) { put("object_id", objectId) }
+
+    private fun subscribe(
+        type: String,
+        condition: JsonObjectBuilder.() -> Unit
+    ): String = buildJsonObject {
+        put("op", OP_SUBSCRIBE)
+        putJsonObject("d") {
+            put("type", type)
+            putJsonObject("condition", condition)
+        }
+    }.toString()
+}
+
+private class SevenTvSilenceTimeout(limitMs: Long) : Exception("no 7TV frames for ${limitMs}ms")
+
+private class SevenTvSocketClosed : Exception("7TV socket closed")
+
+private class SevenTvEndOfStream(code: Int?, reason: String?) : Exception("7TV ended the stream: $code $reason")

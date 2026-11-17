@@ -275,7 +275,60 @@ class LowLatencyStreamPlaybackEngineTest {
     fun reportsAnUnsupportedStreamWhenNoQualityCanBeDecoded() = runTest {
         val engine = playingEngine()
         failDecoding("720p60")
-        failDecoding("1080p60 (source)")
+        failDecoding("1080p60 (source)", rounds = 10)
+        assertEquals(StreamPhase.ERROR, engine.status.value.phase)
+        assertEquals(StreamErrorKind.UNSUPPORTED_CODEC, engine.status.value.errorKind)
+        engine.release()
+    }
+
+    @Test
+    fun leftoverFailuresAfterLeavingABrokenQualityDoNotRejectTheNextOne() = runTest {
+        val engine = playingEngine()
+        failDecoding("720p60")
+        val switches = player.calls.count { it.startsWith("quality") }
+        failDecoding("1080p60 (source)", rounds = 3)
+        repeat(6) {
+            player.decodedFrames += 30
+            elapse(500)
+        }
+        assertEquals(switches, player.calls.count { it.startsWith("quality") })
+        assertEquals("quality(1080p60 (source), seamless=false)", player.calls.last { it.startsWith("quality") })
+        assertEquals(StreamPhase.PLAYING, engine.status.value.phase)
+        engine.release()
+    }
+
+    @Test
+    fun givesAWorkingQualityOneMoreChanceBeforeGivingUp() = runTest {
+        val engine = playingEngine()
+        player.qualityName = "1080p60 (source)"
+        repeat(3) {
+            player.decodedFrames += 30
+            elapse(500)
+        }
+        failDecoding("720p60")
+        failDecoding("1080p60 (source)", rounds = 10)
+        assertEquals(StreamPhase.PLAYING, engine.status.value.phase)
+        assertEquals("quality(1080p60 (source), seamless=false)", player.calls.last { it.startsWith("quality") })
+        failDecoding("1080p60 (source)", rounds = 10)
+        assertEquals(StreamPhase.ERROR, engine.status.value.phase)
+        assertEquals(StreamErrorKind.UNSUPPORTED_CODEC, engine.status.value.errorKind)
+        engine.release()
+    }
+
+    @Test
+    fun aDecoderErrorReloadsOnAnotherQualityInsteadOfFailing() = runTest {
+        val engine = playingEngine()
+        player.qualityName = "720p60"
+        val loads = player.calls.count { it.startsWith("load") }
+        player.fail(status = 0, reason = "ErrorNotSupported", source = "Decode")
+        runCurrent()
+        assertEquals(loads + 1, player.calls.count { it.startsWith("load") })
+        assertNull(engine.status.value.errorKind)
+        player.emit(LowLatencyPlayerState.READY)
+        assertEquals("quality(1080p60 (source), seamless=false)", player.calls.last { it.startsWith("quality") })
+        player.qualityName = "1080p60 (source)"
+        player.fail(status = 0, reason = "ErrorNotSupported", source = "Decode")
+        runCurrent()
         assertEquals(StreamPhase.ERROR, engine.status.value.phase)
         assertEquals(StreamErrorKind.UNSUPPORTED_CODEC, engine.status.value.errorKind)
         engine.release()
@@ -321,9 +374,9 @@ class LowLatencyStreamPlaybackEngineTest {
         return engine
     }
 
-    private fun TestScope.failDecoding(quality: String) {
+    private fun TestScope.failDecoding(quality: String, rounds: Int = 4) {
         player.qualityName = quality
-        repeat(4) {
+        repeat(rounds) {
             player.failedFrames += 30
             player.decodedFrames += 30
             elapse(500)

@@ -239,6 +239,7 @@ kotlin {
             implementation(libs.ktor.server.cio)
             implementation(libs.jna)
             implementation(libs.jna.platform)
+            implementation(libs.jlayer)
         }
     }
 }

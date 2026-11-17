@@ -1,7 +1,9 @@
 package io.rudione.chatone.presentation.chat.timeline
 
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,10 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.DisableSelection
-import io.rudione.chatone.presentation.chat.ProfileHistorySelection
-import io.rudione.chatone.presentation.chat.ProfileMessageCopy
-import io.rudione.chatone.util.chat.plainText
-import io.rudione.chatone.util.system.isDesktopPlatform
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -30,35 +28,35 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.profile_load_more_history
 import chatone.composeapp.generated.resources.profile_loading_history
 import chatone.composeapp.generated.resources.profile_no_messages_in_session
+import io.rudione.chatone.data.remote.LogMonth
 import io.rudione.chatone.data.repository.EmoteRepository
-import io.rudione.chatone.domain.model.ChatMessage
 import io.rudione.chatone.domain.model.DisplayMessage
-import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.icons.lucide.Lucide
 import io.rudione.chatone.icons.lucide.MessageSquare
 import io.rudione.chatone.presentation.chat.ArchiveLineRow
 import io.rudione.chatone.presentation.chat.PrivMsgItem
+import io.rudione.chatone.presentation.chat.ProfileHistorySelection
+import io.rudione.chatone.presentation.chat.ProfileMessageCopy
 import io.rudione.chatone.presentation.chat.chatDayLabel
 import io.rudione.chatone.presentation.chat.localEpochDay
+import io.rudione.chatone.presentation.chat.rendering.PreserveScrollAnchor
 import io.rudione.chatone.presentation.settings.SettingsState
 import io.rudione.chatone.presentation.settings.SettingsViewModel
-import io.rudione.chatone.util.chat.MessageTokenizer
+import io.rudione.chatone.util.chat.plainText
+import io.rudione.chatone.util.system.isDesktopPlatform
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.TimeZone
 import org.jetbrains.compose.resources.stringResource
@@ -79,15 +77,15 @@ internal fun ProfileTimelineFeed(
     author: DisplayMessage.PrivMsg,
     nameColor: Color,
     modifier: Modifier = Modifier,
-    fontSizeSp: Float? = null
+    fontSizeSp: Float? = null,
+    viewport: ProfileFeedViewport? = null
 ) {
     val emotes: EmoteRepository = koinInject()
     val settings = remember { SettingsViewModel.loadInitialState() }
     val zone = remember { TimeZone.currentSystemDefault() }
-    val rows by produceState<List<TimelineRow>?>(null, source.entries, author) {
-        value = withContext(Dispatchers.Default) {
-            ProfileTimeline.rows(source.entries, zone) { past -> pastMessage(emotes, author, past) }
-        }
+    val renderer = remember(emotes) { PastMessageRenderer(emotes) }
+    val rows by produceState<List<TimelineRow>?>(null, source.entries, author, renderer) {
+        value = withContext(Dispatchers.Default) { renderer.rows(source.entries, zone, author) }
     }
     val shown = rows ?: return Box(modifier, contentAlignment = Alignment.Center) {
         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -96,32 +94,12 @@ internal fun ProfileTimelineFeed(
         TimelineEmpty(source, modifier)
         return
     }
+    val newestFirst = remember(shown) { shown.asReversed() }
     val listState = rememberLazyListState()
-    var armed by remember { mutableStateOf(false) }
-    var stickToBottom by remember { mutableStateOf(true) }
-    val latest by rememberUpdatedState(source)
-    val total = shown.size + 1
-
-    LaunchedEffect(total) {
-        if (!armed) {
-            listState.scrollToItem(total - 1)
-            armed = true
-        } else if (stickToBottom) {
-            listState.animateScrollToItem(total - 1)
-        }
-    }
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            val info = listState.layoutInfo
-            (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 2
-        }.collect { stickToBottom = it }
-    }
-    LaunchedEffect(listState, armed) {
-        if (!armed) return@LaunchedEffect
-        snapshotFlow { listState.firstVisibleItemIndex <= 1 && latest.canLoadOlder && !latest.isLoadingOlder }
-            .distinctUntilChanged()
-            .collect { atTop -> if (atTop) latest.onLoadOlder() }
-    }
+    PreserveScrollAnchor(listState, newestFirst) { it.key }
+    KeepNewestInView(listState, newestFirst) { it.key }
+    LoadOlderNearTop(listState, source.canLoadOlder, source.isLoadingOlder, source.onLoadOlder)
+    TrackFeedViewport(viewport, listState, newestFirst) { it.month(zone) }
 
     val fontSize = fontSizeSp ?: when (settings.fontSize) {
         SettingsState.FontSize.SMALL -> 12f
@@ -132,35 +110,53 @@ internal fun ProfileTimelineFeed(
     ProfileHistorySelection(modifier = modifier) {
         LazyColumn(
             state = listState,
+            reverseLayout = true,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp)
+            verticalArrangement = Arrangement.spacedBy(1.dp, Alignment.Bottom)
         ) {
-            item(key = "older", contentType = "older") { DisableSelection { OlderControl(source) } }
-            items(shown, key = { it.key }, contentType = { it::class }) { row ->
-                when (row) {
-                    is TimelineRow.Day -> DisableSelection { DayBreak(chatDayLabel(row.epochDay, today)) }
-                    is TimelineRow.Message -> ProfileMessageCopy(
-                        row.message.rawMessage?.message ?: row.message.tokens.joinToString("") { it.plainText() }
-                    ) { copy ->
-                        PrivMsgItem(
-                            message = row.message,
-                            isCompact = true,
-                            timestampFormat = settings.timestampFormat,
-                            showBadges = settings.showBadges,
-                            emoteSize = settings.emoteSize,
-                            chatFontSizeSp = fontSize,
-                            highlightRules = settings.highlightRules,
-                            onMessageLongPress = copy.takeUnless { isDesktopPlatform },
-                            onCopyText = copy,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+            items(newestFirst, key = { it.key }, contentType = { it::class }) { row ->
+                Box(
+                    Modifier.animateItem(
+                        fadeInSpec = tween(ROW_FADE_MS),
+                        placementSpec = spring(
+                            stiffness = Spring.StiffnessMediumLow,
+                            visibilityThreshold = IntOffset.VisibilityThreshold
+                        ),
+                        fadeOutSpec = null
+                    )
+                ) {
+                    when (row) {
+                        is TimelineRow.Day -> DisableSelection { DayBreak(chatDayLabel(row.epochDay, today)) }
+                        is TimelineRow.Message -> ProfileMessageCopy(
+                            row.message.rawMessage?.message ?: row.message.tokens.joinToString("") { it.plainText() }
+                        ) { copy ->
+                            PrivMsgItem(
+                                message = row.message,
+                                isCompact = true,
+                                timestampFormat = settings.timestampFormat,
+                                showBadges = settings.showBadges,
+                                emoteSize = settings.emoteSize,
+                                chatFontSizeSp = fontSize,
+                                highlightRules = settings.highlightRules,
+                                onMessageLongPress = copy.takeUnless { isDesktopPlatform },
+                                onCopyText = copy,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        is TimelineRow.Event -> ArchiveLineRow(row.line, author.displayName, nameColor)
                     }
-                    is TimelineRow.Event -> ArchiveLineRow(row.line, author.displayName, nameColor)
                 }
             }
+            item(key = OLDER_KEY, contentType = OLDER_KEY) { DisableSelection { OlderControl(source) } }
         }
     }
+}
+
+private fun TimelineRow.month(zone: TimeZone): LogMonth? = when (this) {
+    is TimelineRow.Day -> monthOfEpochDay(epochDay)
+    is TimelineRow.Message -> monthOfEpochMs(message.timestamp, zone)
+    is TimelineRow.Event -> monthOfEpochMs(line.timestampMs, zone)
 }
 
 @Composable
@@ -220,37 +216,6 @@ private fun TimelineEmpty(source: TimelineSource, modifier: Modifier) {
     }
 }
 
-private fun pastMessage(emotes: EmoteRepository, author: DisplayMessage.PrivMsg, past: TimelineEntry.Past): DisplayMessage.PrivMsg {
-    val raw = ChatMessage(
-        id = past.id,
-        channelId = author.rawMessage?.channelId.orEmpty(),
-        channelName = author.channel,
-        userId = author.userId,
-        username = author.username,
-        displayName = author.displayName,
-        message = past.text,
-        timestamp = past.timestamp,
-        color = author.color
-    )
-    val tokens = runCatching {
-        MessageTokenizer.tokenize(raw, emotes.getResolvedEmotes(author.channel), personalEmotes = emotes.getCachedPersonalEmotes(author.userId))
-    }.getOrElse { listOf(MessageToken.Text(past.text)) }
-    return author.copy(
-        id = past.id,
-        timestamp = past.timestamp,
-        tokens = tokens,
-        isDeleted = past.deleted,
-        isMention = false,
-        isAction = false,
-        isFirstMessage = false,
-        isHighlighted = false,
-        customRewardId = null,
-        rewardName = null,
-        rawMessage = raw,
-        highlightColor = null
-    )
-}
-
 fun profileAuthor(
     session: List<DisplayMessage.PrivMsg>,
     userId: String,
@@ -276,3 +241,6 @@ fun profileAuthor(
         isMention = false,
         isAction = false
     )
+
+private const val OLDER_KEY = "older"
+private const val ROW_FADE_MS = 220

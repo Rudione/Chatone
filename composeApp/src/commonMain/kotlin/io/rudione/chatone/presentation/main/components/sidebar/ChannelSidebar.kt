@@ -1,6 +1,7 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
 
+import io.rudione.chatone.presentation.components.motion.IconMotion
 import io.rudione.chatone.util.system.isDesktopPlatform
 import chatone.composeapp.generated.resources.lab_title
 import io.rudione.chatone.icons.lucide.Activity
@@ -286,7 +287,7 @@ internal fun ChannelSidebar(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             val activeLogin = state.activeChannelLogin
-                            streak?.takeIf { activeLogin != null }?.let { current ->
+                            streak?.takeIf { activeLogin != null && !it.countedThisStream }?.let { current ->
                                 StreakBadge(
                                     count = current.current,
                                     description = stringResource(
@@ -442,14 +443,8 @@ internal fun ChannelSidebar(
                             isActive = channel.login == state.activeChannelLogin,
                             folders = state.folders,
                             currentFolderId = folder.id,
-                            onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
-                            onClose = { onEvent(MainEvent.CloseChannel(channel.login)) },
-                            onMoveToFolder = { folderId ->
-                                onEvent(MainEvent.MoveChannelToFolder(channel.login, folderId))
-                            },
-                            onCreateFolder = { onEvent(MainEvent.ShowCreateFolderDialog(channel.login)) },
                             liveNotifyEnabled = channel.login.lowercase() in state.liveNotifyChannels,
-                            onToggleLiveNotify = { onEvent(MainEvent.ToggleLiveNotify(channel.login)) },
+                            actions = rememberChannelMenuActions(channel.login, onEvent),
                             dragState = dragState,
                             modifier = Modifier
                                 .padding(horizontal = 4.dp)
@@ -491,14 +486,8 @@ internal fun ChannelSidebar(
                     isActive = channel.login == state.activeChannelLogin,
                     folders = state.folders,
                     currentFolderId = null,
-                    onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
-                    onClose = { onEvent(MainEvent.CloseChannel(channel.login)) },
-                    onMoveToFolder = { folderId ->
-                        onEvent(MainEvent.MoveChannelToFolder(channel.login, folderId))
-                    },
-                    onCreateFolder = { onEvent(MainEvent.ShowCreateFolderDialog(channel.login)) },
                     liveNotifyEnabled = channel.login.lowercase() in state.liveNotifyChannels,
-                    onToggleLiveNotify = { onEvent(MainEvent.ToggleLiveNotify(channel.login)) },
+                    actions = rememberChannelMenuActions(channel.login, onEvent),
                     dragState = dragState,
                     modifier = Modifier
                         .padding(horizontal = 4.dp)
@@ -586,22 +575,28 @@ internal fun ChannelSidebar(
                     icon = Lucide.AtSign,
                     label = stringResource(Res.string.panel_mentions_title),
                     badge = state.unreadMentionsCount,
+                    motion = IconMotion.Mention,
+                    pulse = state.unreadMentionsCount,
                     onClick = { onEvent(MainEvent.ToggleMentionsFeed) }
                 ),
                 RailAction(
                     icon = Lucide.MessageCircle,
                     label = stringResource(Res.string.chat_whisper_tab),
                     badge = state.totalUnreadWhispers,
+                    motion = IconMotion.Bubble,
+                    pulse = state.totalUnreadWhispers,
                     onClick = { onEvent(MainEvent.ToggleWhisperPanel) }
                 ),
                 if (!isDesktopPlatform) RailAction(
                     icon = Lucide.Activity,
                     label = stringResource(Res.string.lab_title),
+                    motion = IconMotion.Tilt,
                     onClick = { onEvent(MainEvent.CloseSidebar); pages.openLaboratory() }
                 ) else null,
                 RailAction(
                     icon = Lucide.Settings,
                     label = stringResource(Res.string.settings_title),
+                    motion = IconMotion.Gear,
                     onClick = { onEvent(MainEvent.ShowSettings) }
                 )
             ),

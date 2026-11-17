@@ -23,6 +23,7 @@ import io.rudione.chatone.domain.model.ChatNoticeUser
 import io.rudione.chatone.domain.model.DisplayMessage
 import io.rudione.chatone.domain.model.IrcEvent
 import io.rudione.chatone.domain.model.SevenTvCosmetics
+import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.presentation.theme.i18n.LocalAppLocale
 import io.rudione.chatone.presentation.theme.ChatoneTheme
 import io.rudione.chatone.presentation.theme.LocalWallpaperController
@@ -32,6 +33,13 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import org.jetbrains.skia.EncodedImageFormat
 import java.nio.file.Files
 import java.nio.file.Path
+import io.ktor.client.HttpClient
+import io.rudione.chatone.data.remote.TranslationClient
+import org.koin.core.context.startKoin
+import org.koin.core.context.stopKoin
+import org.koin.dsl.module
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -42,16 +50,72 @@ class ChatNoticeSceneTest {
     private val user = ChatNoticeUser("42", "alice", "Alice", "#55DD88")
     private val paint = SevenTvCosmetics.Paint("blue", "Blue", "LINEAR_GRADIENT", 0x0000FFFF, emptyList(), false, 0, "", emptyList())
 
-    private fun notice(type: String, tags: Map<String, String>, now: Long = 0): DisplayMessage.UserNoticeMsg {
+    private fun notice(type: String, tags: Map<String, String>, now: Long = 0, text: String? = null): DisplayMessage.UserNoticeMsg {
         val all = mapOf("user-id" to user.userId, "login" to user.login, "display-name" to user.displayName, "color" to user.color.orEmpty()) + tags
         val event = IrcEvent.UserNotice("channel", "Alice notification", null, type, all)
-        return DisplayMessage.UserNoticeMsg("notice_${tags}", now, "channel", event.systemMsg, noticeType = type, details = ChatNoticeParser.parse(event, now))
+        val inner = text?.let {
+            DisplayMessage.PrivMsg(
+                id = "inner_${tags}", timestamp = now, channel = "channel", userId = user.userId, username = user.login, displayName = user.displayName,
+                tokens = listOf(MessageToken.Text(it)), color = user.color, badges = emptyList(),
+                isModerator = false, isSubscriber = false, isVip = false, isBroadcaster = false, isMention = false, isAction = false
+            )
+        }
+        return DisplayMessage.UserNoticeMsg("notice_${tags}_$text", now, "channel", event.systemMsg, innerMessage = inner, noticeType = type, details = ChatNoticeParser.parse(event, now))
     }
+
+    @BeforeTest
+    fun startDi() { startKoin { modules(module { single { TranslationStore(TranslationClient(HttpClient())) } }) } }
+
+    @AfterTest
+    fun stopDi() = stopKoin()
 
     @Test
     fun raidTiersHaveExplicitBoundaries() {
-        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6), listOf(1, 10, 100, 500, 1_500, 5_000, 15_000).map(::raidLevel))
-        assertEquals(listOf(0, 1, 2, 3, 4, 5), listOf(9, 99, 499, 1_499, 4_999, 14_999).map(::raidLevel))
+        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6, 7, 8), listOf(1, 10, 100, 500, 1_000, 2_500, 6_000, 12_500, 21_000).map(::raidLevel))
+        assertEquals(listOf(0, 1, 2, 3, 4, 5, 6, 7), listOf(9, 99, 499, 999, 2_499, 5_999, 12_499, 20_999).map(::raidLevel))
+    }
+
+    @Test
+    fun streakTiersHaveExplicitBoundaries() {
+        assertEquals(listOf(0, 1, 2, 3, 4, 5), listOf(3, 5, 10, 25, 50, 100).map(::streakLevel))
+        assertEquals(listOf(0, 1, 2, 3, 4), listOf(4, 9, 24, 49, 99).map(::streakLevel))
+    }
+
+    @Test
+    fun watchStreakRewardIsReadOnlyFromStreakMilestones() {
+        val streak = notice("viewermilestone", mapOf("msg-param-category" to "watch-streak", "msg-param-value" to "5", "msg-param-copoReward" to "450"))
+        assertEquals(5, streak.details?.watchStreak)
+        assertEquals(450, streak.details?.watchStreakReward)
+        val raid = notice("raid", mapOf("msg-param-viewerCount" to "20", "msg-param-copoReward" to "450"))
+        assertEquals(null, raid.details?.watchStreakReward)
+        val missing = notice("viewermilestone", mapOf("msg-param-category" to "watch-streak", "msg-param-value" to "5"))
+        assertEquals(null, missing.details?.watchStreakReward)
+    }
+
+    @Test
+    fun streakArrivalDoesNotScheduleRecompositionEveryFrame() {
+        val dispatcher = StandardTestDispatcher()
+        val message = notice(
+            "viewermilestone",
+            mapOf("msg-param-category" to "watch-streak", "msg-param-value" to "120", "msg-param-copoReward" to "600"),
+            Clock.System.now().toEpochMilliseconds()
+        )
+        val scene = ImageComposeScene(width = 340, height = 60, density = Density(1f), coroutineContext = dispatcher) {
+            ChatoneTheme { UserNoticeMsgItem(message) }
+        }
+        var frame = 0L
+        fun frames(count: Int) = repeat(count) {
+            scene.render(frame * 1_000_000)
+            dispatcher.scheduler.advanceTimeBy(16)
+            dispatcher.scheduler.runCurrent()
+            frame += 16
+        }
+        try {
+            frames(8)
+            val before = Recomposer.runningRecomposers.value.sumOf { it.changeCount }
+            frames(60)
+            assertEquals(before, Recomposer.runningRecomposers.value.sumOf { it.changeCount })
+        } finally { scene.close() }
     }
 
     @Test
@@ -171,7 +235,7 @@ class ChatNoticeSceneTest {
     @Test
     fun compactNoticesRenderWithCachedPaintAtPhoneAndDesktopWidths() {
         for (language in listOf("en", "ru")) for (width in listOf(280, 600)) {
-            val scene = ImageComposeScene(width = width, height = 320, density = Density(1f)) {
+            val scene = ImageComposeScene(width = width, height = 760, density = Density(1f)) {
                 CompositionLocalProvider(
                     LocalAppLocale provides language,
                     LocalWallpaperController provides WallpaperController(),
@@ -180,10 +244,14 @@ class ChatNoticeSceneTest {
                     ChatoneTheme {
                         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            for (count in listOf(5, 50, 250, 1_000, 3_000, 10_000, 20_000)) {
+                            for (count in listOf(5, 50, 250, 700, 1_500, 3_000, 5_500, 8_000, 15_000, 25_000)) {
                                 UserNoticeMsgItem(notice("raid", mapOf("msg-param-viewerCount" to "$count")))
                             }
-                            UserNoticeMsgItem(notice("viewermilestone", mapOf("msg-param-category" to "watch-streak", "msg-param-value" to "12")))
+                            for ((count, reward) in listOf(3 to 0, 7 to 350, 12 to 400, 30 to 450, 60 to 0, 120 to 600)) {
+                                val rewardTag = if (reward > 0) mapOf("msg-param-copoReward" to "$reward") else emptyMap()
+                                val text = if (count == 12 || count == 120) "ого, уже столько" else null
+                                UserNoticeMsgItem(notice("viewermilestone", mapOf("msg-param-category" to "watch-streak", "msg-param-value" to "$count") + rewardTag, text = text))
+                            }
                             UserNoticeMsgItem(notice("submysterygift", mapOf("msg-param-mass-gift-count" to "20")))
                         }
                     }

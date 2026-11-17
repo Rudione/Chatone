@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import io.rudione.chatone.presentation.components.motion.IconMotion
+import io.rudione.chatone.presentation.components.motion.MotionIcon
 import io.rudione.chatone.presentation.components.LocalSidebarExpanded
 import io.rudione.chatone.presentation.components.AnimatedMenuIcon
 import chatone.composeapp.generated.resources.Res
@@ -459,8 +461,10 @@ internal fun MiniRail(
                     onClick = { onEvent(MainEvent.ToggleMentionsFeed) },
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(
-                        Lucide.AtSign,
+                    MotionIcon(
+                        imageVector = Lucide.AtSign,
+                        motion = IconMotion.Mention,
+                        pulse = state.unreadMentionsCount,
                         contentDescription = stringResource(Res.string.chat_mentions_tab),
                         tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
@@ -479,8 +483,10 @@ internal fun MiniRail(
                     onClick = { onEvent(MainEvent.ToggleWhisperPanel) },
                     modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(
-                        Lucide.MessageCircle,
+                    MotionIcon(
+                        imageVector = Lucide.MessageCircle,
+                        motion = IconMotion.Bubble,
+                        pulse = state.totalUnreadWhispers,
                         contentDescription = stringResource(Res.string.chat_whisper_tab),
                         tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
@@ -497,8 +503,9 @@ internal fun MiniRail(
                 onClick = { onEvent(MainEvent.ShowAddChannelDialog) },
                 modifier = Modifier.size(32.dp)
             ) {
-                Icon(
-                    Lucide.Plus,
+                MotionIcon(
+                    imageVector = Lucide.Plus,
+                    motion = IconMotion.Plus,
                     contentDescription = stringResource(Res.string.add_channel),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)

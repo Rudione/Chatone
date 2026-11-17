@@ -99,8 +99,24 @@ internal fun UserNoticeMsgItem(
 ) {
     val summary = message.compactNoticeData()
     if (summary != null) {
-        CompactChatNotice(summary, chatFontSizeSp, onOpenUser, onUserVisible, message.details?.gifts?.recipients.orEmpty())
-        message.innerMessage?.let { PrivMsgItem(it, chatFontSizeSp = chatFontSizeSp) }
+        val inner = message.innerMessage
+        val footer: (@Composable () -> Unit)? = if (inner != null) {
+            {
+                PrivMsgItem(
+                    inner,
+                    chatFontSizeSp = chatFontSizeSp,
+                    onUsernameClick = { onOpenUser(inner.noticeUser()) }
+                )
+            }
+        } else null
+        CompactChatNotice(
+            summary,
+            chatFontSizeSp,
+            onOpenUser,
+            onUserVisible,
+            message.details?.gifts?.recipients.orEmpty(),
+            footer = footer
+        )
         return
     }
     val isAnnouncement = message.noticeType.equals("announcement", ignoreCase = true)
@@ -135,6 +151,9 @@ internal fun UserNoticeMsgItem(
         }
     }
 }
+
+private fun DisplayMessage.PrivMsg.noticeUser(): ChatNoticeUser =
+    ChatNoticeUser(userId, username, displayName, color)
 
 @Composable
 internal fun NoticeHeader(icon: ImageVector, text: String, color: Color, modifier: Modifier = Modifier) {

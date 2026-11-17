@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import io.rudione.chatone.presentation.chat.components.ChannelPointsBitsSheet
+import io.rudione.chatone.presentation.chat.points.PointsSheetExtras
 import io.rudione.chatone.presentation.chat.components.PinnedMessageBar
 import io.rudione.chatone.presentation.chat.components.RaidBanner
 import io.rudione.chatone.presentation.components.DockHost
@@ -42,6 +43,7 @@ internal fun BoxScope.ChatEventOverlaysSection(
     showPinnedMessage: Boolean,
     scrollbarWidthDp: Int,
     dockHost: DockHost?,
+    pointsExtras: PointsSheetExtras,
     bottomInsetPx: () -> Int
 ) {
     var predictionResolveDetached by remember { mutableStateOf(false) }
@@ -83,7 +85,6 @@ internal fun BoxScope.ChatEventOverlaysSection(
                     countdownInContent = true
                 ) {
                     PollBanner(
-                        channelLogin = state.channelLogin,
                         poll = poll,
                         onVote = { choiceId ->
                             viewModel.sendEvent(ChatEvent.OnVotePoll(poll.id, choiceId))
@@ -105,7 +106,6 @@ internal fun BoxScope.ChatEventOverlaysSection(
                     countdownInContent = true
                 ) {
                     PredictionBanner(
-                        channelLogin = state.channelLogin,
                         prediction = pred,
                         canModerate = state.canModerate,
                         actionPending = state.predictionActionPending,
@@ -116,7 +116,9 @@ internal fun BoxScope.ChatEventOverlaysSection(
                         onPredict = { outcomeId, points ->
                             viewModel.sendEvent(ChatEvent.OnPlacePrediction(pred.id, outcomeId, points))
                         },
-                        onHide = { viewModel.sendEvent(ChatEvent.OnHideEventBanner("prediction")) }
+                        onHide = { viewModel.sendEvent(ChatEvent.OnHideEventBanner("prediction")) },
+                        collapsed = pred.id in state.collapsedEventIds,
+                        onToggleCollapsed = { viewModel.sendEvent(ChatEvent.OnToggleEventCollapsed("prediction")) }
                     )
                 }
             )
@@ -264,7 +266,8 @@ internal fun BoxScope.ChatEventOverlaysSection(
                     viewModel.sendEvent(ChatEvent.OnRedeemReward(reward, text))
                 },
                 onClose = { viewModel.sendEvent(ChatEvent.OnClosePointsBitsPanel) },
-                streak = rememberWatchStreak(state.channelLogin).value
+                streak = rememberWatchStreak(state.channelLogin).value,
+                extras = pointsExtras
             )
         }
     }

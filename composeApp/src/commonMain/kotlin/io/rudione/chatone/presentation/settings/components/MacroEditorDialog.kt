@@ -1,6 +1,9 @@
 package io.rudione.chatone.presentation.settings.components
 
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.hotkey_conflict
+import chatone.composeapp.generated.resources.macro_hotkey_hint
+import chatone.composeapp.generated.resources.macro_hotkey_label
 import chatone.composeapp.generated.resources.mod_add_step
 import chatone.composeapp.generated.resources.mod_edit_macro
 import chatone.composeapp.generated.resources.mod_macro_name
@@ -10,6 +13,7 @@ import chatone.composeapp.generated.resources.mod_step_count
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -48,13 +52,18 @@ import io.rudione.chatone.presentation.components.ChatoneDialogPanel
 import io.rudione.chatone.presentation.components.ChatoneIconButton
 import io.rudione.chatone.presentation.components.ChatoneListItem
 import io.rudione.chatone.presentation.components.ChatoneTextField
+import io.rudione.chatone.presentation.components.rows.HotkeyCaptureField
+import io.rudione.chatone.util.platform.rememberInputCapabilities
 
 @Composable
 fun MacroEditorDialog(
     macro: Macro,
     onSave: (Macro) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    hotkeyConflict: (String) -> String? = { null }
 ) {
+    val keyboard = rememberInputCapabilities().hardwareKeyboard
+    var hotkey by remember(macro.id) { mutableStateOf(macro.hotkey) }
     var steps by remember(macro.id) { mutableStateOf(macro.steps) }
     var macroName by remember(macro.id) { mutableStateOf(macro.name) }
     var macroIcon by remember(macro.id) { mutableStateOf(macro.icon) }
@@ -94,6 +103,13 @@ fun MacroEditorDialog(
             )
             AnimatedVisibility(visible = showIconPicker) {
                 MacroIconPicker(selected = macroIcon, onSelect = { macroIcon = it })
+            }
+            if (keyboard) {
+                MacroHotkeyRow(
+                    hotkey = hotkey,
+                    conflict = hotkey.takeIf { it.isNotBlank() }?.let(hotkeyConflict),
+                    onChange = { hotkey = it }
+                )
             }
             LazyColumn(
                 modifier = Modifier.weight(1f, fill = false).fillMaxWidth(),
@@ -149,7 +165,8 @@ fun MacroEditorDialog(
                             macro.copy(
                                 name = macroName.trim().ifBlank { macro.name },
                                 icon = macroIcon,
-                                steps = steps
+                                steps = steps,
+                                hotkey = hotkey
                             )
                         )
                     },
@@ -252,6 +269,39 @@ private fun MacroStepRow(
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun MacroHotkeyRow(
+    hotkey: String,
+    conflict: String?,
+    onChange: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(Res.string.macro_hotkey_label),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                conflict?.let { stringResource(Res.string.hotkey_conflict, it) }
+                    ?: stringResource(Res.string.macro_hotkey_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (conflict != null) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        HotkeyCaptureField(
+            currentHotkey = hotkey,
+            requireModifier = true,
+            onHotkeyChanged = onChange
         )
     }
 }

@@ -1,8 +1,10 @@
 package io.rudione.chatone.presentation.chat
 
+import io.rudione.chatone.presentation.components.ConfirmActionDialog
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.cancel
 import chatone.composeapp.generated.resources.prediction_bet_cancel
+import chatone.composeapp.generated.resources.prediction_complete_confirm
 import chatone.composeapp.generated.resources.prediction_resolve_complete
 import chatone.composeapp.generated.resources.prediction_resolve_detach
 import chatone.composeapp.generated.resources.prediction_resolve_lock
@@ -81,6 +83,7 @@ internal fun PredictionResolvePanel(
     modifier: Modifier = Modifier
 ) {
     var selected by remember(prediction.id) { mutableStateOf<String?>(null) }
+    var confirmResolve by remember(prediction.id) { mutableStateOf(false) }
     val totalPoints = prediction.outcomes.sumOf { it.channelPoints }.toLong()
     val isLocked = prediction.status == "LOCKED"
 
@@ -191,9 +194,21 @@ internal fun PredictionResolvePanel(
                 accent = MaterialTheme.colorScheme.primary,
                 enabled = selected != null,
                 modifier = Modifier.weight(1.5f),
-                onClick = { selected?.let(onResolve) }
+                onClick = { if (selected != null) confirmResolve = true }
             )
         }
+    }
+
+    val winner = prediction.outcomes.firstOrNull { it.id == selected }
+    if (confirmResolve && winner != null) {
+        ConfirmActionDialog(
+            title = stringResource(Res.string.prediction_resolve_complete),
+            text = stringResource(Res.string.prediction_complete_confirm, winner.title),
+            confirmLabel = stringResource(Res.string.prediction_resolve_complete),
+            destructive = false,
+            onConfirm = { onResolve(winner.id) },
+            onDismiss = { confirmResolve = false }
+        )
     }
 }
 

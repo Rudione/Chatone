@@ -1,5 +1,10 @@
 package io.rudione.chatone.presentation.settings
 
+import io.rudione.chatone.presentation.components.motion.IconMotion
+import io.rudione.chatone.presentation.components.motion.MotionIcon
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.runtime.remember
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.settings_hub_search_back_to_results
 import org.jetbrains.compose.resources.stringResource
@@ -133,18 +138,26 @@ internal fun SidebarNavItem(
         tween(160), label = "nav_bg"
     )
     val contentColor = if (isSelected) scheme.primary else scheme.onSurfaceVariant
+    val source = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(34.dp)
             .clip(CircleShape)
             .drawBehind { drawRect(bg) }
-            .clickable(onClick = onClick)
+            .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Icon(section.icon, null, modifier = Modifier.size(16.dp), tint = contentColor)
+        MotionIcon(
+            imageVector = section.icon,
+            motion = section.motion(),
+            contentDescription = null,
+            tint = contentColor,
+            interactionSource = source,
+            modifier = Modifier.size(16.dp)
+        )
         HighlightedSettingsText(
             section.localizedLabel(),
             style = MaterialTheme.typography.bodyMedium,
@@ -229,3 +242,8 @@ private fun SidebarSubsectionItem(title: String, selected: Boolean, onClick: () 
 
 private val SubsectionIndent = 20.dp
 private val SectionChipShape = ScallopShape(lobes = 8, depth = 0.09f)
+
+private fun SettingsSection.motion(): IconMotion = when (this) {
+    SettingsSection.NOTIFICATIONS -> IconMotion.Bell
+    else -> IconMotion.Tilt
+}

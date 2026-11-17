@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.chat.components
 
+import io.rudione.chatone.presentation.components.motion.IconMotion
+import io.rudione.chatone.presentation.components.motion.MotionIcon
 import chatone.composeapp.generated.resources.uploader_link_copied
 import chatone.composeapp.generated.resources.upload_link_actions
 import io.rudione.chatone.icons.lucide.Check
@@ -201,6 +203,8 @@ internal fun ChatJumpButtons(
                     icon = Lucide.AtSign,
                     contentDescription = jumpLabel,
                     metrics = metrics,
+                    motion = IconMotion.Mention,
+                    pulse = mentionCount,
                     modifier = Modifier.crumble(crumble, palette),
                     onClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
@@ -279,6 +283,8 @@ private fun JumpCircle(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onSecondary: (() -> Unit)? = null,
+    motion: IconMotion? = null,
+    pulse: Int = 0,
     decorations: @Composable BoxScope.() -> Unit = {}
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -336,12 +342,24 @@ private fun JumpCircle(
                 .pointerHoverIcon(PointerIcon.Hand),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = tint,
-                modifier = Modifier.size(metrics.icon).interactiveIcon(interaction)
-            )
+            if (motion != null) {
+                MotionIcon(
+                    imageVector = icon,
+                    motion = motion,
+                    contentDescription = contentDescription,
+                    tint = tint,
+                    pulse = pulse,
+                    interactionSource = interaction,
+                    modifier = Modifier.size(metrics.icon)
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = contentDescription,
+                    tint = tint,
+                    modifier = Modifier.size(metrics.icon).interactiveIcon(interaction)
+                )
+            }
         }
         decorations()
     }

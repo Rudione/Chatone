@@ -17,9 +17,7 @@ import io.rudione.chatone.presentation.settings.components.AiAutoModCard
 import io.rudione.chatone.presentation.settings.components.BackgroundCard
 import io.rudione.chatone.presentation.settings.components.BackupCard
 import io.rudione.chatone.presentation.settings.components.ChatCommandsSection
-import io.rudione.chatone.presentation.settings.components.CustomSoundCard
 import io.rudione.chatone.presentation.settings.components.MentionAlertsCard
-import io.rudione.chatone.presentation.settings.components.NotificationGroupCard
 import io.rudione.chatone.presentation.settings.components.SettingsPair
 import io.rudione.chatone.presentation.settings.components.ScreenChatSettingsContent
 import io.rudione.chatone.presentation.settings.sections.AccountContent
@@ -30,6 +28,7 @@ import io.rudione.chatone.presentation.settings.sections.HotkeyContent
 import io.rudione.chatone.presentation.settings.sections.MediaContent
 import io.rudione.chatone.presentation.settings.sections.ModerationContent
 import io.rudione.chatone.presentation.settings.sections.isPhoneFormFactor
+import io.rudione.chatone.presentation.settings.sound.MentionSoundSection
 
 @Composable
 internal fun SettingsSectionContent(
@@ -66,10 +65,5 @@ internal fun SettingsSectionContent(
 @Composable
 private fun NotificationContent(state: SettingsState, viewModel: SettingsViewModel) {
     if (currentFormFactor().isHandheld) MentionAlertsCard()
-    SettingsPair(
-        first = { NotificationGroupCard(state, viewModel) },
-        second = if (state.mentionSoundEnabled) {
-            { CustomSoundCard(state, viewModel) }
-        } else null
-    )
+    MentionSoundSection(settings = state, onSettingsEvent = viewModel::sendEvent)
 }

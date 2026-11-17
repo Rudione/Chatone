@@ -4,6 +4,8 @@ import io.github.aakira.napier.Napier
 import io.rudione.chatone.data.remote.emote.BttvApiClient
 import io.rudione.chatone.data.remote.emote.FfzApiClient
 import io.rudione.chatone.data.remote.emote.SevenTvApiClient
+import io.rudione.chatone.domain.emote.SevenTvSetEditor
+import io.rudione.chatone.domain.emote.SevenTvSetEdits
 import io.rudione.chatone.domain.model.ChannelEmotes
 import io.rudione.chatone.domain.model.GenericEmote
 import kotlinx.atomicfu.locks.SynchronizedObject
@@ -15,8 +17,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.update
+
+data class SevenTvSetSwitch(val emoteSetId: String?, val setName: String)
 
 class EmoteRepository(
     private val sevenTvApi: SevenTvApiClient,
@@ -35,7 +38,7 @@ class EmoteRepository(
     }
 
     private val channelEmotesMap = mutableMapOf<String, MutableStateFlow<ChannelEmotes>>()
-    private val channelEmoteSetIds = mutableMapOf<String, String>()
+    private val sevenTvLinks = SevenTvChannelLinks()
 
     @OptIn(InternalCoroutinesApi::class)
     private val channelLock = SynchronizedObject()
@@ -50,20 +53,27 @@ class EmoteRepository(
             channelEmotesMap.getOrPut(key) { MutableStateFlow(ChannelEmotes()) }
         }
 
-    private val personalEmoteSetsByUser = mutableMapOf<String, MutableSet<String>>()
-    private val personalEmoteSetContents = mutableMapOf<String, List<GenericEmote>>()
-    private val personalEmotesMutex = Mutex()
-    private val personalEmoteSetsInflight = mutableSetOf<String>()
-    private val personalEmotesFetched = mutableSetOf<String>()
+    @OptIn(InternalCoroutinesApi::class)
+    private val personalLock = SynchronizedObject()
+    private val personalSetsByUser = HashMap<String, LinkedHashSet<String>>()
+    private val personalUsersBySet = HashMap<String, LinkedHashSet<String>>()
+    private val personalSetContents = HashMap<String, List<GenericEmote>>()
+    private val personalSetsInflight = HashSet<String>()
+    private val personalEmotesFetched = HashSet<String>()
+    private val personalEmotesByUser = HashMap<String, List<GenericEmote>>()
 
     private val _globalEmotes = MutableStateFlow(ChannelEmotes())
     val globalEmotes: StateFlow<ChannelEmotes> = _globalEmotes
 
     private var globalLoaded = false
 
-    @OptIn(InternalCoroutinesApi::class)
-    fun getSevenTvEmoteSetId(channelName: String): String? =
-        synchronized(channelLock) { channelEmoteSetIds[channelName.lowercase()] }
+    fun getSevenTvEmoteSetId(channelName: String): String? = sevenTvLink(channelName)?.emoteSetId
+
+    fun sevenTvLink(channelName: String): SevenTvChannelLink? = sevenTvLinks.get(channelName.lowercase())
+
+    fun channelsUsingSevenTvSet(emoteSetId: String): List<String> = sevenTvLinks.channelsUsingSet(emoteSetId)
+
+    fun channelsForSevenTvUser(sevenTvUserId: String): List<String> = sevenTvLinks.channelsForUser(sevenTvUserId)
 
     fun getChannelEmotes(channelName: String): StateFlow<ChannelEmotes> =
         channelFlowOrCreate(channelName.lowercase())
@@ -140,8 +150,11 @@ class EmoteRepository(
             val bttvEmotes = bttv.await()
             val ffzEmotes = ffz.await()
 
-            sevenTvResult.emoteSetId?.let { setId ->
-                synchronized(channelLock) { channelEmoteSetIds[channelName.lowercase()] = setId }
+            if (sevenTvResult.emoteSetId != null || sevenTvResult.sevenTvUserId != null) {
+                sevenTvLinks.put(
+                    channelName.lowercase(),
+                    SevenTvChannelLink(channelId, sevenTvResult.emoteSetId, sevenTvResult.sevenTvUserId)
+                )
             }
 
             flow.value = flow.value.copy(
@@ -158,90 +171,81 @@ class EmoteRepository(
         return emote.isZeroWidth || emote.code in OVERLAY_EMOTES
     }
 
-    fun patchChannelEmote(channelName: String, emote: GenericEmote) {
-        val key = channelName.lowercase()
-        val flow = channelFlowOrCreate(key)
-        val current = flow.value
-        val updated = current.sevenTvChannel
-            .filterNot { it.id == emote.id } + emote
-        flow.value = current.copy(sevenTvChannel = updated)
-        Napier.d("Patched 7TV emote ${emote.code} in $channelName", tag = TAG)
+    fun applySevenTvChannelEdits(channelName: String, edits: SevenTvSetEdits): Set<String>? {
+        val flow = channelFlow(channelName.lowercase()) ?: return null
+        var touched = emptySet<String>()
+        flow.update { current ->
+            val result = SevenTvSetEditor.apply(current.sevenTvChannel, edits)
+            touched = result.touchedCodes
+            if (result.emotes === current.sevenTvChannel) current else current.copy(sevenTvChannel = result.emotes)
+        }
+        return touched
     }
 
-    fun removeChannelEmote(channelName: String, emoteId: String, emoteName: String) {
+    suspend fun reloadSevenTvChannel(channelName: String): SevenTvSetSwitch? {
         val key = channelName.lowercase()
-        val flow = channelFlow(key) ?: return
-        val current = flow.value
-        flow.value = current.copy(
-            sevenTvChannel = current.sevenTvChannel.filterNot { it.id == emoteId || it.code == emoteName }
-        )
-        Napier.d("Removed 7TV emote $emoteName from $channelName", tag = TAG)
-    }
-
-    fun renameChannelEmote(channelName: String, emoteId: String, newName: String) {
-        val key = channelName.lowercase()
-        val flow = channelFlow(key) ?: return
-        val current = flow.value
-        flow.value = current.copy(
-            sevenTvChannel = current.sevenTvChannel.map {
-                if (it.id == emoteId) it.copy(code = newName) else it
-            }
-        )
-        Napier.d("Renamed 7TV emote $emoteId → $newName in $channelName", tag = TAG)
+        val link = sevenTvLinks.get(key) ?: return null
+        val result = sevenTvApi.getChannelEmotesWithSetId(link.twitchChannelId)
+        if (result.sevenTvUserId == null && result.emoteSetId == null) return null
+        if (result.emoteSetId == link.emoteSetId) return null
+        val updated = link.copy(emoteSetId = result.emoteSetId, sevenTvUserId = result.sevenTvUserId ?: link.sevenTvUserId)
+        if (!sevenTvLinks.replace(key, link, updated)) return null
+        channelFlowOrCreate(key).update { it.copy(sevenTvChannel = result.emotes) }
+        Napier.d("7TV emote set of $channelName switched to ${result.emoteSetId}", tag = TAG)
+        return SevenTvSetSwitch(result.emoteSetId, result.emoteSetName.orEmpty())
     }
 
     fun invalidateChannel(channelName: String) {
         val key = channelName.lowercase()
         channelFlow(key)?.value = ChannelEmotes()
-        synchronized(channelLock) { channelEmoteSetIds.remove(key) }
+        sevenTvLinks.remove(key)
         Napier.d("Invalidated emote cache for $channelName", tag = TAG)
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     fun invalidatePersonalEmotes() {
-        personalEmoteSetsByUser.clear()
-        personalEmoteSetContents.clear()
-        personalEmoteSetsInflight.clear()
-        personalEmotesFetched.clear()
+        synchronized(personalLock) {
+            personalSetsByUser.clear()
+            personalUsersBySet.clear()
+            personalSetContents.clear()
+            personalSetsInflight.clear()
+            personalEmotesFetched.clear()
+            personalEmotesByUser.clear()
+        }
         Napier.d("Cleared personal emotes cache", tag = TAG)
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     fun hasAttemptedPersonalEmotes(twitchUserId: String): Boolean =
-        twitchUserId in personalEmotesFetched
+        synchronized(personalLock) { twitchUserId in personalEmotesFetched }
 
+    @OptIn(InternalCoroutinesApi::class)
     fun markPersonalEmotesAttempted(twitchUserId: String) {
         if (twitchUserId.isBlank()) return
-        personalEmotesFetched.add(twitchUserId)
+        synchronized(personalLock) { personalEmotesFetched.add(twitchUserId) }
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     fun getCachedPersonalEmotes(twitchUserId: String): List<GenericEmote> {
         if (twitchUserId.isBlank()) return emptyList()
-        val setIds = personalEmoteSetsByUser[twitchUserId] ?: return emptyList()
-        if (setIds.isEmpty()) return emptyList()
-        val merged = mutableMapOf<String, GenericEmote>()
-        for (setId in setIds) {
-            val emotes = personalEmoteSetContents[setId] ?: continue
-            for (e in emotes) merged[e.code] = e
+        return synchronized(personalLock) {
+            personalEmotesByUser[twitchUserId] ?: mergePersonalEmotes(twitchUserId)
         }
-        return merged.values.toList()
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     suspend fun grantPersonalEmoteSet(
         twitchUserId: String,
         emoteSetId: String
     ): List<GenericEmote>? {
         if (twitchUserId.isBlank() || emoteSetId.isBlank()) return null
 
-        var needFetch = false
-        personalEmotesMutex.withLock {
-            val sets = personalEmoteSetsByUser.getOrPut(twitchUserId) { mutableSetOf() }
-            sets.add(emoteSetId)
-            personalEmotesFetched.add(twitchUserId)
-            if (emoteSetId !in personalEmoteSetContents &&
-                emoteSetId !in personalEmoteSetsInflight
-            ) {
-                personalEmoteSetsInflight.add(emoteSetId)
-                needFetch = true
-            }
+        val needFetch = synchronized(personalLock) {
+            personalSetsByUser.getOrPut(twitchUserId) { LinkedHashSet() } += emoteSetId
+            personalUsersBySet.getOrPut(emoteSetId) { LinkedHashSet() } += twitchUserId
+            personalEmotesFetched += twitchUserId
+            personalEmotesByUser.remove(twitchUserId)
+            emoteSetId !in personalSetContents && personalSetsInflight.add(emoteSetId)
         }
 
         if (needFetch) {
@@ -251,9 +255,10 @@ class EmoteRepository(
                 Napier.w("Failed to fetch 7TV personal set $emoteSetId: ${e.message}", tag = TAG)
                 emptyList()
             }
-            personalEmotesMutex.withLock {
-                personalEmoteSetContents[emoteSetId] = emotes
-                personalEmoteSetsInflight.remove(emoteSetId)
+            synchronized(personalLock) {
+                personalSetContents[emoteSetId] = emotes
+                personalSetsInflight.remove(emoteSetId)
+                forgetMergedFor(emoteSetId)
             }
             if (emotes.isNotEmpty()) {
                 Napier.d(
@@ -266,40 +271,50 @@ class EmoteRepository(
         return getCachedPersonalEmotes(twitchUserId)
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     fun revokePersonalEmoteSet(twitchUserId: String, emoteSetId: String): List<GenericEmote> {
         if (twitchUserId.isBlank() || emoteSetId.isBlank()) return emptyList()
-        val sets = personalEmoteSetsByUser[twitchUserId]
-        if (sets != null) {
-            sets.remove(emoteSetId)
-            if (sets.isEmpty()) personalEmoteSetsByUser.remove(twitchUserId)
+        synchronized(personalLock) {
+            personalSetsByUser.detach(twitchUserId, emoteSetId)
+            personalUsersBySet.detach(emoteSetId, twitchUserId)
+            personalEmotesByUser.remove(twitchUserId)
         }
         return getCachedPersonalEmotes(twitchUserId)
     }
 
+    @OptIn(InternalCoroutinesApi::class)
     fun isPersonalEmoteSet(emoteSetId: String): Boolean =
-        emoteSetId in personalEmoteSetContents
+        synchronized(personalLock) { emoteSetId in personalSetContents }
 
-    fun usersForPersonalSet(emoteSetId: String): List<String> {
-        return personalEmoteSetsByUser.entries
-            .filter { emoteSetId in it.value }
-            .map { it.key }
-    }
-
-    fun patchPersonalSet(emoteSetId: String, emote: GenericEmote) {
-        val existing = personalEmoteSetContents[emoteSetId] ?: return
-        personalEmoteSetContents[emoteSetId] = existing.filterNot { it.id == emote.id } + emote
-    }
-
-    fun removeFromPersonalSet(emoteSetId: String, emoteId: String, emoteName: String) {
-        val existing = personalEmoteSetContents[emoteSetId] ?: return
-        personalEmoteSetContents[emoteSetId] =
-            existing.filterNot { it.id == emoteId || it.code == emoteName }
-    }
-
-    fun renameInPersonalSet(emoteSetId: String, emoteId: String, newName: String) {
-        val existing = personalEmoteSetContents[emoteSetId] ?: return
-        personalEmoteSetContents[emoteSetId] = existing.map {
-            if (it.id == emoteId) it.copy(code = newName) else it
+    @OptIn(InternalCoroutinesApi::class)
+    fun applyPersonalSetEdits(emoteSetId: String, edits: SevenTvSetEdits): Set<String> =
+        synchronized(personalLock) {
+            val existing = personalSetContents[emoteSetId] ?: return@synchronized emptySet()
+            val result = SevenTvSetEditor.apply(existing, edits)
+            if (result.emotes === existing) return@synchronized emptySet()
+            personalSetContents[emoteSetId] = result.emotes
+            forgetMergedFor(emoteSetId)
+            personalUsersBySet[emoteSetId]?.toSet().orEmpty()
         }
+
+    private fun mergePersonalEmotes(twitchUserId: String): List<GenericEmote> {
+        val setIds = personalSetsByUser[twitchUserId]
+        if (setIds.isNullOrEmpty()) return emptyList()
+        val merged = LinkedHashMap<String, GenericEmote>()
+        for (setId in setIds) {
+            val emotes = personalSetContents[setId] ?: continue
+            for (emote in emotes) merged[emote.code] = emote
+        }
+        return merged.values.toList().also { personalEmotesByUser[twitchUserId] = it }
+    }
+
+    private fun forgetMergedFor(emoteSetId: String) {
+        personalUsersBySet[emoteSetId]?.forEach { personalEmotesByUser.remove(it) }
+    }
+
+    private fun HashMap<String, LinkedHashSet<String>>.detach(key: String, value: String) {
+        val values = this[key] ?: return
+        values -= value
+        if (values.isEmpty()) remove(key)
     }
 }

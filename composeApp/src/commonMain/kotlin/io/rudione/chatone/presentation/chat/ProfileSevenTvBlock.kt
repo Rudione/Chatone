@@ -48,7 +48,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import io.rudione.chatone.domain.model.DisplayMessage
 import coil3.compose.AsyncImage
 
-private val SEVEN_TV_COLOR = Color(0xFF29D8F6)
+internal val SEVEN_TV_COLOR = Color(0xFF29D8F6)
 
 @Composable
 fun resolveSevenTvPaint(

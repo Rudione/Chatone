@@ -1,6 +1,8 @@
 package io.rudione.chatone.presentation.components.rows
 
+import io.rudione.chatone.util.system.HotkeyBindings
 import chatone.composeapp.generated.resources.Res
+import chatone.composeapp.generated.resources.hotkey_needs_modifier
 import chatone.composeapp.generated.resources.settings_hotkey_not_set
 import chatone.composeapp.generated.resources.settings_recording
 import org.jetbrains.compose.resources.stringResource
@@ -313,9 +315,10 @@ fun HotkeyRow(
     subtitle: String,
     currentHotkey: String,
     allowMouseButtons: Boolean = false,
+    requireModifier: Boolean = false,
+    warning: String? = null,
     onHotkeyChanged: (String) -> Unit
 ) {
-    var isRecording by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .settingsAnchor(title)
@@ -332,110 +335,139 @@ fun HotkeyRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-        Spacer(Modifier.width(12.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                color = if (isRecording) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(
-                    1.dp,
-                    if (isRecording) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                ),
-                modifier = Modifier.widthIn(min = 110.dp)
-                    .then(
-                        if (allowMouseButtons) Modifier.pointerInput(isRecording) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                                    if (!isRecording) continue
-                                    if (event.type != PointerEventType.Press) continue
-                                    val name = when {
-                                        event.buttons.isSecondaryPressed -> "mouse2"
-                                        event.buttons.isTertiaryPressed -> "mouse3"
-                                        event.buttons.isBackPressed -> "mouse4"
-                                        event.buttons.isForwardPressed -> "mouse5"
-                                        else -> null
-                                    } ?: continue
-                                    event.changes.forEach { it.consume() }
-                                    onHotkeyChanged(name)
-                                    isRecording = false
-                                }
-                            }
-                        } else Modifier
-                    )
-                    .onKeyEvent { event ->
-                        if (!isRecording) return@onKeyEvent false
-                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent true
-
-                        if (event.key in listOf(
-                                Key.CtrlLeft,
-                                Key.CtrlRight,
-                                Key.MetaLeft,
-                                Key.MetaRight
-                            )
-                        ) {
-                            if (!event.isAltPressed && !event.isShiftPressed) {
-                                onHotkeyChanged("ctrl"); isRecording = false; return@onKeyEvent true
-                            }
-                        }
-                        if (event.key in listOf(Key.AltLeft, Key.AltRight)) {
-                            val parts2 = mutableListOf<String>()
-                            if (event.isCtrlPressed || event.isMetaPressed) parts2.add("ctrl")
-                            parts2.add("alt")
-                            if (event.isShiftPressed) parts2.add("shift")
-                            onHotkeyChanged(parts2.joinToString("+")); isRecording =
-                                false; return@onKeyEvent true
-                        }
-                        if (event.key in listOf(Key.ShiftLeft, Key.ShiftRight)) {
-                            if (!event.isAltPressed && !(event.isCtrlPressed || event.isMetaPressed)) {
-                                onHotkeyChanged("shift"); isRecording =
-                                    false; return@onKeyEvent true
-                            }
-                        }
-                        if (event.key == Key.Escape) {
-                            onHotkeyChanged(""); isRecording = false; return@onKeyEvent true
-                        }
-                        val parts = mutableListOf<String>()
-                        if (event.isCtrlPressed || event.isMetaPressed) parts.add("ctrl")
-                        if (event.isAltPressed) parts.add("alt")
-                        if (event.isShiftPressed) parts.add("shift")
-                        val keyName = hotkeyKeyToName(event.key)
-                        if (keyName.isNotEmpty()) parts.add(keyName)
-                        onHotkeyChanged(parts.joinToString("+"))
-                        isRecording = false; true
-                    }
-                    .clickable { isRecording = true }
-            ) {
+            if (!warning.isNullOrBlank()) {
                 Text(
-                    when {
-                        isRecording -> stringResource(Res.string.settings_recording); currentHotkey.isBlank() -> stringResource(Res.string.settings_hotkey_not_set); else -> currentHotkey.uppercase()
-                        .replace("+", " + ")
-                    },
-                    style = MaterialTheme.typography.labelMedium,
-                    color = when {
-                        isRecording -> MaterialTheme.colorScheme.onPrimaryContainer; currentHotkey.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                            alpha = 0.45f
-                        ); else -> MaterialTheme.colorScheme.onSurface
-                    },
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+                    warning,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
-            if (currentHotkey.isNotBlank() || isRecording) {
-                ChatoneIconButton(
-                    onClick = { onHotkeyChanged(""); isRecording = false },
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        Lucide.X,
-                        null,
-                        modifier = Modifier.size(13.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
+        }
+        Spacer(Modifier.width(12.dp))
+        HotkeyCaptureField(
+            currentHotkey = currentHotkey,
+            allowMouseButtons = allowMouseButtons,
+            requireModifier = requireModifier,
+            onHotkeyChanged = onHotkeyChanged
+        )
+    }
+}
+
+@Composable
+fun HotkeyCaptureField(
+    currentHotkey: String,
+    modifier: Modifier = Modifier,
+    allowMouseButtons: Boolean = false,
+    requireModifier: Boolean = false,
+    onHotkeyChanged: (String) -> Unit
+) {
+    var isRecording by remember { mutableStateOf(false) }
+    var rejected by remember { mutableStateOf(false) }
+    fun commit(combo: String) {
+        onHotkeyChanged(combo)
+        isRecording = false
+        rejected = false
+    }
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            color = if (isRecording) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(
+                1.dp,
+                if (isRecording) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+            ),
+            modifier = Modifier.widthIn(min = 110.dp)
+                .then(
+                    if (allowMouseButtons) Modifier.pointerInput(isRecording) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (!isRecording) continue
+                                if (event.type != PointerEventType.Press) continue
+                                val name = when {
+                                    event.buttons.isSecondaryPressed -> "mouse2"
+                                    event.buttons.isTertiaryPressed -> "mouse3"
+                                    event.buttons.isBackPressed -> "mouse4"
+                                    event.buttons.isForwardPressed -> "mouse5"
+                                    else -> null
+                                } ?: continue
+                                event.changes.forEach { it.consume() }
+                                commit(name)
+                            }
+                        }
+                    } else Modifier
+                )
+                .onKeyEvent { event ->
+                    if (!isRecording) return@onKeyEvent false
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent true
+                    if (event.key == Key.Escape) {
+                        commit(""); return@onKeyEvent true
+                    }
+                    val isCtrlKey = event.key in listOf(Key.CtrlLeft, Key.CtrlRight, Key.MetaLeft, Key.MetaRight)
+                    val isAltKey = event.key in listOf(Key.AltLeft, Key.AltRight)
+                    val isShiftKey = event.key in listOf(Key.ShiftLeft, Key.ShiftRight)
+                    if (requireModifier && (isCtrlKey || isAltKey || isShiftKey)) return@onKeyEvent true
+                    if (isCtrlKey && !event.isAltPressed && !event.isShiftPressed) {
+                        commit("ctrl"); return@onKeyEvent true
+                    }
+                    if (isAltKey) {
+                        val parts2 = mutableListOf<String>()
+                        if (event.isCtrlPressed || event.isMetaPressed) parts2.add("ctrl")
+                        parts2.add("alt")
+                        if (event.isShiftPressed) parts2.add("shift")
+                        commit(parts2.joinToString("+")); return@onKeyEvent true
+                    }
+                    if (isShiftKey && !event.isAltPressed && !(event.isCtrlPressed || event.isMetaPressed)) {
+                        commit("shift"); return@onKeyEvent true
+                    }
+                    val parts = mutableListOf<String>()
+                    if (event.isCtrlPressed || event.isMetaPressed) parts.add("ctrl")
+                    if (event.isAltPressed) parts.add("alt")
+                    if (event.isShiftPressed) parts.add("shift")
+                    val keyName = hotkeyKeyToName(event.key)
+                    if (keyName.isNotEmpty()) parts.add(keyName)
+                    val combo = parts.joinToString("+")
+                    if (requireModifier && !HotkeyBindings.isSafeTrigger(combo)) {
+                        rejected = true
+                        return@onKeyEvent true
+                    }
+                    commit(combo)
+                    true
                 }
+                .clickable { isRecording = true; rejected = false }
+        ) {
+            Text(
+                when {
+                    isRecording && rejected -> stringResource(Res.string.hotkey_needs_modifier)
+                    isRecording -> stringResource(Res.string.settings_recording)
+                    currentHotkey.isBlank() -> stringResource(Res.string.settings_hotkey_not_set)
+                    else -> currentHotkey.uppercase().replace("+", " + ")
+                },
+                style = MaterialTheme.typography.labelMedium,
+                color = when {
+                    isRecording && rejected -> MaterialTheme.colorScheme.error
+                    isRecording -> MaterialTheme.colorScheme.onPrimaryContainer
+                    currentHotkey.isBlank() -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)
+            )
+        }
+        if (currentHotkey.isNotBlank() || isRecording) {
+            ChatoneIconButton(
+                onClick = { commit("") },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    Lucide.X,
+                    null,
+                    modifier = Modifier.size(13.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

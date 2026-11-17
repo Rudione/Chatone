@@ -18,9 +18,18 @@ data class ChatGiftBundle(
     val lastTimestamp: Long
 )
 
+enum class ChatSubTier { Prime, Tier1, Tier2, Tier3 }
+
+data class ChatSubscription(
+    val tier: ChatSubTier,
+    val months: Int
+)
+
 data class ChatNoticeDetails(
     val author: ChatNoticeUser?,
     val raidViewers: Int? = null,
     val watchStreak: Int? = null,
-    val gifts: ChatGiftBundle? = null
+    val watchStreakReward: Int? = null,
+    val gifts: ChatGiftBundle? = null,
+    val subscription: ChatSubscription? = null
 )

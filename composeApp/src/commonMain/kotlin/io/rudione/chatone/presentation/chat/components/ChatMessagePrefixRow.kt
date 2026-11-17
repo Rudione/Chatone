@@ -276,7 +276,10 @@ internal fun MessageInput(
     var showBannedWordConfirm by remember { mutableStateOf(false) }
     var pendingKeepTextForConfirm by remember { mutableStateOf(false) }
 
+    var sentPulse by remember { mutableIntStateOf(0) }
+
     fun proceedSend(keepText: Boolean) {
+        if (tfv.text.isNotBlank()) sentPulse++
         if (autoTranslateEnabled && tfv.text.isNotBlank()) {
             inputScope.launch {
                 val result = translationClient.translate(tfv.text, translationTargetLang)
@@ -435,6 +438,7 @@ internal fun MessageInput(
                         canSend = canSend,
                         metrics = metrics,
                         onClick = { performSend(false) },
+                        sentPulse = sentPulse,
                         diameter = size
                     )
                 },
@@ -522,7 +526,9 @@ internal fun MessageInput(
                                     MessageInputSendButton(
                                         canSend = canSend,
                                         metrics = metrics,
-                                        onClick = { performSend(false) })
+                                        onClick = { performSend(false) },
+                                        sentPulse = sentPulse
+                                    )
                                     limits()
                                 }
                             }
@@ -534,7 +540,9 @@ internal fun MessageInput(
                         MessageInputSendButton(
                             canSend = canSend,
                             metrics = metrics,
-                            onClick = { performSend(false) })
+                            onClick = { performSend(false) },
+                            sentPulse = sentPulse
+                        )
                         limits()
                     }
                 }

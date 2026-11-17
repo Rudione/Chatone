@@ -7,6 +7,7 @@ import io.rudione.chatone.presentation.chat.timeline.profileAuthor
 import io.rudione.chatone.presentation.chat.timeline.isBrowsingSeparately
 import io.rudione.chatone.presentation.chat.timeline.RemoteHistoryPager
 import io.rudione.chatone.presentation.chat.timeline.ProfileTimelineFeed
+import io.rudione.chatone.presentation.chat.timeline.rememberProfileFeedViewport
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.profile_note_placeholder
 import org.jetbrains.compose.resources.stringResource
@@ -91,6 +92,7 @@ internal fun UserProfileDesktopCard(
     var notesOpen by remember(data.userId) { mutableStateOf(false) }
     var archiveSearchOpen by remember(data.userId) { mutableStateOf(false) }
     val archive = profileState.archive
+    val feedViewport = rememberProfileFeedViewport(data.userId)
     var noteText by remember(data.userId) { mutableStateOf(noteRepository.getNote(data.userId) ?: "") }
 
     val sevenTv = rememberSevenTvCosmetic(data.userId)
@@ -214,7 +216,8 @@ internal fun UserProfileDesktopCard(
                             onToggleSearch = {
                                 if (archiveSearchOpen && archive.isSearching) archive.updateQuery("")
                                 archiveSearchOpen = !archiveSearchOpen
-                            }
+                            },
+                            visibleMonth = feedViewport.visibleMonth
                         )
                     }
                 }
@@ -239,7 +242,8 @@ internal fun UserProfileDesktopCard(
                             archive = profileState.archive,
                             displayName = data.displayName,
                             nameColor = rememberNickColors().of(data.color, data.username),
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            viewport = feedViewport
                         )
                     } else ProfileTimelineFeed(
                         source = rememberTimelineSource(
@@ -259,7 +263,8 @@ internal fun UserProfileDesktopCard(
                         },
                         nameColor = rememberNickColors().of(data.color, data.username),
                         fontSizeSp = feedFontSize,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        viewport = feedViewport
                     )
 
                     ProfileCardTab.Dossier -> UserDossierTab(

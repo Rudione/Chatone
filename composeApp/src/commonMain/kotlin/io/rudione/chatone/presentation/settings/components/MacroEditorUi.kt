@@ -1,5 +1,9 @@
 package io.rudione.chatone.presentation.settings.components
 
+import io.rudione.chatone.presentation.settings.sections.hotkeyConflictLabel
+import io.rudione.chatone.presentation.settings.sections.rememberHotkeyBindings
+import io.rudione.chatone.util.system.HotkeyBinding
+import io.rudione.chatone.util.system.HotkeyOwner
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.cancel
 import chatone.composeapp.generated.resources.mod_choose_icon
@@ -156,13 +160,17 @@ fun MacrosSection(
         )
     }
     editingMacro?.let { macro ->
+        val bindings = rememberHotkeyBindings(state)
         MacroEditorDialog(
             macro = macro,
             onSave = {
                 onEvent(SettingsEvent.OnUpdateMacro(it))
                 editingMacro = null
             },
-            onDismiss = { editingMacro = null }
+            onDismiss = { editingMacro = null },
+            hotkeyConflict = { combo ->
+                hotkeyConflictLabel(bindings, HotkeyBinding(HotkeyOwner.MACRO, macro.id, combo, macro.name))
+            }
         )
     }
 }

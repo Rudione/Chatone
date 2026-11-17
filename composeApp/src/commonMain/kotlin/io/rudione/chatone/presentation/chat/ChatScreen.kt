@@ -74,6 +74,9 @@ import io.rudione.chatone.presentation.chat.rendering.holdChatFollowing
 import io.rudione.chatone.presentation.chat.rendering.rememberChatOverscrollEffect
 import io.rudione.chatone.presentation.chat.rendering.rememberChatFollowState
 import io.rudione.chatone.presentation.chat.rendering.SelectionCursorBox
+import io.rudione.chatone.presentation.chat.rendering.PreserveScrollAnchor
+import io.rudione.chatone.presentation.chat.guard.ForbiddenSendDialog
+import io.rudione.chatone.presentation.chat.guard.rememberForbiddenSendGuard
 import io.rudione.chatone.presentation.chat.rendering.stickToBottomExact
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -186,11 +189,14 @@ import io.rudione.chatone.presentation.theme.chatPaneBackgroundColor
 import io.rudione.chatone.presentation.theme.luminance
 import io.rudione.chatone.util.EmoteAnimationCache
 import io.rudione.chatone.util.system.GlobalKeyDispatcher
+import io.rudione.chatone.presentation.chat.points.PointsSheetExtras
+import io.rudione.chatone.util.system.HotkeyBindings
 import io.rudione.chatone.util.system.isDesktopPlatform
 import io.rudione.chatone.util.automod.DisplayedChatChannels
 import io.rudione.chatone.presentation.chat.zoom.rememberChatMessageDensity
 import io.rudione.chatone.util.chat.plainText
-import io.rudione.chatone.util.media.NotificationSoundPlayer
+import io.rudione.chatone.domain.sound.MentionSoundService
+import io.rudione.chatone.di.GlobalDi
 import io.rudione.chatone.util.media.externalFileDropTarget
 import io.rudione.chatone.util.system.handleHover
 import io.rudione.chatone.presentation.startup.ReportLaunchStage
@@ -374,6 +380,7 @@ fun ChatScreen(
     val chatBoxFocusRequester = remember { FocusRequester() }
     val coroutineScope = rememberCoroutineScope()
     val follow = rememberChatFollowState(listState)
+    val sendGuard = rememberForbiddenSendGuard()
     val attention = rememberChatAttention()
     val channelInSync = state.channelLogin.equals(channelLogin, ignoreCase = true)
     val mentionRefs = remember(dedupedMessages, channelInSync, channelLogin, mentionMuteRepository) {
@@ -502,6 +509,7 @@ fun ChatScreen(
     )
     val renderedCountLatest by rememberUpdatedState(renderedCount)
 
+    val mentionSounds = remember { GlobalDi.tryGet<MentionSoundService>() }
     LaunchedEffect(Unit) {
         viewModel.effect.collect { effect ->
             when (effect) {
@@ -536,10 +544,7 @@ fun ChatScreen(
                     if (!isActiveChannel) {
                         val playedByItsChat = DisplayedChatChannels.isDisplayed(mentionChannel)
                         if (effect.playSound && settingsState.mentionSoundEnabled && !playedByItsChat) {
-                            NotificationSoundPlayer.playMentionSound(
-                                volume = settingsState.mentionSoundVolume,
-                                customSoundPath = settingsState.customMentionSoundPath
-                            )
+                            mentionSounds?.playMention(mentionChannel)
                         }
                         callbacks.onMentionDetected(mentionChannel)
                     }
@@ -675,6 +680,15 @@ fun ChatScreen(
                         return@handler true
                     }
                 }
+                val macro = currentSettings.macros.firstOrNull { macro ->
+                    macro.hotkey.isNotBlank() &&
+                        HotkeyBindings.isSafeTrigger(macro.hotkey) &&
+                        pauseHotkeyMatches(event, macro.hotkey)
+                }
+                if (macro != null) {
+                    viewModel.sendEvent(ChatEvent.OnExecuteMacro(macro))
+                    return@handler true
+                }
             }
             val hotkey = currentSettings.pauseHotkey
             if (hotkey.isBlank()) return@handler false
@@ -795,6 +809,15 @@ fun ChatScreen(
     val chatInputGlass = rememberChatInputGlass(listState = listState, followingLive = !effectivelyPaused)
     val jumpFlashColor = MaterialTheme.colorScheme.primary
     val pointsWanted = remember(viewModel) { { viewModel.sendEvent(ChatEvent.OnPointsBalanceWanted) } }
+    val claimPoints = remember(viewModel) { { viewModel.sendEvent(ChatEvent.OnClaimPoints) } }
+    val showHiddenPrediction = remember(viewModel) { { viewModel.sendEvent(ChatEvent.OnShowEventBanner("prediction")) } }
+    val changeAutoClaim = remember(settingsViewModel) { { on: Boolean -> settingsViewModel.sendEvent(SettingsEvent.OnAutoClaimPointsChanged(on)) } }
+    val pointsExtras = PointsSheetExtras(
+        hiddenPrediction = state.livePrediction?.takeIf { it.id in state.hiddenEventIds },
+        onShowPrediction = showHiddenPrediction,
+        autoClaim = settingsState.autoClaimPoints,
+        onAutoClaimChange = changeAutoClaim
+    )
     val dedupedLatest by rememberUpdatedState(dedupedMessages)
     val channelInSyncLatest by rememberUpdatedState(channelInSync)
     val revealMessage: suspend (String) -> Unit = remember(listState, mentionJump, jumpFlash, follow) {
@@ -906,7 +929,11 @@ fun ChatScreen(
                         points = TopBarPoints(
                             balance = state.pointsBalance.takeIf { state.pointsBalanceAtMs > 0L },
                             iconUrl = state.pointsIconUrl,
-                            onWanted = pointsWanted
+                            claim = state.pointsClaim,
+                            claiming = state.pointsClaiming,
+                            gain = state.pointsGain,
+                            onWanted = pointsWanted,
+                            onClaim = claimPoints
                         ),
                         isCompact = !options.isWideScreen,
                         showMenuButton = !options.isWideScreen && !options.isMultiChat,
@@ -976,6 +1003,7 @@ fun ChatScreen(
                             repeatWindowSeconds = settingsState.repeatedMessageWindow
                         )
                         key(channelLogin) {
+                          PreserveScrollAnchor(listState, dedupedMessages) { it.id }
                           CompositionLocalProvider(
                             LocalScrollActivity provides chatScrollActivity
                           ) {
@@ -1442,6 +1470,7 @@ fun ChatScreen(
                         showPinnedMessage = surfaceStyle.showPinnedMessage,
                         scrollbarWidthDp = settingsState.chatScrollbarWidth,
                         dockHost = dockHost,
+                        pointsExtras = pointsExtras,
                         bottomInsetPx = { bottomStackHeightPx }
                     )
                 }
@@ -1494,7 +1523,8 @@ fun ChatScreen(
                         },
                         onClose = { viewModel.sendEvent(ChatEvent.OnClosePointsBitsPanel) },
                         streak = rememberWatchStreak(state.channelLogin).value,
-                        docked = true
+                        docked = true,
+                        extras = pointsExtras
                     )
                 }
                 LaunchedEffect(pointsDocked) {
@@ -1585,8 +1615,12 @@ fun ChatScreen(
                     enabled = state.isConnected && !state.isBanned,
                     focusRequester = inputFocusRequester,
                     actions = MessageInputActions(
-                        onSend = { viewModel.sendEvent(ChatEvent.OnSendMessage) },
-                        onSendKeepText = { viewModel.sendEvent(ChatEvent.OnSendMessageKeepText) },
+                        onSend = {
+                            sendGuard.submit(viewModel.state.value.messageInput) { viewModel.sendEvent(ChatEvent.OnSendMessage) }
+                        },
+                        onSendKeepText = {
+                            sendGuard.submit(viewModel.state.value.messageInput) { viewModel.sendEvent(ChatEvent.OnSendMessageKeepText) }
+                        },
                         onHistoryUp = { viewModel.sendEvent(ChatEvent.OnHistoryUp) },
                         onHistoryDown = { viewModel.sendEvent(ChatEvent.OnHistoryDown) },
                         onEmotePickerClick = {
@@ -1802,7 +1836,16 @@ fun ChatScreen(
         state = state,
         settings = settingsState,
         profiles = profileStack,
-        onSend = { target, text -> viewModel.sendEvent(ChatEvent.OnSendThreadReply(target, text)) }
+        onSend = { target, text ->
+            sendGuard.submit(text) { viewModel.sendEvent(ChatEvent.OnSendThreadReply(target, text)) }
+        }
+    )
+
+    ForbiddenSendDialog(
+        guard = sendGuard,
+        authorName = state.currentDisplayName.ifBlank { state.currentUserLogin },
+        authorLogin = state.currentUserLogin,
+        authorColor = state.currentUserColor.ifBlank { null }
     )
 
     profileStack.slots.forEach { slot ->

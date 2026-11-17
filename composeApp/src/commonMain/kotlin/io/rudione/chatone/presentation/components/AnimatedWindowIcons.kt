@@ -1,10 +1,15 @@
 package io.rudione.chatone.presentation.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -13,9 +18,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import io.rudione.chatone.presentation.components.motion.LocalIconInteraction
+import io.rudione.chatone.presentation.components.motion.MotionIconState
 
 val LocalSidebarExpanded = staticCompositionLocalOf { false }
 
@@ -26,37 +35,81 @@ fun AnimatedMenuIcon(
     contentDescription: String?,
     modifier: Modifier = Modifier
 ) {
-    val progress by animateFloatAsState(if (expanded) 1f else 0f, tween(220), label = "sidebarMenu")
+    val progress = animateFloatAsState(if (expanded) 1f else 0f, tween(220), label = "sidebarMenu")
+    val hover = rememberMenuHover()
     Canvas(modifier.semantics { contentDescription?.let { this.contentDescription = it } }) {
-        val stroke = size.minDimension * 0.085f
-        val edge = size.minDimension
-        val origin = Offset((size.width - edge) / 2, (size.height - edge) / 2)
-        val left = origin.x + edge * 0.18f
-        val right = origin.x + edge * 0.82f
-        val top = origin.y + edge * (0.25f - progress * 0.07f)
-        val bottom = origin.y + edge * (0.75f + progress * 0.07f)
+        drawMenuGlyph(tint, progress.value, hover?.value ?: 0f)
+    }
+}
+
+@Composable
+private fun rememberMenuHover(): Animatable<Float, AnimationVector1D>? {
+    val interaction = LocalIconInteraction.current ?: return null
+    if (LocalControlMotion.current != ControlMotion.Default) return null
+    val state = remember { MotionIconState() }
+    DisposableEffect(interaction) {
+        interaction.animatesItself = true
+        onDispose { interaction.animatesItself = false }
+    }
+    LaunchedEffect(interaction.source) { state.track(interaction.source) { null } }
+    return state.hover
+}
+
+private const val MenuLineStagger = 0.12f
+
+private fun DrawScope.drawMenuGlyph(tint: Color, progress: Float, hover: Float) {
+    val stroke = size.minDimension * 0.085f
+    val edge = size.minDimension
+    val origin = Offset((size.width - edge) / 2, (size.height - edge) / 2)
+    val open = hover * (1f - progress)
+    val left = origin.x + edge * 0.18f
+    val right = origin.x + edge * 0.82f
+    val top = origin.y + edge * (0.25f - progress * 0.07f)
+    val bottom = origin.y + edge * (0.75f + progress * 0.07f)
+    val middle = size.height / 2
+    val push = edge * 0.22f
+    val drift = edge * 0.04f
+    rotate(90f * hover * progress) {
+        val first = slide(open, 0)
         drawLine(
             tint,
-            Offset(left, top),
-            Offset(right, top + (bottom - top) * progress),
+            Offset(left + push * first, top),
+            Offset(right + drift * first, top + (bottom - top) * progress),
             stroke,
             StrokeCap.Round
         )
+        val second = slide(open, 1)
         drawLine(
             tint.copy(alpha = tint.alpha * (1f - progress)),
-            Offset(left, size.height / 2),
-            Offset(right, size.height / 2),
+            Offset(left + push * second, middle),
+            Offset(right + drift * second, middle),
             stroke,
             StrokeCap.Round
         )
+        val third = slide(open, 2)
         drawLine(
             tint,
-            Offset(left, bottom),
-            Offset(right, bottom - (bottom - top) * progress),
+            Offset(left + push * third, bottom),
+            Offset(right + drift * third, bottom - (bottom - top) * progress),
             stroke,
             StrokeCap.Round
         )
+        if (open > 0f) {
+            val reach = (bottom - top) / 2 * open.coerceAtMost(1.08f)
+            drawLine(
+                tint.copy(alpha = tint.alpha * open.coerceIn(0f, 1f)),
+                Offset(left, middle - reach),
+                Offset(left, middle + reach),
+                stroke,
+                StrokeCap.Round
+            )
+        }
     }
+}
+
+private fun slide(open: Float, line: Int): Float {
+    val delay = MenuLineStagger * line
+    return ((open - delay) / (1f - delay)).coerceAtLeast(0f)
 }
 
 @Composable

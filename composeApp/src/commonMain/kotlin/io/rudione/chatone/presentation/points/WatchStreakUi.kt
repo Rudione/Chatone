@@ -48,6 +48,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import chatone.composeapp.generated.resources.Res
+import io.rudione.chatone.icons.lucide.Check
+import chatone.composeapp.generated.resources.points_streak_counted_description
+import chatone.composeapp.generated.resources.points_streak_counted
 import chatone.composeapp.generated.resources.points_streak_counts_here
 import chatone.composeapp.generated.resources.points_streak_next
 import chatone.composeapp.generated.resources.points_streak_title
@@ -62,9 +65,9 @@ import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.koinInject
 
-private val FlameHot = Color(0xFFFFC84A)
-private val FlameCore = Color(0xFFFF7A1A)
-private val FlameEdge = Color(0xFFE5361B)
+internal val FlameHot = Color(0xFFFFC84A)
+internal val FlameCore = Color(0xFFFF7A1A)
+internal val FlameEdge = Color(0xFFE5361B)
 private val FlameIdle = Color(0xFF9A9AA6)
 
 @Composable
@@ -185,11 +188,14 @@ fun WatchStreakCard(streak: WatchStreak, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        val counted = streak.countedThisStream
         Box(
-            Modifier.size(38.dp).clip(CircleShape).background(FlameCore.copy(alpha = 0.14f)),
+            Modifier.size(38.dp).clip(CircleShape).background(
+                if (counted) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f) else FlameCore.copy(alpha = 0.14f)
+            ),
             contentAlignment = Alignment.Center
         ) {
-            StreakFlame(active = streak.current > 0, size = 22.dp)
+            StreakFlame(active = streak.current > 0 && !counted, size = 22.dp)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -221,7 +227,9 @@ fun WatchStreakCard(streak: WatchStreak, modifier: Modifier = Modifier) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (next != null) {
+            if (counted) {
+                StreakCountedPill()
+            } else if (next != null) {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -237,5 +245,28 @@ fun WatchStreakCard(streak: WatchStreak, modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun StreakCountedPill() {
+    val description = stringResource(Res.string.points_streak_counted_description)
+    Row(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            .semantics { contentDescription = description }
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(Lucide.Check, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(12.dp))
+        Text(
+            stringResource(Res.string.points_streak_counted),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
     }
 }

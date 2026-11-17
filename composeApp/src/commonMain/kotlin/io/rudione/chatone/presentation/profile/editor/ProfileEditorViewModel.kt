@@ -4,15 +4,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
 import io.rudione.chatone.domain.profile.SocialLink
 import io.rudione.chatone.domain.profile.StreamSettings
-import io.rudione.chatone.domain.profile.StreamCategory
 import io.rudione.chatone.domain.profile.VanityChanges
-import io.rudione.chatone.domain.profile.VanityChange
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewModelScope
 import io.rudione.chatone.base.BaseViewModel
-import io.rudione.chatone.base.UIEffect
-import io.rudione.chatone.base.UiEvent
-import io.rudione.chatone.base.UiState
 import io.rudione.chatone.domain.profile.ChatColorPresets
 import io.rudione.chatone.domain.profile.ProfileVanityGateway
 import io.rudione.chatone.domain.profile.SevenTvLink
@@ -20,63 +14,8 @@ import io.rudione.chatone.domain.profile.SevenTvVanity
 import io.rudione.chatone.domain.profile.TwitchVanity
 import io.rudione.chatone.domain.profile.VanityDraft
 import io.rudione.chatone.domain.profile.VanityPart
-import io.rudione.chatone.domain.profile.VanitySaveResult
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-
-enum class EditorLoad { LOADING, READY, SIGNED_OUT, FAILED }
-
-@Immutable
-data class ProfileEditorState(
-    val load: EditorLoad = EditorLoad.LOADING,
-    val twitch: TwitchVanity? = null,
-    val sevenTv: SevenTvLink = SevenTvLink.NotConnected,
-    val sevenTvBusy: Boolean = false,
-    val draft: VanityDraft? = null,
-    val saving: Boolean = false,
-    val result: VanitySaveResult? = null,
-    val pendingChanges: List<VanityChange>? = null,
-    val categoryResults: List<StreamCategory> = emptyList()
-) : UiState {
-    val sevenTvVanity: SevenTvVanity? get() = (sevenTv as? SevenTvLink.Connected)?.vanity
-
-    val dirty: Boolean
-        get() {
-            val base = twitch ?: return false
-            val current = draft ?: return false
-            return current != draftOf(base, sevenTvVanity)
-        }
-}
-
-sealed interface ProfileEditorEvent : UiEvent {
-    data object Retry : ProfileEditorEvent
-    data class PickColor(val hex: String) : ProfileEditorEvent
-    data class PickGlobalBadge(val key: String?) : ProfileEditorEvent
-    data class PickChannelBadge(val key: String) : ProfileEditorEvent
-    data class PickPaint(val id: String?) : ProfileEditorEvent
-    data class PickSevenTvBadge(val id: String?) : ProfileEditorEvent
-    data class EditDisplayName(val value: String) : ProfileEditorEvent
-    data class EditBio(val value: String) : ProfileEditorEvent
-    data class ConnectSevenTv(val token: String) : ProfileEditorEvent
-    data object DisconnectSevenTv : ProfileEditorEvent
-    data class PickAccent(val hex: String) : ProfileEditorEvent
-    data class AddLink(val title: String, val url: String) : ProfileEditorEvent
-    data class RemoveLink(val url: String) : ProfileEditorEvent
-    data class EditStreamTitle(val value: String) : ProfileEditorEvent
-    data class SearchCategory(val query: String) : ProfileEditorEvent
-    data class PickCategory(val category: StreamCategory) : ProfileEditorEvent
-    data class AddTag(val tag: String) : ProfileEditorEvent
-    data class RemoveTag(val tag: String) : ProfileEditorEvent
-    data class SetLanguage(val code: String) : ProfileEditorEvent
-    data object Discard : ProfileEditorEvent
-    data object ReviewChanges : ProfileEditorEvent
-    data object CancelReview : ProfileEditorEvent
-    data object Save : ProfileEditorEvent
-}
-
-sealed interface ProfileEditorEffect : UIEffect {
-    data class Saved(val result: VanitySaveResult) : ProfileEditorEffect
-}
 
 internal fun draftOf(twitch: TwitchVanity, sevenTv: SevenTvVanity?) = VanityDraft(
     colorHex = twitch.chatColorHex,

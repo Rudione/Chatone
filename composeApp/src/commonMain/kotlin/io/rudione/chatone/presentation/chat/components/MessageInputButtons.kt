@@ -44,6 +44,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import io.rudione.chatone.presentation.components.motion.IconMotion
+import io.rudione.chatone.presentation.components.motion.MotionIcon
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import chatone.composeapp.generated.resources.Res
@@ -61,7 +63,6 @@ import io.rudione.chatone.presentation.components.TactileIconButton
 import io.rudione.chatone.presentation.components.TactileIconButtonDefaults
 import io.rudione.chatone.presentation.components.layoutHeight
 import io.rudione.chatone.presentation.components.layoutWidth
-import io.rudione.chatone.presentation.components.interactiveIcon
 import io.rudione.chatone.presentation.components.tactilePress
 import io.rudione.chatone.presentation.theme.contentOnAccent
 import io.rudione.chatone.util.system.isDesktopPlatform
@@ -101,8 +102,9 @@ internal fun MessageInputEmojiButton(
         enabled = enabled,
         pressedScale = 0.82f
     ) { tint ->
-        Icon(
+        MotionIcon(
             imageVector = Lucide.Smile,
+            motion = IconMotion.Smile,
             contentDescription = stringResource(Res.string.ui_emotes),
             modifier = Modifier.size(metrics.emojiIcon),
             tint = tint
@@ -116,6 +118,7 @@ internal fun MessageInputSendButton(
     metrics: MessageInputMetrics,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    sentPulse: Int = 0,
     diameter: () -> Dp = { metrics.send }
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -156,14 +159,16 @@ internal fun MessageInputSendButton(
             .pointerHoverIcon(if (canSend) PointerIcon.Hand else PointerIcon.Default),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            Lucide.SendHorizontal,
+        MotionIcon(
+            imageVector = Lucide.SendHorizontal,
+            motion = IconMotion.Send,
             contentDescription = stringResource(Res.string.chat_send),
             tint = tint,
+            pulse = sentPulse,
+            interactionSource = if (canSend) interaction else null,
             modifier = Modifier
                 .size(metrics.sendIcon)
                 .graphicsLayer { translationX = metrics.sendIcon.toPx() * 0.04f }
-                .interactiveIcon(interaction, enabled = canSend)
         )
     }
 }

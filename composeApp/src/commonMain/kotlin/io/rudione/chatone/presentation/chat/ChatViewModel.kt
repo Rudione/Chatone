@@ -1,6 +1,5 @@
 package io.rudione.chatone.presentation.chat
 
-
 import io.rudione.chatone.domain.model.UploadRetention
 import io.rudione.chatone.data.repository.UploadHistoryRepository
 import io.rudione.chatone.presentation.liveactivity.liveChatEvent
@@ -21,7 +20,6 @@ import chatone.composeapp.generated.resources.chat_vm_raid_started
 import chatone.composeapp.generated.resources.chat_vm_raid_cancelled
 import chatone.composeapp.generated.resources.chat_vm_marker_created
 import chatone.composeapp.generated.resources.chat_vm_channel_still_loading
-import chatone.composeapp.generated.resources.chat_vm_failed_to_load_points
 import chatone.composeapp.generated.resources.chat_vm_gql_token_required
 import chatone.composeapp.generated.resources.chat_vm_authentication_required_to_send_messages
 import chatone.composeapp.generated.resources.chat_vm_automod_action_failed
@@ -57,7 +55,6 @@ import chatone.composeapp.generated.resources.chat_vm_failed_to_fetch_channel_po
 import chatone.composeapp.generated.resources.chat_vm_failed_to_join_channel
 import chatone.composeapp.generated.resources.chat_vm_failed_to_lock_prediction
 import chatone.composeapp.generated.resources.chat_vm_failed_to_monitor_user
-import chatone.composeapp.generated.resources.chat_vm_failed_to_place_prediction
 import chatone.composeapp.generated.resources.chat_vm_failed_to_reconnect
 import chatone.composeapp.generated.resources.chat_vm_failed_to_redeem
 import chatone.composeapp.generated.resources.chat_vm_failed_to_resolve_user_for_raid
@@ -83,7 +80,6 @@ import chatone.composeapp.generated.resources.chat_vm_failed_to_unblock
 import chatone.composeapp.generated.resources.chat_vm_failed_to_unmonitor_user
 import chatone.composeapp.generated.resources.chat_vm_failed_to_unrestrict_user
 import chatone.composeapp.generated.resources.chat_vm_failed_to_update_chat_settings
-import chatone.composeapp.generated.resources.chat_vm_failed_to_vote
 import chatone.composeapp.generated.resources.chat_vm_failed_to_warn_user
 import chatone.composeapp.generated.resources.chat_vm_invalid_regex
 import chatone.composeapp.generated.resources.chat_vm_mod_only_command
@@ -107,7 +103,6 @@ import chatone.composeapp.generated.resources.chat_vm_only_the_broadcaster_or_a_
 import chatone.composeapp.generated.resources.chat_vm_outcome_not_found_try_a_number
 import chatone.composeapp.generated.resources.chat_vm_poll_started_s
 import chatone.composeapp.generated.resources.chat_vm_prediction_started_s
-import chatone.composeapp.generated.resources.chat_vm_redeemed
 import chatone.composeapp.generated.resources.chat_vm_redeemed_balance
 import chatone.composeapp.generated.resources.chat_vm_reward_not_found
 import chatone.composeapp.generated.resources.chat_vm_reward_unavailable
@@ -127,6 +122,12 @@ import chatone.composeapp.generated.resources.chat_vm_you_must_be_the_broadcaste
 import io.rudione.chatone.presentation.text.resolve
 import io.rudione.chatone.presentation.text.uiText
 import io.rudione.chatone.presentation.text.UiText
+import io.rudione.chatone.util.system.appForeground
+import io.rudione.chatone.presentation.chat.points.ChannelPointsController
+import io.rudione.chatone.presentation.settings.SettingsKeys
+import io.rudione.chatone.presentation.chat.events.PollController
+import io.rudione.chatone.presentation.chat.events.PredictionController
+import io.rudione.chatone.data.repository.ChannelPointsRepository
 import chatone.composeapp.generated.resources.pin_reason_unknown
 import chatone.composeapp.generated.resources.pin_reason_not_connected
 import chatone.composeapp.generated.resources.pin_reason_not_pinnable
@@ -134,8 +135,11 @@ import chatone.composeapp.generated.resources.chat_message_not_sent
 import org.jetbrains.compose.resources.StringResource
 import chatone.composeapp.generated.resources.no_recent_message_to_pin
 import chatone.composeapp.generated.resources.pin_failed
-import chatone.composeapp.generated.resources.actions_auto_claim_failed
 import chatone.composeapp.generated.resources.chat_viewer_left
+import chatone.composeapp.generated.resources.chat_seventv_emote_added
+import chatone.composeapp.generated.resources.chat_seventv_emote_removed
+import chatone.composeapp.generated.resources.chat_seventv_emote_renamed
+import chatone.composeapp.generated.resources.chat_seventv_set_switched
 import chatone.composeapp.generated.resources.chat_viewer_joined
 import chatone.composeapp.generated.resources.ai_flagged_messages_notice
 import chatone.composeapp.generated.resources.Res
@@ -143,11 +147,7 @@ import org.jetbrains.compose.resources.getString
 import androidx.lifecycle.viewModelScope
 import io.github.aakira.napier.Napier
 import io.rudione.chatone.base.BaseViewModel
-import io.rudione.chatone.base.UIEffect
-import io.rudione.chatone.base.UiEvent
-import io.rudione.chatone.base.UiState
 import io.rudione.chatone.data.remote.ChatMessageRejectedException
-import io.rudione.chatone.data.remote.GqlChannelPointReward
 import io.rudione.chatone.data.remote.ChatterFame
 import io.rudione.chatone.data.remote.RecentMessagesClient
 import io.rudione.chatone.data.remote.TwitchChatterFameClient
@@ -155,7 +155,9 @@ import io.rudione.chatone.data.remote.RecentMessagesResult
 import io.rudione.chatone.data.remote.TwitchApiClient
 import io.rudione.chatone.data.remote.TwitchIrcClient
 import io.rudione.chatone.data.remote.emote.SevenTvCosmeticsClient
-import io.rudione.chatone.data.remote.emote.SevenTvEventApi
+import io.rudione.chatone.data.repository.SevenTvEmoteChange
+import io.rudione.chatone.data.repository.SevenTvEmoteNotice
+import io.rudione.chatone.data.repository.SevenTvLiveEmotes
 import io.rudione.chatone.data.repository.GifRepository
 import io.rudione.chatone.data.repository.AutomodRepository
 import io.rudione.chatone.data.repository.BadgeRepository
@@ -173,7 +175,6 @@ import kotlinx.coroutines.async
 import io.rudione.chatone.presentation.chat.moderation.TimeoutOutcome
 import io.rudione.chatone.presentation.chat.moderation.withBanState
 import io.rudione.chatone.util.chat.IrcMessageParser
-import io.rudione.chatone.domain.model.ChatViewerRelationship
 import io.rudione.chatone.domain.model.Badge
 import io.rudione.chatone.domain.moderation.ChannelRole
 import io.rudione.chatone.domain.moderation.RoleTarget
@@ -215,19 +216,15 @@ import io.rudione.chatone.util.automod.LocalModAction
 import io.rudione.chatone.util.chat.MessageToken
 import io.rudione.chatone.util.chat.plainText
 import io.rudione.chatone.util.chat.MessageTokenizer
-import io.rudione.chatone.util.media.NotificationSoundPlayer
+import io.rudione.chatone.domain.sound.MentionSoundService
 import io.rudione.chatone.util.chat.SlashCommand
 import io.rudione.chatone.data.remote.ImageUploaderClient
 import io.rudione.chatone.data.remote.SendGifException
-import io.rudione.chatone.data.remote.TwitchAutomaticRewardType
 import io.rudione.chatone.data.remote.TwitchEventSubClient
 import io.rudione.chatone.data.remote.TwitchGqlClient
 import io.rudione.chatone.data.remote.TwitchPubSubClient
 import io.rudione.chatone.data.remote.dto.ChannelData
-import io.rudione.chatone.data.remote.dto.PollData
-import io.rudione.chatone.data.remote.dto.PredictionData
 import io.rudione.chatone.data.remote.dto.UserEmoteData
-import io.rudione.chatone.data.remote.emote.SevenTvApiClient
 import io.rudione.chatone.data.repository.AccountAgeRepository
 import io.rudione.chatone.data.repository.AiAssistantController
 import io.rudione.chatone.data.repository.AiChatLine
@@ -257,7 +254,6 @@ import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -279,237 +275,6 @@ import kotlin.time.Duration.Companion.milliseconds
 import com.russhwolf.settings.Settings
 import io.rudione.chatone.domain.model.Macro as ChatMacro
 import io.rudione.chatone.presentation.liveactivity.LiveEventActivities
-
-data class PollHistoryEntry(val title: String, val choices: List<String>, val durationSeconds: Int)
-data class PredictionHistoryEntry(val title: String, val outcomes: List<String>, val windowSeconds: Int)
-
-data class ChatState(
-    val channelLogin: String = "",
-    val channelDisplayName: String = "",
-    val liveStream: ChannelData? = null,
-    val channelId: String = "",
-    val messages: List<DisplayMessage> = emptyList(),
-
-    val messagesSeq: Long = 0L,
-
-    val messagesStartOrdinal: Long = 0L,
-    val messageInput: String = "",
-    val lastMessageSentAtMs: Long = 0L,
-    val isConnected: Boolean = false,
-    val connectionState: TwitchIrcClient.ConnectionState = TwitchIrcClient.ConnectionState.Disconnected,
-    val isLoading: Boolean = false,
-    val isMod: Boolean = false,
-    val isBroadcaster: Boolean = false,
-    val isGrandMod: Boolean = false,
-    val modModeEnabled: Boolean = false,
-    val roomState: RoomState = RoomState(),
-    val roomStateReceived: Boolean = false,
-    val viewerBadges: List<Badge>? = null,
-    val viewerRelationship: ChatViewerRelationship? = null,
-    val currentUserId: String = "",
-    val currentUserLogin: String = "",
-    val currentDisplayName: String = "",
-    val currentUserColor: String = "",
-    val currentAccessToken: String = "",
-    val isEmotePickerVisible: Boolean = false,
-    val emoteCompletions: List<GenericEmote> = emptyList(),
-    val showEmoteCompletions: Boolean = false,
-
-    val mentionCompletions: List<String> = emptyList(),
-    val showMentionCompletions: Boolean = false,
-    val mentionCount: Int = 0,
-
-    val replyingTo: DisplayMessage.PrivMsg? = null,
-
-    val pinnedMessage: DisplayMessage.PrivMsg? = null,
-    val pinId: String? = null,
-    val pinEndsAtMs: Long? = null,
-    val pinnedByName: String? = null,
-    val pinnedByBadges: List<Badge> = emptyList(),
-    val pinnedByUser: ChatNoticeUser? = null,
-    val pinLocallyHidden: Boolean = false,
-    val hiddenEventIds: Set<String> = emptySet(),
-    val showPollCreation: Boolean = false,
-    val showPredictionCreation: Boolean = false,
-    val predictionActionPending: Boolean = false,
-    val recentPolls: List<PollHistoryEntry> = emptyList(),
-    val recentPredictions: List<PredictionHistoryEntry> = emptyList(),
-    val showPointsBitsPanel: Boolean = false,
-    val pointsBitsLoading: Boolean = false,
-    val pointsBalance: Long = 0L,
-    val pointsBalanceAtMs: Long = 0L,
-    val channelRewards: List<GqlChannelPointReward> = emptyList(),
-    val pointsIconUrl: String? = null,
-    val pointsBitsError: UiText? = null,
-
-    val sentMessageHistory: List<String> = emptyList(),
-    val historyIndex: Int = -1,
-
-    val pendingRaidTarget: String? = null,
-    val pendingRaidTargetId: String? = null,
-    val pendingRaidStartedAt: Long = 0L,
-    val isBanned: Boolean = false,
-    val banReason: String? = null,
-    val inputGlowIntensity: Float = 0f,
-    val inputGlowTriggerTs: Long = 0L,
-    val activePollId: String? = null,
-    val activePredictionId: String? = null,
-    val activePredictionOutcomes: List<Pair<String, String>> = emptyList(),
-    val livePoll: PollData? = null,
-    val livePrediction: PredictionData? = null,
-    val blockedUserIds: Set<String> = emptySet(),
-    val showBlockedMode: Int = 0,
-    val twitchSubscriberEmotes: List<GenericEmote> = emptyList(),
-    val ownSubTier: Int = 0,
-    val gifSendError: UiText? = null,
-    val gifAccess: GifAccess = GifAccess.Loading,
-    val twitchChannelEmotes: List<GenericEmote> = emptyList(),
-    val twitchGlobalEmotes: List<GenericEmote> = emptyList(),
-    val uploadProgress: Float? = null,
-    val uploadedLink: String? = null,
-    val uploadedLinkExpiresAtMs: Long? = null,
-    val uploadError: String? = null,
-    val pendingUploadPath: String? = null,
-    val pendingUploadHost: String? = null,
-    val pendingUploadHostIsNew: Boolean = false,
-    val warmup: ChatWarmup = ChatWarmup(),
-    val roleOverrides: Map<String, UserRoles> = emptyMap(),
-    val bannedUserIds: Set<String> = emptySet()
-) : UiState {
-    val hasPrivilegedChatAccess: Boolean
-        get() = isMod || isBroadcaster || isGrandMod ||
-            (roleOverrides[currentUserId]?.vip ?: viewerBadges.orEmpty().any { it.id == "vip" })
-    val canModerate: Boolean get() = isMod || isBroadcaster
-    val canManageRoles: Boolean get() = isBroadcaster || isGrandMod
-
-    fun rolesOf(message: DisplayMessage.PrivMsg): UserRoles =
-        roleOverrides[message.userId] ?: UserRoles(moderator = message.isModerator, vip = message.isVip)
-}
-
-data class RoomState(
-    val emoteOnly: Boolean = false,
-    val followersOnly: Int = -1,
-    val slowMode: Int = 0,
-    val subsOnly: Boolean = false,
-    val r9k: Boolean = false
-)
-
-sealed class ChatEvent : UiEvent {
-    data class OnInit(
-        val channelLogin: String,
-        val accessToken: String = "",
-        val userId: String = "",
-        val userLogin: String = "",
-        val userDisplayName: String = ""
-    ) : ChatEvent()
-
-    data class OnMessageInputChanged(val input: String) : ChatEvent()
-    object OnSendMessage : ChatEvent()
-
-    object OnSendMessageKeepText : ChatEvent()
-
-    object OnHistoryUp : ChatEvent()
-    object OnHistoryDown : ChatEvent()
-    object OnReconnect : ChatEvent()
-    object OnToggleModMode : ChatEvent()
-    data class OnModModeDefaultChanged(val enabled: Boolean) : ChatEvent()
-    data class OnTimeoutUser(val userId: String, val duration: Int) : ChatEvent()
-    data class OnBanUser(val userId: String, val reason: String? = null) : ChatEvent()
-    data class OnUnbanUser(val userId: String, val login: String = "") : ChatEvent()
-    data class OnNoticeUserVisible(val userId: String) : ChatEvent()
-    data class OnDeleteMessage(val messageId: String) : ChatEvent()
-    data class OnWhisper(val username: String) : ChatEvent()
-    data class OnInsertMention(val displayName: String) : ChatEvent()
-    data class OnInsertMentions(val names: List<String>) : ChatEvent()
-    data class OnSetUserRole(
-        val target: RoleTarget,
-        val current: UserRoles,
-        val role: ChannelRole,
-        val granted: Boolean
-    ) : ChatEvent()
-
-    data class OnSelectEmoteCompletion(val emote: GenericEmote) : ChatEvent()
-    object OnDismissCompletions : ChatEvent()
-    data class OnSelectMentionCompletion(val username: String) : ChatEvent()
-    object OnDismissMentionCompletions : ChatEvent()
-
-    data class OnUpdateChatSettings(val settings: Map<String, Any>) : ChatEvent()
-    object OnClearChat : ChatEvent()
-
-    data class OnReplyToMessage(val message: DisplayMessage.PrivMsg) : ChatEvent()
-    data class OnSendThreadReply(val target: DisplayMessage.PrivMsg, val text: String) : ChatEvent()
-    object OnCancelReply : ChatEvent()
-
-    data class OnPinMessage(val messageId: String) : ChatEvent()
-    object OnUnpinMessage : ChatEvent()
-
-    object OnOpenPollCreation : ChatEvent()
-    object OnClosePollCreation : ChatEvent()
-    data class OnCreatePoll(val title: String, val choices: List<String>, val durationSeconds: Int) : ChatEvent()
-    object OnOpenPredictionCreation : ChatEvent()
-    object OnClosePredictionCreation : ChatEvent()
-    data class OnCreatePrediction(val title: String, val outcomes: List<String>, val windowSeconds: Int) : ChatEvent()
-    data class OnVotePoll(val pollId: String, val choiceId: String) : ChatEvent()
-    data class OnPlacePrediction(val eventId: String, val outcomeId: String, val points: Int) : ChatEvent()
-    data class OnResolvePrediction(val eventId: String, val outcomeId: String) : ChatEvent()
-    data class OnLockPrediction(val eventId: String) : ChatEvent()
-    data class OnCancelPrediction(val eventId: String) : ChatEvent()
-
-    object OnOpenPointsBitsPanel : ChatEvent()
-    object OnPointsBalanceWanted : ChatEvent()
-    object OnClosePointsBitsPanel : ChatEvent()
-    object OnToggleHiddenEvents : ChatEvent()
-    data class OnHideEventBanner(val key: String) : ChatEvent()
-    data class OnRedeemReward(
-        val reward: GqlChannelPointReward,
-        val textInput: String = ""
-    ) : ChatEvent()
-
-    data class OnSendAnnouncement(val message: String, val color: String = "primary") : ChatEvent()
-    data class OnStartRaid(val targetLogin: String) : ChatEvent()
-    object OnCancelRaid : ChatEvent()
-    object OnRaidNow : ChatEvent()
-    data class OnSendShoutout(val targetUserId: String) : ChatEvent()
-    data class OnSendMessageText(val text: String) : ChatEvent()
-    data class OnExecuteMacro(val macro: ChatMacro) : ChatEvent()
-    data class OnAllowAutoModMessage(val msgId: String) : ChatEvent()
-    data class OnDenyAutoModMessage(val msgId: String) : ChatEvent()
-    object OnToggleEmotePicker : ChatEvent()
-    data class OnSendGif(val gif: GifSearchItem) : ChatEvent()
-    object OnClearGifSendError : ChatEvent()
-    object OnRefreshGifAccess : ChatEvent()
-    object OnRefreshChannel : ChatEvent()
-    data class OnBlockUser(val targetUserId: String, val targetLogin: String) : ChatEvent()
-    data class OnUnblockUser(val targetUserId: String, val targetLogin: String) : ChatEvent()
-    data class OnSetShowBlockedMode(val mode: Int) : ChatEvent()
-
-    data class OnFilesDropped(val paths: List<String>) : ChatEvent()
-    object OnConfirmPendingUpload : ChatEvent()
-    object OnCancelPendingUpload : ChatEvent()
-    object OnClearUploadedLink : ChatEvent()
-
-    data class OnScrollbackPinned(val pinned: Boolean) : ChatEvent()
-}
-
-sealed class ChatEffect : UIEffect {
-    data class ShowError(val message: UiText) : ChatEffect()
-    object ScrollToBottom : ChatEffect()
-    object HistoryMerged : ChatEffect()
-    data class MentionDetected(
-        val channelLogin: String,
-        val message: DisplayMessage.PrivMsg? = null,
-        val playSound: Boolean = false
-    ) : ChatEffect()
-
-    data class OpenUserProfile(
-        val userId: String,
-        val username: String,
-        val displayName: String,
-        val color: String?
-    ) : ChatEffect()
-
-    object FocusChatInput : ChatEffect()
-}
 
 private fun buildTwitchEmote(
     e: UserEmoteData,
@@ -545,8 +310,7 @@ class ChatViewModel(
     private val joinChannelUseCase: JoinChannelUseCase,
     private val apiClient: TwitchApiClient,
     private val sevenTvCosmeticsClient: SevenTvCosmeticsClient,
-    private val sevenTvEventApi: SevenTvEventApi,
-    private val sevenTvApi: SevenTvApiClient,
+    private val sevenTvLiveEmotes: SevenTvLiveEmotes,
     private val automodRepository: AutomodRepository,
     private val pubSubClient: TwitchPubSubClient,
     private val eventSubClient: TwitchEventSubClient,
@@ -570,6 +334,8 @@ class ChatViewModel(
 
     private var gifAccessJob: Job? = null
 
+    private val mentionSounds = GlobalDi.tryGet<MentionSoundService>()
+
     private val notableChatters = GlobalDi.tryGet<TwitchChatterFameClient>()
         ?.let { NotableChatterTracker(it, viewModelScope, ::insertNotableChatter) }
 
@@ -580,7 +346,6 @@ class ChatViewModel(
         private const val AI_HIGHLIGHT_BATCH = 80
         private const val AI_HIGHLIGHT_INTERVAL_MS = 10_000L
         private const val MAX_CACHED_CHANNELS = 10
-        private const val POINTS_BALANCE_FRESH_MS = 30_000L
         private const val STREAM_STATE_INTERVAL_MS = 120_000L
         private const val STREAM_READING_MAX_AGE_MS = 90_000L
         private const val STREAM_READING_GRACE_MS = 1_500L
@@ -647,10 +412,6 @@ class ChatViewModel(
     private var spamJob: Job? = null
 
     private val INVISIBLE_DUP_MARKER = "󠀀"
-    private var pollPollingJob: Job? = null
-    private var predictionPollingJob: Job? = null
-
-    private var pointsClaimErrorShown = false
 
     private val chatRuleReplyThrottle = ChatRuleReplyThrottle()
 
@@ -658,10 +419,43 @@ class ChatViewModel(
         scope = viewModelScope,
         getChatState = { state.value },
         getSettings = { cachedSettings() },
-        sendAsUser = ::sendAutomatedMessage
+        sendAsUser = ::sendAutomatedMessage,
+        playSound = { channel -> mentionSounds?.playKeyword(channel) }
     )
 
     private val channelTimeouts = ChannelTimeouts(channelBanGateway)
+
+    private val polls = PollController(
+        scope = viewModelScope,
+        helix = apiClient,
+        gql = twitchGqlClient,
+        auth = moderationAuthStore,
+        getState = { state.value },
+        update = { transform -> update(transform) },
+        onError = { message -> sendEffect(ChatEffect.ShowError(message)) },
+        onNotice = { login, text -> systemNotice(login, text) }
+    )
+
+    private val predictions = PredictionController(
+        scope = viewModelScope,
+        helix = apiClient,
+        gql = twitchGqlClient,
+        auth = moderationAuthStore,
+        getState = { state.value },
+        update = { transform -> update(transform) },
+        onError = { message -> sendEffect(ChatEffect.ShowError(message)) },
+        onNotice = { login, text -> systemNotice(login, text) }
+    )
+
+    private val pointsController = ChannelPointsController(
+        scope = viewModelScope,
+        gateway = ChannelPointsRepository(twitchGqlClient, moderationAuthStore),
+        getState = { state.value },
+        update = { transform -> update(transform) },
+        autoClaimEnabled = { cachedSettings().autoClaimPoints },
+        onError = { message -> sendEffect(ChatEffect.ShowError(message)) },
+        onNotice = { login, text -> systemNotice(login, text) }
+    )
 
     private val roleController = ChannelRoleController(
         scope = viewModelScope,
@@ -675,357 +469,6 @@ class ChatViewModel(
         val phrases = cachedSettings().mutedPhrases
         if (phrases.isEmpty()) return false
         return phrases.any { text.contains(it, ignoreCase = true) }
-    }
-
-    private fun startPollPolling() {
-        pollPollingJob?.cancel()
-        pollPollingJob = viewModelScope.launch {
-            while (currentCoroutineContext()[Job]?.isActive == true) {
-                val s = state.value
-                if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) {
-                    delay(5000L)
-                    continue
-                }
-                val requestedChannelId = s.channelId
-                val r = apiClient.getActivePoll(s.currentAccessToken, requestedChannelId)
-                if (state.value.channelId != requestedChannelId) break
-                if (r is Result.Success) {
-                    val data = r.data
-                    update {
-                        if (it.channelId != requestedChannelId) it
-                        else it.copy(livePoll = data, activePollId = data?.id ?: it.activePollId)
-                    }
-                    if (data == null || data.status != "ACTIVE") {
-                        if (data == null) update {
-                            if (it.channelId != requestedChannelId) it else it.copy(activePollId = null)
-                        }
-                        break
-                    }
-                }
-                delay(4000L)
-            }
-        }
-    }
-
-    private fun startPredictionPolling() {
-        predictionPollingJob?.cancel()
-        predictionPollingJob = viewModelScope.launch {
-            while (currentCoroutineContext()[Job]?.isActive == true) {
-                val s = state.value
-                if (s.currentAccessToken.isEmpty() || s.channelId.isEmpty()) {
-                    delay(5000L.milliseconds)
-                    continue
-                }
-                val requestedChannelId = s.channelId
-                val r = apiClient.getActivePrediction(s.currentAccessToken, requestedChannelId)
-                if (state.value.channelId != requestedChannelId) break
-                if (r is Result.Success) {
-                    val data = r.data
-                    update {
-                        if (it.channelId != requestedChannelId) it
-                        else it.copy(
-                            livePrediction = data,
-                            activePredictionId = data?.id ?: it.activePredictionId,
-                            activePredictionOutcomes = data?.outcomes?.map { o -> o.id to o.title }
-                                ?: it.activePredictionOutcomes
-                        )
-                    }
-                    if (data == null || (data.status != "ACTIVE" && data.status != "LOCKED")) {
-                        if (data == null) update {
-                            if (it.channelId != requestedChannelId) it
-                            else it.copy(
-                                activePredictionId = null,
-                                activePredictionOutcomes = emptyList()
-                            )
-                        }
-                        break
-                    }
-                }
-                delay(4000L)
-            }
-        }
-    }
-
-    private fun fetchCurrentPoll(channelLogin: String, channelId: String) {
-        viewModelScope.launch {
-            if (!moderationAuthStore.hasCustomToken()) return@launch
-            val token = moderationAuthStore.resolveToken(state.value.currentAccessToken)
-            if (token.isBlank()) return@launch
-            val poll = twitchGqlClient.getViewablePollGql(channelLogin, token) ?: return@launch
-            if (!poll.status.equals("ACTIVE", ignoreCase = true)) return@launch
-            update { if (it.channelId == channelId) it.copy(livePoll = poll, activePollId = poll.id) else it }
-            startPollPollingGql(channelLogin, channelId)
-        }
-    }
-
-    private fun fetchCurrentPrediction(channelLogin: String, channelId: String) {
-        viewModelScope.launch {
-            if (!moderationAuthStore.hasCustomToken()) return@launch
-            val token = moderationAuthStore.resolveToken(state.value.currentAccessToken)
-            if (token.isBlank()) return@launch
-            val prediction = twitchGqlClient.getActivePredictionGql(channelLogin, token) ?: return@launch
-            if (prediction.status != "ACTIVE" && prediction.status != "LOCKED") return@launch
-            update {
-                if (it.channelId == channelId) it.copy(
-                    livePrediction = prediction,
-                    activePredictionId = prediction.id,
-                    activePredictionOutcomes = prediction.outcomes.map { o -> o.id to o.title }
-                ) else it
-            }
-            twitchGqlClient.getChannelPointRewardsGql(channelLogin, token)?.let { info ->
-                update { if (it.channelId == channelId) it.copy(pointsBalance = info.balance, pointsBalanceAtMs = nowMs()) else it }
-            }
-            startPredictionPollingGql(channelLogin, channelId)
-        }
-    }
-
-    private fun syncPollAfterCreate(channelLogin: String, channelId: String) {
-        viewModelScope.launch {
-            repeat(6) { attempt ->
-                if (attempt > 0) delay(600L)
-                if (state.value.channelId != channelId) return@launch
-                val token = moderationAuthStore.resolveToken(state.value.currentAccessToken)
-                if (token.isBlank()) return@launch
-                val poll = twitchGqlClient.getViewablePollGql(channelLogin, token)
-                    ?.takeIf { it.status.equals("ACTIVE", ignoreCase = true) } ?: return@repeat
-                update { if (it.channelId == channelId) it.copy(livePoll = poll, activePollId = poll.id) else it }
-                startPollPollingGql(channelLogin, channelId)
-                return@launch
-            }
-        }
-    }
-
-    private fun syncPredictionAfterCreate(channelLogin: String, channelId: String) {
-        viewModelScope.launch {
-            repeat(6) { attempt ->
-                if (attempt > 0) delay(600L)
-                if (state.value.channelId != channelId) return@launch
-                val token = moderationAuthStore.resolveToken(state.value.currentAccessToken)
-                if (token.isBlank()) return@launch
-                val prediction = twitchGqlClient.getActivePredictionGql(channelLogin, token)
-                    ?.takeIf { it.status == "ACTIVE" || it.status == "LOCKED" } ?: return@repeat
-                update {
-                    if (it.channelId == channelId) it.copy(
-                        livePrediction = prediction,
-                        activePredictionId = prediction.id,
-                        activePredictionOutcomes = prediction.outcomes.map { o -> o.id to o.title }
-                    ) else it
-                }
-                startPredictionPollingGql(channelLogin, channelId)
-                return@launch
-            }
-        }
-    }
-
-    private fun startPollPollingGql(channelLogin: String, channelId: String) {
-        pollPollingJob?.cancel()
-        pollPollingJob = viewModelScope.launch {
-            while (currentCoroutineContext()[Job]?.isActive == true) {
-                delay(4000L)
-                if (!moderationAuthStore.hasCustomToken()) break
-                val token = moderationAuthStore.resolveToken(state.value.currentAccessToken)
-                if (token.isBlank()) continue
-                val poll = twitchGqlClient.getViewablePollGql(channelLogin, token)
-                update { if (it.channelId == channelId) it.copy(livePoll = poll, activePollId = poll?.id) else it }
-                if (poll == null || !poll.status.equals("ACTIVE", ignoreCase = true)) break
-            }
-        }
-    }
-
-    private fun startPredictionPollingGql(channelLogin: String, channelId: String) {
-        predictionPollingJob?.cancel()
-        predictionPollingJob = viewModelScope.launch {
-            while (currentCoroutineContext()[Job]?.isActive == true) {
-                delay(4000L)
-                if (!moderationAuthStore.hasCustomToken()) break
-                val token = moderationAuthStore.resolveToken(state.value.currentAccessToken)
-                if (token.isBlank()) continue
-                val prediction = twitchGqlClient.getActivePredictionGql(channelLogin, token)
-                update {
-                    if (it.channelId == channelId) it.copy(
-                        livePrediction = prediction,
-                        activePredictionId = prediction?.id,
-                        activePredictionOutcomes = prediction?.outcomes?.map { o -> o.id to o.title } ?: emptyList()
-                    ) else it
-                }
-                if (prediction == null || (prediction.status != "ACTIVE" && prediction.status != "LOCKED")) break
-            }
-        }
-    }
-
-    private fun votePoll(pollId: String, choiceId: String) {
-        val s = state.value
-        if (!moderationAuthStore.hasCustomToken()) {
-            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required))); return
-        }
-        if (s.currentUserId.isBlank()) return
-        val poll = s.livePoll
-        if (poll == null || poll.id != pollId || poll.selfVoteChoiceId != null) return
-        val token = moderationAuthStore.resolveToken(s.currentAccessToken)
-        update { st ->
-            val p = st.livePoll ?: return@update st
-            if (p.id != pollId || p.selfVoteChoiceId != null) return@update st
-            st.copy(
-                livePoll = p.copy(
-                    choices = p.choices.map { c -> if (c.id == choiceId) c.copy(votes = c.votes + 1) else c },
-                    selfVoteChoiceId = choiceId
-                )
-            )
-        }
-        viewModelScope.launch {
-            val r = twitchGqlClient.voteInPollGql(
-                pollId = pollId,
-                choiceId = choiceId,
-                userId = s.currentUserId,
-                extraVotes = 0,
-                pointsPerVote = null,
-                token = token
-            )
-            if (r.isError) {
-                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_vote, (r as Result.Error).exception.message)))
-            }
-        }
-    }
-
-    private fun placePrediction(eventId: String, outcomeId: String, points: Int) {
-        val s = state.value
-        if (!moderationAuthStore.hasCustomToken()) {
-            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required))); return
-        }
-        if (points <= 0) return
-        val prediction = s.livePrediction
-        if (prediction == null || prediction.id != eventId || prediction.selfOutcomeId != null) return
-        val token = moderationAuthStore.resolveToken(s.currentAccessToken)
-        update { st ->
-            val p = st.livePrediction ?: return@update st
-            if (p.id != eventId || p.selfOutcomeId != null) return@update st
-            st.copy(
-                livePrediction = p.copy(
-                    outcomes = p.outcomes.map { o ->
-                        if (o.id == outcomeId) o.copy(channelPoints = o.channelPoints + points, users = o.users + 1) else o
-                    },
-                    selfOutcomeId = outcomeId,
-                    selfPoints = points
-                )
-            )
-        }
-        viewModelScope.launch {
-            val r = twitchGqlClient.makePredictionGql(eventId, outcomeId, points, token)
-            if (r.isError) {
-                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_place_prediction, (r as Result.Error).exception.message)))
-            }
-        }
-    }
-
-    private fun applyLivePoll(channelId: String, poll: PollData?) {
-        update { st ->
-            if (st.channelId != channelId) return@update st
-            if (poll == null) return@update st.copy(livePoll = null, activePollId = null)
-            val previousVote = st.livePoll?.takeIf { it.id == poll.id }?.selfVoteChoiceId
-            st.copy(
-                livePoll = poll.copy(selfVoteChoiceId = poll.selfVoteChoiceId ?: previousVote),
-                activePollId = poll.id
-            )
-        }
-        if (poll != null && !poll.status.equals("ACTIVE", ignoreCase = true)) pollPollingJob?.cancel()
-    }
-
-    private fun applyLivePrediction(
-        channelId: String,
-        prediction: PredictionData?
-    ) {
-        update { st ->
-            if (st.channelId != channelId) return@update st
-            if (prediction == null) return@update st.copy(
-                livePrediction = null,
-                activePredictionId = null,
-                activePredictionOutcomes = emptyList()
-            )
-            val previous = st.livePrediction?.takeIf { it.id == prediction.id }
-            st.copy(
-                livePrediction = prediction.copy(
-                    selfOutcomeId = prediction.selfOutcomeId ?: previous?.selfOutcomeId,
-                    selfPoints = prediction.selfPoints ?: previous?.selfPoints
-                ),
-                activePredictionId = prediction.id,
-                activePredictionOutcomes = prediction.outcomes.map { o -> o.id to o.title }
-            )
-        }
-        if (prediction != null && prediction.status != "ACTIVE" && prediction.status != "LOCKED") {
-            predictionPollingJob?.cancel()
-        }
-    }
-
-    private fun openPollCreation() {
-        update { it.copy(showPollCreation = true) }
-        val s = state.value
-        if (s.channelLogin.isNotEmpty() && s.channelId.isNotEmpty()) {
-            fetchCurrentPoll(s.channelLogin, s.channelId)
-        }
-    }
-
-    private fun openPredictionCreation() {
-        update { it.copy(showPredictionCreation = true) }
-        val s = state.value
-        if (s.channelLogin.isNotEmpty() && s.channelId.isNotEmpty()) {
-            fetchCurrentPrediction(s.channelLogin, s.channelId)
-        }
-    }
-
-    private fun resolvePrediction(eventId: String, outcomeId: String) = changePredictionStatus(eventId, "RESOLVED", outcomeId)
-
-    private fun lockPrediction(eventId: String) = changePredictionStatus(eventId, "LOCKED")
-
-    private fun changePredictionStatus(eventId: String, status: String, outcomeId: String? = null) {
-        val snapshot = state.value
-        if (!snapshot.canModerate) {
-            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
-            return
-        }
-        val prediction = snapshot.livePrediction ?: return
-        if (snapshot.predictionActionPending || prediction.id != eventId || prediction.status !in setOf("ACTIVE", "LOCKED")) return
-        val useGql = moderationAuthStore.hasCustomToken()
-        if (!useGql && !snapshot.isBroadcaster) {
-            sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required)))
-            return
-        }
-        val errorText = when (status) {
-            "LOCKED" -> Res.string.chat_vm_failed_to_lock_prediction
-            "CANCELED" -> Res.string.chat_vm_failed_to_cancel_prediction
-            else -> Res.string.chat_vm_failed_to_complete_prediction
-        }
-        update { it.copy(predictionActionPending = true) }
-        viewModelScope.launch {
-            try {
-                val result = if (useGql) {
-                    val token = moderationAuthStore.resolveToken(snapshot.currentAccessToken)
-                    when (status) {
-                        "LOCKED" -> twitchGqlClient.lockPredictionGql(eventId, token)
-                        "CANCELED" -> twitchGqlClient.cancelPredictionGql(eventId, token)
-                        else -> twitchGqlClient.resolvePredictionGql(eventId, outcomeId ?: return@launch, token)
-                    }
-                } else apiClient.endPrediction(snapshot.currentAccessToken, snapshot.channelId, eventId, status, outcomeId)
-                if (result.isError) {
-                    sendEffect(ChatEffect.ShowError(uiText(errorText)))
-                    return@launch
-                }
-                if (status != "LOCKED" && state.value.channelId == snapshot.channelId && state.value.livePrediction?.id == eventId) {
-                    predictionPollingJob?.cancel()
-                }
-                update {
-                    val current = it.livePrediction
-                    if (it.channelId != snapshot.channelId || current?.id != eventId) it
-                    else if (status == "LOCKED") it.copy(livePrediction = current.copy(status = status))
-                    else it.copy(livePrediction = null, activePredictionId = null, activePredictionOutcomes = emptyList(), showPredictionCreation = false)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                sendEffect(ChatEffect.ShowError(uiText(errorText)))
-            } finally {
-                update { if (it.channelId == snapshot.channelId) it.copy(predictionActionPending = false) else it }
-            }
-        }
     }
 
     private val channelMessageCache = mutableMapOf<String, List<DisplayMessage>>()
@@ -1091,6 +534,24 @@ class ChatViewModel(
                     s
                 }
                 if (snapshot.isNotEmpty()) retokenizeMessagesForUsers(snapshot)
+            }
+        }
+    }
+
+    private val pendingRetokenizeCodes = HashSet<String>()
+    private var retokenizeCodesJob: Job? = null
+    private fun scheduleRetokenizeForCodes(codes: Set<String>, delayMs: Long = 150L) {
+        if (codes.isEmpty()) return
+        synchronized(pendingRetokenizeLock) {
+            pendingRetokenizeCodes.addAll(codes)
+            if (retokenizeCodesJob != null) return
+            retokenizeCodesJob = viewModelScope.launch {
+                delay(delayMs)
+                val snapshot = synchronized(pendingRetokenizeLock) {
+                    retokenizeCodesJob = null
+                    pendingRetokenizeCodes.toSet().also { pendingRetokenizeCodes.clear() }
+                }
+                retokenizeMessages(onlyContaining = snapshot)
             }
         }
     }
@@ -1180,10 +641,13 @@ class ChatViewModel(
         observeIrcEvents()
         observePubSubEvents()
         observeConnectionState()
-        observeEmoteSetUpdates()
+        observeSevenTvEmoteChanges()
         observePersonalEmoteGrants()
         viewModelScope.launch {
-            SettingsViewModel.changeBroadcast.collect { _ -> invalidateSettingsCache() }
+            SettingsViewModel.changeBroadcast.collect { _ ->
+                invalidateSettingsCache()
+                pointsController.onAutoClaimSetting(SettingsViewModel.settings.getBoolean(SettingsKeys.AUTO_CLAIM_POINTS, false))
+            }
         }
         viewModelScope.launch {
             LiveEventActivities.followed
@@ -1198,9 +662,31 @@ class ChatViewModel(
                     }
                 }
         }
+        observeLiveEventsForActivity()
         observeAiSnapshotDemand()
         observeAiAutoMod()
         observeAiHighlightWatch()
+    }
+
+    private fun observeLiveEventsForActivity() {
+        viewModelScope.launch {
+            combine(
+                state.map { Triple(it.channelLogin, it.livePoll, it.livePrediction) }.distinctUntilChanged(),
+                appForeground,
+                LiveEventActivities.available
+            ) { events, foreground, available -> events.takeIf { foreground && available } }
+                .collect { events ->
+                    val (channel, poll, prediction) = events ?: return@collect
+                    if (channel.isBlank()) return@collect
+                    val hidden = state.value.hiddenEventIds
+                    val now = Clock.System.now().toEpochMilliseconds()
+                    val candidates = listOfNotNull(
+                        prediction?.takeIf { it.id !in hidden }?.liveChatEvent(channel, now),
+                        poll?.takeIf { it.id !in hidden }?.liveChatEvent(channel, now, LiveEventActivities.followed.value)
+                    )
+                    candidates.firstOrNull { it.deadlineMs != null && !it.terminal }?.let(LiveEventActivities::autoFollow)
+                }
+        }
     }
 
     private val aiScannedIds = HashSet<String>()
@@ -1403,27 +889,26 @@ class ChatViewModel(
             is ChatEvent.OnSendThreadReply -> sendThreadReply(event.target, event.text)
             is ChatEvent.OnPinMessage -> pinMessage(event.messageId)
             ChatEvent.OnUnpinMessage -> unpinMessageRemote()
-            ChatEvent.OnOpenPollCreation -> openPollCreation()
+            ChatEvent.OnOpenPollCreation -> polls.openPollCreation()
             ChatEvent.OnClosePollCreation -> update { it.copy(showPollCreation = false) }
-            is ChatEvent.OnCreatePoll -> submitPollFromForm(event.title, event.choices, event.durationSeconds)
-            ChatEvent.OnOpenPredictionCreation -> openPredictionCreation()
+            is ChatEvent.OnCreatePoll -> polls.submitPollFromForm(event.title, event.choices, event.durationSeconds)
+            ChatEvent.OnOpenPredictionCreation -> predictions.openPredictionCreation()
             ChatEvent.OnClosePredictionCreation -> update { it.copy(showPredictionCreation = false) }
-            is ChatEvent.OnCreatePrediction -> submitPredictionFromForm(event.title, event.outcomes, event.windowSeconds)
-            is ChatEvent.OnVotePoll -> votePoll(event.pollId, event.choiceId)
-            is ChatEvent.OnPlacePrediction -> placePrediction(event.eventId, event.outcomeId, event.points)
-            is ChatEvent.OnResolvePrediction -> resolvePrediction(event.eventId, event.outcomeId)
-            is ChatEvent.OnLockPrediction -> lockPrediction(event.eventId)
-            is ChatEvent.OnCancelPrediction -> changePredictionStatus(event.eventId, "CANCELED")
-            ChatEvent.OnOpenPointsBitsPanel -> openPointsBitsPanel()
-            ChatEvent.OnPointsBalanceWanted -> refreshPointsBalanceIfStale()
-            ChatEvent.OnClosePointsBitsPanel -> update { it.copy(showPointsBitsPanel = false) }
+            is ChatEvent.OnCreatePrediction -> predictions.submitPredictionFromForm(event.title, event.outcomes, event.windowSeconds)
+            is ChatEvent.OnVotePoll -> polls.votePoll(event.pollId, event.choiceId)
+            is ChatEvent.OnPlacePrediction -> predictions.placePrediction(event.eventId, event.outcomeId, event.points)
+            is ChatEvent.OnResolvePrediction -> predictions.resolvePrediction(event.eventId, event.outcomeId)
+            is ChatEvent.OnLockPrediction -> predictions.lockPrediction(event.eventId)
+            is ChatEvent.OnCancelPrediction -> predictions.changePredictionStatus(event.eventId, "CANCELED")
+            ChatEvent.OnOpenPointsBitsPanel -> pointsController.openPanel()
+            ChatEvent.OnPointsBalanceWanted -> pointsController.refreshIfStale()
+            ChatEvent.OnClosePointsBitsPanel -> pointsController.closePanel()
+            ChatEvent.OnClaimPoints -> pointsController.claim()
             ChatEvent.OnToggleHiddenEvents -> update { it.withHiddenEventsToggled(HIDDEN_EVENTS_MEMORY) }
+            is ChatEvent.OnShowEventBanner -> update { it.withEventShown(event.key) }
+            is ChatEvent.OnToggleEventCollapsed -> update { it.withEventCollapseToggled(event.key, HIDDEN_EVENTS_MEMORY) }
             is ChatEvent.OnHideEventBanner -> update {
-                val eventId = when (event.key) {
-                    "poll" -> it.livePoll?.id
-                    "prediction" -> it.livePrediction?.id
-                    else -> null
-                }
+                val eventId = it.liveEventId(event.key)
                 it.copy(
                     pinLocallyHidden = it.pinLocallyHidden || event.key == "pin",
                     hiddenEventIds = if (eventId == null) it.hiddenEventIds
@@ -1431,8 +916,7 @@ class ChatViewModel(
                 )
             }
 
-
-            is ChatEvent.OnRedeemReward -> redeemReward(event.reward, event.textInput)
+            is ChatEvent.OnRedeemReward -> pointsController.redeem(event.reward, event.textInput)
             is ChatEvent.OnSendAnnouncement -> sendAnnouncement(event.message, event.color)
             is ChatEvent.OnStartRaid -> startRaid(event.targetLogin)
             ChatEvent.OnCancelRaid -> cancelRaid()
@@ -1918,10 +1402,9 @@ class ChatViewModel(
         val viewerCacheKey = userId.ifEmpty { oldState.currentUserId } to key
         val cachedViewerBadges = viewerBadgeCache[viewerCacheKey]
 
-        pollPollingJob?.cancel()
-        pollPollingJob = null
-        predictionPollingJob?.cancel()
-        predictionPollingJob = null
+        pointsController.reset()
+        polls.stopPollPolling()
+        predictions.stopPredictionPolling()
 
         update {
             it.copy(
@@ -1970,6 +1453,9 @@ class ChatViewModel(
                 pointsBalanceAtMs = 0L,
                 channelRewards = emptyList(),
                 pointsIconUrl = null,
+                pointsClaim = null,
+                pointsClaiming = false,
+                pointsGain = null,
                 isBanned = false,
                 banReason = "",
                 bannedUserIds = emptySet(),
@@ -2026,8 +1512,9 @@ class ChatViewModel(
                     launch { checkAndSetModStatus(resolvedChannelId) }
                     loadViewerRelationshipIfNeeded()
                     launch { fetchCurrentPin(resolvedChannelId) }
-                    launch { fetchCurrentPoll(channelLogin, resolvedChannelId) }
-                    launch { fetchCurrentPrediction(channelLogin, resolvedChannelId) }
+                    launch { polls.fetchCurrentPoll(channelLogin, resolvedChannelId) }
+                    launch { predictions.fetchCurrentPrediction(channelLogin, resolvedChannelId) }
+                    pointsController.loadContext(channelLogin, resolvedChannelId)
                     launch {
                         val s2 = state.value
                         if (s2.currentAccessToken.isNotEmpty() && s2.currentUserId.isNotEmpty()) {
@@ -2651,15 +2138,7 @@ class ChatViewModel(
             }
             markWarm(channelLogin) { it.copy(channelAssets = true) }
 
-            launch {
-                try {
-                    val emoteSetId = emoteRepository.getSevenTvEmoteSetId(channelLogin)
-                    if (emoteSetId != null) sevenTvEventApi.subscribeToEmoteSet(emoteSetId)
-                    sevenTvEventApi.subscribeToTwitchChannel(channelId)
-                } catch (e: Exception) {
-                    Napier.w("Failed to subscribe to 7TV events: ${e.message}", tag = TAG)
-                }
-            }
+            sevenTvLiveEmotes.watchChannel(channelLogin, channelId)
 
             state.value.currentUserId.takeIf { it.isNotEmpty() }?.let { selfId ->
                 runCatching {
@@ -2670,7 +2149,7 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun retokenizeMessages() {
+    private suspend fun retokenizeMessages(onlyContaining: Set<String>? = null) {
         tokenizeLock.withLock {
             val snapshot = state.value
             val channelLogin = snapshot.channelLogin
@@ -2682,6 +2161,7 @@ class ChatViewModel(
                     for (msg in messages) {
                         if (msg !is DisplayMessage.PrivMsg) continue
                         val raw = msg.rawMessage ?: continue
+                        if (onlyContaining != null && onlyContaining.none { raw.message.contains(it) }) continue
                         val tokens = MessageTokenizer.tokenize(
                             raw,
                             channelEmotes,
@@ -2933,13 +2413,7 @@ class ChatViewModel(
                                     matchResult.playSound
                                 )
                             )
-                            if (matchResult.playSound) {
-                                val settings = cachedSettings()
-                                NotificationSoundPlayer.playMentionSound(
-                                    settings.mentionSoundVolume,
-                                    settings.customMentionSoundPath
-                                )
-                            }
+                            if (matchResult.playSound) mentionSounds?.playMention(s.channelLogin)
                         }
                     }
 
@@ -3475,35 +2949,15 @@ class ChatViewModel(
 
                     is IrcEvent.RewardRedeemed -> onRewardRedeemed(event.redemption)
 
-                    is IrcEvent.PointsClaimAvailable -> {
-                        if (cachedSettings().autoClaimPoints && s.currentAccessToken.isNotEmpty()) {
-                            viewModelScope.launch {
-                                val r = twitchGqlClient.claimCommunityPoints(
-                                    event.channelId, event.claimId,
-                                    moderationAuthStore.resolveToken(s.currentAccessToken)
-                                )
-                                when (r) {
-                                    is Result.Success ->
-                                        Napier.d("Bonus points claimed for ${event.channelId}", tag = TAG)
-                                    is Result.Error -> {
-                                        Napier.w("Points claim failed: ${r.exception.message}", tag = TAG)
-                                        if (!pointsClaimErrorShown) {
-                                            pointsClaimErrorShown = true
-                                            sendEffect(
-                                                ChatEffect.ShowError(UiText.Raw(getString(Res.string.actions_auto_claim_failed)))
-                                            )
-                                        }
-                                    }
-                                    else -> {}
-                                }
-                            }
-                        }
-                    }
+                    is IrcEvent.PointsClaimAvailable,
+                    is IrcEvent.PointsClaimed,
+                    is IrcEvent.PointsEarned,
+                    is IrcEvent.PointsBalanceChanged -> pointsController.handle(event)
 
-                    is IrcEvent.PollUpdated -> applyLivePoll(event.channelId, event.poll)
+                    is IrcEvent.PollUpdated -> polls.applyLivePoll(event.channelId, event.poll)
 
                     is IrcEvent.PredictionUpdated ->
-                        applyLivePrediction(event.channelId, event.prediction)
+                        predictions.applyLivePrediction(event.channelId, event.prediction)
 
                     is IrcEvent.PinnedChatUpdated -> {
                         if (event.channel == s.channelId) {
@@ -3667,144 +3121,46 @@ class ChatViewModel(
         }.getOrNull() ?: return
         viewModelScope.launch {
             backfiller.granted.collect { grant ->
-                sevenTvEventApi.subscribeToEmoteSet(grant.emoteSetId)
+                sevenTvLiveEmotes.watchPersonalSet(grant.emoteSetId)
                 scheduleRetokenizeForUsers(setOf(grant.twitchUserId))
             }
         }
     }
 
-    private fun observeEmoteSetUpdates() {
+    private fun observeSevenTvEmoteChanges() {
         viewModelScope.launch {
-            sevenTvEventApi.emoteSetUpdates.collect { event ->
+            sevenTvLiveEmotes.changes.collect { change ->
                 val channelLogin = state.value.channelLogin
-
-                fun hasRealActor(actor: String): Boolean =
-                    actor.isNotBlank() && !actor.equals("Unknown", ignoreCase = true)
-
-                val noticeText: String? = when (event) {
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteAdded ->
-                        if (hasRealActor(event.actorName)) "[7TV] ${event.actorName} added ${event.emoteName}" else null
-
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRemoved ->
-                        if (hasRealActor(event.actorName)) "[7TV] ${event.actorName} removed ${event.emoteName}" else null
-
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRenamed ->
-                        if (hasRealActor(event.actorName)) "[7TV] ${event.actorName} renamed ${event.oldName} → ${event.newName}" else null
-
-                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetGranted,
-                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetRevoked -> null
-                }
-                if (noticeText != null) {
-                    addMessage(
-                        DisplayMessage.SystemMsg(
-                            id = uniqueId("7tv"),
-                            timestamp = Clock.System.now().toEpochMilliseconds(),
-                            channel = channelLogin, text = noticeText,
-                            type = DisplayMessage.SystemMsg.SystemType.NOTICE
-                        )
-                    )
-                }
-
-                when (event) {
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteAdded -> {
-                        launch {
-                            try {
-
-                                val emote = sevenTvApi.getEmoteById(event.emoteId)
-                                    ?: GenericEmote(
-                                        id = event.emoteId,
-                                        code = event.emoteName,
-                                        url1x = "https://cdn.7tv.app/emote/${event.emoteId}/1x.webp",
-                                        url2x = "https://cdn.7tv.app/emote/${event.emoteId}/2x.webp",
-                                        url3x = "https://cdn.7tv.app/emote/${event.emoteId}/4x.webp",
-                                        provider = EmoteProvider.SEVEN_TV
-                                    )
-                                if (emoteRepository.isPersonalEmoteSet(event.emoteSetId)) {
-                                    emoteRepository.patchPersonalSet(event.emoteSetId, emote)
-                                    val affected =
-                                        emoteRepository.usersForPersonalSet(event.emoteSetId)
-                                    if (state.value.channelLogin == channelLogin && affected.isNotEmpty()) {
-                                        scheduleRetokenizeForUsers(affected)
-                                    }
-                                } else {
-                                    emoteRepository.patchChannelEmote(channelLogin, emote)
-                                    if (state.value.channelLogin == channelLogin) scheduleRetokenize()
-                                }
-                            } catch (_: Exception) {
-                            }
-                        }
-                    }
-
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRemoved -> {
-                        if (emoteRepository.isPersonalEmoteSet(event.emoteSetId)) {
-                            emoteRepository.removeFromPersonalSet(
-                                event.emoteSetId, event.emoteId, event.emoteName
-                            )
-                            val affected = emoteRepository.usersForPersonalSet(event.emoteSetId)
-                            if (state.value.channelLogin == channelLogin && affected.isNotEmpty()) {
-                                scheduleRetokenizeForUsers(affected)
-                            }
-                        } else {
-                            emoteRepository.removeChannelEmote(
-                                channelLogin,
-                                event.emoteId,
-                                event.emoteName
-                            )
-                            if (state.value.channelLogin == channelLogin) scheduleRetokenize()
-                        }
-                    }
-
-                    is SevenTvEventApi.EmoteSetUpdateEvent.EmoteRenamed -> {
-                        if (emoteRepository.isPersonalEmoteSet(event.emoteSetId)) {
-                            emoteRepository.renameInPersonalSet(
-                                event.emoteSetId, event.emoteId, event.newName
-                            )
-                            val affected = emoteRepository.usersForPersonalSet(event.emoteSetId)
-                            if (state.value.channelLogin == channelLogin && affected.isNotEmpty()) {
-                                scheduleRetokenizeForUsers(affected)
-                            }
-                        } else {
-                            emoteRepository.renameChannelEmote(
-                                channelLogin,
-                                event.emoteId,
-                                event.newName
-                            )
-                            if (state.value.channelLogin == channelLogin) scheduleRetokenize()
-                        }
-                    }
-
-                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetGranted -> {
-                        launch {
-                            try {
-                                val emotes = emoteRepository.grantPersonalEmoteSet(
-                                    twitchUserId = event.twitchUserId,
-                                    emoteSetId = event.emoteSetId
+                if (channelLogin.isEmpty()) return@collect
+                when (change) {
+                    is SevenTvEmoteChange.Personal -> scheduleRetokenizeForUsers(change.twitchUserIds)
+                    is SevenTvEmoteChange.Channel -> {
+                        if (!change.channelLogin.equals(channelLogin, ignoreCase = true)) return@collect
+                        change.notices.forEach { notice ->
+                            addMessage(
+                                DisplayMessage.SystemMsg(
+                                    id = uniqueId("7tv"),
+                                    timestamp = Clock.System.now().toEpochMilliseconds(),
+                                    channel = channelLogin,
+                                    text = sevenTvNoticeText(notice),
+                                    type = DisplayMessage.SystemMsg.SystemType.NOTICE
                                 )
-
-                                sevenTvEventApi.subscribeToEmoteSet(event.emoteSetId)
-                                if (!emotes.isNullOrEmpty() &&
-                                    state.value.channelLogin == channelLogin
-                                ) {
-                                    scheduleRetokenizeForUsers(setOf(event.twitchUserId))
-                                }
-                            } catch (e: Exception) {
-                                Napier.w(
-                                    "Failed to grant personal set ${event.emoteSetId} for ${event.twitchUserId}: ${e.message}",
-                                    tag = TAG
-                                )
-                            }
+                            )
                         }
-                    }
-
-                    is SevenTvEventApi.EmoteSetUpdateEvent.PersonalEmoteSetRevoked -> {
-                        emoteRepository.revokePersonalEmoteSet(event.twitchUserId, event.emoteSetId)
-                        if (state.value.channelLogin == channelLogin) {
-                            scheduleRetokenizeForUsers(setOf(event.twitchUserId))
-                        }
+                        val codes = change.touchedCodes
+                        if (codes == null) scheduleRetokenize() else scheduleRetokenizeForCodes(codes)
                     }
                 }
             }
         }
+    }
+
+    private suspend fun sevenTvNoticeText(notice: SevenTvEmoteNotice): String = when (notice) {
+        is SevenTvEmoteNotice.Added -> getString(Res.string.chat_seventv_emote_added, notice.actorName, notice.emoteName)
+        is SevenTvEmoteNotice.Removed -> getString(Res.string.chat_seventv_emote_removed, notice.actorName, notice.emoteName)
+        is SevenTvEmoteNotice.Renamed ->
+            getString(Res.string.chat_seventv_emote_renamed, notice.actorName, notice.oldName, notice.newName)
+        is SevenTvEmoteNotice.SetSwitched -> getString(Res.string.chat_seventv_set_switched, notice.actorName, notice.setName)
     }
 
     private fun retokenizeMessagesForUsers(userIds: Set<String>) {
@@ -4593,7 +3949,7 @@ class ChatViewModel(
                                 channelLogin,
                                 uiText(Res.string.chat_vm_poll_started_s, cmd.title, cmd.choices.joinToString(" | "), cmd.durationSeconds)
                             )
-                            syncPollAfterCreate(channelLogin, broadcasterId)
+                            polls.syncPollAfterCreate(channelLogin, broadcasterId)
                         }
                         is Result.Error -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_poll, r.exception.message)))
                         else -> {}
@@ -4615,7 +3971,7 @@ class ChatViewModel(
                             channelLogin,
                             uiText(Res.string.chat_vm_poll_started_s, cmd.title, cmd.choices.joinToString(" | "), cmd.durationSeconds)
                         )
-                        startPollPolling()
+                        polls.startPollPolling()
                     }
 
                     is Result.Error -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_poll, r.exception.message)))
@@ -4635,7 +3991,7 @@ class ChatViewModel(
                     if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_end_poll)))
                     else {
                         update { it.copy(activePollId = null, livePoll = null) }
-                        pollPollingJob?.cancel()
+                        polls.stopPollPolling()
                     }
                     return
                 }
@@ -4649,7 +4005,7 @@ class ChatViewModel(
                 if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_end_poll)))
                 else {
                     update { it.copy(activePollId = null, livePoll = null) }
-                    pollPollingJob?.cancel()
+                    polls.stopPollPolling()
                 }
             }
 
@@ -4663,7 +4019,7 @@ class ChatViewModel(
                     if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_cancel_poll)))
                     else {
                         update { it.copy(activePollId = null, livePoll = null) }
-                        pollPollingJob?.cancel()
+                        polls.stopPollPolling()
                     }
                     return
                 }
@@ -4677,7 +4033,7 @@ class ChatViewModel(
                 if (r.isError) sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_cancel_poll)))
                 else {
                     update { it.copy(activePollId = null, livePoll = null) }
-                    pollPollingJob?.cancel()
+                    polls.stopPollPolling()
                 }
             }
 
@@ -4696,7 +4052,7 @@ class ChatViewModel(
                                 channelLogin,
                                 uiText(Res.string.chat_vm_prediction_started_s, cmd.title, cmd.outcomes.joinToString(" | "), cmd.windowSeconds)
                             )
-                            syncPredictionAfterCreate(channelLogin, broadcasterId)
+                            predictions.syncPredictionAfterCreate(channelLogin, broadcasterId)
                         }
                         is Result.Error -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_prediction, r.exception.message)))
                         else -> {}
@@ -4724,7 +4080,7 @@ class ChatViewModel(
                             channelLogin,
                             uiText(Res.string.chat_vm_prediction_started_s, cmd.title, cmd.outcomes.joinToString(" | "), cmd.windowSeconds)
                         )
-                        startPredictionPolling()
+                        predictions.startPredictionPolling()
                     }
 
                     is Result.Error -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_prediction, r.exception.message)))
@@ -4768,7 +4124,7 @@ class ChatViewModel(
                                 livePrediction = null
                             )
                         }
-                        predictionPollingJob?.cancel()
+                        predictions.stopPredictionPolling()
                     }
                     return
                 }
@@ -4788,7 +4144,7 @@ class ChatViewModel(
                             livePrediction = null
                         )
                     }
-                    predictionPollingJob?.cancel()
+                    predictions.stopPredictionPolling()
                 }
             }
 
@@ -4813,7 +4169,7 @@ class ChatViewModel(
                                 livePrediction = null
                             )
                         }
-                        predictionPollingJob?.cancel()
+                        predictions.stopPredictionPolling()
                     }
                     return
                 }
@@ -4847,7 +4203,7 @@ class ChatViewModel(
                             livePrediction = null
                         )
                     }
-                    predictionPollingJob?.cancel()
+                    predictions.stopPredictionPolling()
                 }
             }
 
@@ -4919,8 +4275,8 @@ class ChatViewModel(
 
             is SlashCommand.Parsed.BadUsage -> {
                 when (cmd.name) {
-                    "poll" -> openPollCreation()
-                    "prediction" -> openPredictionCreation()
+                    "poll" -> polls.openPollCreation()
+                    "prediction" -> predictions.openPredictionCreation()
                     else -> sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_usage, cmd.usage)))
                 }
             }
@@ -5451,29 +4807,6 @@ class ChatViewModel(
         sendEffect(ChatEffect.FocusChatInput)
     }
 
-    private var pointsBalanceJob: Job? = null
-
-    private fun refreshPointsBalanceIfStale() {
-        val s = state.value
-        if (s.channelLogin.isEmpty() || pointsBalanceJob?.isActive == true) return
-        if (nowMs() - s.pointsBalanceAtMs < POINTS_BALANCE_FRESH_MS) return
-        if (!moderationAuthStore.hasCustomToken()) return
-        val channelLogin = s.channelLogin
-        pointsBalanceJob = viewModelScope.launch {
-            val token = moderationAuthStore.resolveToken(s.currentAccessToken)
-            if (token.isBlank()) return@launch
-            val info = twitchGqlClient.getChannelPointRewardsGql(channelLogin, token) ?: return@launch
-            update {
-                if (!it.channelLogin.equals(channelLogin, ignoreCase = true)) it
-                else it.copy(
-                    pointsBalance = info.balance,
-                    pointsBalanceAtMs = nowMs(),
-                    pointsIconUrl = info.currencyIconUrl ?: it.pointsIconUrl
-                )
-            }
-        }
-    }
-
     private fun nowMs(): Long = Clock.System.now().toEpochMilliseconds()
 
     private fun insertMention(name: String) {
@@ -5877,228 +5210,6 @@ class ChatViewModel(
                 )
             }
         }
-    }
-
-    private fun rememberPollHistory(title: String, choices: List<String>, durationSeconds: Int) {
-        val entry = PollHistoryEntry(title, choices, durationSeconds)
-        update {
-            it.copy(recentPolls = (listOf(entry) + it.recentPolls.filterNot { p -> p.title == title }).take(5))
-        }
-    }
-
-    private fun rememberPredictionHistory(title: String, outcomes: List<String>, windowSeconds: Int) {
-        val entry = PredictionHistoryEntry(title, outcomes, windowSeconds)
-        update {
-            it.copy(recentPredictions = (listOf(entry) + it.recentPredictions.filterNot { p -> p.title == title }).take(5))
-        }
-    }
-
-    private fun submitPollFromForm(title: String, choices: List<String>, durationSeconds: Int) {
-        val s = state.value
-        update { it.copy(showPollCreation = false) }
-        if (s.currentAccessToken.isBlank() || s.channelId.isBlank()) return
-        viewModelScope.launch {
-            val useGqlEvents = moderationAuthStore.hasCustomToken()
-            if (useGqlEvents) {
-                if (!s.canModerate) return@launch sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
-                val gqlEventToken = moderationAuthStore.resolveToken(s.currentAccessToken)
-                when (val r = twitchGqlClient.createPollGql(
-                    channelId = s.channelId,
-                    title = title,
-                    choices = choices,
-                    durationSeconds = durationSeconds,
-                    pointsPerVote = null,
-                    token = gqlEventToken
-                )) {
-                    is Result.Success -> {
-                        rememberPollHistory(title, choices, durationSeconds)
-                        systemNotice(
-                            s.channelLogin,
-                            uiText(Res.string.chat_vm_poll_started_s, title, choices.joinToString(" | "), durationSeconds)
-                        )
-                        syncPollAfterCreate(s.channelLogin, s.channelId)
-                    }
-                    is Result.Error ->
-                        sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_poll, r.exception.message)))
-                    else -> {}
-                }
-                return@launch
-            }
-            if (!s.isBroadcaster) return@launch sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_start_a)))
-            when (val r = apiClient.createPoll(
-                accessToken = s.currentAccessToken,
-                broadcasterId = s.channelId,
-                title = title,
-                choices = choices,
-                durationSeconds = durationSeconds
-            )) {
-                is Result.Success -> {
-                    update { it.copy(activePollId = r.data.id, livePoll = r.data) }
-                    rememberPollHistory(title, choices, durationSeconds)
-                    systemNotice(
-                        s.channelLogin,
-                        uiText(Res.string.chat_vm_poll_started_s, title, choices.joinToString(" | "), durationSeconds)
-                    )
-                    startPollPolling()
-                }
-                is Result.Error ->
-                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_poll, r.exception.message)))
-                else -> {}
-            }
-        }
-    }
-
-    private fun submitPredictionFromForm(title: String, outcomes: List<String>, windowSeconds: Int) {
-        val s = state.value
-        update { it.copy(showPredictionCreation = false) }
-        if (s.currentAccessToken.isBlank() || s.channelId.isBlank()) return
-        viewModelScope.launch {
-            val useGqlEvents = moderationAuthStore.hasCustomToken()
-            if (useGqlEvents) {
-                if (!s.canModerate) return@launch sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_mod_only_command)))
-                val gqlEventToken = moderationAuthStore.resolveToken(s.currentAccessToken)
-                when (val r = twitchGqlClient.createPredictionGql(
-                    channelId = s.channelId,
-                    title = title,
-                    outcomes = outcomes,
-                    windowSeconds = windowSeconds,
-                    token = gqlEventToken
-                )) {
-                    is Result.Success -> {
-                        rememberPredictionHistory(title, outcomes, windowSeconds)
-                        systemNotice(
-                            s.channelLogin,
-                            uiText(Res.string.chat_vm_prediction_started_s, title, outcomes.joinToString(" | "), windowSeconds)
-                        )
-                        syncPredictionAfterCreate(s.channelLogin, s.channelId)
-                    }
-                    is Result.Error ->
-                        sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_prediction, r.exception.message)))
-                    else -> {}
-                }
-                return@launch
-            }
-            if (!s.isBroadcaster) return@launch sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_only_the_broadcaster_can_start_a_alt)))
-            val r = apiClient.createPrediction(
-                accessToken = s.currentAccessToken,
-                broadcasterId = s.channelId,
-                title = title,
-                outcomes = outcomes,
-                predictionWindowSeconds = windowSeconds
-            )
-            when (r) {
-                is Result.Success -> {
-                    update {
-                        it.copy(
-                            activePredictionId = r.data.id,
-                            activePredictionOutcomes = r.data.outcomes.map { o -> o.id to o.title },
-                            livePrediction = r.data
-                        )
-                    }
-                    rememberPredictionHistory(title, outcomes, windowSeconds)
-                    systemNotice(
-                        s.channelLogin,
-                        uiText(Res.string.chat_vm_prediction_started_s, title, outcomes.joinToString(" | "), windowSeconds)
-                    )
-                    startPredictionPolling()
-                }
-                is Result.Error ->
-                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_start_prediction, r.exception.message)))
-                else -> {}
-            }
-        }
-    }
-
-    private fun openPointsBitsPanel() {
-        val s = state.value
-        update { it.copy(showPointsBitsPanel = true, pointsBitsLoading = true, pointsBitsError = null) }
-        if (!moderationAuthStore.hasCustomToken()) {
-            update {
-                it.copy(
-                    pointsBitsLoading = false,
-                    pointsBitsError = uiText(Res.string.chat_vm_gql_token_required)
-                )
-            }
-            return
-        }
-        viewModelScope.launch {
-            val gqlToken = moderationAuthStore.resolveToken(s.currentAccessToken)
-            val info = twitchGqlClient.getChannelPointRewardsGql(s.channelLogin, gqlToken)
-            if (info == null) {
-                update {
-                    it.copy(
-                        pointsBitsLoading = false,
-                        pointsBitsError = uiText(Res.string.chat_vm_failed_to_load_points)
-                    )
-                }
-            } else {
-                update {
-                    it.copy(
-                        pointsBitsLoading = false,
-                        pointsBalance = info.balance,
-                        pointsBalanceAtMs = nowMs(),
-                        channelRewards = info.rewards,
-                        pointsIconUrl = info.currencyIconUrl
-                    )
-                }
-            }
-        }
-    }
-
-    private fun redeemReward(reward: GqlChannelPointReward, textInput: String) {
-        val s = state.value
-        if (!reward.isRedeemableInApp) return
-        if (!moderationAuthStore.hasCustomToken()) {
-            return sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_gql_token_required)))
-        }
-        viewModelScope.launch {
-            val gqlToken = moderationAuthStore.resolveToken(s.currentAccessToken)
-            if (reward.automaticType != null) {
-                redeemAutomaticReward(reward, gqlToken)
-                return@launch
-            }
-            when (val r = twitchGqlClient.redeemCustomRewardGql(s.channelId, reward, textInput, gqlToken)) {
-                is Result.Success -> {
-                    update { it.copy(pointsBalance = r.data.balance, pointsBalanceAtMs = nowMs()) }
-                    systemNotice(s.channelLogin, uiText(Res.string.chat_vm_redeemed, reward.title))
-                }
-                is Result.Error ->
-                    sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_redeem, r.exception.message)))
-                else -> {}
-            }
-        }
-    }
-
-    private suspend fun redeemAutomaticReward(
-        reward: GqlChannelPointReward,
-        gqlToken: String
-    ) {
-        val s = state.value
-        val result = when (reward.automaticType) {
-            TwitchAutomaticRewardType.RANDOM_SUB_EMOTE_UNLOCK ->
-                twitchGqlClient.unlockRandomSubEmoteGql(s.channelId, reward.cost, gqlToken)
-
-            else -> return
-        }
-        when (result) {
-            is Result.Success -> {
-                update { it.copy(pointsBalance = (it.pointsBalance - reward.cost).coerceAtLeast(0L)) }
-                refreshPointsBalance()
-            }
-
-            is Result.Error ->
-                sendEffect(ChatEffect.ShowError(uiText(Res.string.chat_vm_failed_to_redeem, result.exception.message)))
-
-            else -> {}
-        }
-    }
-
-    private suspend fun refreshPointsBalance() {
-        val s = state.value
-        if (!s.showPointsBitsPanel) return
-        val gqlToken = moderationAuthStore.resolveToken(s.currentAccessToken)
-        val info = twitchGqlClient.getChannelPointRewardsGql(s.channelLogin, gqlToken) ?: return
-        update { it.copy(pointsBalance = info.balance, pointsBalanceAtMs = nowMs(), channelRewards = info.rewards) }
     }
 
     private fun raidNow() {

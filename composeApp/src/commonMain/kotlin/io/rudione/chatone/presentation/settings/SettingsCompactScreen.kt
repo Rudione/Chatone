@@ -1,5 +1,6 @@
 package io.rudione.chatone.presentation.settings
 
+import io.rudione.chatone.data.sound.mediaStreamChoiceSupported
 import chatone.composeapp.generated.resources.Res
 import chatone.composeapp.generated.resources.back
 import chatone.composeapp.generated.resources.clear
@@ -104,7 +105,8 @@ internal fun SettingsCompactScreen(
             input,
             desktop = isDesktopPlatform,
             phone = currentFormFactor() == DeviceFormFactor.PHONE,
-            macOs = screenChatFloatsOverFullScreen
+            macOs = screenChatFloatsOverFullScreen,
+            android = mediaStreamChoiceSupported
         )
     }
     val model = rememberSettingsSearchModel(search.query, rememberSettingsCatalog(context))

@@ -1,5 +1,7 @@
 package io.rudione.chatone.presentation.main.components.sidebar
 
+import io.rudione.chatone.presentation.components.motion.IconMotion
+import io.rudione.chatone.presentation.components.motion.MotionIcon
 import io.rudione.chatone.util.system.isDesktopPlatform
 import org.koin.compose.koinInject
 import io.rudione.chatone.presentation.profile.PageNavigator
@@ -233,7 +235,10 @@ internal fun CompactSidebar(
                         CompactChannelAvatar(
                             channel = channel,
                             isActive = isActive,
-                            onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
+                            folders = state.folders,
+                            currentFolderId = folder.id,
+                            liveNotifyEnabled = channel.login.lowercase() in state.liveNotifyChannels,
+                            actions = rememberChannelMenuActions(channel.login, onEvent),
                             indented = true
                         )
                     }
@@ -251,7 +256,10 @@ internal fun CompactSidebar(
                 CompactChannelAvatar(
                     channel = channel,
                     isActive = isActive,
-                    onClick = { onEvent(MainEvent.SelectChannel(channel.login)) },
+                    folders = state.folders,
+                    currentFolderId = null,
+                    liveNotifyEnabled = channel.login.lowercase() in state.liveNotifyChannels,
+                    actions = rememberChannelMenuActions(channel.login, onEvent),
                     indented = false
                 )
             }
@@ -304,8 +312,10 @@ internal fun CompactSidebar(
                 onClick = { onEvent(MainEvent.ToggleMentionsFeed) },
                 modifier = Modifier.size(28.dp)
             ) {
-                Icon(
-                    Lucide.AtSign,
+                MotionIcon(
+                    imageVector = Lucide.AtSign,
+                    motion = IconMotion.Mention,
+                    pulse = state.unreadMentionsCount,
                     contentDescription = stringResource(Res.string.chat_mentions_tab),
                     tint = if (state.unreadMentionsCount > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -322,8 +332,10 @@ internal fun CompactSidebar(
                 onClick = { onEvent(MainEvent.ToggleWhisperPanel) },
                 modifier = Modifier.size(28.dp)
             ) {
-                Icon(
-                    Lucide.MessageCircle,
+                MotionIcon(
+                    imageVector = Lucide.MessageCircle,
+                    motion = IconMotion.Bubble,
+                    pulse = state.totalUnreadWhispers,
                     contentDescription = stringResource(Res.string.chat_whisper_tab),
                     tint = if (state.totalUnreadWhispers > 0) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -347,8 +359,9 @@ internal fun CompactSidebar(
             onClick = { onEvent(MainEvent.ShowSettings) },
             modifier = Modifier.size(28.dp)
         ) {
-            Icon(
-                Lucide.Settings,
+            MotionIcon(
+                imageVector = Lucide.Settings,
+                motion = IconMotion.Gear,
                 contentDescription = stringResource(Res.string.settings_title),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp)

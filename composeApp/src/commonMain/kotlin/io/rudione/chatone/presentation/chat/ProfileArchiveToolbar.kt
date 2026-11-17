@@ -14,7 +14,13 @@ import chatone.composeapp.generated.resources.profile_archive_retry
 import chatone.composeapp.generated.resources.profile_archive_title
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.stringArrayResource
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -68,6 +74,9 @@ import io.rudione.chatone.icons.lucide.Search
 import io.rudione.chatone.icons.lucide.X
 import io.rudione.chatone.presentation.components.ChatoneDropdownMenu
 import io.rudione.chatone.presentation.components.ChatoneIconButton
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 
 internal val PROFILE_CARD_INLINE_SEARCH_WIDTH = 470.dp
 
@@ -77,7 +86,8 @@ internal fun ProfileArchiveControls(
     inlineSearch: Boolean,
     searchExpanded: Boolean,
     onToggleSearch: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    visibleMonth: LogMonth? = null
 ) {
     if (!archive.isSupported) return
     Row(
@@ -99,7 +109,7 @@ internal fun ProfileArchiveControls(
                 )
             }
         }
-        ArchiveMonthButton(archive)
+        ArchiveMonthButton(archive, visibleMonth)
     }
 }
 
@@ -182,14 +192,21 @@ private fun ArchiveSearchField(
 }
 
 @Composable
-private fun ArchiveMonthButton(archive: UserLogArchiveState) {
+private fun ArchiveMonthButton(archive: UserLogArchiveState, visibleMonth: LogMonth?) {
     var expanded by remember { mutableStateOf(false) }
     val active = archive.isActive
     val accent = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    val shownMonth = archive.anchorMonth ?: archive.months.firstOrNull()
-    val label = if (active && !archive.isSearching && shownMonth != null) shortMonthLabel(shownMonth)
-    else stringResource(Res.string.insights_archive_label)
+    val currentMonth = remember { currentLogMonth() }
+    val shownMonth = archiveChipMonth(
+        active = active,
+        searching = archive.isSearching,
+        visibleMonth = visibleMonth,
+        anchorMonth = archive.anchorMonth,
+        latestMonth = archive.months.firstOrNull(),
+        currentMonth = currentMonth
+    )
+    val label = shownMonth?.let { shortMonthLabel(it) } ?: stringResource(Res.string.insights_archive_label)
     Box {
         Row(
             modifier = Modifier
@@ -214,13 +231,26 @@ private fun ArchiveMonthButton(archive: UserLogArchiveState) {
                     tint = if (active) accent else muted.copy(alpha = 0.75f)
                 )
             }
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
-                color = if (active) accent else muted,
-                maxLines = 1
-            )
+            AnimatedContent(
+                targetState = ChipLabel(shownMonth, label),
+                transitionSpec = {
+                    val older = targetState.order < initialState.order
+                    val enterFrom = if (older) -1 else 1
+                    (slideInVertically { it * enterFrom } + fadeIn(tween(CHIP_FADE_MS))) togetherWith
+                            (slideOutVertically { -it * enterFrom } + fadeOut(tween(CHIP_FADE_MS))) using
+                            SizeTransform(clip = true)
+                },
+                contentAlignment = Alignment.Center,
+                label = "archiveChipMonth"
+            ) { chip ->
+                Text(
+                    chip.text,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (active) accent else muted,
+                    maxLines = 1
+                )
+            }
             if (active) {
                 ChatoneIconButton(onClick = archive::close, modifier = Modifier.size(18.dp)) {
                     Icon(
@@ -332,6 +362,31 @@ private fun ArchiveMenuRow(
         }
         Text(text, style = MaterialTheme.typography.bodySmall, color = tint, maxLines = 1)
     }
+}
+
+internal fun archiveChipMonth(
+    active: Boolean,
+    searching: Boolean,
+    visibleMonth: LogMonth?,
+    anchorMonth: LogMonth?,
+    latestMonth: LogMonth?,
+    currentMonth: LogMonth
+): LogMonth? = when {
+    searching -> null
+    visibleMonth != null && (active || visibleMonth != currentMonth) -> visibleMonth
+    active -> anchorMonth ?: latestMonth
+    else -> null
+}
+
+private data class ChipLabel(val month: LogMonth?, val text: String) {
+    val order: Int get() = month?.let { it.year * 12 + it.month } ?: Int.MAX_VALUE
+}
+
+private const val CHIP_FADE_MS = 160
+
+private fun currentLogMonth(): LogMonth {
+    val date = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    return LogMonth(date.year, date.month.ordinal + 1)
 }
 
 @Composable
